@@ -74,7 +74,7 @@
         "Kabarcıklı"
       ]
     },
-    "updated_at": "2026-02-25T12:29:55.738Z",
+    "updated_at": "2026-02-25T14:18:17.171Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -273,6 +273,20 @@
         "isBubble": true,
         "created_at": "2026-02-23T17:26:04.652Z",
         "updated_at": "2026-02-23T17:26:48.643Z"
+      },
+      {
+        "id": "a70f53df-75ff-4545-9f1f-f1e79e9f1210",
+        "unitId": "u2",
+        "category": "ROD",
+        "name": "Ø20 Çubuk",
+        "diameter": "20",
+        "length": "350",
+        "color": "Şeffaf",
+        "quantity": 100,
+        "targetStock": 120,
+        "address": "jgfhj",
+        "isBubble": true,
+        "created_at": "2026-02-25T14:18:17.171Z"
       }
     ],
     "aluminumProfiles": [
@@ -574,6 +588,20 @@
         "cutLengthMm": 321,
         "customAttachment": null,
         "created_at": "2026-02-24T17:40:48.974Z"
+      }
+    ],
+    "plexiPolishCards": [
+      {
+        "id": "7d8ba22f-e307-4284-9c91-629da9268b34",
+        "unitId": "u5",
+        "cardCode": "PLSJ-000001",
+        "processName": "dikme polisaj",
+        "firePolish": true,
+        "brushPolish": true,
+        "ovenMinutes": 320,
+        "note": "ortalarında çizgi oluyor  zımparala",
+        "created_at": "2026-02-25T14:15:32.317Z",
+        "updated_at": "2026-02-25T14:15:32.317Z"
       }
     ]
   }

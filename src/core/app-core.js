@@ -35,7 +35,8 @@ const DB = {
             machines: [],
             inventory: [],
             aluminumProfiles: [],
-            cncCards: []
+            cncCards: [],
+            plexiPolishCards: []
         }
     },
     saveTimeout: null,
@@ -61,6 +62,7 @@ const DB = {
         if (!Array.isArray(d.inventory)) d.inventory = [];
         if (!Array.isArray(d.aluminumProfiles)) d.aluminumProfiles = [];
         if (!Array.isArray(d.cncCards)) d.cncCards = [];
+        if (!Array.isArray(d.plexiPolishCards)) d.plexiPolishCards = [];
 
         if (Array.isArray(d.productCategories)) {
             const seen = new Set();
@@ -257,7 +259,7 @@ const Router = {
     back: () => {
         // Module-internal navigation first
         if (Router.currentPage === 'units' && UnitModule.state.view !== 'list') {
-            if (['machines', 'stock', 'personnel', 'cncLibrary', 'sawCut'].includes(UnitModule.state.view)) UnitModule.state.view = 'dashboard';
+            if (['machines', 'stock', 'personnel', 'cncLibrary', 'sawCut', 'plexiLibrary'].includes(UnitModule.state.view)) UnitModule.state.view = 'dashboard';
             else UnitModule.state.view = 'list';
             UI.renderCurrentPage();
             return;

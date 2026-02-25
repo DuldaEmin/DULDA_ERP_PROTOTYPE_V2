@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | unitLibraryEmpty
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | unitLibraryEmpty
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -24,7 +24,17 @@ const UnitModule = {
         sawNote: '',
         sawFormOpen: false,
         sawEditingId: null,
-        sawDraftAttachment: null
+        sawDraftAttachment: null,
+        plexiSearchName: '',
+        plexiSearchId: '',
+        plexiSelectedId: null,
+        plexiFormOpen: false,
+        plexiEditingId: null,
+        plexiProcessName: '',
+        plexiUseFire: false,
+        plexiUseBrush: false,
+        plexiOvenMinutes: '',
+        plexiNote: ''
     },
 
     render: (container) => {
@@ -32,6 +42,7 @@ const UnitModule = {
 
         if (!DB.data.data.inventory) DB.data.data.inventory = [];
         if (!DB.data.data.cncCards) DB.data.data.cncCards = [];
+        if (!DB.data.data.plexiPolishCards) DB.data.data.plexiPolishCards = [];
 
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
@@ -88,6 +99,8 @@ const UnitModule = {
             UnitModule.renderCncLibrary(container, activeUnitId);
         } else if (view === 'sawCut') {
             UnitModule.renderSawCut(container, activeUnitId);
+        } else if (view === 'plexiLibrary') {
+            UnitModule.renderPlexiLibrary(container, activeUnitId);
         } else if (view === 'unitLibraryEmpty') {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         }
@@ -137,6 +150,21 @@ const UnitModule = {
         UnitModule.state.sawDraftAttachment = null;
         UI.renderCurrentPage();
     },
+    openPlexiLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'plexiLibrary';
+        UnitModule.state.plexiSearchName = '';
+        UnitModule.state.plexiSearchId = '';
+        UnitModule.state.plexiSelectedId = null;
+        UnitModule.state.plexiFormOpen = false;
+        UnitModule.state.plexiEditingId = null;
+        UnitModule.state.plexiProcessName = '';
+        UnitModule.state.plexiUseFire = false;
+        UnitModule.state.plexiUseBrush = false;
+        UnitModule.state.plexiOvenMinutes = '';
+        UnitModule.state.plexiNote = '';
+        UI.renderCurrentPage();
+    },
     openUnitLibrary: (id) => {
         const unit = (DB.data.data.units || []).find(u => u.id === id);
         const unitName = String(unit?.name || '').toUpperCase();
@@ -146,6 +174,10 @@ const UnitModule = {
         }
         if (unitName.includes('TESTERE')) {
             UnitModule.openSawCut(id);
+            return;
+        }
+        if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ') || unitName.includes('POLİSAJ')) {
+            UnitModule.openPlexiLibrary(id);
             return;
         }
         UnitModule.state.activeUnitId = id;
@@ -841,6 +873,300 @@ const UnitModule = {
         if (!dataUrl) return alert('PDF verisi bulunamadi.');
         const opened = window.open(dataUrl, '_blank');
         if (!opened) alert('Tarayici acilir pencereyi engelledi.');
+    },
+    renderPlexiLibrary: (container, unitId) => {
+        const unit = DB.data.data.units.find(u => u.id === unitId);
+        if (!Array.isArray(DB.data.data.plexiPolishCards)) DB.data.data.plexiPolishCards = [];
+        const showForm = UnitModule.state.plexiFormOpen || !!UnitModule.state.plexiEditingId;
+        const canDelete = UnitModule.canManageUnitCodes();
+
+        const cards = (DB.data.data.plexiPolishCards || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+        const qName = String(UnitModule.state.plexiSearchName || '').trim().toLowerCase();
+        const qId = String(UnitModule.state.plexiSearchId || '').trim().toLowerCase();
+        const filtered = cards.filter(row => {
+            const nameOk = !qName || String(row.processName || '').toLowerCase().includes(qName);
+            const idOk = !qId
+                || String(row.cardCode || '').toLowerCase().includes(qId)
+                || String(row.id || '').toLowerCase().includes(qId);
+            return nameOk && idOk;
+        });
+
+        const editing = UnitModule.state.plexiEditingId
+            ? cards.find(x => x.id === UnitModule.state.plexiEditingId)
+            : null;
+        const draftCode = editing?.cardCode || UnitModule.generatePlexiCardCode();
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
+                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Islem envanteri</div>
+                        </div>
+                    </div>
+                    <button onclick="UnitModule.togglePlexiForm()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Yeni islem ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="plexi_search_name" value="${UnitModule.escapeHtml(UnitModule.state.plexiSearchName || '')}" oninput="UnitModule.setPlexiListFilter('name', this.value, 'plexi_search_name')" placeholder="islem adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="plexi_search_id" value="${UnitModule.escapeHtml(UnitModule.state.plexiSearchId || '')}" oninput="UnitModule.setPlexiListFilter('id', this.value, 'plexi_search_id')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                    </div>
+                    <div id="plexi_list_block" class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Islem adi</th>
+                                    <th style="padding:0.65rem; text-align:center;">Ates</th>
+                                    <th style="padding:0.65rem; text-align:center;">Firca</th>
+                                    <th style="padding:0.65rem; text-align:center;">Firin (dk)</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:center;">
+                                            <span style="display:inline-block; min-width:48px; border:1px solid ${row.firePolish ? '#22c55e' : '#cbd5e1'}; background:${row.firePolish ? '#dcfce7' : 'white'}; color:${row.firePolish ? '#166534' : '#64748b'}; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.73rem; font-weight:700;">${row.firePolish ? 'Var' : '-'}</span>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:center;">
+                                            <span style="display:inline-block; min-width:48px; border:1px solid ${row.brushPolish ? '#22c55e' : '#cbd5e1'}; background:${row.brushPolish ? '#dcfce7' : 'white'}; color:${row.brushPolish ? '#166534' : '#64748b'}; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.73rem; font-weight:700;">${row.brushPolish ? 'Var' : '-'}</span>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:center; font-weight:700; color:#0f766e;">${Number.isFinite(Number(row.ovenMinutes)) ? Number(row.ovenMinutes) : '-'}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.editPlexiRow('${row.id}')" class="btn-sm">duzenle</button>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.selectPlexiRow('${row.id}')" class="btn-sm" style="${UnitModule.state.plexiSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.deletePlexiRow('${row.id}')" class="btn-sm" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">sil</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="plexi_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <strong>${editing ? 'Islem duzenle' : 'Yeni islem olustur'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="UnitModule.resetPlexiDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="UnitModule.savePlexiRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 7;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">islem adi (opsiyonel)</label>
+                                <input id="plexi_process_name" value="${UnitModule.escapeHtml(UnitModule.state.plexiProcessName || '')}" oninput="UnitModule.state.plexiProcessName=this.value" placeholder="atesle parlatma" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
+                                <input id="plexi_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
+                            </div>
+                            <div style="grid-column:span 2;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">firin (dk)</label>
+                                <input id="plexi_oven_min" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.plexiOvenMinutes || ''))}" oninput="UnitModule.state.plexiOvenMinutes=this.value" placeholder="dk" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:0.55rem; margin-top:0.75rem; flex-wrap:wrap;">
+                            <button onclick="UnitModule.togglePlexiFlag('fire')" style="border:1px solid ${UnitModule.state.plexiUseFire ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseFire ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseFire ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">atesle polisaj ${UnitModule.state.plexiUseFire ? '✓' : '+'}</button>
+                            <button onclick="UnitModule.togglePlexiFlag('brush')" style="border:1px solid ${UnitModule.state.plexiUseBrush ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseBrush ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseBrush ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">firca ile polisaj ${UnitModule.state.plexiUseBrush ? '✓' : '+'}</button>
+                        </div>
+
+                        <div style="margin-top:0.7rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
+                            <textarea id="plexi_note" rows="4" oninput="UnitModule.state.plexiNote=this.value" placeholder="not ekle" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.plexiNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        // UI rule: form always opens above list rows.
+        if (showForm) {
+            const formEl = document.getElementById('plexi_form_block');
+            const listEl = document.getElementById('plexi_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
+    },
+    setPlexiListFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.plexiSearchName = value || '';
+        if (field === 'id') UnitModule.state.plexiSearchId = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    togglePlexiForm: () => {
+        if (UnitModule.state.plexiFormOpen || UnitModule.state.plexiEditingId) {
+            UnitModule.resetPlexiDraft(false);
+            return;
+        }
+        UnitModule.state.plexiFormOpen = true;
+        UnitModule.state.plexiEditingId = null;
+        UnitModule.state.plexiProcessName = '';
+        UnitModule.state.plexiUseFire = false;
+        UnitModule.state.plexiUseBrush = false;
+        UnitModule.state.plexiOvenMinutes = '';
+        UnitModule.state.plexiNote = '';
+        UI.renderCurrentPage();
+    },
+    togglePlexiFlag: (flag) => {
+        if (flag === 'fire') UnitModule.state.plexiUseFire = !UnitModule.state.plexiUseFire;
+        if (flag === 'brush') UnitModule.state.plexiUseBrush = !UnitModule.state.plexiUseBrush;
+        UI.renderCurrentPage();
+    },
+    selectPlexiRow: (id) => {
+        UnitModule.state.plexiSelectedId = id;
+        UI.renderCurrentPage();
+    },
+    editPlexiRow: (id) => {
+        const row = (DB.data.data.plexiPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        UnitModule.state.plexiFormOpen = true;
+        UnitModule.state.plexiEditingId = id;
+        UnitModule.state.plexiSelectedId = id;
+        UnitModule.state.plexiProcessName = row.processName || '';
+        UnitModule.state.plexiUseFire = !!row.firePolish;
+        UnitModule.state.plexiUseBrush = !!row.brushPolish;
+        UnitModule.state.plexiOvenMinutes = Number.isFinite(Number(row.ovenMinutes)) ? String(row.ovenMinutes) : '';
+        UnitModule.state.plexiNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+    savePlexiRow: async (unitId) => {
+        const processName = String(UnitModule.state.plexiProcessName || '').trim();
+        const firePolish = !!UnitModule.state.plexiUseFire;
+        const brushPolish = !!UnitModule.state.plexiUseBrush;
+        const ovenRaw = String(UnitModule.state.plexiOvenMinutes || '').trim();
+        const note = String(UnitModule.state.plexiNote || '').trim();
+
+        let ovenMinutes = null;
+        if (ovenRaw !== '') {
+            ovenMinutes = Number(ovenRaw);
+            if (!Number.isFinite(ovenMinutes) || ovenMinutes < 0) {
+                alert('Firin suresi sayi olmali.');
+                return;
+            }
+        }
+
+        if (!processName && !firePolish && !brushPolish && ovenMinutes === null && !note) {
+            alert('En az bir alan doldurun.');
+            return;
+        }
+
+        if (!Array.isArray(DB.data.data.plexiPolishCards)) DB.data.data.plexiPolishCards = [];
+        const all = DB.data.data.plexiPolishCards;
+        const now = new Date().toISOString();
+
+        if (UnitModule.state.plexiEditingId) {
+            const row = all.find(x => x.id === UnitModule.state.plexiEditingId);
+            if (!row) return;
+            row.processName = processName || '';
+            row.firePolish = firePolish;
+            row.brushPolish = brushPolish;
+            row.ovenMinutes = ovenMinutes;
+            row.note = note || '';
+            row.updated_at = now;
+            UnitModule.state.plexiSelectedId = row.id;
+        } else {
+            const rowId = crypto.randomUUID();
+            all.push({
+                id: rowId,
+                unitId,
+                cardCode: UnitModule.generatePlexiCardCode(),
+                processName: processName || '',
+                firePolish,
+                brushPolish,
+                ovenMinutes,
+                note: note || '',
+                created_at: now,
+                updated_at: now
+            });
+            UnitModule.state.plexiSelectedId = rowId;
+        }
+
+        await DB.save();
+        UnitModule.resetPlexiDraft(false);
+    },
+    deletePlexiRow: async (id) => {
+        if (!UnitModule.canManageUnitCodes()) {
+            alert('Silme yetkisi sadece birim admin veya super admin icindir.');
+            return;
+        }
+        const row = (DB.data.data.plexiPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        if (!confirm(`"${row.cardCode || 'Kayit'}" silinsin mi?`)) return;
+
+        DB.data.data.plexiPolishCards = (DB.data.data.plexiPolishCards || []).filter(x => x.id !== id);
+        if (UnitModule.state.plexiSelectedId === id) UnitModule.state.plexiSelectedId = null;
+        if (UnitModule.state.plexiEditingId === id) UnitModule.resetPlexiDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    resetPlexiDraft: (keepOpen = false) => {
+        UnitModule.state.plexiFormOpen = !!keepOpen;
+        UnitModule.state.plexiEditingId = null;
+        UnitModule.state.plexiProcessName = '';
+        UnitModule.state.plexiUseFire = false;
+        UnitModule.state.plexiUseBrush = false;
+        UnitModule.state.plexiOvenMinutes = '';
+        UnitModule.state.plexiNote = '';
+        UI.renderCurrentPage();
+    },
+    generatePlexiCardCode: () => {
+        const all = DB.data.data.plexiPolishCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            const code = String(row?.cardCode || '').toUpperCase();
+            const match = code.match(/^PLSJ-(\d{1,12})$/);
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        const next = String(maxNum + 1).padStart(6, '0');
+        return `PLSJ-${next}`;
+    },
+    canManageUnitCodes: () => {
+        const role = String(DB.data?.meta?.activeRole || 'super-admin').toLowerCase();
+        if (role === 'super-admin') return true;
+        if (role === 'birim-admin' || role === 'unit-admin') return true;
+        if (role === 'birim_admin' || role === 'unit_admin') return true;
+        return role.includes('admin') && (role.includes('birim') || role.includes('unit'));
+    },
+    escapeHtml: (value) => {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     },
 
     renderMachineList: (container, unitId) => {

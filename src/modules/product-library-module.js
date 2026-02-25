@@ -4,6 +4,17 @@ const ProductLibraryModule = {
         extruderTab: 'ROD', // ROD | PIPE
         filters: { dia: '', len: '', thick: '', color: '', bubble: false },
         hardwareFilters: { shape: '', dia: '', len: '', mat: '' }, // New filters for Hardware
+        boxSearchName: '',
+        boxSearchSize: '',
+        boxFormOpen: false,
+        boxEditingId: null,
+        boxSelectedId: null,
+        boxDraftName: '',
+        boxDraftWidth: '',
+        boxDraftLength: '',
+        boxDraftHeight: '',
+        boxDraftPrint: 'YAZISIZ',
+        boxDraftNote: '',
         editingProductId: null,
         isFormVisible: false // New State
     },
@@ -16,7 +27,8 @@ const ProductLibraryModule = {
             DB.data.data.productCategories = [
                 { id: 'cat1', name: 'Alüminyum profil', icon: '🏗️' },
                 { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩' },
-                { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' }
+                { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' },
+                { id: 'cat_box', name: 'Koli', icon: '[ ]' }
             ];
         }
 
@@ -42,6 +54,15 @@ const ProductLibraryModule = {
                 DB.data.data.productCategories.push({ id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' });
             }
         }
+
+        // Ensure box category exists.
+        const hasBox = (DB.data.data.productCategories || []).some(c =>
+            c.id === 'cat_box' || String(c.name || '').toLowerCase().includes('koli')
+        );
+        if (!hasBox) {
+            DB.data.data.productCategories.push({ id: 'cat_box', name: 'Koli', icon: '??' });
+        }
+
 
         if (ProductLibraryModule.state.activeCategory) {
             ProductLibraryModule.renderCategoryDetail(container);
@@ -114,7 +135,15 @@ const ProductLibraryModule = {
         if (category.name.toLowerCase().includes('hırdavat') || category.name.toLowerCase().includes('vida') || category.id === 'cat3') {
             ProductLibraryModule.renderHardwarePage(container);
             return;
-        } container.innerHTML = `
+        }
+
+        // --- BOX MODULE ROUTING ---
+        if (category.id === 'cat_box' || category.name.toLowerCase().includes('koli')) {
+            ProductLibraryModule.renderBoxPage(container);
+            return;
+        }
+
+        container.innerHTML = `
             <div style="max-width:1100px; margin:0 auto; font-family: 'Inter', sans-serif;">
                 <!-- Header -->
                 <div style="text-align:center; margin-bottom:3rem; position:relative">
@@ -1062,6 +1091,9 @@ const ProductLibraryModule = {
         }, 100);
     }
 };
+
+
+
 
 
 

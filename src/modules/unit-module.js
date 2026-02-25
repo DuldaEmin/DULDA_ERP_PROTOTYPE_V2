@@ -987,10 +987,11 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
@@ -1005,6 +1006,9 @@ const UnitModule = {
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="UnitModule.selectExtruderRow('${row.id}')" class="btn-sm" style="${UnitModule.state.extruderSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.deleteExtruderRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -1239,6 +1243,17 @@ const UnitModule = {
 
         await DB.save();
         UnitModule.resetExtruderDraft(false);
+    },
+    deleteExtruderRow: async (id) => {
+        const row = (DB.data.data.extruderLibraryCards || []).find(x => x.id === id);
+        if (!row) return;
+        if (!confirm(`"${row.cardCode || 'Kayit'}" silinsin mi?`)) return;
+
+        DB.data.data.extruderLibraryCards = (DB.data.data.extruderLibraryCards || []).filter(x => x.id !== id);
+        if (UnitModule.state.extruderSelectedId === id) UnitModule.state.extruderSelectedId = null;
+        if (UnitModule.state.extruderEditingId === id) UnitModule.resetExtruderDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
     },
     resetExtruderDraft: (keepOpen = false) => {
         UnitModule.state.extruderFormOpen = !!keepOpen;

@@ -257,6 +257,11 @@ const Router = {
         if (!skipHistory && !fromBack && Router.currentPage && Router.currentPage !== pageId) {
             Router.history.push(Router.currentPage);
         }
+        // Fresh open rule: entering Units from another page should start at unit list.
+        if (pageId === 'units' && Router.currentPage !== 'units' && !fromBack) {
+            UnitModule.state.view = 'list';
+            UnitModule.state.activeUnitId = null;
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },

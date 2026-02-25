@@ -135,15 +135,6 @@ const UnitModule = {
         UnitModule.state.sawDraftAttachment = null;
         UI.renderCurrentPage();
     },
-    openUnitLibrary: (id) => {
-        const unit = (DB.data.data.units || []).find(u => u.id === id);
-        const unitName = String(unit?.name || '').toUpperCase();
-        if (unitName.includes('TESTERE')) {
-            UnitModule.openSawCut(id);
-            return;
-        }
-        UnitModule.openCncLibrary(id);
-    },
     setStockTab: (t) => { UnitModule.state.stockTab = t; UI.renderCurrentPage(); },
 
 
@@ -182,25 +173,16 @@ const UnitModule = {
     renderUnitDashboard: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
         const isExternalUnit = unit?.type === 'external';
-        const productLibraryCard = `
-            <a href="#" onclick="UnitModule.openUnitLibrary('${unitId}')" class="app-card">
-                <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
-                <div class="app-name">Ürün Kütüphanesi</div>
-            </a>
-        `;
-
+        const isCncUnit = String(unit?.name || '').toUpperCase().includes('CNC');
+        const isSawUnit = String(unit?.name || '').toUpperCase().includes('TESTERE');
         if (isExternalUnit) {
             container.innerHTML = `
                 <div class="page-header">
                      <h2 class="page-title">${unit.name}</h2>
                 </div>
-                <div class="apps-grid">
-                    ${productLibraryCard}
-                </div>
             `;
             return;
         }
-
         container.innerHTML = `
             <div class="page-header">
                  <h2 class="page-title">${unit.name}</h2>
@@ -218,7 +200,18 @@ const UnitModule = {
                     <div class="icon-box g-emerald"><i data-lucide="package" width="40" height="40"></i></div>
                     <div class="app-name">Birim Stoğu</div>
                 </a>
-                ${productLibraryCard}
+                ${isCncUnit ? `
+                <a href="#" onclick="UnitModule.openCncLibrary('${unitId}')" class="app-card">
+                    <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
+                    <div class="app-name">Ürün Kütüphanesi</div>
+                </a>
+                ` : ''}
+                ${isSawUnit ? `
+                <a href="#" onclick="UnitModule.openSawCut('${unitId}')" class="app-card">
+                    <div class="icon-box" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#047857"><i data-lucide="library" width="40" height="40"></i></div>
+                    <div class="app-name">Ürün Kütüphanesi</div>
+                </a>
+                ` : ''}
             </div>
         `;
     },

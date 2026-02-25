@@ -40,3 +40,4 @@ node .\serve.js 5500
 ## 3) Not
 - Menu, buton, ekran gorunumu mevcut prototiple ayni tutulmustur.
 - Ilk hedef: demo maketi stabil tutup bunun uzerinden gelistirmek.
+- Resmi proje kurallari icin `KURALLAR.md` dosyasina bakiniz.

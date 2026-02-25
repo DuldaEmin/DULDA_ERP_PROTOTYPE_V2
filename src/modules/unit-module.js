@@ -160,8 +160,40 @@ const UnitModule = {
         const internals = units.filter(u => u.type === 'internal');
         const externals = units.filter(u => u.type === 'external');
         const canManage = UnitModule.isSuperAdmin();
-
-        const renderCard = (u, icon) => `
+        const badgeStyles = {
+            u1: { bg: '#dbeafe', fg: '#1d4ed8' },
+            u2: { bg: '#dcfce7', fg: '#15803d' },
+            u3: { bg: '#ede9fe', fg: '#6d28d9' },
+            u4: { bg: '#fee2e2', fg: '#b91c1c' },
+            u5: { bg: '#fce7f3', fg: '#be185d' },
+            u7: { bg: '#fef3c7', fg: '#b45309' },
+            u8: { bg: '#ffedd5', fg: '#c2410c' },
+            u9: { bg: '#ffedd5', fg: '#ea580c' },
+            u10: { bg: '#fed7aa', fg: '#9a3412' },
+            u11: { bg: '#fde68a', fg: '#92400e' },
+        };
+        const getUnitInitials = (name) => {
+            const raw = String(name || '');
+            const words = raw
+                .replace(/[^A-Za-z0-9\u00C7\u011E\u0130\u00D6\u015E\u00DC\u00E7\u011F\u0131\u00F6\u015F\u00FC\s]/g, ' ')
+                .split(/\s+/)
+                .filter(Boolean);
+            const skip = new Set(['AT\u00D6LYES\u0130', 'ATOLYESI', 'A', '\u015E', 'AS']);
+            const filtered = words.filter(w => !skip.has(w.toLocaleUpperCase('tr-TR')));
+            const src = filtered.length > 0 ? filtered : words;
+            if (src.length === 0) return '??';
+            if (src.length === 1) {
+                const w = src[0].toLocaleUpperCase('tr-TR');
+                return (w[0] || '?') + (w[1] || w[0] || '?');
+            }
+            return (src[0][0] + src[1][0]).toLocaleUpperCase('tr-TR');
+        };
+        const renderCard = (u) => {
+            const palette = badgeStyles[u.id] || (u.type === 'internal'
+                ? { bg: '#eff6ff', fg: '#2563eb' }
+                : { bg: '#fff7ed', fg: '#ea580c' });
+            const initials = getUnitInitials(u.name);
+            return `
             <div class="app-card" style="padding:1.5rem; position:relative; cursor:pointer;" onclick="UnitModule.openUnit('${u.id}')">
                 ${canManage ? `
                 <div style="position:absolute; top:0.75rem; right:0.75rem; display:flex; gap:0.35rem;">
@@ -173,27 +205,26 @@ const UnitModule = {
                     </button>
                 </div>
                 ` : ''}
-                <div class="icon-box" style="background:${u.type === 'internal' ? '#eff6ff' : '#fff7ed'}; color:${u.type === 'internal' ? '#2563eb' : '#ea580c'}; padding:0.5rem; border-radius:1rem; margin-bottom:1rem; width:auto; height:auto; "><i data-lucide="${icon}" width="32" height="32"></i></div>
+                <div style="width:3.25rem; height:3.25rem; border-radius:0.95rem; margin:0 auto 1rem; background:${palette.bg}; color:${palette.fg}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; letter-spacing:0.04em; box-shadow:0 8px 16px -10px rgba(15,23,42,0.35); border:1px solid rgba(255,255,255,0.7)">${initials}</div>
                 <div style="font-weight:700; color:#334155; font-size:0.9rem">${u.name}</div>
             </div>
         `;
-
+        };
         container.innerHTML = `
             <div class="page-header"><h2 class="page-title">Birimler</h2></div>
-            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">🏭 İç Birimler</h3>
-            <div class="apps-grid" style="margin-bottom:3rem;">${internals.map(u => renderCard(u, 'hammer')).join('')}</div>
-            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">ğŸšš Dış Birimler</h3>
-            <div class="apps-grid">${externals.map(u => renderCard(u, 'truck')).join('')}</div>
+            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">&#304;&ccedil; Birimler</h3>
+            <div class="apps-grid" style="margin-bottom:3rem;">${internals.map(u => renderCard(u)).join('')}</div>
+            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">D&#305;&#351; Birimler</h3>
+            <div class="apps-grid">${externals.map(u => renderCard(u)).join('')}</div>
         `;
     },
-
     renderUnitDashboard: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
         const isExternalUnit = unit?.type === 'external';
         const productLibraryCard = `
             <a href="#" onclick="UnitModule.openUnitLibrary('${unitId}')" class="app-card">
                 <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
-                <div class="app-name">Ürün Kütüphanesi</div>
+                <div class="app-name">&#220;r&#252;n K&#252;t&#252;phanesi</div>
             </a>
         `;
         if (isExternalUnit) {
@@ -222,7 +253,7 @@ const UnitModule = {
                 </a>
                  <a href="#" onclick="UnitModule.openStock('${unitId}')" class="app-card">
                     <div class="icon-box g-emerald"><i data-lucide="package" width="40" height="40"></i></div>
-                    <div class="app-name">Birim Stoğu</div>
+                    <div class="app-name">Birim Sto&#287;u</div>
                 </a>
                 ${productLibraryCard}
             </div>
@@ -397,7 +428,7 @@ const UnitModule = {
                 <div style="display:flex; align-items:center; gap:1rem">
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> Ürün Kütüphanesi</h2>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
                         <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} • Bu birim için modül henüz tanımlanmadı.</div>
                     </div>
                 </div>
@@ -490,7 +521,7 @@ const UnitModule = {
                 <div style="display:flex; align-items:center; gap:1rem">
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> Ürün Kütüphanesi</h2>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
                         <div style="font-size:0.875rem; color:#64748b">${unit?.name || 'TESTERE'} • Kayitlar burada listelenir</div>
                     </div>
                 </div>

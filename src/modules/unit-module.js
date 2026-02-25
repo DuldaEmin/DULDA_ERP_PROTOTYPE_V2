@@ -564,7 +564,7 @@ const UnitModule = {
             </div>
 
             ${showForm ? `
-            <div id="saw_form_block" style="background:white; border:2px solid #e2e8f0; border-radius:1rem; padding:1rem">
+            <div id="saw_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
                 <div style="display:grid; grid-template-columns: 1fr 300px; gap:1rem; margin-bottom:1rem">
                     <div>
                         <div style="display:flex; gap:0.6rem; margin-bottom:0.6rem">

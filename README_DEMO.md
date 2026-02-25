@@ -40,4 +40,10 @@ node .\serve.js 5500
 ## 3) Not
 - Menu, buton, ekran gorunumu mevcut prototiple ayni tutulmustur.
 - Ilk hedef: demo maketi stabil tutup bunun uzerinden gelistirmek.
-- Resmi proje kurallari icin `KURALLAR.md` dosyasina bakiniz.
+
+## 4) Proje Kurallari
+- Su anki mod demo/prototip gelistirme modudur.
+- Demo stabil ve sorunsuz onayi verildiginde internetten erisilen canli moda gecilir.
+- Uygulama `/api/state` ile veri kaydettigi icin canli ortamda Node.js calisan hosting gerekir.
+- Sadece statik hosting (yalnizca HTML/CSS/JS) tek basina yeterli degildir.
+- GitHub otomatik yedekleme gorevi 15 dakikada bir degisiklik varsa commit+push yapar.

@@ -36,7 +36,8 @@ const DB = {
             inventory: [],
             aluminumProfiles: [],
             cncCards: [],
-            plexiPolishCards: []
+            plexiPolishCards: [],
+            extruderLibraryCards: []
         }
     },
     saveTimeout: null,
@@ -63,6 +64,7 @@ const DB = {
         if (!Array.isArray(d.aluminumProfiles)) d.aluminumProfiles = [];
         if (!Array.isArray(d.cncCards)) d.cncCards = [];
         if (!Array.isArray(d.plexiPolishCards)) d.plexiPolishCards = [];
+        if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
 
         if (Array.isArray(d.productCategories)) {
             const seen = new Set();
@@ -91,6 +93,8 @@ const DB = {
                 "inventory",
                 "aluminumProfiles",
                 "cncCards",
+                "plexiPolishCards",
+                "extruderLibraryCards",
                 "suppliers",
                 "productCategories",
                 "personnel"
@@ -259,7 +263,7 @@ const Router = {
     back: () => {
         // Module-internal navigation first
         if (Router.currentPage === 'units' && UnitModule.state.view !== 'list') {
-            if (['machines', 'stock', 'personnel', 'cncLibrary', 'sawCut', 'plexiLibrary'].includes(UnitModule.state.view)) UnitModule.state.view = 'dashboard';
+            if (['machines', 'stock', 'personnel', 'cncLibrary', 'sawCut', 'plexiLibrary', 'extruderLibrary'].includes(UnitModule.state.view)) UnitModule.state.view = 'dashboard';
             else UnitModule.state.view = 'list';
             UI.renderCurrentPage();
             return;

@@ -74,7 +74,7 @@
         "Kabarcıklı"
       ]
     },
-    "updated_at": "2026-02-25T14:18:17.171Z",
+    "updated_at": "2026-02-25T14:45:46.177Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -602,6 +602,53 @@
         "note": "ortalarında çizgi oluyor  zımparala",
         "created_at": "2026-02-25T14:15:32.317Z",
         "updated_at": "2026-02-25T14:15:32.317Z"
+      }
+    ],
+    "extruderLibraryCards": [
+      {
+        "id": "f5f53f49-926f-4fda-98ea-cfc44274c676",
+        "unitId": "u2",
+        "cardCode": "EKS-000001",
+        "kind": "ROD",
+        "productName": "O50 Cubuk",
+        "diameterMm": 50,
+        "thicknessMm": 2,
+        "lengthMm": 200,
+        "color": "Beyaz",
+        "isBubble": false,
+        "note": "İNCE KABARCIK",
+        "created_at": "2026-02-25T14:44:15.233Z",
+        "updated_at": "2026-02-25T14:44:15.233Z"
+      },
+      {
+        "id": "d379faa9-1b2e-4239-810e-bf9fd36b13ce",
+        "unitId": "u2",
+        "cardCode": "EKS-000002",
+        "kind": "PIPE",
+        "productName": "O200 Boru",
+        "diameterMm": 200,
+        "thicknessMm": 50,
+        "lengthMm": 245,
+        "color": "Şeffaf",
+        "isBubble": false,
+        "note": "GSFDGHFDS",
+        "created_at": "2026-02-25T14:44:41.135Z",
+        "updated_at": "2026-02-25T14:44:41.135Z"
+      },
+      {
+        "id": "76c05b57-8689-47f4-8fef-4f0b6f65f26c",
+        "unitId": "u2",
+        "cardCode": "EKS-000003",
+        "kind": "ROD",
+        "productName": "O125 Cubuk",
+        "diameterMm": 125,
+        "thicknessMm": null,
+        "lengthMm": 238,
+        "color": "Şeffaf",
+        "isBubble": true,
+        "note": "JKFHJKHGJK",
+        "created_at": "2026-02-25T14:45:46.177Z",
+        "updated_at": "2026-02-25T14:45:46.177Z"
       }
     ]
   }

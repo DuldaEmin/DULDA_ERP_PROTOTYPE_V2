@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | unitLibraryEmpty
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | extruderLibrary | unitLibraryEmpty
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -34,7 +34,21 @@ const UnitModule = {
         plexiUseFire: false,
         plexiUseBrush: false,
         plexiOvenMinutes: '',
-        plexiNote: ''
+        plexiNote: '',
+        extruderSearchName: '',
+        extruderSearchCode: '',
+        extruderSearchType: 'ALL',
+        extruderSelectedId: null,
+        extruderFormOpen: false,
+        extruderEditingId: null,
+        extruderDraftType: 'ROD',
+        extruderDraftName: '',
+        extruderDraftDia: '',
+        extruderDraftThick: '',
+        extruderDraftLen: '',
+        extruderDraftColor: '',
+        extruderDraftBubble: false,
+        extruderDraftNote: ''
     },
 
     render: (container) => {
@@ -43,6 +57,7 @@ const UnitModule = {
         if (!DB.data.data.inventory) DB.data.data.inventory = [];
         if (!DB.data.data.cncCards) DB.data.data.cncCards = [];
         if (!DB.data.data.plexiPolishCards) DB.data.data.plexiPolishCards = [];
+        if (!DB.data.data.extruderLibraryCards) DB.data.data.extruderLibraryCards = [];
 
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
@@ -101,6 +116,8 @@ const UnitModule = {
             UnitModule.renderSawCut(container, activeUnitId);
         } else if (view === 'plexiLibrary') {
             UnitModule.renderPlexiLibrary(container, activeUnitId);
+        } else if (view === 'extruderLibrary') {
+            UnitModule.renderExtruderLibrary(container, activeUnitId);
         } else if (view === 'unitLibraryEmpty') {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         }
@@ -165,11 +182,34 @@ const UnitModule = {
         UnitModule.state.plexiNote = '';
         UI.renderCurrentPage();
     },
+    openExtruderLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'extruderLibrary';
+        UnitModule.state.extruderSearchName = '';
+        UnitModule.state.extruderSearchCode = '';
+        UnitModule.state.extruderSearchType = 'ALL';
+        UnitModule.state.extruderSelectedId = null;
+        UnitModule.state.extruderFormOpen = false;
+        UnitModule.state.extruderEditingId = null;
+        UnitModule.state.extruderDraftType = 'ROD';
+        UnitModule.state.extruderDraftName = '';
+        UnitModule.state.extruderDraftDia = '';
+        UnitModule.state.extruderDraftThick = '';
+        UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftBubble = false;
+        UnitModule.state.extruderDraftNote = '';
+        UI.renderCurrentPage();
+    },
     openUnitLibrary: (id) => {
         const unit = (DB.data.data.units || []).find(u => u.id === id);
         const unitName = String(unit?.name || '').toUpperCase();
         if (unitName.includes('CNC')) {
             UnitModule.openCncLibrary(id);
+            return;
+        }
+        if (id === 'u2' || unitName.includes('EKSTR')) {
+            UnitModule.openExtruderLibrary(id);
             return;
         }
         if (unitName.includes('TESTERE')) {
@@ -873,6 +913,353 @@ const UnitModule = {
         if (!dataUrl) return alert('PDF verisi bulunamadi.');
         const opened = window.open(dataUrl, '_blank');
         if (!opened) alert('Tarayici acilir pencereyi engelledi.');
+    },
+    renderExtruderLibrary: (container, unitId) => {
+        const unit = DB.data.data.units.find(u => u.id === unitId);
+        if (!Array.isArray(DB.data.data.extruderLibraryCards)) DB.data.data.extruderLibraryCards = [];
+        if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
+        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Seffaf', 'Beyaz', 'Siyah', 'Antrasit'];
+        const colors = DB.data.data.unitColors[unitId] || [];
+        const showForm = UnitModule.state.extruderFormOpen || !!UnitModule.state.extruderEditingId;
+
+        const cards = (DB.data.data.extruderLibraryCards || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+        const qName = String(UnitModule.state.extruderSearchName || '').trim().toLowerCase();
+        const qCode = String(UnitModule.state.extruderSearchCode || '').trim().toLowerCase();
+        const qType = String(UnitModule.state.extruderSearchType || 'ALL');
+        const filtered = cards.filter(row => {
+            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
+            const codeOk = !qCode
+                || String(row.cardCode || '').toLowerCase().includes(qCode)
+                || String(row.id || '').toLowerCase().includes(qCode);
+            const typeOk = qType === 'ALL' || String(row.kind || '') === qType;
+            return nameOk && codeOk && typeOk;
+        });
+
+        const editing = UnitModule.state.extruderEditingId
+            ? cards.find(x => x.id === UnitModule.state.extruderEditingId)
+            : null;
+        const draftCode = editing?.cardCode || UnitModule.generateExtruderCardCode();
+        const draftType = String(UnitModule.state.extruderDraftType || 'ROD');
+        const typeLabel = (kind) => kind === 'PIPE' ? 'BORU' : (kind === 'PROFILE' ? 'OZEL PROFIL' : 'CUBUK');
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
+                                <i data-lucide="library" color="#1d4ed8"></i> Ekstruder Urun Kutuphanesi
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''}</div>
+                        </div>
+                    </div>
+                    <button onclick="UnitModule.toggleExtruderForm()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="ext_search_name" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchName || '')}" oninput="UnitModule.setExtruderListFilter('name', this.value, 'ext_search_name')" placeholder="urun ismi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="ext_search_code" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchCode || '')}" oninput="UnitModule.setExtruderListFilter('code', this.value, 'ext_search_code')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <select id="ext_search_type" onchange="UnitModule.setExtruderListFilter('type', this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:170px; font-weight:700;">
+                            <option value="ALL" ${qType === 'ALL' ? 'selected' : ''}>Tum tipler</option>
+                            <option value="ROD" ${qType === 'ROD' ? 'selected' : ''}>Cubuk</option>
+                            <option value="PIPE" ${qType === 'PIPE' ? 'selected' : ''}>Boru</option>
+                            <option value="PROFILE" ${qType === 'PROFILE' ? 'selected' : ''}>Ozel Profil</option>
+                        </select>
+                    </div>
+                    <div id="ext_list_block" class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Tip</th>
+                                    <th style="padding:0.65rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.65rem; text-align:center;">Cap</th>
+                                    <th style="padding:0.65rem; text-align:center;">Kalinlik</th>
+                                    <th style="padding:0.65rem; text-align:center;">Boy</th>
+                                    <th style="padding:0.65rem; text-align:center;">Renk</th>
+                                    <th style="padding:0.65rem; text-align:center;">Ozellik</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.diameterMm)) ? Number(row.diameterMm) : '-'}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.thicknessMm)) ? Number(row.thicknessMm) : '-'}</td>
+                                        <td style="padding:0.65rem; text-align:center; font-weight:700; color:#0f766e;">${Number.isFinite(Number(row.lengthMm)) ? Number(row.lengthMm) : '-'}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${UnitModule.escapeHtml(row.color || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${row.isBubble ? '<span style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:700;">Kabarcikli</span>' : '-'}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.editExtruderRow('${row.id}')" class="btn-sm">duzenle</button>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.selectExtruderRow('${row.id}')" class="btn-sm" style="${UnitModule.state.extruderSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="ext_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="UnitModule.resetExtruderDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="UnitModule.saveExtruderRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; gap:0.5rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                            <button onclick="UnitModule.setExtruderDraftType('ROD')" style="border:1px solid ${draftType === 'ROD' ? '#2563eb' : '#cbd5e1'}; background:${draftType === 'ROD' ? '#eff6ff' : 'white'}; color:${draftType === 'ROD' ? '#1d4ed8' : '#334155'}; border-radius:0.55rem; padding:0.4rem 0.8rem; font-weight:700; cursor:pointer;">CUBUK</button>
+                            <button onclick="UnitModule.setExtruderDraftType('PIPE')" style="border:1px solid ${draftType === 'PIPE' ? '#2563eb' : '#cbd5e1'}; background:${draftType === 'PIPE' ? '#eff6ff' : 'white'}; color:${draftType === 'PIPE' ? '#1d4ed8' : '#334155'}; border-radius:0.55rem; padding:0.4rem 0.8rem; font-weight:700; cursor:pointer;">BORU</button>
+                            <button onclick="UnitModule.setExtruderDraftType('PROFILE')" style="border:1px solid ${draftType === 'PROFILE' ? '#2563eb' : '#cbd5e1'}; background:${draftType === 'PROFILE' ? '#eff6ff' : 'white'}; color:${draftType === 'PROFILE' ? '#1d4ed8' : '#334155'}; border-radius:0.55rem; padding:0.4rem 0.8rem; font-weight:700; cursor:pointer;">OZEL PROFIL</button>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                            ${draftType === 'PROFILE' ? `
+                                <div style="grid-column:span 4;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">profil adi *</label>
+                                    <input id="ext_name" value="${UnitModule.escapeHtml(UnitModule.state.extruderDraftName || '')}" oninput="UnitModule.state.extruderDraftName=this.value" placeholder="40x40 kare profil" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                </div>
+                            ` : `
+                                <div style="grid-column:span 2;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">cap (mm) *</label>
+                                    <input id="ext_dia" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.extruderDraftDia || ''))}" oninput="UnitModule.state.extruderDraftDia=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                </div>
+                            `}
+                            ${draftType === 'PIPE' ? `
+                                <div style="grid-column:span 2;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kalinlik (mm) *</label>
+                                    <input id="ext_thick" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.extruderDraftThick || ''))}" oninput="UnitModule.state.extruderDraftThick=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                </div>
+                            ` : ''}
+                            <div style="grid-column:span 2;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">boy (mm) *</label>
+                                <input id="ext_len" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.extruderDraftLen || ''))}" oninput="UnitModule.state.extruderDraftLen=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">renk *</label>
+                                <select id="ext_color" onchange="UnitModule.state.extruderDraftColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                    <option value="">Seciniz</option>
+                                    ${colors.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.extruderDraftColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
+                                <input id="ext_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
+                            </div>
+                        </div>
+
+                        ${draftType === 'ROD' ? `
+                            <div style="margin-top:0.7rem;">
+                                <label style="display:inline-flex; align-items:center; gap:0.45rem; font-size:0.84rem; color:#334155; font-weight:700;">
+                                    <input id="ext_bubble" type="checkbox" ${UnitModule.state.extruderDraftBubble ? 'checked' : ''} onchange="UnitModule.state.extruderDraftBubble=this.checked">
+                                    kabarcikli
+                                </label>
+                            </div>
+                        ` : ''}
+
+                        <div style="margin-top:0.7rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
+                            <textarea id="ext_note" rows="3" oninput="UnitModule.state.extruderDraftNote=this.value" placeholder="not ekle" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.extruderDraftNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        // UI rule: form always opens above list rows.
+        if (showForm) {
+            const formEl = document.getElementById('ext_form_block');
+            const listEl = document.getElementById('ext_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
+    },
+    setExtruderListFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.extruderSearchName = value || '';
+        if (field === 'code') UnitModule.state.extruderSearchCode = value || '';
+        if (field === 'type') UnitModule.state.extruderSearchType = value || 'ALL';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    toggleExtruderForm: () => {
+        if (UnitModule.state.extruderFormOpen || UnitModule.state.extruderEditingId) {
+            UnitModule.resetExtruderDraft(false);
+            return;
+        }
+        UnitModule.state.extruderFormOpen = true;
+        UnitModule.state.extruderEditingId = null;
+        UnitModule.state.extruderDraftType = 'ROD';
+        UnitModule.state.extruderDraftName = '';
+        UnitModule.state.extruderDraftDia = '';
+        UnitModule.state.extruderDraftThick = '';
+        UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftBubble = false;
+        UnitModule.state.extruderDraftNote = '';
+        UI.renderCurrentPage();
+    },
+    setExtruderDraftType: (kind) => {
+        UnitModule.state.extruderDraftType = kind;
+        if (kind !== 'ROD') UnitModule.state.extruderDraftBubble = false;
+        UI.renderCurrentPage();
+    },
+    selectExtruderRow: (id) => {
+        UnitModule.state.extruderSelectedId = id;
+        UI.renderCurrentPage();
+    },
+    editExtruderRow: (id) => {
+        const row = (DB.data.data.extruderLibraryCards || []).find(x => x.id === id);
+        if (!row) return;
+        UnitModule.state.extruderFormOpen = true;
+        UnitModule.state.extruderEditingId = id;
+        UnitModule.state.extruderSelectedId = id;
+        UnitModule.state.extruderDraftType = row.kind || 'ROD';
+        UnitModule.state.extruderDraftName = row.productName || '';
+        UnitModule.state.extruderDraftDia = Number.isFinite(Number(row.diameterMm)) ? String(row.diameterMm) : '';
+        UnitModule.state.extruderDraftThick = Number.isFinite(Number(row.thicknessMm)) ? String(row.thicknessMm) : '';
+        UnitModule.state.extruderDraftLen = Number.isFinite(Number(row.lengthMm)) ? String(row.lengthMm) : '';
+        UnitModule.state.extruderDraftColor = row.color || '';
+        UnitModule.state.extruderDraftBubble = !!row.isBubble;
+        UnitModule.state.extruderDraftNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+    saveExtruderRow: async (unitId) => {
+        const kind = String(UnitModule.state.extruderDraftType || 'ROD');
+        const name = String(UnitModule.state.extruderDraftName || '').trim();
+        const diaRaw = String(UnitModule.state.extruderDraftDia || '').trim();
+        const thickRaw = String(UnitModule.state.extruderDraftThick || '').trim();
+        const lenRaw = String(UnitModule.state.extruderDraftLen || '').trim();
+        const color = String(UnitModule.state.extruderDraftColor || '').trim();
+        const isBubble = !!UnitModule.state.extruderDraftBubble;
+        const note = String(UnitModule.state.extruderDraftNote || '').trim();
+
+        const dia = diaRaw === '' ? null : Number(diaRaw);
+        const thick = thickRaw === '' ? null : Number(thickRaw);
+        const len = lenRaw === '' ? null : Number(lenRaw);
+
+        if (!Number.isFinite(len) || Number(len) <= 0) {
+            alert('Boy (mm) zorunlu ve 0dan buyuk olmali.');
+            return;
+        }
+        if (!color) {
+            alert('Renk seciniz.');
+            return;
+        }
+
+        if (kind === 'PROFILE') {
+            if (!name) {
+                alert('Ozel profil adi zorunlu.');
+                return;
+            }
+        } else if (kind === 'ROD') {
+            if (!Number.isFinite(dia) || Number(dia) <= 0) {
+                alert('Cubuk icin cap zorunlu.');
+                return;
+            }
+        } else if (kind === 'PIPE') {
+            if (!Number.isFinite(dia) || Number(dia) <= 0) {
+                alert('Boru icin cap zorunlu.');
+                return;
+            }
+            if (!Number.isFinite(thick) || Number(thick) <= 0) {
+                alert('Boru icin kalinlik zorunlu.');
+                return;
+            }
+        }
+
+        const productName = kind === 'PROFILE'
+            ? name
+            : `${kind === 'PIPE' ? 'O' + dia + ' Boru' : 'O' + dia + ' Cubuk'}`;
+
+        if (!Array.isArray(DB.data.data.extruderLibraryCards)) DB.data.data.extruderLibraryCards = [];
+        const all = DB.data.data.extruderLibraryCards;
+        const now = new Date().toISOString();
+
+        if (UnitModule.state.extruderEditingId) {
+            const row = all.find(x => x.id === UnitModule.state.extruderEditingId);
+            if (!row) return;
+            row.kind = kind;
+            row.productName = productName;
+            row.diameterMm = Number.isFinite(dia) ? Number(dia) : null;
+            row.thicknessMm = Number.isFinite(thick) ? Number(thick) : null;
+            row.lengthMm = Number(len);
+            row.color = color;
+            row.isBubble = kind === 'ROD' ? isBubble : false;
+            row.note = note || '';
+            row.updated_at = now;
+            UnitModule.state.extruderSelectedId = row.id;
+        } else {
+            const rowId = crypto.randomUUID();
+            all.push({
+                id: rowId,
+                unitId,
+                cardCode: UnitModule.generateExtruderCardCode(),
+                kind,
+                productName,
+                diameterMm: Number.isFinite(dia) ? Number(dia) : null,
+                thicknessMm: Number.isFinite(thick) ? Number(thick) : null,
+                lengthMm: Number(len),
+                color,
+                isBubble: kind === 'ROD' ? isBubble : false,
+                note: note || '',
+                created_at: now,
+                updated_at: now
+            });
+            UnitModule.state.extruderSelectedId = rowId;
+        }
+
+        await DB.save();
+        UnitModule.resetExtruderDraft(false);
+    },
+    resetExtruderDraft: (keepOpen = false) => {
+        UnitModule.state.extruderFormOpen = !!keepOpen;
+        UnitModule.state.extruderEditingId = null;
+        UnitModule.state.extruderDraftType = 'ROD';
+        UnitModule.state.extruderDraftName = '';
+        UnitModule.state.extruderDraftDia = '';
+        UnitModule.state.extruderDraftThick = '';
+        UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftBubble = false;
+        UnitModule.state.extruderDraftNote = '';
+        UI.renderCurrentPage();
+    },
+    generateExtruderCardCode: () => {
+        const all = DB.data.data.extruderLibraryCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            const code = String(row?.cardCode || '').toUpperCase();
+            const match = code.match(/^EKS-(\d{1,12})$/);
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        const next = String(maxNum + 1).padStart(6, '0');
+        return `EKS-${next}`;
     },
     renderPlexiLibrary: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);

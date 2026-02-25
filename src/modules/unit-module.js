@@ -534,7 +534,7 @@ const UnitModule = {
                 <input id="saw_list_len" value="${UnitModule.state.sawSearchLen || ''}" oninput="UnitModule.setSawListFilter('len', this.value, 'saw_list_len')" placeholder="boy ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
             </div>
 
-            <div class="card-table" style="margin-bottom:1rem">
+            <div id="saw_list_block" class="card-table" style="margin-bottom:1rem">
                 <table>
                     <thead>
                         <tr>
@@ -564,7 +564,7 @@ const UnitModule = {
             </div>
 
             ${showForm ? `
-            <div style="background:white; border:2px solid #e2e8f0; border-radius:1rem; padding:1rem">
+            <div id="saw_form_block" style="background:white; border:2px solid #e2e8f0; border-radius:1rem; padding:1rem">
                 <div style="display:grid; grid-template-columns: 1fr 300px; gap:1rem; margin-bottom:1rem">
                     <div>
                         <div style="display:flex; gap:0.6rem; margin-bottom:0.6rem">
@@ -629,6 +629,15 @@ const UnitModule = {
             </div>
             ` : ''}
         `;
+
+        // UI rule: form always opens above list rows.
+        if (showForm) {
+            const formEl = document.getElementById('saw_form_block');
+            const listEl = document.getElementById('saw_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
     },
 
     openSawForm: () => {

@@ -47,3 +47,4 @@ node .\serve.js 5500
 - Uygulama `/api/state` ile veri kaydettigi icin canli ortamda Node.js calisan hosting gerekir.
 - Sadece statik hosting (yalnizca HTML/CSS/JS) tek basina yeterli degildir.
 - GitHub otomatik yedekleme gorevi 15 dakikada bir degisiklik varsa commit+push yapar.
+- UI kaidesi: Urun/varlik ekleme-duzenleme formlari her zaman kayitli satirlarin USTUNDE acilir; acildiginda liste satirlari asagi itilir. Bu prensip tum yeni modullerde zorunludur.

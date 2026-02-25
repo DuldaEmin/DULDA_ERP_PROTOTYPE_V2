@@ -62,7 +62,7 @@ const CncLibraryModule = {
                         <input id="cnc_search_name" value="${CncLibraryModule.escape(CncLibraryModule.state.searchName)}" oninput="CncLibraryModule.setSearch('name', this.value, this.selectionStart)" placeholder="isimle ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
                         <input id="cnc_search_id" value="${CncLibraryModule.escape(CncLibraryModule.state.searchId)}" oninput="CncLibraryModule.setSearch('id', this.value, this.selectionStart)" placeholder="ID / kod ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
                     </div>
-                    <div class="card-table">
+                    <div id="cnc_table_block" class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
                             <thead>
                                 <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
@@ -100,7 +100,7 @@ const CncLibraryModule = {
                 </div>
 
                 ${CncLibraryModule.state.formOpen ? `
-                    <div style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                    <div id="cnc_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editingCard ? 'Kart duzenle' : 'Yeni kart olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
@@ -178,6 +178,15 @@ const CncLibraryModule = {
                 ` : ''}
             </div>
         `;
+
+        // UI rule: form always opens above list rows.
+        if (CncLibraryModule.state.formOpen) {
+            const formEl = document.getElementById('cnc_form_block');
+            const tableEl = document.getElementById('cnc_table_block');
+            if (formEl && tableEl && tableEl.parentElement) {
+                tableEl.parentElement.insertBefore(formEl, tableEl);
+            }
+        }
     },
 
     setSearch: (field, value, caretPos = null) => {

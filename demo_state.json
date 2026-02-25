@@ -72,9 +72,18 @@
       "surfaces": [
         "Kabarcıksız",
         "Kabarcıklı"
+      ],
+      "consumableTypes": [
+        "AMBALAJ",
+        "DIGER",
+        "PMMA",
+        "ZIMPARA"
+      ],
+      "consumableSuppliers": [
+        "ggdfgdgf"
       ]
     },
-    "updated_at": "2026-02-25T16:25:17.765Z",
+    "updated_at": "2026-02-25T16:45:30.255Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -197,6 +206,27 @@
         },
         "created_at": "2026-02-25T15:42:16.831Z",
         "updated_at": "2026-02-25T15:42:16.831Z"
+      },
+      {
+        "id": "b981f88e-20db-4f2c-b209-804225d3178a",
+        "category": "Sarf & Genel Malzeme",
+        "categoryId": "cat_sarf",
+        "type": "CONSUMABLE",
+        "name": "pmma granul",
+        "code": "SRF-000001",
+        "specs": {
+          "subType": "PMMA",
+          "unit": "kg",
+          "brandModel": "mh",
+          "packageInfo": "koli",
+          "suppliers": [
+            "ggdfgdgf"
+          ],
+          "note": "pmma",
+          "imageData": ""
+        },
+        "created_at": "2026-02-25T16:45:30.255Z",
+        "updated_at": "2026-02-25T16:45:30.255Z"
       }
     ],
     "customers": [],
@@ -370,6 +400,11 @@
         "id": "cat_box",
         "name": "Koli",
         "icon": "[ ]"
+      },
+      {
+        "id": "cat_sarf",
+        "name": "Sarf & Genel Malzeme",
+        "icon": "SG"
       }
     ],
     "suppliers": [

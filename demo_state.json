@@ -74,7 +74,7 @@
         "Kabarcıklı"
       ]
     },
-    "updated_at": "2026-02-25T14:58:42.007Z",
+    "updated_at": "2026-02-25T15:42:16.831Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -180,6 +180,23 @@
           "surface": "Kabarcıklı"
         },
         "created_at": "2026-02-24T16:48:51.939Z"
+      },
+      {
+        "id": "8b13ad88-c494-4ae2-a987-ff6561ef73b2",
+        "category": "Koli",
+        "categoryId": "cat_box",
+        "type": "BOX",
+        "name": "dikme kolisi",
+        "code": "KLI-000001",
+        "specs": {
+          "widthMm": 220,
+          "lengthMm": 800,
+          "heightMm": 150,
+          "printType": "YAZILI",
+          "note": ""
+        },
+        "created_at": "2026-02-25T15:42:16.831Z",
+        "updated_at": "2026-02-25T15:42:16.831Z"
       }
     ],
     "customers": [],
@@ -348,6 +365,11 @@
         "id": "cat_ext",
         "name": "Ekstrüder pleksi",
         "icon": "🏭"
+      },
+      {
+        "id": "cat_box",
+        "name": "Koli",
+        "icon": "[ ]"
       }
     ],
     "suppliers": [

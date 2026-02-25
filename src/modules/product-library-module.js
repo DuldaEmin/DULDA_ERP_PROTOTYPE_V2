@@ -60,7 +60,7 @@ const ProductLibraryModule = {
             c.id === 'cat_box' || String(c.name || '').toLowerCase().includes('koli')
         );
         if (!hasBox) {
-            DB.data.data.productCategories.push({ id: 'cat_box', name: 'Koli', icon: '??' });
+            DB.data.data.productCategories.push({ id: 'cat_box', name: 'Koli', icon: '[ ]' });
         }
 
 
@@ -204,6 +204,17 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.activeCategory = id;
         ProductLibraryModule.state.isFormVisible = false;
         ProductLibraryModule.state.filters = { dia: '', len: '', thick: '', color: '', surface: '' };
+        ProductLibraryModule.state.boxSearchName = '';
+        ProductLibraryModule.state.boxSearchSize = '';
+        ProductLibraryModule.state.boxFormOpen = false;
+        ProductLibraryModule.state.boxEditingId = null;
+        ProductLibraryModule.state.boxSelectedId = null;
+        ProductLibraryModule.state.boxDraftName = '';
+        ProductLibraryModule.state.boxDraftWidth = '';
+        ProductLibraryModule.state.boxDraftLength = '';
+        ProductLibraryModule.state.boxDraftHeight = '';
+        ProductLibraryModule.state.boxDraftPrint = 'YAZISIZ';
+        ProductLibraryModule.state.boxDraftNote = '';
         UI.renderCurrentPage();
     },
 
@@ -930,6 +941,286 @@ const ProductLibraryModule = {
         `).join('');
     },
 
+    getBoxProducts: () => {
+        return (DB.data.data.products || []).filter(p =>
+            p.categoryId === 'cat_box' || String(p.category || '').toLowerCase() === 'koli'
+        );
+    },
+
+    parseBoxSizeQuery: (query) => {
+        const raw = String(query || '').trim();
+        if (!raw) return null;
+        const parts = raw.split(',').map(x => x.trim()).filter(Boolean);
+        if (parts.length !== 3) return null;
+        const nums = parts.map(x => Number(x));
+        if (nums.some(n => !Number.isFinite(n))) return null;
+        return { w: nums[0], l: nums[1], h: nums[2] };
+    },
+
+    renderBoxPage: (container) => {
+        const showForm = ProductLibraryModule.state.boxFormOpen || !!ProductLibraryModule.state.boxEditingId;
+        const cards = ProductLibraryModule.getBoxProducts().sort((a, b) => {
+            return new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0);
+        });
+
+        const qName = String(ProductLibraryModule.state.boxSearchName || '').trim().toLowerCase();
+        const qSizeRaw = String(ProductLibraryModule.state.boxSearchSize || '').trim();
+        const parsedSize = ProductLibraryModule.parseBoxSizeQuery(qSizeRaw);
+        const filtered = cards.filter(p => {
+            const nameOk = !qName || String(p.name || '').toLowerCase().includes(qName);
+            let sizeOk = true;
+            const sw = Number(p?.specs?.widthMm);
+            const sl = Number(p?.specs?.lengthMm);
+            const sh = Number(p?.specs?.heightMm);
+            if (qSizeRaw) {
+                if (parsedSize) sizeOk = sw === parsedSize.w && sl === parsedSize.l && sh === parsedSize.h;
+                else sizeOk = `${sw},${sl},${sh}`.includes(qSizeRaw.replace(/\s+/g, ''));
+            }
+            return nameOk && sizeOk;
+        });
+
+        const editing = ProductLibraryModule.state.boxEditingId
+            ? cards.find(x => x.id === ProductLibraryModule.state.boxEditingId)
+            : null;
+        const draftCode = editing?.code || ProductLibraryModule.generateBoxCode();
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto; font-family:'Inter', sans-serif;">
+                <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-bottom:1.25rem; justify-content:space-between">
+                    <div style="text-align:left;">
+                        <h1 style="font-size:2rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300; margin:0;">koli <span style="font-weight:700">kutuphanesi</span></h1>
+                    </div>
+                    <button onclick="ProductLibraryModule.toggleBoxForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="box_search_name" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.boxSearchName || '')}" oninput="ProductLibraryModule.setBoxFilter('name', this.value, 'box_search_name')" placeholder="koli adi ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:230px; font-weight:600;">
+                        <input id="box_search_size" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.boxSearchSize || '')}" oninput="ProductLibraryModule.setBoxFilter('size', this.value, 'box_search_size')" placeholder="olcu ile ara (1250,200,350)" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:290px; font-weight:600;">
+                    </div>
+
+                    <div id="box_list_block" style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Koli adi</th>
+                                    <th style="padding:0.65rem; text-align:center;">Olculer (mm)</th>
+                                    <th style="padding:0.65rem; text-align:center;">Yazi durumu</th>
+                                    <th style="padding:0.65rem; text-align:left;">Not</th>
+                                    <th style="padding:0.65rem; text-align:left;">Kod</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1.2rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(p => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.boxSelectedId === p.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:center; font-family:monospace;">${Number(p.specs?.widthMm || 0)},${Number(p.specs?.lengthMm || 0)},${Number(p.specs?.heightMm || 0)}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.specs?.printType || '-')}</td>
+                                        <td style="padding:0.65rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.specs?.note || '-')}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.editBoxProduct('${p.id}')">duzenle</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.selectBoxProduct('${p.id}')">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.deleteBoxProduct('${p.id}')">sil</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="box_form_block" style="margin-top:1rem; background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.8rem;">
+                            <strong>${editing ? 'Koli duzenle' : 'Yeni koli ekle'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="ProductLibraryModule.resetBoxDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="ProductLibraryModule.saveBoxProduct()" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">koli adi *</label><input id="box_name" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.boxDraftName || '')}" oninput="ProductLibraryModule.state.boxDraftName=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">en (mm) *</label><input id="box_w" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(ProductLibraryModule.state.boxDraftWidth || ''))}" oninput="ProductLibraryModule.state.boxDraftWidth=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">boy (mm) *</label><input id="box_l" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(ProductLibraryModule.state.boxDraftLength || ''))}" oninput="ProductLibraryModule.state.boxDraftLength=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">yukseklik (mm) *</label><input id="box_h" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(ProductLibraryModule.state.boxDraftHeight || ''))}" oninput="ProductLibraryModule.state.boxDraftHeight=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">yazi durumu</label><select id="box_print" onchange="ProductLibraryModule.state.boxDraftPrint=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"><option value="YAZISIZ" ${ProductLibraryModule.state.boxDraftPrint === 'YAZISIZ' ? 'selected' : ''}>Yazisiz</option><option value="YAZILI" ${ProductLibraryModule.state.boxDraftPrint === 'YAZILI' ? 'selected' : ''}>Yazili</option></select></div>
+                            <div style="grid-column:span 1;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kod</label><input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;"></div>
+                        </div>
+
+                        <div style="margin-top:0.7rem;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not</label><textarea id="box_note" rows="3" oninput="ProductLibraryModule.state.boxDraftNote=this.value" placeholder="not" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.boxDraftNote || '')}</textarea></div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (showForm) {
+            const formEl = document.getElementById('box_form_block');
+            const listEl = document.getElementById('box_list_block');
+            if (formEl && listEl && listEl.parentElement) listEl.parentElement.insertBefore(formEl, listEl);
+        }
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    toggleBoxForm: () => {
+        if (ProductLibraryModule.state.boxFormOpen || ProductLibraryModule.state.boxEditingId) {
+            ProductLibraryModule.resetBoxDraft(false);
+            return;
+        }
+        ProductLibraryModule.state.boxFormOpen = true;
+        ProductLibraryModule.state.boxEditingId = null;
+        ProductLibraryModule.state.boxDraftName = '';
+        ProductLibraryModule.state.boxDraftWidth = '';
+        ProductLibraryModule.state.boxDraftLength = '';
+        ProductLibraryModule.state.boxDraftHeight = '';
+        ProductLibraryModule.state.boxDraftPrint = 'YAZISIZ';
+        ProductLibraryModule.state.boxDraftNote = '';
+        UI.renderCurrentPage();
+    },
+
+    resetBoxDraft: (keepOpen = false) => {
+        ProductLibraryModule.state.boxFormOpen = !!keepOpen;
+        ProductLibraryModule.state.boxEditingId = null;
+        ProductLibraryModule.state.boxDraftName = '';
+        ProductLibraryModule.state.boxDraftWidth = '';
+        ProductLibraryModule.state.boxDraftLength = '';
+        ProductLibraryModule.state.boxDraftHeight = '';
+        ProductLibraryModule.state.boxDraftPrint = 'YAZISIZ';
+        ProductLibraryModule.state.boxDraftNote = '';
+        UI.renderCurrentPage();
+    },
+
+    setBoxFilter: (key, value, focusId) => {
+        if (key === 'name') ProductLibraryModule.state.boxSearchName = value || '';
+        if (key === 'size') ProductLibraryModule.state.boxSearchSize = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_e) { }
+        }, 0);
+    },
+
+    selectBoxProduct: (id) => {
+        ProductLibraryModule.state.boxSelectedId = id;
+        UI.renderCurrentPage();
+    },
+
+    editBoxProduct: (id) => {
+        const p = ProductLibraryModule.getBoxProducts().find(x => x.id === id);
+        if (!p) return;
+        ProductLibraryModule.state.boxFormOpen = true;
+        ProductLibraryModule.state.boxEditingId = id;
+        ProductLibraryModule.state.boxSelectedId = id;
+        ProductLibraryModule.state.boxDraftName = p.name || '';
+        ProductLibraryModule.state.boxDraftWidth = String(p.specs?.widthMm || '');
+        ProductLibraryModule.state.boxDraftLength = String(p.specs?.lengthMm || '');
+        ProductLibraryModule.state.boxDraftHeight = String(p.specs?.heightMm || '');
+        ProductLibraryModule.state.boxDraftPrint = p.specs?.printType || 'YAZISIZ';
+        ProductLibraryModule.state.boxDraftNote = p.specs?.note || '';
+        UI.renderCurrentPage();
+    },
+
+    saveBoxProduct: async () => {
+        const name = String(ProductLibraryModule.state.boxDraftName || '').trim();
+        const width = Number(ProductLibraryModule.state.boxDraftWidth);
+        const length = Number(ProductLibraryModule.state.boxDraftLength);
+        const height = Number(ProductLibraryModule.state.boxDraftHeight);
+        const printType = String(ProductLibraryModule.state.boxDraftPrint || 'YAZISIZ');
+        const note = String(ProductLibraryModule.state.boxDraftNote || '').trim();
+
+        if (!name) return alert('Lutfen koli adi giriniz.');
+        if (!Number.isFinite(width) || width <= 0) return alert('En degeri zorunlu.');
+        if (!Number.isFinite(length) || length <= 0) return alert('Boy degeri zorunlu.');
+        if (!Number.isFinite(height) || height <= 0) return alert('Yukseklik degeri zorunlu.');
+
+        if (!Array.isArray(DB.data.data.products)) DB.data.data.products = [];
+        const now = new Date().toISOString();
+
+        if (ProductLibraryModule.state.boxEditingId) {
+            const idx = DB.data.data.products.findIndex(x => x.id === ProductLibraryModule.state.boxEditingId);
+            if (idx === -1) return;
+            const old = DB.data.data.products[idx];
+            DB.data.data.products[idx] = {
+                ...old,
+                category: 'Koli',
+                categoryId: 'cat_box',
+                type: 'BOX',
+                name,
+                specs: {
+                    ...(old.specs || {}),
+                    widthMm: width,
+                    lengthMm: length,
+                    heightMm: height,
+                    printType,
+                    note
+                },
+                updated_at: now
+            };
+            ProductLibraryModule.state.boxSelectedId = old.id;
+        } else {
+            const id = crypto.randomUUID();
+            DB.data.data.products.push({
+                id,
+                category: 'Koli',
+                categoryId: 'cat_box',
+                type: 'BOX',
+                name,
+                code: ProductLibraryModule.generateBoxCode(),
+                specs: {
+                    widthMm: width,
+                    lengthMm: length,
+                    heightMm: height,
+                    printType,
+                    note
+                },
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.boxSelectedId = id;
+        }
+
+        await DB.save();
+        ProductLibraryModule.resetBoxDraft(false);
+    },
+
+    deleteBoxProduct: async (id) => {
+        const p = ProductLibraryModule.getBoxProducts().find(x => x.id === id);
+        if (!p) return;
+        if (!confirm('Bu koli urunu silinsin mi?')) return;
+        DB.data.data.products = (DB.data.data.products || []).filter(x => x.id !== id);
+        if (ProductLibraryModule.state.boxSelectedId === id) ProductLibraryModule.state.boxSelectedId = null;
+        if (ProductLibraryModule.state.boxEditingId === id) ProductLibraryModule.resetBoxDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    generateBoxCode: () => {
+        const all = ProductLibraryModule.getBoxProducts();
+        let maxNum = 0;
+        all.forEach(p => {
+            const code = String(p?.code || '').toUpperCase();
+            const m = code.match(/^KLI-(\d{1,12})$/);
+            if (!m) return;
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        return `KLI-${String(maxNum + 1).padStart(6, '0')}`;
+    },
+
+    escapeHtml: (value) => {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
     addHardwareProduct: async () => {
         const { hardwareFilters } = ProductLibraryModule.state;
         // Validation
@@ -1091,6 +1382,7 @@ const ProductLibraryModule = {
         }, 100);
     }
 };
+
 
 
 

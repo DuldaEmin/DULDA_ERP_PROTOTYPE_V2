@@ -365,7 +365,7 @@ const UI = {
             { id: 'sales', title: 'Satış', icon: 'shopping-bag', gradient: 'g-orange' },
             { id: 'stock', title: 'Depo & Stok', icon: 'package', gradient: 'g-emerald' },
             { id: 'units', title: 'Birimler & Atölyeler', icon: 'hammer', gradient: 'g-yellow' },
-            { id: 'products', title: 'Ürün Kütüphanesi', icon: 'library', gradient: 'g-pink' },
+            { id: 'products', title: 'Master Ürün Kütüphanesi', icon: 'library', gradient: 'g-pink' },
             { id: 'personnel', title: 'Personel', icon: 'users', gradient: 'g-cyan' },
             { id: 'settings', title: 'Ayarlar', icon: 'settings', gradient: 'g-gray' },
         ];

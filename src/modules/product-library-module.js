@@ -15,6 +15,22 @@ const ProductLibraryModule = {
         boxDraftHeight: '',
         boxDraftPrint: 'YAZISIZ',
         boxDraftNote: '',
+        consumableSearchName: '',
+        consumableSearchType: '',
+        consumableSearchId: '',
+        consumableFormOpen: false,
+        consumableEditingId: null,
+        consumableSelectedId: null,
+        consumableDraftName: '',
+        consumableDraftType: 'BANT',
+        consumableDraftTypeCustom: '',
+        consumableDraftUnit: 'adet',
+        consumableDraftBrand: '',
+        consumableDraftPack: '',
+        consumableDraftSuppliers: [],
+        consumableDraftSupplierInput: '',
+        consumableDraftNote: '',
+        consumableDraftImageData: '',
         editingProductId: null,
         isFormVisible: false // New State
     },
@@ -28,7 +44,8 @@ const ProductLibraryModule = {
                 { id: 'cat1', name: 'Alüminyum profil', icon: '🏗️' },
                 { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩' },
                 { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' },
-                { id: 'cat_box', name: 'Koli', icon: '[ ]' }
+                { id: 'cat_box', name: 'Koli', icon: '[ ]' },
+                { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG' }
             ];
         }
 
@@ -61,6 +78,12 @@ const ProductLibraryModule = {
         );
         if (!hasBox) {
             DB.data.data.productCategories.push({ id: 'cat_box', name: 'Koli', icon: '[ ]' });
+        }
+        const hasConsumable = (DB.data.data.productCategories || []).some(c =>
+            c.id === 'cat_sarf' || String(c.name || '').toLowerCase().includes('sarf')
+        );
+        if (!hasConsumable) {
+            DB.data.data.productCategories.push({ id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG' });
         }
 
 
@@ -143,6 +166,12 @@ const ProductLibraryModule = {
             return;
         }
 
+        // --- CONSUMABLE MODULE ROUTING ---
+        if (category.id === 'cat_sarf' || category.name.toLowerCase().includes('sarf') || category.name.toLowerCase().includes('genel malzeme')) {
+            ProductLibraryModule.renderConsumablePage(container);
+            return;
+        }
+
         container.innerHTML = `
             <div style="max-width:1100px; margin:0 auto; font-family: 'Inter', sans-serif;">
                 <!-- Header -->
@@ -215,6 +244,22 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.boxDraftHeight = '';
         ProductLibraryModule.state.boxDraftPrint = 'YAZISIZ';
         ProductLibraryModule.state.boxDraftNote = '';
+        ProductLibraryModule.state.consumableSearchName = '';
+        ProductLibraryModule.state.consumableSearchType = '';
+        ProductLibraryModule.state.consumableSearchId = '';
+        ProductLibraryModule.state.consumableFormOpen = false;
+        ProductLibraryModule.state.consumableEditingId = null;
+        ProductLibraryModule.state.consumableSelectedId = null;
+        ProductLibraryModule.state.consumableDraftName = '';
+        ProductLibraryModule.state.consumableDraftType = 'BANT';
+        ProductLibraryModule.state.consumableDraftTypeCustom = '';
+        ProductLibraryModule.state.consumableDraftUnit = 'adet';
+        ProductLibraryModule.state.consumableDraftBrand = '';
+        ProductLibraryModule.state.consumableDraftPack = '';
+        ProductLibraryModule.state.consumableDraftSuppliers = [];
+        ProductLibraryModule.state.consumableDraftSupplierInput = '';
+        ProductLibraryModule.state.consumableDraftNote = '';
+        ProductLibraryModule.state.consumableDraftImageData = '';
         UI.renderCurrentPage();
     },
 
@@ -939,6 +984,380 @@ const ProductLibraryModule = {
                 </div>
             </div>
         `).join('');
+    },
+
+    getConsumableProducts: () => {
+        return (DB.data.data.products || []).filter(p =>
+            p.categoryId === 'cat_sarf' ||
+            String(p.category || '').toLowerCase().includes('sarf') ||
+            p.type === 'CONSUMABLE'
+        );
+    },
+
+    getConsumableTypeOptions: () => {
+        if (!DB.data.meta) DB.data.meta = {};
+        if (!DB.data.meta.options) DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.consumableTypes) || DB.data.meta.options.consumableTypes.length === 0) {
+            DB.data.meta.options.consumableTypes = ['BANT', 'ZIMPARA', 'YAPISTIRICI', 'TEMIZLIK', 'AMBALAJ', 'DIGER'];
+        }
+        return DB.data.meta.options.consumableTypes;
+    },
+
+    getConsumableSupplierOptions: () => {
+        if (!DB.data.meta) DB.data.meta = {};
+        if (!DB.data.meta.options) DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.consumableSuppliers)) {
+            DB.data.meta.options.consumableSuppliers = [];
+        }
+        const dynamic = ProductLibraryModule.getConsumableProducts()
+            .flatMap(p => Array.isArray(p?.specs?.suppliers) ? p.specs.suppliers : [])
+            .filter(Boolean);
+        return Array.from(new Set([...DB.data.meta.options.consumableSuppliers, ...dynamic]));
+    },
+
+    renderConsumablePage: (container) => {
+        const showForm = ProductLibraryModule.state.consumableFormOpen || !!ProductLibraryModule.state.consumableEditingId;
+        const rows = ProductLibraryModule.getConsumableProducts().sort((a, b) =>
+            new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0)
+        );
+        const typeOptions = ProductLibraryModule.getConsumableTypeOptions();
+        const unitOptions = ['adet', 'rulo', 'paket', 'koli', 'kg', 'litre', 'metre', 'kutu'];
+        const supplierOptions = ProductLibraryModule.getConsumableSupplierOptions();
+
+        const qName = String(ProductLibraryModule.state.consumableSearchName || '').trim().toLowerCase();
+        const qType = String(ProductLibraryModule.state.consumableSearchType || '').trim().toLowerCase();
+        const qId = String(ProductLibraryModule.state.consumableSearchId || '').trim().toLowerCase();
+        const filtered = rows.filter(p => {
+            const nameOk = !qName || String(p.name || '').toLowerCase().includes(qName);
+            const typeOk = !qType || String(p?.specs?.subType || '').toLowerCase().includes(qType);
+            const idOk = !qId || String(p.code || '').toLowerCase().includes(qId) || String(p.id || '').toLowerCase().includes(qId);
+            return nameOk && typeOk && idOk;
+        });
+
+        const editing = ProductLibraryModule.state.consumableEditingId
+            ? rows.find(x => x.id === ProductLibraryModule.state.consumableEditingId)
+            : null;
+        const draftCode = editing?.code || ProductLibraryModule.generateConsumableCode();
+        const manualType = ProductLibraryModule.state.consumableDraftType === 'MANUEL';
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto; font-family:'Inter', sans-serif;">
+                <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-bottom:1.25rem; justify-content:space-between">
+                    <div style="text-align:left;">
+                        <h1 style="font-size:2rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300; margin:0;">sarf & <span style="font-weight:700">genel malzeme</span></h1>
+                    </div>
+                    <button onclick="ProductLibraryModule.toggleConsumableForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="cons_search_name" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableSearchName || '')}" oninput="ProductLibraryModule.setConsumableFilter('name', this.value, 'cons_search_name')" placeholder="urun adi ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
+                        <input id="cons_search_type" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableSearchType || '')}" oninput="ProductLibraryModule.setConsumableFilter('type', this.value, 'cons_search_type')" placeholder="alt tur ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:200px; font-weight:600;">
+                        <input id="cons_search_id" value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableSearchId || '')}" oninput="ProductLibraryModule.setConsumableFilter('id', this.value, 'cons_search_id')" placeholder="ID / kod ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:200px; font-weight:600;">
+                    </div>
+
+                    <div id="cons_list_block" style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Alt tur</th>
+                                    <th style="padding:0.65rem; text-align:center;">Birim</th>
+                                    <th style="padding:0.65rem; text-align:left;">Marka/Model</th>
+                                    <th style="padding:0.65rem; text-align:left;">Ambalaj</th>
+                                    <th style="padding:0.65rem; text-align:left;">Tedarikci</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="10" style="padding:1.2rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(p => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.consumableSelectedId === p.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
+                                        <td style="padding:0.65rem;">${ProductLibraryModule.escapeHtml(p.specs?.subType || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.specs?.unit || '-')}</td>
+                                        <td style="padding:0.65rem;">${ProductLibraryModule.escapeHtml(p.specs?.brandModel || '-')}</td>
+                                        <td style="padding:0.65rem;">${ProductLibraryModule.escapeHtml(p.specs?.packageInfo || '-')}</td>
+                                        <td style="padding:0.65rem;">${ProductLibraryModule.escapeHtml((p.specs?.suppliers || []).join(', ') || '-')}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.editConsumableProduct('${p.id}')">duzenle</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.selectConsumableProduct('${p.id}')">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button class="list-btn" onclick="ProductLibraryModule.deleteConsumableProduct('${p.id}')">sil</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="cons_form_block" style="margin-top:1rem; background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.8rem;">
+                            <strong>${editing ? 'Sarf urunu duzenle' : 'Yeni sarf urunu ekle'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="ProductLibraryModule.resetConsumableDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="ProductLibraryModule.saveConsumableProduct()" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi *</label><input value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftName || '')}" oninput="ProductLibraryModule.state.consumableDraftName=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.35rem; margin-bottom:0.2rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b;">alt tur *</label>
+                                    <button type="button" onclick="ProductLibraryModule.openOptionLibrary('consumableTypes')" style="font-size:0.65rem; color:#3b82f6; background:none; border:none; cursor:pointer; font-weight:600; padding:0;">(+YONET)</button>
+                                </div>
+                                <select onchange="ProductLibraryModule.state.consumableDraftType=this.value; if(this.value!=='MANUEL'){ProductLibraryModule.state.consumableDraftTypeCustom='';} UI.renderCurrentPage();" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                    ${typeOptions.map(t => `<option value="${t}" ${ProductLibraryModule.state.consumableDraftType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                                    <option value="MANUEL" ${ProductLibraryModule.state.consumableDraftType === 'MANUEL' ? 'selected' : ''}>MANUEL</option>
+                                </select>
+                            </div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">birim *</label><select onchange="ProductLibraryModule.state.consumableDraftUnit=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">${unitOptions.map(u => `<option value="${u}" ${ProductLibraryModule.state.consumableDraftUnit === u ? 'selected' : ''}>${u}</option>`).join('')}</select></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">marka/model</label><input value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftBrand || '')}" oninput="ProductLibraryModule.state.consumableDraftBrand=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ambalaj/icerik</label><input value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftPack || '')}" oninput="ProductLibraryModule.state.consumableDraftPack=this.value" placeholder="750 ml / 50m rulo" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 1;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kod</label><input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;"></div>
+                            ${manualType ? `<div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">manuel alt tur *</label><input value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftTypeCustom || '')}" oninput="ProductLibraryModule.state.consumableDraftTypeCustom=this.value" placeholder="ornek: Is guvenlik" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>` : ''}
+                            <div style="grid-column:span 6;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">tedarikciler (coklu secim)</label><select id="cons_suppliers" multiple onchange="ProductLibraryModule.updateConsumableSuppliers()" style="width:100%; min-height:90px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.4rem;">${supplierOptions.length === 0 ? `<option value="">Kayitli tedarikci yok</option>` : supplierOptions.map(s => `<option value="${ProductLibraryModule.escapeHtml(s)}" ${ProductLibraryModule.state.consumableDraftSuppliers.includes(s) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(s)}</option>`).join('')}</select></div>
+                            <div style="grid-column:span 6;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">yeni tedarikci(ler) (virgul ile)</label><input value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftSupplierInput || '')}" oninput="ProductLibraryModule.state.consumableDraftSupplierInput=this.value" placeholder="ornek: Tedarikci A, Tedarikci B" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.6rem; margin-top:0.6rem;">
+                            <div style="grid-column:span 7;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not</label><textarea rows="3" oninput="ProductLibraryModule.state.consumableDraftNote=this.value" placeholder="not" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.consumableDraftNote || '')}</textarea></div>
+                            <div style="grid-column:span 5;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">resim (opsiyonel)</label>
+                                <input type="file" accept="image/*" onchange="ProductLibraryModule.handleConsumableImage(event)" style="width:100%; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.45rem; background:#f8fafc;">
+                                ${ProductLibraryModule.state.consumableDraftImageData ? `
+                                    <div style="margin-top:0.5rem; display:flex; gap:0.6rem; align-items:flex-start;">
+                                        <img src="${ProductLibraryModule.state.consumableDraftImageData}" alt="resim" style="width:72px; height:72px; object-fit:cover; border-radius:0.45rem; border:1px solid #cbd5e1;">
+                                        <button onclick="ProductLibraryModule.state.consumableDraftImageData=''; UI.renderCurrentPage();" type="button" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.6rem; cursor:pointer;">resmi kaldir</button>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (showForm) {
+            const formEl = document.getElementById('cons_form_block');
+            const listEl = document.getElementById('cons_list_block');
+            if (formEl && listEl && listEl.parentElement) listEl.parentElement.insertBefore(formEl, listEl);
+        }
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    toggleConsumableForm: () => {
+        if (ProductLibraryModule.state.consumableFormOpen || ProductLibraryModule.state.consumableEditingId) {
+            ProductLibraryModule.resetConsumableDraft(false);
+            return;
+        }
+        ProductLibraryModule.state.consumableFormOpen = true;
+        ProductLibraryModule.state.consumableEditingId = null;
+        ProductLibraryModule.state.consumableDraftName = '';
+        ProductLibraryModule.state.consumableDraftType = 'BANT';
+        ProductLibraryModule.state.consumableDraftTypeCustom = '';
+        ProductLibraryModule.state.consumableDraftUnit = 'adet';
+        ProductLibraryModule.state.consumableDraftBrand = '';
+        ProductLibraryModule.state.consumableDraftPack = '';
+        ProductLibraryModule.state.consumableDraftSuppliers = [];
+        ProductLibraryModule.state.consumableDraftSupplierInput = '';
+        ProductLibraryModule.state.consumableDraftNote = '';
+        ProductLibraryModule.state.consumableDraftImageData = '';
+        UI.renderCurrentPage();
+    },
+
+    resetConsumableDraft: (keepOpen = false) => {
+        ProductLibraryModule.state.consumableFormOpen = !!keepOpen;
+        ProductLibraryModule.state.consumableEditingId = null;
+        ProductLibraryModule.state.consumableDraftName = '';
+        ProductLibraryModule.state.consumableDraftType = 'BANT';
+        ProductLibraryModule.state.consumableDraftTypeCustom = '';
+        ProductLibraryModule.state.consumableDraftUnit = 'adet';
+        ProductLibraryModule.state.consumableDraftBrand = '';
+        ProductLibraryModule.state.consumableDraftPack = '';
+        ProductLibraryModule.state.consumableDraftSuppliers = [];
+        ProductLibraryModule.state.consumableDraftSupplierInput = '';
+        ProductLibraryModule.state.consumableDraftNote = '';
+        ProductLibraryModule.state.consumableDraftImageData = '';
+        UI.renderCurrentPage();
+    },
+
+    setConsumableFilter: (key, value, focusId) => {
+        if (key === 'name') ProductLibraryModule.state.consumableSearchName = value || '';
+        if (key === 'type') ProductLibraryModule.state.consumableSearchType = value || '';
+        if (key === 'id') ProductLibraryModule.state.consumableSearchId = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_e) { }
+        }, 0);
+    },
+
+    updateConsumableSuppliers: () => {
+        const el = document.getElementById('cons_suppliers');
+        if (!el) return;
+        ProductLibraryModule.state.consumableDraftSuppliers = Array.from(el.selectedOptions || [])
+            .map(opt => String(opt.value || '').trim())
+            .filter(Boolean);
+    },
+
+    handleConsumableImage: (event) => {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        if (!String(file.type || '').startsWith('image/')) {
+            alert('Lutfen sadece gorsel dosyasi secin.');
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            ProductLibraryModule.state.consumableDraftImageData = String(reader.result || '');
+            UI.renderCurrentPage();
+        };
+        reader.readAsDataURL(file);
+    },
+
+    selectConsumableProduct: (id) => {
+        ProductLibraryModule.state.consumableSelectedId = id;
+        UI.renderCurrentPage();
+    },
+
+    editConsumableProduct: (id) => {
+        const p = ProductLibraryModule.getConsumableProducts().find(x => x.id === id);
+        if (!p) return;
+        const s = p.specs || {};
+        ProductLibraryModule.state.consumableFormOpen = true;
+        ProductLibraryModule.state.consumableEditingId = id;
+        ProductLibraryModule.state.consumableSelectedId = id;
+        ProductLibraryModule.state.consumableDraftName = p.name || '';
+        ProductLibraryModule.state.consumableDraftType = ['BANT', 'ZIMPARA', 'YAPISTIRICI', 'TEMIZLIK', 'AMBALAJ', 'DIGER'].includes(String(s.subType || '').toUpperCase())
+            ? String(s.subType || '').toUpperCase()
+            : 'MANUEL';
+        ProductLibraryModule.state.consumableDraftTypeCustom = ProductLibraryModule.state.consumableDraftType === 'MANUEL' ? String(s.subType || '') : '';
+        ProductLibraryModule.state.consumableDraftUnit = s.unit || 'adet';
+        ProductLibraryModule.state.consumableDraftBrand = s.brandModel || '';
+        ProductLibraryModule.state.consumableDraftPack = s.packageInfo || '';
+        ProductLibraryModule.state.consumableDraftSuppliers = Array.isArray(s.suppliers) ? s.suppliers : [];
+        ProductLibraryModule.state.consumableDraftSupplierInput = '';
+        ProductLibraryModule.state.consumableDraftNote = s.note || '';
+        ProductLibraryModule.state.consumableDraftImageData = s.imageData || '';
+        UI.renderCurrentPage();
+    },
+
+    saveConsumableProduct: async () => {
+        const name = String(ProductLibraryModule.state.consumableDraftName || '').trim();
+        const rawType = String(ProductLibraryModule.state.consumableDraftType || '').trim();
+        const typeCustom = String(ProductLibraryModule.state.consumableDraftTypeCustom || '').trim();
+        const subType = rawType === 'MANUEL' ? typeCustom : rawType;
+        const unit = String(ProductLibraryModule.state.consumableDraftUnit || 'adet').trim() || 'adet';
+        const brandModel = String(ProductLibraryModule.state.consumableDraftBrand || '').trim();
+        const packageInfo = String(ProductLibraryModule.state.consumableDraftPack || '').trim();
+        const selectedSuppliers = Array.isArray(ProductLibraryModule.state.consumableDraftSuppliers)
+            ? ProductLibraryModule.state.consumableDraftSuppliers
+            : [];
+        const typedSuppliers = String(ProductLibraryModule.state.consumableDraftSupplierInput || '')
+            .split(',')
+            .map(x => x.trim())
+            .filter(Boolean);
+        const suppliers = Array.from(new Set([...selectedSuppliers, ...typedSuppliers]));
+        const note = String(ProductLibraryModule.state.consumableDraftNote || '').trim();
+        const imageData = String(ProductLibraryModule.state.consumableDraftImageData || '');
+
+        if (!name) return alert('Lutfen urun adi giriniz.');
+        if (!subType) return alert('Lutfen alt tur seciniz veya yaziniz.');
+
+        if (!DB.data.meta) DB.data.meta = {};
+        if (!DB.data.meta.options) DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.consumableSuppliers)) {
+            DB.data.meta.options.consumableSuppliers = [];
+        }
+        DB.data.meta.options.consumableSuppliers = Array.from(new Set([
+            ...DB.data.meta.options.consumableSuppliers,
+            ...suppliers
+        ]));
+
+        if (!Array.isArray(DB.data.data.products)) DB.data.data.products = [];
+        const now = new Date().toISOString();
+
+        if (ProductLibraryModule.state.consumableEditingId) {
+            const idx = DB.data.data.products.findIndex(x => x.id === ProductLibraryModule.state.consumableEditingId);
+            if (idx === -1) return;
+            const old = DB.data.data.products[idx];
+            DB.data.data.products[idx] = {
+                ...old,
+                category: 'Sarf & Genel Malzeme',
+                categoryId: 'cat_sarf',
+                type: 'CONSUMABLE',
+                name,
+                specs: {
+                    ...(old.specs || {}),
+                    subType,
+                    unit,
+                    brandModel,
+                    packageInfo,
+                    suppliers,
+                    note,
+                    imageData
+                },
+                updated_at: now
+            };
+            ProductLibraryModule.state.consumableSelectedId = old.id;
+        } else {
+            const id = crypto.randomUUID();
+            DB.data.data.products.push({
+                id,
+                category: 'Sarf & Genel Malzeme',
+                categoryId: 'cat_sarf',
+                type: 'CONSUMABLE',
+                name,
+                code: ProductLibraryModule.generateConsumableCode(),
+                specs: {
+                    subType,
+                    unit,
+                    brandModel,
+                    packageInfo,
+                    suppliers,
+                    note,
+                    imageData
+                },
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.consumableSelectedId = id;
+        }
+
+        await DB.save();
+        ProductLibraryModule.resetConsumableDraft(false);
+    },
+
+    deleteConsumableProduct: async (id) => {
+        const p = ProductLibraryModule.getConsumableProducts().find(x => x.id === id);
+        if (!p) return;
+        if (!confirm('Bu sarf urunu silinsin mi?')) return;
+        DB.data.data.products = (DB.data.data.products || []).filter(x => x.id !== id);
+        if (ProductLibraryModule.state.consumableSelectedId === id) ProductLibraryModule.state.consumableSelectedId = null;
+        if (ProductLibraryModule.state.consumableEditingId === id) ProductLibraryModule.resetConsumableDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    generateConsumableCode: () => {
+        const all = ProductLibraryModule.getConsumableProducts();
+        let maxNum = 0;
+        all.forEach(p => {
+            const code = String(p?.code || '').toUpperCase();
+            const m = code.match(/^SRF-(\d{1,12})$/);
+            if (!m) return;
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        return `SRF-${String(maxNum + 1).padStart(6, '0')}`;
     },
 
     getBoxProducts: () => {

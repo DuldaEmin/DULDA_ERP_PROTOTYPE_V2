@@ -1,0 +1,234 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "created_at": "2026-02-05T13:24:45.974Z",
+    "options": {
+      "colors": [
+        "Füme",
+        "Antrasit",
+        "Şeffaf",
+        "Beyaz",
+        "difizör"
+      ],
+      "diameters": [
+        20,
+        50,
+        60,
+        65,
+        70,
+        "40x40",
+        100
+      ],
+      "thicknesses": [
+        2,
+        3,
+        5
+      ],
+      "surfaces": [
+        "Kabarcıksız",
+        "Kabarcıklı"
+      ]
+    },
+    "updated_at": "2026-02-05T14:16:04.191Z"
+  },
+  "data": {
+    "products": [
+      {
+        "id": "56f8b7bb-c029-4797-ad32-f6f4577be748",
+        "category": "Ekstrüder",
+        "type": "ROD",
+        "name": "20mm Çubuk",
+        "code": "CB-20-650-FÜM-8533",
+        "specs": {
+          "diameter": "20",
+          "length": "650",
+          "color": "Füme",
+          "thickness": null,
+          "surface": "Kabarcıksız"
+        },
+        "created_at": "2026-02-05T13:54:33.776Z"
+      },
+      {
+        "id": "a8a5b7ca-a0d0-41db-985b-572eb85afe29",
+        "category": "Ekstrüder",
+        "type": "ROD",
+        "name": "70mm Çubuk",
+        "code": "CB-70-320-ŞEF-1782",
+        "specs": {
+          "diameter": "70",
+          "length": "320",
+          "color": "Şeffaf",
+          "thickness": null,
+          "surface": "Kabarcıklı"
+        },
+        "created_at": "2026-02-05T13:57:42.439Z"
+      },
+      {
+        "id": "a6bbfe33-55eb-40d4-9639-79d10d2fbdc5",
+        "category": "Ekstrüder",
+        "type": "ROD",
+        "name": "20mm Çubuk",
+        "code": "CB-20-350-FÜM-3346",
+        "specs": {
+          "diameter": "20",
+          "length": "350",
+          "color": "Füme",
+          "thickness": null,
+          "surface": "Kabarcıksız"
+        },
+        "created_at": "2026-02-05T13:58:04.269Z"
+      },
+      {
+        "id": "2b39d8cd-3b26-4065-b9d0-62924fc5c0bb",
+        "category": "Ekstrüder",
+        "type": "ROD",
+        "name": "50mm Çubuk",
+        "code": "CB-50-680-ŞEF-6719",
+        "specs": {
+          "diameter": "50",
+          "length": "680",
+          "color": "Şeffaf",
+          "thickness": null,
+          "surface": "Kabarcıklı"
+        },
+        "created_at": "2026-02-05T14:01:16.402Z"
+      },
+      {
+        "id": "2d471c60-af28-463f-a7db-f1b18e40fedd",
+        "category": "Ekstrüder",
+        "type": "ROD",
+        "name": "40x40mm Çubuk",
+        "code": "CB-40x40-320-ŞEF-4271",
+        "specs": {
+          "diameter": "40x40",
+          "length": "320",
+          "color": "Şeffaf",
+          "thickness": null,
+          "surface": "Kabarcıksız"
+        },
+        "created_at": "2026-02-05T14:07:45.570Z"
+      },
+      {
+        "id": "739d1118-d523-47aa-9595-aa2b7b1e28c6",
+        "category": "Ekstrüder",
+        "type": "PIPE",
+        "name": "100mm Boru",
+        "code": "BR-100-320-DIF-1543",
+        "specs": {
+          "diameter": "100",
+          "length": "320",
+          "color": "difizör",
+          "thickness": "2",
+          "surface": null
+        },
+        "created_at": "2026-02-05T14:09:22.405Z"
+      }
+    ],
+    "customers": [],
+    "stock_movements": [],
+    "orders": [],
+    "units": [
+      {
+        "id": "u1",
+        "name": "CNC ATÖLYESİ",
+        "type": "internal"
+      },
+      {
+        "id": "u2",
+        "name": "EKSTRÜDER ATÖLYESİ",
+        "type": "internal"
+      },
+      {
+        "id": "u3",
+        "name": "MONTAJ",
+        "type": "internal"
+      },
+      {
+        "id": "u4",
+        "name": "PAKETLEME",
+        "type": "internal"
+      },
+      {
+        "id": "u5",
+        "name": "PLEKSİ POLİSAJ ATÖLYESİ",
+        "type": "internal"
+      },
+      {
+        "id": "u6",
+        "name": "PUNTA ATÖLYESİ",
+        "type": "internal"
+      },
+      {
+        "id": "u7",
+        "name": "TESTERE ATÖLYESİ",
+        "type": "internal"
+      },
+      {
+        "id": "u8",
+        "name": "AKPA ALÜMİNYUM A.Ş",
+        "type": "external"
+      },
+      {
+        "id": "u9",
+        "name": "HİLAL PWD",
+        "type": "external"
+      },
+      {
+        "id": "u10",
+        "name": "İBRAHİM POLİSAJ",
+        "type": "external"
+      },
+      {
+        "id": "u11",
+        "name": "TEKİN ELOKSAL",
+        "type": "external"
+      }
+    ],
+    "machines": [
+      {
+        "id": "m1",
+        "unitId": "u2",
+        "name": "Ekstrüder Hattı 1",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "m2",
+        "unitId": "u2",
+        "name": "Ekstrüder Hattı 2",
+        "status": "MAINTENANCE"
+      },
+      {
+        "id": "m3",
+        "unitId": "u1",
+        "name": "CNC Kesim 1",
+        "status": "IDLE"
+      }
+    ],
+    "productCategories": [
+      {
+        "id": "cat1",
+        "name": "Alüminyum profil ",
+        "icon": "🏗️"
+      },
+      {
+        "id": "cat3",
+        "name": "Hırdavat & Vida",
+        "icon": "🔩"
+      },
+      {
+        "id": "cat_ext",
+        "name": "Ekstrüder",
+        "icon": "🏭"
+      }
+    ],
+    "inventory": [],
+    "unitColors": {
+      "u2": [
+        "Şeffaf",
+        "Beyaz",
+        "Siyah",
+        "Antrasit"
+      ]
+    }
+  }
+}

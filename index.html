@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dulda ERP</title>
+    <link rel="stylesheet" href="style.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap"
+        rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Tailwind CSS (Missing in Prototype) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <!-- Background Blobs -->
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <header>
+        <div class="nav-group">
+            <a href="#" class="nav-btn" onclick="Router.navigate('dashboard'); return false;">
+                <i data-lucide="home" width="16" height="16"></i> Ana Sayfa
+            </a>
+            <div style="width:1px; height:20px; background:#e2e8f0; margin:0 4px"></div>
+            <button class="nav-btn" id="navBack" onclick="Router.back()">
+                <i data-lucide="arrow-left" width="16" height="16"></i> Geri
+            </button>
+        </div>
+
+        <div class="v-separator"></div>
+
+        <div class="page-breadcrumb" id="pageTitle">DULDA ERP</div>
+
+        <div style="flex:1"></div>
+
+        <div class="nav-btn" style="border:1px solid #22c55e; background:#f0fdf4">
+            <span id="dbStatusIndicator"
+                style="display:flex; align-items:center; gap:6px; color:#15803d; font-weight:600">
+                <i data-lucide="database" width="16" height="16"></i> Otomatik Kayıt
+            </span>
+        </div>
+    </header>
+
+    <main class="container" id="main-content">
+        <!-- Dynamic Content -->
+    </main>
+
+    <script src="src/core/app-core.js"></script>
+    <script src="src/modules/cnc-library-module.js"></script>
+    <script src="src/modules/unit-module.js"></script>
+    <script src="src/modules/product-library-module.js"></script>
+    <script src="src/modules/purchasing-module.js"></script>
+    <script src="src/modules/stock-module.js"></script>
+    <script src="aluminum_module_v2.js"></script>
+    <script src="src/core/modal.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

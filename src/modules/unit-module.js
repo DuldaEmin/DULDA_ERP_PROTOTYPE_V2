@@ -1,4 +1,4 @@
-﻿const UnitModule = {
+const UnitModule = {
     state: {
         activeUnitId: null,
         view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut
@@ -36,16 +36,16 @@
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
             DB.data.data.units = [
-                { id: 'u1', name: 'CNC ATÃ–LYESÄ°', type: 'internal' },
-                { id: 'u2', name: 'EKSTRÃœDER ATÃ–LYESÄ°', type: 'internal' },
+                { id: 'u1', name: 'CNC ATÖLYESİ', type: 'internal' },
+                { id: 'u2', name: 'EKSTRÜDER ATÖLYESİ', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
                 { id: 'u4', name: 'PAKETLEME', type: 'internal' },
-                { id: 'u5', name: 'PLEKSÄ° POLÄ°SAJ ATÃ–LYESÄ°', type: 'internal' },
-                { id: 'u7', name: 'TESTERE ATÃ–LYESÄ°', type: 'internal' },
-                { id: 'u8', name: 'AKPA ALÃœMÄ°NYUM A.Å', type: 'external' },
-                { id: 'u9', name: 'HÄ°LAL PWD', type: 'external' },
-                { id: 'u10', name: 'Ä°BRAHÄ°M POLÄ°SAJ', type: 'external' },
-                { id: 'u11', name: 'TEKÄ°N ELOKSAL', type: 'external' }
+                { id: 'u5', name: 'PLEKSİ POLİSAJ ATÖLYESİ', type: 'internal' },
+                { id: 'u7', name: 'TESTERE ATÖLYESİ', type: 'internal' },
+                { id: 'u8', name: 'AKPA ALÜMİNYUM A.Ş', type: 'external' },
+                { id: 'u9', name: 'HİLAL PWD', type: 'external' },
+                { id: 'u10', name: 'İBRAHİM POLİSAJ', type: 'external' },
+                { id: 'u11', name: 'TEKİN ELOKSAL', type: 'external' }
             ];
             if (DB.fileHandle) DB.save();
         }
@@ -68,8 +68,8 @@
 
         if (!DB.data.data.machines || DB.data.data.machines.length === 0) {
             DB.data.data.machines = [
-                { id: 'm1', unitId: 'u2', name: 'EkstrÃ¼der HattÄ± 1', status: 'ACTIVE' },
-                { id: 'm2', unitId: 'u2', name: 'EkstrÃ¼der HattÄ± 2', status: 'MAINTENANCE' },
+                { id: 'm1', unitId: 'u2', name: 'Ekstrüder Hattı 1', status: 'ACTIVE' },
+                { id: 'm2', unitId: 'u2', name: 'Ekstrüder Hattı 2', status: 'MAINTENANCE' },
                 { id: 'm3', unitId: 'u1', name: 'CNC Kesim 1', status: 'IDLE' }
             ];
         }
@@ -163,9 +163,9 @@
 
         container.innerHTML = `
             <div class="page-header"><h2 class="page-title">Birimler</h2></div>
-            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">ğŸ­ Ä°Ã§ Birimler</h3>
+            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">🏭 İç Birimler</h3>
             <div class="apps-grid" style="margin-bottom:3rem;">${internals.map(u => renderCard(u, 'hammer')).join('')}</div>
-            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">ğŸšš DÄ±ÅŸ Birimler</h3>
+            <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">ğŸšš Dış Birimler</h3>
             <div class="apps-grid">${externals.map(u => renderCard(u, 'truck')).join('')}</div>
         `;
     },
@@ -198,18 +198,18 @@
                 </a>
                  <a href="#" onclick="UnitModule.openStock('${unitId}')" class="app-card">
                     <div class="icon-box g-emerald"><i data-lucide="package" width="40" height="40"></i></div>
-                    <div class="app-name">Birim StoÄŸu</div>
+                    <div class="app-name">Birim Stoğu</div>
                 </a>
                 ${isCncUnit ? `
                 <a href="#" onclick="UnitModule.openCncLibrary('${unitId}')" class="app-card">
                     <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
-                    <div class="app-name">Urun Kutuphanesi</div>
+                    <div class="app-name">Ürün Kütüphanesi</div>
                 </a>
                 ` : ''}
                 ${isSawUnit ? `
                 <a href="#" onclick="UnitModule.openSawCut('${unitId}')" class="app-card">
                     <div class="icon-box" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#047857"><i data-lucide="scissors" width="40" height="40"></i></div>
-                    <div class="app-name">Urun Kutuphanesi</div>
+                    <div class="app-name">Ürün Kütüphanesi</div>
                 </a>
                 ` : ''}
             </div>
@@ -227,7 +227,7 @@
         if (personnel.length === 0 && !DB.data.meta.personnelInitialized?.[unitId]) {
             // Seed defaults ONLY ONCE
             const defaults = [
-                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet YÄ±lmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
+                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet Yılmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
                 { id: crypto.randomUUID(), unitId, fullName: 'Mehmet Demir', permissions: { production: true, waste: false, admin: false }, isActive: true },
             ];
             DB.data.data.personnel.push(...defaults);
@@ -242,8 +242,8 @@
                 <div style="display:flex; align-items:center; gap:1rem">
                      <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                      <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel YÃ¶netimi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit.name} â€¢ Ã‡alÄ±ÅŸan listesi ve yetkilendirme</div>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel Yönetimi</h2>
+                        <div style="font-size:0.875rem; color:#64748b">${unit.name} • Çalışan listesi ve yetkilendirme</div>
                      </div>
                 </div>
                 <button onclick="UnitModule.openPersonnelModal('${unitId}')" class="btn-primary" style="display:flex; gap:0.5rem; align-items:center">
@@ -257,11 +257,11 @@
                         <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
                             <th style="padding:1.5rem">Ad Soyad</th>
                             <th style="padding:1.5rem">Yetkiler</th>
-                            <th style="padding:1.5rem; text-align:right">Ä°ÅŸlemler</th>
+                            <th style="padding:1.5rem; text-align:right">İşlemler</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">KayÄ±tlÄ± personel yok.</td></tr>' : personnel.map(p => `
+                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">Kayıtlı personel yok.</td></tr>' : personnel.map(p => `
                             <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; align-items:center; gap:0.75rem font-weight:600; color:#334155">
@@ -272,7 +272,7 @@
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
                                         ${p.permissions.admin ? '<span style="background:#faf5ff; color:#9333ea; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="shield" width="12"></i> Admin</span>' : ''}
-                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Ãœretim</span>' : ''}
+                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Üretim</span>' : ''}
                                         ${p.permissions.waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
                                     </div>
                                 </td>
@@ -292,7 +292,7 @@
         const person = personId ? DB.data.data.personnel.find(p => p.id === personId) : null;
         const perms = person?.permissions || { production: true, waste: false, admin: false };
 
-        Modal.open(person ? 'Personeli DÃ¼zenle' : 'Yeni Personel Ekle', `
+        Modal.open(person ? 'Personeli Düzenle' : 'Yeni Personel Ekle', `
             <div style="display:flex; flex-direction:column; gap:1rem">
                 <div>
                     <label style="display:block; font-size:0.875rem; font-weight:700; color:#334155; margin-bottom:0.25rem">Ad Soyad</label>
@@ -305,8 +305,8 @@
                     <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ecfdf5; color:#047857; padding:0.5rem; border-radius:0.25rem"><i data-lucide="factory" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">Ãœretim BaÅŸlatabilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">Ä°ÅŸ emri yetkisi</div>
+                            <div style="font-weight:600; font-size:0.9rem">Üretim Başlatabilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">İş emri yetkisi</div>
                         </div>
                     </div>
                     <input id="p_perm_prod" type="checkbox" ${perms.production ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -316,8 +316,8 @@
                      <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ffedd5; color:#c2410c; padding:0.5rem; border-radius:0.25rem"><i data-lucide="alert-circle" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">Fire OnayÄ± Verebilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">HatalÄ± Ã¼retim giriÅŸi</div>
+                            <div style="font-weight:600; font-size:0.9rem">Fire Onayı Verebilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">Hatalı üretim girişi</div>
                         </div>
                     </div>
                     <input id="p_perm_waste" type="checkbox" ${perms.waste ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -345,7 +345,7 @@
         const waste = document.getElementById('p_perm_waste').checked;
         const admin = document.getElementById('p_perm_admin').checked;
 
-        if (!name) return alert("Ä°sim giriniz.");
+        if (!name) return alert("İsim giriniz.");
 
         if (!DB.data.data.personnel) DB.data.data.personnel = [];
 
@@ -371,7 +371,7 @@
     },
 
     deletePersonnel: async (id, unitId) => {
-        if (!confirm("Bu personeli silmek (pasife almak) istediÄŸinize emin misiniz?")) return;
+        if (!confirm("Bu personeli silmek (pasife almak) istediğinize emin misiniz?")) return;
         const p = DB.data.data.personnel.find(x => x.id === id);
         if (p) p.isActive = false; // Soft delete
         await DB.save();
@@ -460,11 +460,11 @@
                 <div style="display:flex; align-items:center; gap:1rem">
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> Urun Kutuphanesi</h2>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> Ürün Kütüphanesi</h2>
                         <div style="font-size:0.875rem; color:#64748b">${unit?.name || 'TESTERE'} • Kayitlar burada listelenir</div>
                     </div>
                 </div>
-                <button class="btn-primary" onclick="UnitModule.openSawForm()" style="height:42px; padding:0 1rem">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                <button class="btn-primary" onclick="UnitModule.openSawForm()" style="height:42px; padding:0 1rem">${showForm ? 'Vazgeç' : 'Ürün ekle +'}</button>
             </div>
 
             <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.75rem; margin-bottom:0.75rem; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.6rem">
@@ -817,8 +817,8 @@
         const unit = DB.data.data.units.find(u => u.id === unitId);
 
         // EXTRA SECURITY: Strictly restrict to Extruder
-        if (!unit.name.includes('EKSTRÃœDER')) {
-            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>â›” Bu birim iÃ§in stok yÃ¶netimi aktif deÄŸil.</h3></div>`;
+        if (!unit.name.includes('EKSTRÜDER')) {
+            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>⛔ Bu birim için stok yönetimi aktif değil.</h3></div>`;
             return;
         }
 
@@ -827,11 +827,11 @@
 
         // Ensure Colors Exist
         if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
-        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Åeffaf', 'Beyaz', 'Siyah', 'Antrasit'];
+        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Şeffaf', 'Beyaz', 'Siyah', 'Antrasit'];
         const colors = DB.data.data.unitColors[unitId];
 
         // Specific Header for Extruder
-        const title = unit.name.includes('EKSTRÃœDER') ? 'EKSTRÃœDER STOK EKLEME PANELÄ°' : `${unit.name} STOK PANELÄ°`;
+        const title = unit.name.includes('EKSTRÜDER') ? 'EKSTRÜDER STOK EKLEME PANELİ' : `${unit.name} STOK PANELİ`;
 
         container.innerHTML = `
             <div style="margin-bottom:2rem; padding-left:0.25rem">
@@ -842,9 +842,9 @@
 
             <!-- TABS -->
             <div style="display:flex; gap:0.5rem; margin-bottom:0; padding-left:0.25rem">
-                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">Ã‡UBUK</button>
+                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">ÇUBUK</button>
                 <button onclick="UnitModule.setStockTab('PIPE')" class="tab-btn ${tab === 'PIPE' ? 'active' : ''}">BORU</button>
-                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">Ã–ZEL PROFÄ°LLER</button>
+                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">ÖZEL PROFİLLER</button>
             </div>
             <style>
                 .tab-btn { padding: 0.75rem 2.5rem; border-radius: 1rem 1rem 0 0; font-weight:800; font-size:0.85rem; cursor:pointer; border:1px solid transparent; background:#e2e8f0; color:#94a3b8; letter-spacing:0.05em; }
@@ -858,18 +858,18 @@
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem; margin-bottom:2rem">
                     <div style="font-size:0.75rem; font-weight:800; color:#52525b; margin-bottom:1rem; letter-spacing:0.1em; display:flex; gap:0.5rem; align-items:center; text-transform:uppercase">
                         <i data-lucide="plus" width="16" height="16" color="#10b981"></i>
-                        HIZLI STOK GÄ°RÄ°ÅÄ° (${tab === 'ROD' ? '<span style="color:#059669">Ã‡UBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFÄ°L</span>'})
+                        HIZLI STOK GİRİŞİ (${tab === 'ROD' ? '<span style="color:#059669">ÇUBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFİL</span>'})
                     </div>
                     
                     <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap:1rem; align-items:end">
                         ${tab === 'PROFILE' ? `
                             <div style="grid-column:span 2">
-                                <label class="lbl">PROFÄ°L ADI</label>
+                                <label class="lbl">PROFİL ADI</label>
                                 <input id="stk_name" class="inp" placeholder="40x40 Kare">
                             </div>
                         ` : `
                             <div style="grid-column:span 1">
-                                <label class="lbl">Ã‡AP (mm)</label>
+                                <label class="lbl">ÇAP (mm)</label>
                                 <input id="stk_dia" type="number" class="inp text-center" placeholder="50">
                             </div>
                         `}
@@ -889,10 +889,10 @@
                         <div style="grid-column:span 2">
                             <label class="lbl" style="display:flex; justify-content:space-between">
                                 RENK
-                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YÃ–NET (EKLE/SÄ°L) ]</button>
+                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YÖNET (EKLE/SİL) ]</button>
                             </label>
                             <select id="stk_col" class="inp" style="cursor:pointer">
-                                <option value="TanÄ±msÄ±z">SeÃ§iniz</option>
+                                <option value="Tanımsız">Seçiniz</option>
                                 ${colors.map(c => `<option value="${c}">${c}</option>`).join('')}
                             </select>
                         </div>
@@ -901,7 +901,7 @@
                             <div style="grid-column:span 1; display:flex; justify-content:center; padding-bottom:0.8rem">
                                 <label style="display:flex; flex-direction:column; align-items:center; cursor:pointer">
                                     <input id="stk_bub" type="checkbox" style="width:1.25rem; height:1.25rem; accent-color:#10b981; cursor:pointer">
-                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">KabarcÄ±klÄ±</span>
+                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">Kabarcıklı</span>
                                 </label>
                             </div>
                         ` : '<div style="grid-column:span 1"></div>'}
@@ -930,10 +930,10 @@
                         <div style="grid-column:span 2; display:flex; gap:0.5rem">
                             ${UnitModule.state.editingId ? `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="flex:2; height:42px; background:#2563eb; box-shadow:0 4px 6px -1px rgba(37, 99, 235, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="save" width="18" height="18"></i> GÃœNCELLE
+                                    <i data-lucide="save" width="18" height="18"></i> GÜNCELLE
                                 </button>
                                 <button onclick="UnitModule.cancelEdit()" class="btn-primary" style="flex:1; height:42px; background:#94a3b8; box-shadow:0 4px 6px -1px rgba(148, 163, 184, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEÃ‡
+                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEÇ
                                 </button>
                             ` : `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="width:100%; height:42px; background:#059669; box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
@@ -956,19 +956,19 @@
                     <table>
                         <thead style="background:#f8fafc">
                             <tr>
-                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃœrÃ¼n AdÄ±</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ã‡ap (mm)</th>
-                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">KalÄ±nlÄ±k</th>' : ''}
+                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ürün Adı</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Çap (mm)</th>
+                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Kalınlık</th>' : ''}
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Boy (mm)</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Renk</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ã–zellik</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Özellik</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Not / Adres</th>
                                 <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Miktar / Hedef</th>
-                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ä°ÅŸlem</th>
+                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">İşlem</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydÄ± bulunamadÄ±</div><div style="font-size:0.85rem">Bu kategori iÃ§in henÃ¼z giriÅŸ yapÄ±lmamÄ±ÅŸ.</div></td></tr>` : ''}
+                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydı bulunamadı</div><div style="font-size:0.85rem">Bu kategori için henüz giriş yapılmamış.</div></td></tr>` : ''}
                             ${inventory.map(i => {
             // Color Logic
             let rowClass = '';
@@ -1028,7 +1028,7 @@
                 <div style="background:white; width:400px; border-radius:1.5rem; padding:1.5rem; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); animation: zoomIn 0.2s">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem">
                         <h3 style="font-weight:800; color:#334155; display:flex; align-items:center; gap:0.5rem">
-                            <i data-lucide="palette" color="#a855f7" width="20"></i> Renk KÃ¼tÃ¼phanesi
+                            <i data-lucide="palette" color="#a855f7" width="20"></i> Renk Kütüphanesi
                         </h3>
                         <button onclick="document.getElementById('colorModalOverlay').remove()" style="background:none; border:none; color:#94a3b8; cursor:pointer"><i data-lucide="x" width="20"></i></button>
                     </div>
@@ -1039,11 +1039,11 @@
                     </div>
 
                     <div style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem">
-                        ${colors.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1rem">HenÃ¼z renk eklenmemiÅŸ.</div>' : ''}
+                        ${colors.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1rem">Henüz renk eklenmemiş.</div>' : ''}
                         ${colors.map(c => `
                             <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.75rem 1rem; border-radius:0.75rem; border:1px solid #f1f5f9">
                                 <div style="display:flex; align-items:center; gap:0.75rem">
-                                    <div style="width:16px; height:16px; border-radius:50%; border:1px solid #cbd5e1; background:${c === 'Åeffaf' ? 'transparent' : c === 'Siyah' ? '#000' : c === 'Beyaz' ? '#fff' : c === 'Antrasit' ? '#374151' : c === 'SarÄ±' || c === 'Sari' ? '#facc15' : c === 'KÄ±rmÄ±zÄ±' || c === 'Kirmizi' ? '#ef4444' : '#cbd5e1'}"></div>
+                                    <div style="width:16px; height:16px; border-radius:50%; border:1px solid #cbd5e1; background:${c === 'Şeffaf' ? 'transparent' : c === 'Siyah' ? '#000' : c === 'Beyaz' ? '#fff' : c === 'Antrasit' ? '#374151' : c === 'Sarı' || c === 'Sari' ? '#facc15' : c === 'Kırmızı' || c === 'Kirmizi' ? '#ef4444' : '#cbd5e1'}"></div>
                                     <span style="font-weight:700; color:#475569; font-size:0.9rem; text-transform:uppercase">${c}</span>
                                 </div>
                                 <button onclick="UnitModule.deleteColor('${unitId}','${c}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; transition:color 0.2s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="trash-2" width="14"></i></button>
@@ -1115,7 +1115,7 @@
             if (document.getElementById('stk_dia')) document.getElementById('stk_dia').value = item.diameter || '';
             if (document.getElementById('stk_thick')) document.getElementById('stk_thick').value = item.thickness || '';
             if (document.getElementById('stk_len')) document.getElementById('stk_len').value = item.length || '';
-            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'TanÄ±msÄ±z';
+            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'Tanımsız';
             if (document.getElementById('stk_qty')) document.getElementById('stk_qty').value = item.quantity || '';
             if (document.getElementById('stk_target')) document.getElementById('stk_target').value = item.targetStock || '';
             if (document.getElementById('stk_addr')) document.getElementById('stk_addr').value = item.address || '';
@@ -1147,9 +1147,9 @@
         if (!qty || !target) { alert('Adet ve Hedef zorunludur.'); return; }
 
         let name = '';
-        if (tab === 'ROD') name = `Ã˜${dia} Ã‡ubuk`;
-        else if (tab === 'PIPE') name = `Ã˜${dia} Boru`;
-        else name = nameInp || 'Ã–zel Profil';
+        if (tab === 'ROD') name = `Ø${dia} Çubuk`;
+        else if (tab === 'PIPE') name = `Ø${dia} Boru`;
+        else name = nameInp || 'Özel Profil';
 
         if (UnitModule.state.editingId) {
             // UPDATE EXISTING
@@ -1189,7 +1189,7 @@
     },
 
     deleteStock: async (id) => {
-        if (confirm('Silmek istediÄŸinize emin misiniz?')) {
+        if (confirm('Silmek istediğinize emin misiniz?')) {
             DB.data.data.inventory = DB.data.data.inventory.filter(i => i.id !== id);
             await DB.save();
             UI.renderCurrentPage();

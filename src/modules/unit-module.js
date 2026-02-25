@@ -35,9 +35,10 @@ const UnitModule = {
         plexiUseBrush: false,
         plexiOvenMinutes: '',
         plexiNote: '',
-        extruderSearchName: '',
+        extruderSearchDia: '',
+        extruderSearchLen: '',
+        extruderSearchColor: '',
         extruderSearchCode: '',
-        extruderSearchType: 'ALL',
         extruderSelectedId: null,
         extruderFormOpen: false,
         extruderEditingId: null,
@@ -185,9 +186,10 @@ const UnitModule = {
     openExtruderLibrary: (id) => {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'extruderLibrary';
-        UnitModule.state.extruderSearchName = '';
+        UnitModule.state.extruderSearchDia = '';
+        UnitModule.state.extruderSearchLen = '';
+        UnitModule.state.extruderSearchColor = '';
         UnitModule.state.extruderSearchCode = '';
-        UnitModule.state.extruderSearchType = 'ALL';
         UnitModule.state.extruderSelectedId = null;
         UnitModule.state.extruderFormOpen = false;
         UnitModule.state.extruderEditingId = null;
@@ -926,16 +928,18 @@ const UnitModule = {
             .filter(x => x.unitId === unitId)
             .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
 
-        const qName = String(UnitModule.state.extruderSearchName || '').trim().toLowerCase();
+        const qDia = String(UnitModule.state.extruderSearchDia || '').trim();
+        const qLen = String(UnitModule.state.extruderSearchLen || '').trim();
+        const qColor = String(UnitModule.state.extruderSearchColor || '').trim().toLowerCase();
         const qCode = String(UnitModule.state.extruderSearchCode || '').trim().toLowerCase();
-        const qType = String(UnitModule.state.extruderSearchType || 'ALL');
         const filtered = cards.filter(row => {
-            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
+            const diaOk = !qDia || String(row.diameterMm ?? '').trim() === qDia;
+            const lenOk = !qLen || String(row.lengthMm ?? '').trim() === qLen;
+            const colorOk = !qColor || String(row.color || '').toLowerCase().includes(qColor);
             const codeOk = !qCode
                 || String(row.cardCode || '').toLowerCase().includes(qCode)
                 || String(row.id || '').toLowerCase().includes(qCode);
-            const typeOk = qType === 'ALL' || String(row.kind || '') === qType;
-            return nameOk && codeOk && typeOk;
+            return diaOk && lenOk && colorOk && codeOk;
         });
 
         const editing = UnitModule.state.extruderEditingId
@@ -964,14 +968,10 @@ const UnitModule = {
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
-                        <input id="ext_search_name" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchName || '')}" oninput="UnitModule.setExtruderListFilter('name', this.value, 'ext_search_name')" placeholder="urun ismi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="ext_search_dia" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchDia || '')}" oninput="UnitModule.setExtruderListFilter('dia', this.value, 'ext_search_dia')" placeholder="cap ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
+                        <input id="ext_search_len" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchLen || '')}" oninput="UnitModule.setExtruderListFilter('len', this.value, 'ext_search_len')" placeholder="boy ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
+                        <input id="ext_search_color" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchColor || '')}" oninput="UnitModule.setExtruderListFilter('color', this.value, 'ext_search_color')" placeholder="renk ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
                         <input id="ext_search_code" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchCode || '')}" oninput="UnitModule.setExtruderListFilter('code', this.value, 'ext_search_code')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
-                        <select id="ext_search_type" onchange="UnitModule.setExtruderListFilter('type', this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:170px; font-weight:700;">
-                            <option value="ALL" ${qType === 'ALL' ? 'selected' : ''}>Tum tipler</option>
-                            <option value="ROD" ${qType === 'ROD' ? 'selected' : ''}>Cubuk</option>
-                            <option value="PIPE" ${qType === 'PIPE' ? 'selected' : ''}>Boru</option>
-                            <option value="PROFILE" ${qType === 'PROFILE' ? 'selected' : ''}>Ozel Profil</option>
-                        </select>
                     </div>
                     <div id="ext_list_block" class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
@@ -995,7 +995,7 @@ const UnitModule = {
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.diameterMm)) ? Number(row.diameterMm) : '-'}</td>
-                                        <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.thicknessMm)) ? Number(row.thicknessMm) : '-'}</td>
+                                        <td style="padding:0.65rem; text-align:center;">${row.kind === 'PIPE' && Number.isFinite(Number(row.thicknessMm)) ? Number(row.thicknessMm) : '-'}</td>
                                         <td style="padding:0.65rem; text-align:center; font-weight:700; color:#0f766e;">${Number.isFinite(Number(row.lengthMm)) ? Number(row.lengthMm) : '-'}</td>
                                         <td style="padding:0.65rem; text-align:center;">${UnitModule.escapeHtml(row.color || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${row.isBubble ? '<span style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:700;">Kabarcikli</span>' : '-'}</td>
@@ -1052,7 +1052,10 @@ const UnitModule = {
                                 <input id="ext_len" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.extruderDraftLen || ''))}" oninput="UnitModule.state.extruderDraftLen=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div style="grid-column:span 3;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">renk *</label>
+                                <label style="display:flex; justify-content:space-between; font-size:0.65rem; font-weight:700; color:#64748b; margin-bottom:0.4rem; margin-left:0.25rem;">
+                                    RENK
+                                    <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
+                                </label>
                                 <select id="ext_color" onchange="UnitModule.state.extruderDraftColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                     <option value="">Seciniz</option>
                                     ${colors.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.extruderDraftColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
@@ -1092,9 +1095,10 @@ const UnitModule = {
         }
     },
     setExtruderListFilter: (field, value, focusId) => {
-        if (field === 'name') UnitModule.state.extruderSearchName = value || '';
+        if (field === 'dia') UnitModule.state.extruderSearchDia = value || '';
+        if (field === 'len') UnitModule.state.extruderSearchLen = value || '';
+        if (field === 'color') UnitModule.state.extruderSearchColor = value || '';
         if (field === 'code') UnitModule.state.extruderSearchCode = value || '';
-        if (field === 'type') UnitModule.state.extruderSearchType = value || 'ALL';
         UI.renderCurrentPage();
         if (!focusId) return;
         setTimeout(() => {
@@ -1125,6 +1129,7 @@ const UnitModule = {
     setExtruderDraftType: (kind) => {
         UnitModule.state.extruderDraftType = kind;
         if (kind !== 'ROD') UnitModule.state.extruderDraftBubble = false;
+        if (kind !== 'PIPE') UnitModule.state.extruderDraftThick = '';
         UI.renderCurrentPage();
     },
     selectExtruderRow: (id) => {
@@ -1205,7 +1210,7 @@ const UnitModule = {
             row.kind = kind;
             row.productName = productName;
             row.diameterMm = Number.isFinite(dia) ? Number(dia) : null;
-            row.thicknessMm = Number.isFinite(thick) ? Number(thick) : null;
+            row.thicknessMm = kind === 'PIPE' && Number.isFinite(thick) ? Number(thick) : null;
             row.lengthMm = Number(len);
             row.color = color;
             row.isBubble = kind === 'ROD' ? isBubble : false;
@@ -1221,7 +1226,7 @@ const UnitModule = {
                 kind,
                 productName,
                 diameterMm: Number.isFinite(dia) ? Number(dia) : null,
-                thicknessMm: Number.isFinite(thick) ? Number(thick) : null,
+                thicknessMm: kind === 'PIPE' && Number.isFinite(thick) ? Number(thick) : null,
                 lengthMm: Number(len),
                 color,
                 isBubble: kind === 'ROD' ? isBubble : false,
@@ -1805,13 +1810,35 @@ const UnitModule = {
     },
 
     openColorModal: (unitId) => {
+        if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
+        if (!Array.isArray(DB.data.data.unitColors[unitId])) {
+            DB.data.data.unitColors[unitId] = ['Seffaf', 'Beyaz', 'Siyah', 'Antrasit'];
+        }
         const colors = DB.data.data.unitColors[unitId] || [];
+        const normalize = (txt) => String(txt || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '');
+        const swatchColor = (name) => {
+            const n = normalize(name);
+            if (n.includes('seffaf') || n.includes('saydam') || n.includes('transparan')) return 'transparent';
+            if (n.includes('siyah')) return '#000000';
+            if (n.includes('beyaz')) return '#ffffff';
+            if (n.includes('antrasit')) return '#374151';
+            if (n.includes('sari')) return '#facc15';
+            if (n.includes('kirmizi')) return '#ef4444';
+            if (n.includes('mavi')) return '#2563eb';
+            if (n.includes('yesil')) return '#22c55e';
+            if (n.includes('gri')) return '#9ca3af';
+            return '#cbd5e1';
+        };
+
+        const old = document.getElementById('colorModalOverlay');
+        if (old) old.remove();
+
         const modalHtml = `
             <div id="colorModalOverlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:center; justify-content:center">
                 <div style="background:white; width:400px; border-radius:1.5rem; padding:1.5rem; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); animation: zoomIn 0.2s">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem">
                         <h3 style="font-weight:800; color:#334155; display:flex; align-items:center; gap:0.5rem">
-                            <i data-lucide="palette" color="#a855f7" width="20"></i> Renk Kütüphanesi
+                            <i data-lucide="palette" color="#a855f7" width="20"></i> Renk Kutuphanesi
                         </h3>
                         <button onclick="document.getElementById('colorModalOverlay').remove()" style="background:none; border:none; color:#94a3b8; cursor:pointer"><i data-lucide="x" width="20"></i></button>
                     </div>
@@ -1822,56 +1849,57 @@ const UnitModule = {
                     </div>
 
                     <div style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem">
-                        ${colors.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1rem">Henüz renk eklenmemiş.</div>' : ''}
-                        ${colors.map(c => `
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.75rem 1rem; border-radius:0.75rem; border:1px solid #f1f5f9">
-                                <div style="display:flex; align-items:center; gap:0.75rem">
-                                    <div style="width:16px; height:16px; border-radius:50%; border:1px solid #cbd5e1; background:${c === 'Şeffaf' ? 'transparent' : c === 'Siyah' ? '#000' : c === 'Beyaz' ? '#fff' : c === 'Antrasit' ? '#374151' : c === 'Sarı' || c === 'Sari' ? '#facc15' : c === 'Kırmızı' || c === 'Kirmizi' ? '#ef4444' : '#cbd5e1'}"></div>
-                                    <span style="font-weight:700; color:#475569; font-size:0.9rem; text-transform:uppercase">${c}</span>
+                        ${colors.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1rem">Henuz renk eklenmemis.</div>' : ''}
+                        ${colors.map(c => {
+                            const colorArg = String(c).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                            return `
+                                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.75rem 1rem; border-radius:0.75rem; border:1px solid #f1f5f9">
+                                    <div style="display:flex; align-items:center; gap:0.75rem">
+                                        <div style="width:16px; height:16px; border-radius:50%; border:1px solid #cbd5e1; background:${swatchColor(c)}"></div>
+                                        <span style="font-weight:700; color:#475569; font-size:0.9rem; text-transform:uppercase">${UnitModule.escapeHtml(c)}</span>
+                                    </div>
+                                    <button onclick="UnitModule.deleteColor('${unitId}','${colorArg}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; transition:color 0.2s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="trash-2" width="14"></i></button>
                                 </div>
-                                <button onclick="UnitModule.deleteColor('${unitId}','${c}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; transition:color 0.2s" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="trash-2" width="14"></i></button>
-                            </div>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </div>
                 </div>
             </div>
         `;
         document.body.insertAdjacentHTML('beforeend', modalHtml);
         if (window.lucide) window.lucide.createIcons();
-        document.getElementById('newColorInput').focus();
+        const input = document.getElementById('newColorInput');
+        if (input) input.focus();
     },
 
     addColor: async (unitId) => {
-        const val = document.getElementById('newColorInput').value.trim();
-        if (val) {
-            if (!DB.data.data.unitColors[unitId].includes(val)) {
-                DB.data.data.unitColors[unitId].push(val);
-                await DB.save();
-                document.getElementById('colorModalOverlay').remove();
-                UnitModule.openColorModal(unitId); // Re-open to refresh list
-                // Also refresh the main UI to update the select box
-                UnitModule.renderUnitStock(document.getElementById('main-content'), unitId);
-                if (window.lucide) window.lucide.createIcons();
-                // But we must immediately re-open the modal, effectively refreshing it
-                document.getElementById('colorModalOverlay').remove(); // remove old one from re-render
-                UnitModule.openColorModal(unitId);
-            }
+        const val = document.getElementById('newColorInput')?.value.trim() || '';
+        if (!val) return;
+        if (!Array.isArray(DB.data.data.unitColors?.[unitId])) DB.data.data.unitColors[unitId] = [];
+
+        const exists = DB.data.data.unitColors[unitId].some(c => String(c).toLowerCase() === val.toLowerCase());
+        if (exists) {
+            alert('Bu renk zaten var.');
+            return;
         }
+
+        DB.data.data.unitColors[unitId].push(val);
+        await DB.save();
+        const overlay = document.getElementById('colorModalOverlay');
+        if (overlay) overlay.remove();
+        UI.renderCurrentPage();
+        UnitModule.openColorModal(unitId);
     },
 
     deleteColor: async (unitId, color) => {
-        if (confirm(color + ' silinsin mi?')) {
-            DB.data.data.unitColors[unitId] = DB.data.data.unitColors[unitId].filter(c => c !== color);
-            await DB.save();
-            document.getElementById('colorModalOverlay').remove();
-            UnitModule.openColorModal(unitId);
-            UnitModule.renderUnitStock(document.getElementById('main-content'), unitId);
-            if (window.lucide) window.lucide.createIcons();
-            document.getElementById('colorModalOverlay').remove();
-            UnitModule.openColorModal(unitId);
-        }
+        if (!confirm(color + ' silinsin mi?')) return;
+        DB.data.data.unitColors[unitId] = (DB.data.data.unitColors[unitId] || []).filter(c => c !== color);
+        await DB.save();
+        const overlay = document.getElementById('colorModalOverlay');
+        if (overlay) overlay.remove();
+        UI.renderCurrentPage();
+        UnitModule.openColorModal(unitId);
     },
-
     openUnit: (id) => { UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
     openMachines: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'machines'; UI.renderCurrentPage(); },
     openStock: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'stock'; UnitModule.state.stockTab = 'ROD'; UI.renderCurrentPage(); },

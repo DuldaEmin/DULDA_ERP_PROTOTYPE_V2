@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | unitLibraryEmpty
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -88,6 +88,8 @@ const UnitModule = {
             UnitModule.renderCncLibrary(container, activeUnitId);
         } else if (view === 'sawCut') {
             UnitModule.renderSawCut(container, activeUnitId);
+        } else if (view === 'unitLibraryEmpty') {
+            UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         }
     },
 
@@ -135,6 +137,21 @@ const UnitModule = {
         UnitModule.state.sawDraftAttachment = null;
         UI.renderCurrentPage();
     },
+    openUnitLibrary: (id) => {
+        const unit = (DB.data.data.units || []).find(u => u.id === id);
+        const unitName = String(unit?.name || '').toUpperCase();
+        if (unitName.includes('CNC')) {
+            UnitModule.openCncLibrary(id);
+            return;
+        }
+        if (unitName.includes('TESTERE')) {
+            UnitModule.openSawCut(id);
+            return;
+        }
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'unitLibraryEmpty';
+        UI.renderCurrentPage();
+    },
     setStockTab: (t) => { UnitModule.state.stockTab = t; UI.renderCurrentPage(); },
 
 
@@ -173,12 +190,19 @@ const UnitModule = {
     renderUnitDashboard: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
         const isExternalUnit = unit?.type === 'external';
-        const isCncUnit = String(unit?.name || '').toUpperCase().includes('CNC');
-        const isSawUnit = String(unit?.name || '').toUpperCase().includes('TESTERE');
+        const productLibraryCard = `
+            <a href="#" onclick="UnitModule.openUnitLibrary('${unitId}')" class="app-card">
+                <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
+                <div class="app-name">Ürün Kütüphanesi</div>
+            </a>
+        `;
         if (isExternalUnit) {
             container.innerHTML = `
                 <div class="page-header">
                      <h2 class="page-title">${unit.name}</h2>
+                </div>
+                <div class="apps-grid">
+                    ${productLibraryCard}
                 </div>
             `;
             return;
@@ -200,22 +224,10 @@ const UnitModule = {
                     <div class="icon-box g-emerald"><i data-lucide="package" width="40" height="40"></i></div>
                     <div class="app-name">Birim Stoğu</div>
                 </a>
-                ${isCncUnit ? `
-                <a href="#" onclick="UnitModule.openCncLibrary('${unitId}')" class="app-card">
-                    <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
-                    <div class="app-name">Ürün Kütüphanesi</div>
-                </a>
-                ` : ''}
-                ${isSawUnit ? `
-                <a href="#" onclick="UnitModule.openSawCut('${unitId}')" class="app-card">
-                    <div class="icon-box" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0); color:#047857"><i data-lucide="library" width="40" height="40"></i></div>
-                    <div class="app-name">Ürün Kütüphanesi</div>
-                </a>
-                ` : ''}
+                ${productLibraryCard}
             </div>
         `;
     },
-
     renderUnitPersonnel: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
 
@@ -378,6 +390,24 @@ const UnitModule = {
         UnitModule.renderUnitPersonnel(document.getElementById('main-content'), unitId);
     },
 
+    renderUnitLibraryPlaceholder: (container, unitId) => {
+        const unit = DB.data.data.units.find(u => u.id === unitId);
+        container.innerHTML = `
+            <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center">
+                <div style="display:flex; align-items:center; gap:1rem">
+                    <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
+                    <div>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> Ürün Kütüphanesi</h2>
+                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} • Bu birim için modül henüz tanımlanmadı.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-table" style="padding:2rem; text-align:center; color:#94a3b8">
+                <div style="font-weight:700; color:#475569; margin-bottom:0.5rem">Boş Sayfa</div>
+                <div style="font-size:0.9rem">Bu birimin ürün ekleme modülü daha sonra eklenecek.</div>
+            </div>
+        `;
+    },
     renderCncLibrary: (container, unitId) => {
         CncLibraryModule.render(container, unitId);
     },

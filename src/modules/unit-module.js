@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | extruderLibrary | unitLibraryEmpty
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | unitLibraryEmpty | depoTransfer
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -11,20 +11,17 @@ const UnitModule = {
         cncDraftId: null,
         cncDraftOperations: [],
         cncDraftDrawing: null,
-        sawSourceFilter: 'ALL',
         sawSearchName: '',
         sawSearchCode: '',
         sawSearchLen: '',
-        sawMaterialSearchName: '',
-        sawMaterialSearchCode: '',
-        sawSelectedKey: null,
         sawSelectedOrderId: null,
+        sawProcessName: '',
         sawCutLen: '',
-        sawAlias: '',
+        sawChamfer: false,
         sawNote: '',
         sawFormOpen: false,
         sawEditingId: null,
-        sawDraftAttachment: null,
+        sawDraftCode: '',
         plexiSearchName: '',
         plexiSearchId: '',
         plexiSelectedId: null,
@@ -35,6 +32,31 @@ const UnitModule = {
         plexiUseBrush: false,
         plexiOvenMinutes: '',
         plexiNote: '',
+        pvdSearchName: '',
+        pvdSearchId: '',
+        pvdSelectedId: null,
+        pvdFormOpen: false,
+        pvdEditingId: null,
+        pvdProductName: '',
+        pvdColor: '',
+        pvdNote: '',
+        elxSearchName: '',
+        elxSearchId: '',
+        elxSelectedId: null,
+        elxFormOpen: false,
+        elxEditingId: null,
+        elxProductName: '',
+        elxProcessType: 'ELOKSAL',
+        elxColor: '',
+        elxNote: '',
+        polishSearchName: '',
+        polishSearchId: '',
+        polishSelectedId: null,
+        polishFormOpen: false,
+        polishEditingId: null,
+        polishProductName: '',
+        polishSurface: '',
+        polishNote: '',
         extruderSearchDia: '',
         extruderSearchLen: '',
         extruderSearchColor: '',
@@ -58,25 +80,39 @@ const UnitModule = {
         if (!DB.data.data.inventory) DB.data.data.inventory = [];
         if (!DB.data.data.cncCards) DB.data.data.cncCards = [];
         if (!DB.data.data.plexiPolishCards) DB.data.data.plexiPolishCards = [];
+        if (!DB.data.data.pvdCards) DB.data.data.pvdCards = [];
+        if (!DB.data.data.eloksalCards) DB.data.data.eloksalCards = [];
+        if (!DB.data.data.ibrahimPolishCards) DB.data.data.ibrahimPolishCards = [];
+        if (!DB.data.data.processColorLists || typeof DB.data.data.processColorLists !== 'object') DB.data.data.processColorLists = {};
+        if (!DB.data.data.polishSurfaceLists || typeof DB.data.data.polishSurfaceLists !== 'object') DB.data.data.polishSurfaceLists = {};
         if (!DB.data.data.extruderLibraryCards) DB.data.data.extruderLibraryCards = [];
+        if (!DB.data.data.depoTransferLogs) DB.data.data.depoTransferLogs = [];
+        if (!DB.data.data.depoRoutes) DB.data.data.depoRoutes = [];
 
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
             DB.data.data.units = [
-                { id: 'u1', name: 'CNC ATÖLYESİ', type: 'internal' },
-                { id: 'u2', name: 'EKSTRÜDER ATÖLYESİ', type: 'internal' },
+                { id: 'u1', name: 'CNC ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
+                { id: 'u2', name: 'EKSTRÃƒÆ’Ã…â€œDER ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
                 { id: 'u4', name: 'PAKETLEME', type: 'internal' },
-                { id: 'u5', name: 'PLEKSİ POLİSAJ ATÖLYESİ', type: 'internal' },
-                { id: 'u7', name: 'TESTERE ATÖLYESİ', type: 'internal' },
-                { id: 'u8', name: 'AKPA ALÜMİNYUM A.Ş', type: 'external' },
-                { id: 'u9', name: 'HİLAL PWD', type: 'external' },
-                { id: 'u10', name: 'İBRAHİM POLİSAJ', type: 'external' },
-                { id: 'u11', name: 'TEKİN ELOKSAL', type: 'external' }
+                { id: 'u5', name: 'PLEKSÃƒâ€Ã‚Â° POLÃƒâ€Ã‚Â°SAJ ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
+                { id: 'u7', name: 'TESTERE ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
+                { id: 'u_dtm', name: 'DEPO TRANSFER MERKEZI', type: 'internal' },
+                { id: 'u8', name: 'AKPA ALÃƒÆ’Ã…â€œMÃƒâ€Ã‚Â°NYUM A.ÃƒÂ¯Ã‚Â¿Ã‚Â½?', type: 'external' },
+                { id: 'u9', name: 'HÃƒâ€Ã‚Â°LAL PWD', type: 'external' },
+                { id: 'u10', name: 'Ãƒâ€Ã‚Â°BRAHÃƒâ€Ã‚Â°M POLÃƒâ€Ã‚Â°SAJ', type: 'external' },
+                { id: 'u11', name: 'TEKÃƒâ€Ã‚Â°N ELOKSAL', type: 'external' }
             ];
             if (DB.fileHandle) DB.save();
         }
 
+
+        // System unit: keep Depo Transfer Merkezi in internal units.
+        if (!(DB.data.data.units || []).some(u => u.id === 'u_dtm')) {
+            DB.data.data.units.push({ id: 'u_dtm', name: 'DEPO TRANSFER MERKEZI', type: 'internal' });
+            DB.markDirty();
+        }
         // Punta atolyesi artik kullanilmiyor; eski kayitlardan da temizle.
         const puntaIds = (DB.data.data.units || [])
             .filter(u => String(u?.name || '').toUpperCase().includes('PUNTA AT'))
@@ -95,8 +131,8 @@ const UnitModule = {
 
         if (!DB.data.data.machines || DB.data.data.machines.length === 0) {
             DB.data.data.machines = [
-                { id: 'm1', unitId: 'u2', name: 'Ekstrüder Hattı 1', status: 'ACTIVE' },
-                { id: 'm2', unitId: 'u2', name: 'Ekstrüder Hattı 2', status: 'MAINTENANCE' },
+                { id: 'm1', unitId: 'u2', name: 'EkstrÃƒÆ’Ã‚Â¼der HattÃƒâ€Ã‚Â± 1', status: 'ACTIVE' },
+                { id: 'm2', unitId: 'u2', name: 'EkstrÃƒÆ’Ã‚Â¼der HattÃƒâ€Ã‚Â± 2', status: 'MAINTENANCE' },
                 { id: 'm3', unitId: 'u1', name: 'CNC Kesim 1', status: 'IDLE' }
             ];
         }
@@ -117,14 +153,23 @@ const UnitModule = {
             UnitModule.renderSawCut(container, activeUnitId);
         } else if (view === 'plexiLibrary') {
             UnitModule.renderPlexiLibrary(container, activeUnitId);
+        } else if (view === 'pvdLibrary') {
+            UnitModule.renderPvdLibrary(container, activeUnitId);
+        } else if (view === 'eloksalLibrary') {
+            UnitModule.renderEloksalLibrary(container, activeUnitId);
+        } else if (view === 'polishLibrary') {
+            UnitModule.renderPolishLibrary(container, activeUnitId);
         } else if (view === 'extruderLibrary') {
             UnitModule.renderExtruderLibrary(container, activeUnitId);
         } else if (view === 'unitLibraryEmpty') {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
+        } else if (view === 'depoTransfer') {
+            UnitModule.renderDepoTransfer(container);
         }
     },
 
-    openUnit: (id) => { UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
+    openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
+    openDepoTransfer: () => { UnitModule.state.activeUnitId = null; UnitModule.state.view = 'depoTransfer'; UI.renderCurrentPage(); },
     openMachines: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'machines'; UI.renderCurrentPage(); },
     openStock: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'stock'; UnitModule.state.stockTab = 'ROD'; UI.renderCurrentPage(); },
     openPersonnel: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'personnel'; UI.renderCurrentPage(); },
@@ -152,20 +197,24 @@ const UnitModule = {
     openSawCut: (id) => {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'sawCut';
-        UnitModule.state.sawSourceFilter = 'ALL';
+        if (!DB.data.data.sawCutMeta || typeof DB.data.data.sawCutMeta !== 'object') DB.data.data.sawCutMeta = {};
+        if (!DB.data.data.sawCutMeta.v2ResetApplied) {
+            DB.data.data.sawCutOrders = [];
+            DB.data.data.sawCutMeta.v2ResetApplied = true;
+            DB.markDirty();
+            DB.save();
+        }
         UnitModule.state.sawSearchName = '';
         UnitModule.state.sawSearchCode = '';
         UnitModule.state.sawSearchLen = '';
-        UnitModule.state.sawMaterialSearchName = '';
-        UnitModule.state.sawMaterialSearchCode = '';
-        UnitModule.state.sawSelectedKey = null;
         UnitModule.state.sawSelectedOrderId = null;
+        UnitModule.state.sawProcessName = '';
         UnitModule.state.sawCutLen = '';
-        UnitModule.state.sawAlias = '';
+        UnitModule.state.sawChamfer = false;
         UnitModule.state.sawNote = '';
         UnitModule.state.sawFormOpen = false;
         UnitModule.state.sawEditingId = null;
-        UnitModule.state.sawDraftAttachment = null;
+        UnitModule.state.sawDraftCode = '';
         UI.renderCurrentPage();
     },
     openPlexiLibrary: (id) => {
@@ -181,6 +230,46 @@ const UnitModule = {
         UnitModule.state.plexiUseBrush = false;
         UnitModule.state.plexiOvenMinutes = '';
         UnitModule.state.plexiNote = '';
+        UI.renderCurrentPage();
+    },
+    openPvdLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'pvdLibrary';
+        UnitModule.state.pvdSearchName = '';
+        UnitModule.state.pvdSearchId = '';
+        UnitModule.state.pvdSelectedId = null;
+        UnitModule.state.pvdFormOpen = false;
+        UnitModule.state.pvdEditingId = null;
+        UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdNote = '';
+        UI.renderCurrentPage();
+    },
+    openEloksalLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'eloksalLibrary';
+        UnitModule.state.elxSearchName = '';
+        UnitModule.state.elxSearchId = '';
+        UnitModule.state.elxSelectedId = null;
+        UnitModule.state.elxFormOpen = false;
+        UnitModule.state.elxEditingId = null;
+        UnitModule.state.elxProductName = '';
+        UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColor = '';
+        UnitModule.state.elxNote = '';
+        UI.renderCurrentPage();
+    },
+    openPolishLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'polishLibrary';
+        UnitModule.state.polishSearchName = '';
+        UnitModule.state.polishSearchId = '';
+        UnitModule.state.polishSelectedId = null;
+        UnitModule.state.polishFormOpen = false;
+        UnitModule.state.polishEditingId = null;
+        UnitModule.state.polishProductName = '';
+        UnitModule.state.polishSurface = '';
+        UnitModule.state.polishNote = '';
         UI.renderCurrentPage();
     },
     openExtruderLibrary: (id) => {
@@ -218,7 +307,19 @@ const UnitModule = {
             UnitModule.openSawCut(id);
             return;
         }
-        if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ') || unitName.includes('POLİSAJ')) {
+        if (id === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            UnitModule.openPvdLibrary(id);
+            return;
+        }
+        if (id === 'u11' || unitName.includes('ELOKSAL')) {
+            UnitModule.openEloksalLibrary(id);
+            return;
+        }
+        if (id === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            UnitModule.openPolishLibrary(id);
+            return;
+        }
+        if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ') || unitName.includes('POLÃƒâ€Ã‚Â°SAJ')) {
             UnitModule.openPlexiLibrary(id);
             return;
         }
@@ -241,6 +342,7 @@ const UnitModule = {
             u4: { bg: '#fee2e2', fg: '#b91c1c' },
             u5: { bg: '#fce7f3', fg: '#be185d' },
             u7: { bg: '#fef3c7', fg: '#b45309' },
+            u_dtm: { bg: '#dbeafe', fg: '#1e40af' },
             u8: { bg: '#ffedd5', fg: '#c2410c' },
             u9: { bg: '#ffedd5', fg: '#ea580c' },
             u10: { bg: '#fed7aa', fg: '#9a3412' },
@@ -263,13 +365,15 @@ const UnitModule = {
             return (src[0][0] + src[1][0]).toLocaleUpperCase('tr-TR');
         };
         const renderCard = (u) => {
+            const isDepoTransfer = u.id === 'u_dtm';
             const palette = badgeStyles[u.id] || (u.type === 'internal'
                 ? { bg: '#eff6ff', fg: '#2563eb' }
                 : { bg: '#fff7ed', fg: '#ea580c' });
             const initials = getUnitInitials(u.name);
+            const cardAction = isDepoTransfer ? 'UnitModule.openDepoTransfer()' : `UnitModule.openUnit('${u.id}')`;
             return `
-            <div class="app-card" style="padding:1.5rem; position:relative; cursor:pointer;" onclick="UnitModule.openUnit('${u.id}')">
-                ${canManage ? `
+            <div class="app-card" style="padding:1.5rem; position:relative; cursor:pointer;" onclick="${cardAction}">
+                ${canManage && !isDepoTransfer ? `
                 <div style="position:absolute; top:0.75rem; right:0.75rem; display:flex; gap:0.35rem;">
                     <button class="btn-sm" title="Birim duzenle" style="padding:0.35rem 0.45rem; display:flex; align-items:center; justify-content:center; color:#94a3b8; opacity:0.8; background:#f8fafc; border-color:#dbe3ee;" onclick="event.stopPropagation(); UnitModule.openUnitEditModal('${u.id}')">
                         <i data-lucide="pencil" width="14" height="14"></i>
@@ -333,6 +437,133 @@ const UnitModule = {
             </div>
         `;
     },
+    renderDepoTransfer: (container) => {
+        const units = (DB.data.data.units || []).slice();
+        const unitMap = {};
+        units.forEach(u => { unitMap[u.id] = u.name; });
+        const routes = (DB.data.data.depoRoutes || [])
+            .slice()
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        const unitOptions = units.map(u => `<option value="${u.id}">${UnitModule.escapeHtml(u.name)} (${u.type === 'external' ? 'Dis' : 'Ic'})</option>`).join('');
+
+        container.innerHTML = `
+            <div style="margin-bottom:1.25rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:0.75rem;">
+                    <button onclick="UnitModule.state.view='list'; UI.renderCurrentPage();" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.5rem; cursor:pointer;">
+                        <i data-lucide="arrow-left" width="18" height="18"></i>
+                    </button>
+                    <div>
+                        <h2 class="page-title" style="margin:0;">Depo Transfer Merkezi</h2>
+                        <div style="font-size:0.85rem; color:#64748b;">Depocular icin rota yonetim ekrani</div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.8rem; font-weight:700; color:#0f172a;">
+                        Kayitli Rota: ${routes.length}
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-bottom:1rem; background:#f8fafc; border:1px dashed #cbd5e1; border-radius:0.8rem; padding:0.75rem; color:#475569; font-size:0.82rem;">
+                Aldim/Verdim transfer formlari sonraki fazda eklenecek. Bu ekranda su an sadece rota tanimlanir.
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="workflow" width="16" height="16"></i> Urun Rotasi Tanimla
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem;">
+                        <input id="route_name" placeholder="Rota Adi (orn: Boru Standart)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
+                        <input id="route_product" placeholder="Urun Kod/Adi" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
+                        <select id="route_step_1" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;"><option value="">Adim 1</option>${unitOptions}</select>
+                        <select id="route_step_2" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;"><option value="">Adim 2</option>${unitOptions}</select>
+                        <select id="route_step_3" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;"><option value="">Adim 3</option>${unitOptions}</select>
+                        <select id="route_step_4" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;"><option value="">Adim 4</option>${unitOptions}</select>
+                    </div>
+                    <div style="font-size:0.77rem; color:#64748b; margin-top:0.55rem;">Rota seciminde sadece bu sayfadaki istasyonlar kullanilir.</div>
+                    <button class="btn-primary" onclick="UnitModule.saveDepoRoute()" style="margin-top:0.8rem; display:inline-flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="save" width="16" height="16"></i> Rotayi Kaydet
+                    </button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="list-tree" width="16" height="16"></i> Kayitli Rotalar
+                    </div>
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.55rem; text-align:left;">Rota</th>
+                                    <th style="padding:0.55rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.55rem; text-align:left;">Istasyonlar</th>
+                                    <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${routes.length === 0 ? `<tr><td colspan="4" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli rota yok.</td></tr>` : routes.map(r => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.routeName || '-')}</td>
+                                        <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(r.productKey || '-')}</td>
+                                        <td style="padding:0.55rem; color:#475569; font-size:0.82rem;">
+                                            ${(Array.isArray(r.stationIds) ? r.stationIds : []).map(id => UnitModule.escapeHtml(unitMap[id] || id)).join(' &rarr; ')}
+                                        </td>
+                                        <td style="padding:0.55rem; text-align:right;">
+                                            <button class="btn-sm" onclick="UnitModule.deleteDepoRoute('${r.id}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+    saveDepoRoute: async () => {
+        const routeName = String(document.getElementById('route_name')?.value || '').trim();
+        const productKey = String(document.getElementById('route_product')?.value || '').trim();
+        const rawStationIds = [
+            String(document.getElementById('route_step_1')?.value || '').trim(),
+            String(document.getElementById('route_step_2')?.value || '').trim(),
+            String(document.getElementById('route_step_3')?.value || '').trim(),
+            String(document.getElementById('route_step_4')?.value || '').trim()
+        ];
+        const stationIds = rawStationIds.filter(Boolean);
+
+        if (!routeName) return alert('Rota adi zorunlu.');
+        if (!productKey) return alert('Urun kod/adi zorunlu.');
+        if (stationIds.length < 2) return alert('Rota icin en az 2 adim seciniz.');
+
+        const uniqueCount = new Set(stationIds).size;
+        if (uniqueCount !== stationIds.length) return alert('Ayni istasyon rota icinde tekrar edemez.');
+
+        const validUnitIds = new Set((DB.data.data.units || []).map(u => u.id));
+        if (stationIds.some(id => !validUnitIds.has(id))) return alert('Rota disi bir istasyon secildi.');
+
+        if (!Array.isArray(DB.data.data.depoRoutes)) DB.data.data.depoRoutes = [];
+        DB.data.data.depoRoutes.push({
+            id: crypto.randomUUID(),
+            routeName,
+            productKey,
+            stationIds,
+            created_at: new Date().toISOString()
+        });
+
+        await DB.save();
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+    },
+    deleteDepoRoute: async (routeId) => {
+        const row = (DB.data.data.depoRoutes || []).find(x => x.id === routeId);
+        if (!row) return;
+        if (!confirm(`"${row.routeName}" rotasi silinsin mi?`)) return;
+
+        DB.data.data.depoRoutes = (DB.data.data.depoRoutes || []).filter(x => x.id !== routeId);
+        await DB.save();
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+    },
     renderUnitPersonnel: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
 
@@ -344,7 +575,7 @@ const UnitModule = {
         if (personnel.length === 0 && !DB.data.meta.personnelInitialized?.[unitId]) {
             // Seed defaults ONLY ONCE
             const defaults = [
-                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet Yılmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
+                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet YÃƒâ€Ã‚Â±lmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
                 { id: crypto.randomUUID(), unitId, fullName: 'Mehmet Demir', permissions: { production: true, waste: false, admin: false }, isActive: true },
             ];
             DB.data.data.personnel.push(...defaults);
@@ -359,8 +590,8 @@ const UnitModule = {
                 <div style="display:flex; align-items:center; gap:1rem">
                      <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                      <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel Yönetimi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit.name} • Çalışan listesi ve yetkilendirme</div>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel YÃƒÆ’Ã‚Â¶netimi</h2>
+                        <div style="font-size:0.875rem; color:#64748b">${unit.name} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ÃƒÆ’Ã¢â‚¬Â¡alÃƒâ€Ã‚Â±Ãƒâ€¦Ã…Â¸an listesi ve yetkilendirme</div>
                      </div>
                 </div>
                 <button onclick="UnitModule.openPersonnelModal('${unitId}')" class="btn-primary" style="display:flex; gap:0.5rem; align-items:center">
@@ -374,11 +605,11 @@ const UnitModule = {
                         <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
                             <th style="padding:1.5rem">Ad Soyad</th>
                             <th style="padding:1.5rem">Yetkiler</th>
-                            <th style="padding:1.5rem; text-align:right">İşlemler</th>
+                            <th style="padding:1.5rem; text-align:right">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸lemler</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">Kayıtlı personel yok.</td></tr>' : personnel.map(p => `
+                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">KayÃƒâ€Ã‚Â±tlÃƒâ€Ã‚Â± personel yok.</td></tr>' : personnel.map(p => `
                             <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; align-items:center; gap:0.75rem font-weight:600; color:#334155">
@@ -389,7 +620,7 @@ const UnitModule = {
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
                                         ${p.permissions.admin ? '<span style="background:#faf5ff; color:#9333ea; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="shield" width="12"></i> Admin</span>' : ''}
-                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Üretim</span>' : ''}
+                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> ÃƒÆ’Ã…â€œretim</span>' : ''}
                                         ${p.permissions.waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
                                     </div>
                                 </td>
@@ -409,7 +640,7 @@ const UnitModule = {
         const person = personId ? DB.data.data.personnel.find(p => p.id === personId) : null;
         const perms = person?.permissions || { production: true, waste: false, admin: false };
 
-        Modal.open(person ? 'Personeli Düzenle' : 'Yeni Personel Ekle', `
+        Modal.open(person ? 'Personeli DÃƒÆ’Ã‚Â¼zenle' : 'Yeni Personel Ekle', `
             <div style="display:flex; flex-direction:column; gap:1rem">
                 <div>
                     <label style="display:block; font-size:0.875rem; font-weight:700; color:#334155; margin-bottom:0.25rem">Ad Soyad</label>
@@ -422,8 +653,8 @@ const UnitModule = {
                     <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ecfdf5; color:#047857; padding:0.5rem; border-radius:0.25rem"><i data-lucide="factory" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">Üretim Başlatabilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">İş emri yetkisi</div>
+                            <div style="font-weight:600; font-size:0.9rem">ÃƒÆ’Ã…â€œretim BaÃƒâ€¦Ã…Â¸latabilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸ emri yetkisi</div>
                         </div>
                     </div>
                     <input id="p_perm_prod" type="checkbox" ${perms.production ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -433,8 +664,8 @@ const UnitModule = {
                      <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ffedd5; color:#c2410c; padding:0.5rem; border-radius:0.25rem"><i data-lucide="alert-circle" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">Fire Onayı Verebilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">Hatalı üretim girişi</div>
+                            <div style="font-weight:600; font-size:0.9rem">Fire OnayÃƒâ€Ã‚Â± Verebilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">HatalÃƒâ€Ã‚Â± ÃƒÆ’Ã‚Â¼retim giriÃƒâ€¦Ã…Â¸i</div>
                         </div>
                     </div>
                     <input id="p_perm_waste" type="checkbox" ${perms.waste ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -462,7 +693,7 @@ const UnitModule = {
         const waste = document.getElementById('p_perm_waste').checked;
         const admin = document.getElementById('p_perm_admin').checked;
 
-        if (!name) return alert("İsim giriniz.");
+        if (!name) return alert("Ãƒâ€Ã‚Â°sim giriniz.");
 
         if (!DB.data.data.personnel) DB.data.data.personnel = [];
 
@@ -488,7 +719,7 @@ const UnitModule = {
     },
 
     deletePersonnel: async (id, unitId) => {
-        if (!confirm("Bu personeli silmek (pasife almak) istediğinize emin misiniz?")) return;
+        if (!confirm("Bu personeli silmek (pasife almak) istediÃƒâ€Ã…Â¸inize emin misiniz?")) return;
         const p = DB.data.data.personnel.find(x => x.id === id);
         if (p) p.isActive = false; // Soft delete
         await DB.save();
@@ -503,13 +734,13 @@ const UnitModule = {
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} • Bu birim için modül henüz tanımlanmadı.</div>
+                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Bu birim iÃƒÆ’Ã‚Â§in modÃƒÆ’Ã‚Â¼l henÃƒÆ’Ã‚Â¼z tanÃƒâ€Ã‚Â±mlanmadÃƒâ€Ã‚Â±.</div>
                     </div>
                 </div>
             </div>
             <div class="card-table" style="padding:2rem; text-align:center; color:#94a3b8">
-                <div style="font-weight:700; color:#475569; margin-bottom:0.5rem">Boş Sayfa</div>
-                <div style="font-size:0.9rem">Bu birimin ürün ekleme modülü daha sonra eklenecek.</div>
+                <div style="font-weight:700; color:#475569; margin-bottom:0.5rem">BoÃƒâ€¦Ã…Â¸ Sayfa</div>
+                <div style="font-size:0.9rem">Bu birimin ÃƒÆ’Ã‚Â¼rÃƒÆ’Ã‚Â¼n ekleme modÃƒÆ’Ã‚Â¼lÃƒÆ’Ã‚Â¼ daha sonra eklenecek.</div>
             </div>
         `;
     },
@@ -517,78 +748,87 @@ const UnitModule = {
         CncLibraryModule.render(container, unitId);
     },
 
-    getSawMaterials: () => {
-        const extruderProducts = (DB.data.data.products || []).filter(p => {
-            const category = String(p?.category || '').toUpperCase();
-            const type = String(p?.type || '').toUpperCase();
-            return category.includes('EKSTR') || type === 'ROD' || type === 'PIPE';
-        }).map(p => {
-            let title = p?.name || 'Ekstruder urunu';
-            if (p?.specs) {
-                const dia = p.specs.diameter ?? '-';
-                const len = p.specs.length ?? '-';
-                const surf = p.specs.surface ? ` / ${p.specs.surface}` : '';
-                const thick = p.specs.thickness ? ` / ${p.specs.thickness} mm` : '';
-                const color = p.specs.color ? ` / ${p.specs.color}` : '';
-                title = `Cap ${dia} mm / boy ${len} mm${thick}${surf}${color}`;
-            }
-            return {
-                key: `ext-${p.id}`,
-                source: 'EKSTRUDER',
-                materialId: p.id,
-                code: p.code || p.id?.slice?.(0, 8) || '-',
-                name: title,
-                previewImage: p.image || p.imageUrl || null,
-                previewPdf: p.pdf || p.pdfUrl || p.pdfDataUrl || p.drawingPdf || null
-            };
-        });
+    collectGlobalCodes: (exclude = null) => {
+        const bag = new Set();
+        const add = (value) => {
+            const normalized = String(value || '').trim().toUpperCase();
+            if (!normalized) return;
+            bag.add(normalized);
+        };
+        const shouldSkip = (collection, row, field) => {
+            if (!exclude || !row) return false;
+            if (exclude.collection !== collection) return false;
+            if (String(exclude.id || '') !== String(row.id || '')) return false;
+            if (exclude.field && exclude.field !== field) return false;
+            return true;
+        };
+        const readMany = (collection, list, fields) => {
+            if (!Array.isArray(list)) return;
+            list.forEach(row => {
+                fields.forEach(field => {
+                    if (shouldSkip(collection, row, field)) return;
+                    add(row?.[field]);
+                });
+            });
+        };
 
-        const aluminumProfiles = (DB.data.data.aluminumProfiles || []).map(p => {
-            const surface = p.anodizedColor ? `${p.anodizedColor} eloksal` : (p.paintColor ? `${p.paintColor} boya` : 'hams');
-            return {
-                key: `alu-${p.id}`,
-                source: 'ALUMINYUM PROFIL',
-                materialId: p.id,
-                code: p.code || p.id?.slice?.(0, 8) || '-',
-                name: `${p.name || 'Profil'} / ${surface} / ${p.length || '-'} mm`,
-                previewImage: p.image || p.imageUrl || null,
-                previewPdf: p.pdf || p.pdfUrl || p.pdfDataUrl || p.drawingPdf || null
-            };
-        });
+        readMany('products', DB.data?.data?.products, ['code']);
+        readMany('cncCards', DB.data?.data?.cncCards, ['productCode', 'cncId']);
+        readMany('sawCutOrders', DB.data?.data?.sawCutOrders, ['code']);
+        readMany('extruderLibraryCards', DB.data?.data?.extruderLibraryCards, ['cardCode']);
+        readMany('plexiPolishCards', DB.data?.data?.plexiPolishCards, ['cardCode']);
+        readMany('pvdCards', DB.data?.data?.pvdCards, ['cardCode']);
+        readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
+        readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
+        readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
+        return bag;
+    },
 
-        return [...extruderProducts, ...aluminumProfiles];
+    isGlobalCodeTaken: (code, exclude = null) => {
+        const normalized = String(code || '').trim().toUpperCase();
+        if (!normalized) return false;
+        return UnitModule.collectGlobalCodes(exclude).has(normalized);
+    },
+
+    getNextSawProcessCode: () => {
+        if (!Array.isArray(DB.data.data.sawCutOrders)) DB.data.data.sawCutOrders = [];
+        const max = DB.data.data.sawCutOrders.reduce((acc, row) => {
+            const code = String(row?.code || '').trim().toUpperCase();
+            const match = code.match(/^TST-(\d{6})$/);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        let nextNum = max + 1;
+        let candidate = `TST-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `TST-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
     },
 
     renderSawCut: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
-        const allMaterials = UnitModule.getSawMaterials();
         const showForm = UnitModule.state.sawFormOpen || !!UnitModule.state.sawEditingId;
 
-        const rows = (DB.data.data.sawCutOrders || []).filter(x => x.unitId === unitId).sort((a, b) => {
-            return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at);
-        });
+        const rows = (DB.data.data.sawCutOrders || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
         const nameQuery = String(UnitModule.state.sawSearchName || '').trim().toLowerCase();
         const codeQuery = String(UnitModule.state.sawSearchCode || '').trim().toLowerCase();
-        const lenQuery = String(UnitModule.state.sawSearchLen || '').trim();
+        const lenQuery = String(UnitModule.state.sawSearchLen || '').trim().toLowerCase();
         const filteredRows = rows.filter(r => {
-            const display = r.alias ? `${r.alias} / ${r.materialName}` : r.materialName;
-            if (nameQuery && !display.toLowerCase().includes(nameQuery)) return false;
-            if (codeQuery && !String(r.materialCode || '').toLowerCase().includes(codeQuery)) return false;
-            if (lenQuery && String(r.cutLengthMm || '') !== lenQuery) return false;
+            const processName = String(r.processName || '').toLowerCase();
+            const code = String(r.code || '').toLowerCase();
+            const len = String(r.lengthMm ?? r.cutLengthMm ?? '').toLowerCase();
+            if (nameQuery && !processName.includes(nameQuery)) return false;
+            if (codeQuery && !code.includes(codeQuery)) return false;
+            if (lenQuery && !len.includes(lenQuery)) return false;
             return true;
         });
 
-        const source = UnitModule.state.sawSourceFilter || 'ALL';
-        const matNameQuery = String(UnitModule.state.sawMaterialSearchName || '').trim().toLowerCase();
-        const matCodeQuery = String(UnitModule.state.sawMaterialSearchCode || '').trim().toLowerCase();
-        const filteredMaterials = allMaterials.filter(m => {
-            if (source === 'EXTRUDER' && m.source !== 'EKSTRUDER') return false;
-            if (source === 'ALUMINUM' && m.source !== 'ALUMINYUM PROFIL') return false;
-            if (matNameQuery && !String(m.name || '').toLowerCase().includes(matNameQuery)) return false;
-            if (matCodeQuery && !String(m.code || '').toLowerCase().includes(matCodeQuery)) return false;
-            return true;
-        });
-        const draftAttachment = UnitModule.state.sawDraftAttachment;
+        const activeCode = UnitModule.state.sawDraftCode || UnitModule.getNextSawProcessCode();
 
         container.innerHTML = `
             <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center">
@@ -596,122 +836,88 @@ const UnitModule = {
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || 'TESTERE'} • Kayitlar burada listelenir</div>
+                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || 'TESTERE'} &#8226; Olcu kayitlari burada listelenir</div>
                     </div>
                 </div>
-                <button class="btn-primary" onclick="UnitModule.openSawForm()" style="height:42px; padding:0 1rem">${showForm ? 'Vazgeç' : 'Ürün ekle +'}</button>
+                <button class="btn-primary" onclick="UnitModule.openSawForm()" style="height:42px; padding:0 1rem">${showForm ? 'vazgec' : 'urun ekle +'}</button>
             </div>
 
-            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.75rem; margin-bottom:0.75rem; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.6rem">
-                <input id="saw_list_name" value="${UnitModule.state.sawSearchName || ''}" oninput="UnitModule.setSawListFilter('name', this.value, 'saw_list_name')" placeholder="isimle ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
-                <input id="saw_list_code" value="${UnitModule.state.sawSearchCode || ''}" oninput="UnitModule.setSawListFilter('code', this.value, 'saw_list_code')" placeholder="ID / kod ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
-                <input id="saw_list_len" value="${UnitModule.state.sawSearchLen || ''}" oninput="UnitModule.setSawListFilter('len', this.value, 'saw_list_len')" placeholder="boy ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.85rem; margin-bottom:0.85rem; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:0.65rem">
+                <input id="saw_list_name" value="${UnitModule.state.sawSearchName || ''}" oninput="UnitModule.setSawListFilter('name', this.value, 'saw_list_name')" placeholder="islemin adi ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem 0.75rem; font-weight:600; color:#334155">
+                <input id="saw_list_len" value="${UnitModule.state.sawSearchLen || ''}" oninput="UnitModule.setSawListFilter('len', this.value, 'saw_list_len')" placeholder="olcu ile ara (mm)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem 0.75rem; font-weight:600; color:#334155">
+                <input id="saw_list_code" value="${UnitModule.state.sawSearchCode || ''}" oninput="UnitModule.setSawListFilter('code', this.value, 'saw_list_code')" placeholder="islem ID ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem 0.75rem; font-weight:600; color:#334155">
             </div>
+
+            ${showForm ? `
+            <div id="saw_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem">
+                    <div style="font-size:2rem; font-weight:700; color:#0f172a; line-height:1">yeni olcu olustur</div>
+                    <div style="display:flex; gap:0.5rem">
+                        <button class="btn-sm" onclick="UnitModule.resetSawDraft(false)">vazgec</button>
+                        <button class="btn-primary" onclick="UnitModule.saveSawCut('${unitId}')">kaydet</button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap:0.8rem; align-items:end; margin-bottom:0.8rem">
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#64748b; margin-bottom:0.25rem">islemin adi</label>
+                        <input value="${UnitModule.state.sawProcessName || ''}" oninput="UnitModule.state.sawProcessName=this.value" placeholder="islemin adi" style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.65rem 0.75rem; font-weight:600; color:#334155">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#64748b; margin-bottom:0.25rem">olcu giriniz mm.</label>
+                        <input type="number" min="1" step="0.01" value="${UnitModule.state.sawCutLen || ''}" oninput="UnitModule.state.sawCutLen=this.value" placeholder="olcu giriniz mm." style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.65rem 0.75rem; font-weight:600; color:#334155">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#64748b; margin-bottom:0.25rem">pah kirma ekle +</label>
+                        <div style="display:flex; gap:0.45rem">
+                            <button class="btn-sm" onclick="UnitModule.setSawChamfer(true)" style="flex:1; padding:0.62rem 0.7rem; ${UnitModule.state.sawChamfer ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">VAR</button>
+                            <button class="btn-sm" onclick="UnitModule.setSawChamfer(false)" style="flex:1; padding:0.62rem 0.7rem; ${!UnitModule.state.sawChamfer ? 'background:#e2e8f0; color:#0f172a; border-color:#cbd5e1' : ''}">YOK</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.85rem; color:#64748b; margin-bottom:0.25rem">islem ID</label>
+                        <input value="${activeCode}" readonly style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.65rem 0.75rem; font-family:monospace; font-weight:700; color:#334155; background:#f8fafc">
+                    </div>
+                </div>
+
+                <div>
+                    <label style="display:block; font-size:0.85rem; color:#64748b; margin-bottom:0.25rem">not ekle</label>
+                    <textarea oninput="UnitModule.state.sawNote=this.value" placeholder="not ekle" style="width:100%; min-height:88px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.7rem 0.8rem; color:#334155; font-weight:500">${UnitModule.state.sawNote || ''}</textarea>
+                </div>
+            </div>
+            ` : ''}
 
             <div id="saw_list_block" class="card-table" style="margin-bottom:1rem">
                 <table>
                     <thead>
                         <tr>
-                            <th>URUN ISMI</th>
-                            <th style="font-family:monospace">KOD</th>
-                            <th style="text-align:center">BOY (mm)</th>
+                            <th>ISLEM ADI</th>
+                            <th style="text-align:center">OLCU (mm)</th>
+                            <th style="text-align:center">PAH</th>
+                            <th style="font-family:monospace">ID</th>
                             <th style="text-align:center">DUZENLE</th>
-                            <th style="text-align:right">SEC</th>
+                            <th style="text-align:center">SEC</th>
+                            <th style="text-align:right">SIL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${filteredRows.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1.5rem; color:#94a3b8">Eklenmis urun yok.</td></tr>` : filteredRows.map(r => `
+                        ${filteredRows.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
                             <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#f0f9ff' : ''}">
-                                <td style="font-weight:600; color:#334155">${r.alias ? `${r.alias} / ${r.materialName}` : r.materialName}</td>
-                                <td style="font-family:monospace; color:#64748b">${r.materialCode || '-'}</td>
-                                <td style="text-align:center; font-weight:700; color:#0f766e">${r.cutLengthMm}</td>
+                                <td style="font-weight:700; color:#334155">${r.processName || '-'}</td>
+                                <td style="text-align:center; font-weight:700; color:#0f766e">${r.lengthMm ?? r.cutLengthMm ?? '-'}</td>
                                 <td style="text-align:center">
-                                    <button class="btn-sm" onclick="UnitModule.editSawRow('${r.id}')">duzenle</button>
+                                    <span style="display:inline-flex; padding:0.2rem 0.55rem; border-radius:999px; font-size:0.72rem; font-weight:700; border:1px solid ${r.hasChamfer ? '#16a34a' : '#cbd5e1'}; color:${r.hasChamfer ? '#166534' : '#475569'}; background:${r.hasChamfer ? '#dcfce7' : '#f8fafc'}">${r.hasChamfer ? 'VAR' : 'YOK'}</span>
                                 </td>
-                                <td style="text-align:right">
-                                    <button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
-                                </td>
+                                <td style="font-family:monospace; color:#475569; font-weight:700">${r.code || '-'}</td>
+                                <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.editSawRow('${r.id}')">duzenle</button></td>
+                                <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                <td style="text-align:right"><button class="btn-sm btn-danger" onclick="UnitModule.deleteSawRow('${r.id}')">sil</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
                 </table>
             </div>
-
-            ${showForm ? `
-            <div id="saw_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
-                <div style="display:grid; grid-template-columns: 1fr 300px; gap:1rem; margin-bottom:1rem">
-                    <div>
-                        <div style="display:flex; gap:0.6rem; margin-bottom:0.6rem">
-                            <button class="btn-sm" onclick="UnitModule.setSawSourceFilter('EXTRUDER')" style="padding:0.7rem 1rem; ${source === 'EXTRUDER' ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">ekstruder</button>
-                            <button class="btn-sm" onclick="UnitModule.setSawSourceFilter('ALUMINUM')" style="padding:0.7rem 1rem; ${source === 'ALUMINUM' ? 'background:#93c5fd; color:#0f172a; border-color:#60a5fa' : ''}">aluminyum profil</button>
-                        </div>
-                        <div style="display:flex; gap:0.6rem; margin-bottom:0.6rem">
-                            <input id="saw_mat_name" value="${UnitModule.state.sawMaterialSearchName || ''}" oninput="UnitModule.setSawMaterialFilter('name', this.value, 'saw_mat_name')" placeholder="isim ile ara" style="flex:1; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
-                            <input id="saw_mat_code" value="${UnitModule.state.sawMaterialSearchCode || ''}" oninput="UnitModule.setSawMaterialFilter('code', this.value, 'saw_mat_code')" placeholder="kod ile ara" style="flex:1; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.75rem; font-weight:600; color:#334155">
-                        </div>
-                    </div>
-                    <div style="border:1px dashed #94a3b8; border-radius:1rem; padding:0.9rem; display:flex; flex-direction:column; gap:0.5rem; justify-content:center">
-                        <label style="font-weight:700; color:#334155; font-size:0.85rem">dosya ekle (opsiyonel)</label>
-                        <input id="saw_file" type="file" accept=".pdf,image/*" onchange="UnitModule.handleSawAttachment(this)" style="font-size:0.8rem">
-                        <div style="font-size:0.78rem; color:#64748b">${draftAttachment?.name || 'Dosya secilmedi'}</div>
-                        <div style="display:flex; gap:0.4rem">
-                            <button class="btn-sm" onclick="UnitModule.previewSawAttachment()" ${draftAttachment ? '' : 'disabled'}>gor</button>
-                            <button class="btn-sm" onclick="UnitModule.clearSawAttachment()" ${draftAttachment ? '' : 'disabled'}>kaldir</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card-table" style="margin-bottom:1rem">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>KAYNAK</th>
-                                <th>MALZEME</th>
-                                <th style="font-family:monospace">KOD</th>
-                                <th style="text-align:center">ONIZLEME</th>
-                                <th style="text-align:right">ISLEM</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${filteredMaterials.length === 0 ? `<tr><td colspan="5" style="text-align:center; padding:1rem; color:#94a3b8">Malzeme bulunamadi.</td></tr>` : filteredMaterials.map(m => `
-                                <tr style="${UnitModule.state.sawSelectedKey === m.key ? 'background:#ecfeff' : ''}">
-                                    <td><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${m.source}</span></td>
-                                    <td style="font-weight:600; color:#334155">${m.name}</td>
-                                    <td style="font-family:monospace; color:#64748b">${m.code}</td>
-                                    <td style="text-align:center">
-                                        ${(m.previewImage || m.previewPdf) ? `<button class="btn-sm" onclick="UnitModule.previewSawMaterial('${m.key}')">gor</button>` : `<span style="color:#cbd5e1">-</span>`}
-                                    </td>
-                                    <td style="text-align:right">
-                                        <button class="btn-sm" onclick="UnitModule.selectSawMaterial('${m.key}')" style="${UnitModule.state.sawSelectedKey === m.key ? 'background:#16a34a; color:white; border-color:#16a34a' : ''}">${UnitModule.state.sawSelectedKey === m.key ? 'secili' : 'sec'}</button>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.7rem; margin-bottom:0.8rem">
-                    <input id="saw_alias" value="${UnitModule.state.sawAlias || ''}" oninput="UnitModule.state.sawAlias=this.value" placeholder="malzemenin adi (opsiyonel)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem 0.75rem; font-weight:600; color:#334155">
-                    <input id="saw_cut_len" type="number" min="1" value="${UnitModule.state.sawCutLen || ''}" oninput="UnitModule.state.sawCutLen=this.value" placeholder="malzeme boyu mm" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem 0.75rem; font-weight:700; color:#334155">
-                </div>
-                <textarea id="saw_note" oninput="UnitModule.state.sawNote=this.value" placeholder="not ekle" style="width:100%; min-height:72px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.65rem 0.75rem; color:#334155; font-weight:500">${UnitModule.state.sawNote || ''}</textarea>
-
-                <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:0.8rem">
-                    <button class="btn-sm" onclick="UnitModule.resetSawDraft(false)">vazgec</button>
-                    <button class="btn-primary" onclick="UnitModule.saveSawCut('${unitId}')">${UnitModule.state.sawEditingId ? 'Degisiklikleri Kaydet' : 'Kaydet'}</button>
-                </div>
-            </div>
-            ` : ''}
         `;
-
-        // UI rule: form always opens above list rows.
-        if (showForm) {
-            const formEl = document.getElementById('saw_form_block');
-            const listEl = document.getElementById('saw_list_block');
-            if (formEl && listEl && listEl.parentElement) {
-                listEl.parentElement.insertBefore(formEl, listEl);
-            }
-        }
     },
 
     openSawForm: () => {
@@ -721,11 +927,12 @@ const UnitModule = {
         }
         UnitModule.state.sawFormOpen = true;
         UnitModule.state.sawEditingId = null;
+        UnitModule.state.sawDraftCode = UnitModule.getNextSawProcessCode();
         UI.renderCurrentPage();
     },
 
-    setSawSourceFilter: (value) => {
-        UnitModule.state.sawSourceFilter = value;
+    setSawChamfer: (value) => {
+        UnitModule.state.sawChamfer = !!value;
         UI.renderCurrentPage();
     },
 
@@ -744,25 +951,6 @@ const UnitModule = {
         }, 0);
     },
 
-    setSawMaterialFilter: (field, value, focusId) => {
-        if (field === 'name') UnitModule.state.sawMaterialSearchName = value;
-        if (field === 'code') UnitModule.state.sawMaterialSearchCode = value;
-        UI.renderCurrentPage();
-        if (!focusId) return;
-        setTimeout(() => {
-            const el = document.getElementById(focusId);
-            if (!el) return;
-            el.focus();
-            const len = el.value.length;
-            try { el.setSelectionRange(len, len); } catch (_) { }
-        }, 0);
-    },
-
-    selectSawMaterial: (key) => {
-        UnitModule.state.sawSelectedKey = key;
-        UI.renderCurrentPage();
-    },
-
     selectSawRow: (id) => {
         UnitModule.state.sawSelectedOrderId = id;
         UI.renderCurrentPage();
@@ -771,79 +959,55 @@ const UnitModule = {
     editSawRow: (id) => {
         const row = (DB.data.data.sawCutOrders || []).find(x => x.id === id);
         if (!row) return;
-        const materials = UnitModule.getSawMaterials();
-        const match = materials.find(m => m.materialId === row.materialId && m.source === row.source);
-
         UnitModule.state.sawFormOpen = true;
         UnitModule.state.sawEditingId = id;
         UnitModule.state.sawSelectedOrderId = id;
-        UnitModule.state.sawSourceFilter = row.source === 'ALUMINYUM PROFIL' ? 'ALUMINUM' : 'EXTRUDER';
-        UnitModule.state.sawSelectedKey = match?.key || null;
-        UnitModule.state.sawCutLen = String(row.cutLengthMm || '');
-        UnitModule.state.sawAlias = row.alias || '';
+        UnitModule.state.sawProcessName = row.processName || '';
+        UnitModule.state.sawCutLen = String(row.lengthMm ?? row.cutLengthMm ?? '');
+        UnitModule.state.sawChamfer = !!row.hasChamfer;
         UnitModule.state.sawNote = row.note || '';
-        UnitModule.state.sawDraftAttachment = row.customAttachment || null;
+        UnitModule.state.sawDraftCode = row.code || UnitModule.getNextSawProcessCode();
         UI.renderCurrentPage();
     },
 
-    handleSawAttachment: (input) => {
-        const file = input?.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            UnitModule.state.sawDraftAttachment = {
-                name: file.name,
-                type: file.type || '',
-                dataUrl: String(reader.result || '')
-            };
-            UI.renderCurrentPage();
-        };
-        reader.readAsDataURL(file);
-    },
-
-    clearSawAttachment: () => {
-        UnitModule.state.sawDraftAttachment = null;
+    deleteSawRow: async (id) => {
+        if (!confirm('Kayit silinsin mi?')) return;
+        DB.data.data.sawCutOrders = (DB.data.data.sawCutOrders || []).filter(x => x.id !== id);
+        if (UnitModule.state.sawSelectedOrderId === id) UnitModule.state.sawSelectedOrderId = null;
+        if (UnitModule.state.sawEditingId === id) UnitModule.resetSawDraft(false);
+        await DB.save();
         UI.renderCurrentPage();
-    },
-
-    previewSawAttachment: () => {
-        const att = UnitModule.state.sawDraftAttachment;
-        if (!att?.dataUrl) return;
-        if (String(att.type || '').startsWith('image/')) {
-            Modal.open('Dosya onizleme', `
-                <div style="display:flex; justify-content:center; align-items:center">
-                    <img src="${att.dataUrl}" style="max-width:100%; max-height:75vh; object-fit:contain; border:1px solid #e2e8f0; border-radius:0.5rem">
-                </div>
-            `, { maxWidth: '1000px' });
-            return;
-        }
-        UnitModule.openSawPdf(att.dataUrl);
     },
 
     saveSawCut: async (unitId) => {
-        const selected = UnitModule.getSawMaterials().find(m => m.key === UnitModule.state.sawSelectedKey);
+        const processName = String(UnitModule.state.sawProcessName || '').trim();
         const lenVal = Number(UnitModule.state.sawCutLen);
-        if (!selected) return alert('Lutfen bir malzeme seciniz.');
-        if (!lenVal || lenVal <= 0) return alert('Lutfen malzeme boyu giriniz.');
-
-        const alias = String(UnitModule.state.sawAlias || '').trim();
+        const code = String(UnitModule.state.sawDraftCode || UnitModule.getNextSawProcessCode()).trim().toUpperCase();
         const note = String(UnitModule.state.sawNote || '').trim();
 
+        if (!processName) return alert('Lutfen islemin adini giriniz.');
+        if (!lenVal || lenVal <= 0) return alert('Lutfen olcu (mm) giriniz.');
+        if (UnitModule.isGlobalCodeTaken(code, UnitModule.state.sawEditingId ? {
+            collection: 'sawCutOrders',
+            id: UnitModule.state.sawEditingId,
+            field: 'code'
+        } : null)) {
+            return alert('Bu ID kodu zaten kullaniliyor. Tum kodlar benzersiz olmalidir.');
+        }
+
         if (!Array.isArray(DB.data.data.sawCutOrders)) DB.data.data.sawCutOrders = [];
+        const now = new Date().toISOString();
 
         if (UnitModule.state.sawEditingId) {
             const row = DB.data.data.sawCutOrders.find(x => x.id === UnitModule.state.sawEditingId);
             if (row) {
-                row.source = selected.source;
-                row.materialKey = selected.key;
-                row.materialId = selected.materialId;
-                row.materialCode = selected.code;
-                row.materialName = selected.name;
-                row.alias = alias || '';
-                row.note = note || '';
+                row.processName = processName;
+                row.lengthMm = lenVal;
                 row.cutLengthMm = lenVal;
-                row.customAttachment = UnitModule.state.sawDraftAttachment || null;
-                row.updated_at = new Date().toISOString();
+                row.hasChamfer = !!UnitModule.state.sawChamfer;
+                row.note = note || '';
+                row.code = code || UnitModule.getNextSawProcessCode();
+                row.updated_at = now;
             }
             UnitModule.state.sawSelectedOrderId = UnitModule.state.sawEditingId;
         } else {
@@ -851,16 +1015,13 @@ const UnitModule = {
             DB.data.data.sawCutOrders.push({
                 id: rowId,
                 unitId,
-                source: selected.source,
-                materialKey: selected.key,
-                materialId: selected.materialId,
-                materialCode: selected.code,
-                materialName: selected.name,
-                alias: alias || '',
-                note: note || '',
+                processName,
+                lengthMm: lenVal,
                 cutLengthMm: lenVal,
-                customAttachment: UnitModule.state.sawDraftAttachment || null,
-                created_at: new Date().toISOString()
+                hasChamfer: !!UnitModule.state.sawChamfer,
+                note: note || '',
+                code,
+                created_at: now
             });
             UnitModule.state.sawSelectedOrderId = rowId;
         }
@@ -871,50 +1032,13 @@ const UnitModule = {
 
     resetSawDraft: (keepOpen = false) => {
         UnitModule.state.sawEditingId = null;
-        UnitModule.state.sawSelectedKey = null;
+        UnitModule.state.sawProcessName = '';
         UnitModule.state.sawCutLen = '';
-        UnitModule.state.sawAlias = '';
+        UnitModule.state.sawChamfer = false;
         UnitModule.state.sawNote = '';
-        UnitModule.state.sawMaterialSearchName = '';
-        UnitModule.state.sawMaterialSearchCode = '';
-        UnitModule.state.sawDraftAttachment = null;
+        UnitModule.state.sawDraftCode = keepOpen ? UnitModule.getNextSawProcessCode() : '';
         UnitModule.state.sawFormOpen = !!keepOpen;
         UI.renderCurrentPage();
-    },
-
-    previewSawMaterial: (key) => {
-        const item = UnitModule.getSawMaterials().find(m => m.key === key);
-        if (!item) return;
-
-        if (item.previewImage) {
-            Modal.open('Malzeme onizleme', `
-                <div style="display:flex; justify-content:center; align-items:center">
-                    <img src="${item.previewImage}" style="max-width:100%; max-height:75vh; object-fit:contain; border:1px solid #e2e8f0; border-radius:0.5rem">
-                </div>
-            `, { maxWidth: '1000px' });
-            return;
-        }
-
-        if (item.previewPdf) {
-            UnitModule.openSawPdf(item.previewPdf);
-            return;
-        }
-
-        alert('Bu malzeme icin resim/PDF bulunamadi.');
-    },
-
-    openSawPdf: (pdfRef) => {
-        if (!pdfRef) return;
-        if (typeof pdfRef === 'string') {
-            const opened = window.open(pdfRef, '_blank');
-            if (!opened) alert('Tarayici acilir pencereyi engelledi.');
-            return;
-        }
-
-        const dataUrl = pdfRef?.dataUrl || pdfRef?.url || null;
-        if (!dataUrl) return alert('PDF verisi bulunamadi.');
-        const opened = window.open(dataUrl, '_blank');
-        if (!opened) alert('Tarayici acilir pencereyi engelledi.');
     },
     renderExtruderLibrary: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
@@ -1278,8 +1402,13 @@ const UnitModule = {
             const n = Number(match[1]);
             if (Number.isFinite(n) && n > maxNum) maxNum = n;
         });
-        const next = String(maxNum + 1).padStart(6, '0');
-        return `EKS-${next}`;
+        let nextNum = maxNum + 1;
+        let candidate = `EKS-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `EKS-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
     },
     renderPlexiLibrary: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
@@ -1396,8 +1525,8 @@ const UnitModule = {
                         </div>
 
                         <div style="display:flex; gap:0.55rem; margin-top:0.75rem; flex-wrap:wrap;">
-                            <button onclick="UnitModule.togglePlexiFlag('fire')" style="border:1px solid ${UnitModule.state.plexiUseFire ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseFire ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseFire ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">atesle polisaj ${UnitModule.state.plexiUseFire ? '✓' : '+'}</button>
-                            <button onclick="UnitModule.togglePlexiFlag('brush')" style="border:1px solid ${UnitModule.state.plexiUseBrush ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseBrush ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseBrush ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">firca ile polisaj ${UnitModule.state.plexiUseBrush ? '✓' : '+'}</button>
+                            <button onclick="UnitModule.togglePlexiFlag('fire')" style="border:1px solid ${UnitModule.state.plexiUseFire ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseFire ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseFire ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">atesle polisaj ${UnitModule.state.plexiUseFire ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“' : '+'}</button>
+                            <button onclick="UnitModule.togglePlexiFlag('brush')" style="border:1px solid ${UnitModule.state.plexiUseBrush ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseBrush ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseBrush ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">firca ile polisaj ${UnitModule.state.plexiUseBrush ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“' : '+'}</button>
                         </div>
 
                         <div style="margin-top:0.7rem;">
@@ -1557,8 +1686,926 @@ const UnitModule = {
             const n = Number(match[1]);
             if (Number.isFinite(n) && n > maxNum) maxNum = n;
         });
-        const next = String(maxNum + 1).padStart(6, '0');
-        return `PLSJ-${next}`;
+        let nextNum = maxNum + 1;
+        let candidate = `PLSJ-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `PLSJ-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    renderPvdLibrary: (container, unitId) => {
+        const unit = (DB.data.data.units || []).find(u => u.id === unitId);
+        if (!Array.isArray(DB.data.data.pvdCards)) DB.data.data.pvdCards = [];
+        if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
+        if (!Array.isArray(DB.data.data.unitColors[unitId])) {
+            DB.data.data.unitColors[unitId] = ['Titanyum Gold', 'Rose Gold', 'Siyah', 'Gumus'];
+        }
+
+        const showForm = UnitModule.state.pvdFormOpen || !!UnitModule.state.pvdEditingId;
+        const cards = (DB.data.data.pvdCards || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+        const qName = String(UnitModule.state.pvdSearchName || '').trim().toLowerCase();
+        const qId = String(UnitModule.state.pvdSearchId || '').trim().toLowerCase();
+        const filtered = cards.filter(row => {
+            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
+            const idOk = !qId || String(row.cardCode || '').toLowerCase().includes(qId);
+            return nameOk && idOk;
+        });
+
+        const editing = UnitModule.state.pvdEditingId
+            ? cards.find(x => x.id === UnitModule.state.pvdEditingId)
+            : null;
+        const draftCode = editing?.cardCode || UnitModule.generatePvdCardCode();
+        const colors = DB.data.data.unitColors[unitId] || [];
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
+                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Titanyum PVD renk envanteri</div>
+                        </div>
+                    </div>
+                    <button onclick="UnitModule.togglePvdForm()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Yeni urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="pvd_search_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdSearchName || '')}" oninput="UnitModule.setPvdListFilter('name', this.value, 'pvd_search_name')" placeholder="urun adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="pvd_search_id" value="${UnitModule.escapeHtml(UnitModule.state.pvdSearchId || '')}" oninput="UnitModule.setPvdListFilter('id', this.value, 'pvd_search_id')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                    </div>
+                    <div id="pvd_list_block" class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Renk</th>
+                                    <th style="padding:0.65rem; text-align:left;">Not</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
+                                        <td style="padding:0.65rem;">
+                                            <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</span>
+                                        </td>
+                                        <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPvdRow('${row.id}')" class="btn-sm">duzenle</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPvdRow('${row.id}')" class="btn-sm" style="${UnitModule.state.pvdSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePvdRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="pvd_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="UnitModule.resetPvdDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="UnitModule.savePvdRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 5;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
+                                <input id="pvd_product_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdProductName || '')}" oninput="UnitModule.state.pvdProductName=this.value" placeholder="ornek: 40x40 boru tutacak" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div style="grid-column:span 4;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem; display:flex; justify-content:space-between;">
+                                    renk
+                                    <button onclick="UnitModule.openColorModal('${unitId}')" type="button" style="color:#2563eb; font-size:0.68rem; font-weight:800; background:none; border:none; cursor:pointer;">+ YONET (EKLE-SIL)</button>
+                                </label>
+                                <select id="pvd_color" onchange="UnitModule.state.pvdColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                                    <option value="">Renk seciniz</option>
+                                    ${colors.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.pvdColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
+                                <input id="pvd_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.7rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
+                            <textarea id="pvd_note" rows="4" oninput="UnitModule.state.pvdNote=this.value" placeholder="not ekle" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.pvdNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (showForm) {
+            const formEl = document.getElementById('pvd_form_block');
+            const listEl = document.getElementById('pvd_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
+    },
+    setPvdListFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.pvdSearchName = value || '';
+        if (field === 'id') UnitModule.state.pvdSearchId = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    togglePvdForm: () => {
+        if (UnitModule.state.pvdFormOpen || UnitModule.state.pvdEditingId) {
+            UnitModule.resetPvdDraft(false);
+            return;
+        }
+        UnitModule.state.pvdFormOpen = true;
+        UnitModule.state.pvdEditingId = null;
+        UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdNote = '';
+        UI.renderCurrentPage();
+    },
+    selectPvdRow: (id) => {
+        UnitModule.state.pvdSelectedId = id;
+        UI.renderCurrentPage();
+    },
+    editPvdRow: (id) => {
+        const row = (DB.data.data.pvdCards || []).find(x => x.id === id);
+        if (!row) return;
+        UnitModule.state.pvdFormOpen = true;
+        UnitModule.state.pvdEditingId = id;
+        UnitModule.state.pvdSelectedId = id;
+        UnitModule.state.pvdProductName = row.productName || '';
+        UnitModule.state.pvdColor = row.color || '';
+        UnitModule.state.pvdNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+    savePvdRow: async (unitId) => {
+        const productName = String(UnitModule.state.pvdProductName || '').trim();
+        const color = String(UnitModule.state.pvdColor || '').trim();
+        const note = String(UnitModule.state.pvdNote || '').trim();
+
+        if (!color) return alert('Renk zorunlu.');
+
+        if (!Array.isArray(DB.data.data.pvdCards)) DB.data.data.pvdCards = [];
+        const all = DB.data.data.pvdCards;
+        const now = new Date().toISOString();
+
+        const hasSameColor = all.some(row =>
+            row.unitId === unitId
+            && String(row.color || '').toLowerCase() === color.toLowerCase()
+            && row.id !== UnitModule.state.pvdEditingId
+        );
+        if (hasSameColor) {
+            alert('Bu renk zaten tanimli. Ayni renkten ikinci kart acilamaz.');
+            return;
+        }
+
+        if (UnitModule.state.pvdEditingId) {
+            const row = all.find(x => x.id === UnitModule.state.pvdEditingId);
+            if (!row) return;
+            row.productName = productName;
+            row.color = color;
+            row.note = note || '';
+            row.updated_at = now;
+            UnitModule.state.pvdSelectedId = row.id;
+        } else {
+            const rowId = crypto.randomUUID();
+            all.push({
+                id: rowId,
+                unitId,
+                cardCode: UnitModule.generatePvdCardCode(),
+                productName,
+                color,
+                note: note || '',
+                created_at: now,
+                updated_at: now
+            });
+            UnitModule.state.pvdSelectedId = rowId;
+        }
+
+        await DB.save();
+        UnitModule.resetPvdDraft(false);
+    },
+    deletePvdRow: async (id) => {
+        const row = (DB.data.data.pvdCards || []).find(x => x.id === id);
+        if (!row) return;
+        if (!confirm(`"${row.cardCode || 'Kayit'}" silinsin mi?`)) return;
+
+        DB.data.data.pvdCards = (DB.data.data.pvdCards || []).filter(x => x.id !== id);
+        if (UnitModule.state.pvdSelectedId === id) UnitModule.state.pvdSelectedId = null;
+        if (UnitModule.state.pvdEditingId === id) UnitModule.resetPvdDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    resetPvdDraft: (keepOpen = false) => {
+        UnitModule.state.pvdFormOpen = !!keepOpen;
+        UnitModule.state.pvdEditingId = null;
+        UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdNote = '';
+        UI.renderCurrentPage();
+    },
+    generatePvdCardCode: () => {
+        const all = DB.data.data.pvdCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            const code = String(row?.cardCode || '').toUpperCase();
+            const match = code.match(/^PVD-(\d{1,12})$/);
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `PVD-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `PVD-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    ensurePolishSurfaceList: (unitId) => {
+        if (!DB.data.data.polishSurfaceLists || typeof DB.data.data.polishSurfaceLists !== 'object') {
+            DB.data.data.polishSurfaceLists = {};
+        }
+        if (!Array.isArray(DB.data.data.polishSurfaceLists[unitId])) {
+            DB.data.data.polishSurfaceLists[unitId] = ['Parlak', 'Mat', 'Satine'];
+        }
+        return DB.data.data.polishSurfaceLists[unitId];
+    },
+    renderPolishLibrary: (container, unitId) => {
+        const unit = (DB.data.data.units || []).find(u => u.id === unitId);
+        if (!Array.isArray(DB.data.data.ibrahimPolishCards)) DB.data.data.ibrahimPolishCards = [];
+        const surfaces = UnitModule.ensurePolishSurfaceList(unitId);
+        const showForm = UnitModule.state.polishFormOpen || !!UnitModule.state.polishEditingId;
+
+        const cards = (DB.data.data.ibrahimPolishCards || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+        const qName = String(UnitModule.state.polishSearchName || '').trim().toLowerCase();
+        const qId = String(UnitModule.state.polishSearchId || '').trim().toLowerCase();
+        const filtered = cards.filter(row => {
+            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
+            const idOk = !qId || String(row.cardCode || '').toLowerCase().includes(qId);
+            return nameOk && idOk;
+        });
+
+        const editing = UnitModule.state.polishEditingId
+            ? cards.find(x => x.id === UnitModule.state.polishEditingId)
+            : null;
+        const draftCode = editing?.cardCode || UnitModule.generatePolishCardCode();
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
+                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Yuzey envanteri</div>
+                        </div>
+                    </div>
+                    <button onclick="UnitModule.togglePolishForm()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Yeni urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="polish_search_name" value="${UnitModule.escapeHtml(UnitModule.state.polishSearchName || '')}" oninput="UnitModule.setPolishListFilter('name', this.value, 'polish_search_name')" placeholder="urun adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="polish_search_id" value="${UnitModule.escapeHtml(UnitModule.state.polishSearchId || '')}" oninput="UnitModule.setPolishListFilter('id', this.value, 'polish_search_id')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                    </div>
+                    <div id="polish_list_block" class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Yuzey</th>
+                                    <th style="padding:0.65rem; text-align:left;">Not</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
+                                        <td style="padding:0.65rem;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</span></td>
+                                        <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPolishRow('${row.id}')" class="btn-sm">duzenle</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPolishRow('${row.id}')" class="btn-sm" style="${UnitModule.state.polishSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePolishRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="polish_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="UnitModule.resetPolishDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="UnitModule.savePolishRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 5;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
+                                <input id="polish_product_name" value="${UnitModule.escapeHtml(UnitModule.state.polishProductName || '')}" oninput="UnitModule.state.polishProductName=this.value" placeholder="ornek: dikme basligi" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div style="grid-column:span 4;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem; display:flex; justify-content:space-between;">
+                                    yuzey
+                                    <button type="button" onclick="UnitModule.openPolishSurfaceModal('${unitId}')" style="color:#2563eb; font-size:0.68rem; font-weight:800; background:none; border:none; cursor:pointer;">+ YONET (EKLE-SIL)</button>
+                                </label>
+                                <select id="polish_surface" onchange="UnitModule.state.polishSurface=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                                    <option value="">Yuzey seciniz</option>
+                                    ${surfaces.map(s => `<option value="${UnitModule.escapeHtml(s)}" ${String(UnitModule.state.polishSurface || '') === String(s) ? 'selected' : ''}>${UnitModule.escapeHtml(s)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
+                                <input id="polish_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.7rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
+                            <textarea id="polish_note" rows="4" oninput="UnitModule.state.polishNote=this.value" placeholder="not ekle" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.polishNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (showForm) {
+            const formEl = document.getElementById('polish_form_block');
+            const listEl = document.getElementById('polish_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
+    },
+    setPolishListFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.polishSearchName = value || '';
+        if (field === 'id') UnitModule.state.polishSearchId = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    togglePolishForm: () => {
+        if (UnitModule.state.polishFormOpen || UnitModule.state.polishEditingId) {
+            UnitModule.resetPolishDraft(false);
+            return;
+        }
+        UnitModule.state.polishFormOpen = true;
+        UnitModule.state.polishEditingId = null;
+        UnitModule.state.polishProductName = '';
+        UnitModule.state.polishSurface = '';
+        UnitModule.state.polishNote = '';
+        UI.renderCurrentPage();
+    },
+    selectPolishRow: (id) => {
+        UnitModule.state.polishSelectedId = id;
+        UI.renderCurrentPage();
+    },
+    editPolishRow: (id) => {
+        const row = (DB.data.data.ibrahimPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        UnitModule.state.polishFormOpen = true;
+        UnitModule.state.polishEditingId = id;
+        UnitModule.state.polishSelectedId = id;
+        UnitModule.state.polishProductName = row.productName || '';
+        UnitModule.state.polishSurface = row.surface || '';
+        UnitModule.state.polishNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+    savePolishRow: async (unitId) => {
+        const productName = String(UnitModule.state.polishProductName || '').trim();
+        const surface = String(UnitModule.state.polishSurface || '').trim();
+        const note = String(UnitModule.state.polishNote || '').trim();
+        if (!surface) return alert('Yuzey zorunlu.');
+
+        if (!Array.isArray(DB.data.data.ibrahimPolishCards)) DB.data.data.ibrahimPolishCards = [];
+        const all = DB.data.data.ibrahimPolishCards;
+        const now = new Date().toISOString();
+
+        if (UnitModule.state.polishEditingId) {
+            const row = all.find(x => x.id === UnitModule.state.polishEditingId);
+            if (!row) return;
+            row.productName = productName;
+            row.surface = surface;
+            row.note = note || '';
+            row.updated_at = now;
+            UnitModule.state.polishSelectedId = row.id;
+        } else {
+            const rowId = crypto.randomUUID();
+            all.push({
+                id: rowId,
+                unitId,
+                cardCode: UnitModule.generatePolishCardCode(),
+                productName,
+                surface,
+                note: note || '',
+                created_at: now,
+                updated_at: now
+            });
+            UnitModule.state.polishSelectedId = rowId;
+        }
+
+        await DB.save();
+        UnitModule.resetPolishDraft(false);
+    },
+    deletePolishRow: async (id) => {
+        const row = (DB.data.data.ibrahimPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        if (!confirm(`"${row.cardCode || 'Kayit'}" silinsin mi?`)) return;
+
+        DB.data.data.ibrahimPolishCards = (DB.data.data.ibrahimPolishCards || []).filter(x => x.id !== id);
+        if (UnitModule.state.polishSelectedId === id) UnitModule.state.polishSelectedId = null;
+        if (UnitModule.state.polishEditingId === id) UnitModule.resetPolishDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    resetPolishDraft: (keepOpen = false) => {
+        UnitModule.state.polishFormOpen = !!keepOpen;
+        UnitModule.state.polishEditingId = null;
+        UnitModule.state.polishProductName = '';
+        UnitModule.state.polishSurface = '';
+        UnitModule.state.polishNote = '';
+        UI.renderCurrentPage();
+    },
+    generatePolishCardCode: () => {
+        const all = DB.data.data.ibrahimPolishCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            const code = String(row?.cardCode || '').toUpperCase();
+            const match = code.match(/^IPS-(\d{1,12})$/);
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `IPS-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `IPS-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    openPolishSurfaceModal: (unitId) => {
+        const surfaces = UnitModule.ensurePolishSurfaceList(unitId);
+        const old = document.getElementById('polishSurfaceModalOverlay');
+        if (old) old.remove();
+
+        const modalHtml = `
+            <div id="polishSurfaceModalOverlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:center; justify-content:center">
+                <div style="background:white; width:420px; border-radius:1.25rem; padding:1.2rem; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <h3 style="font-weight:800; color:#334155; margin:0;">Yuzey Listesi</h3>
+                        <button onclick="document.getElementById('polishSurfaceModalOverlay').remove()" style="background:none; border:none; color:#94a3b8; cursor:pointer"><i data-lucide="x" width="20"></i></button>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+                        <input id="polishSurfaceInput" placeholder="Yeni yuzey..." style="flex:1; padding:0.7rem; border:1px solid #cbd5e1; border-radius:0.65rem; font-weight:700;">
+                        <button onclick="UnitModule.addPolishSurface('${unitId}')" style="background:#2563eb; color:white; border:none; border-radius:0.65rem; padding:0 1rem; font-weight:800; cursor:pointer;">Ekle</button>
+                    </div>
+                    <div style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:0.45rem;">
+                        ${surfaces.length === 0 ? '<div style="text-align:center; color:#94a3b8; padding:1rem;">Yuzey yok.</div>' : ''}
+                        ${surfaces.map(s => {
+                            const safe = String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                            return `<div style="display:flex; justify-content:space-between; align-items:center; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem 0.7rem;">
+                                <span style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(s)}</span>
+                                <button onclick="UnitModule.deletePolishSurface('${unitId}','${safe}')" style="background:none; border:none; color:#dc2626; cursor:pointer;">sil</button>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        if (window.lucide) window.lucide.createIcons();
+        const input = document.getElementById('polishSurfaceInput');
+        if (input) input.focus();
+    },
+    addPolishSurface: async (unitId) => {
+        const val = String(document.getElementById('polishSurfaceInput')?.value || '').trim();
+        if (!val) return;
+        const arr = UnitModule.ensurePolishSurfaceList(unitId);
+        const exists = arr.some(x => String(x).toLowerCase() === val.toLowerCase());
+        if (exists) return alert('Bu yuzey zaten var.');
+        arr.push(val);
+        await DB.save();
+        UnitModule.openPolishSurfaceModal(unitId);
+        if (UnitModule.state.activeUnitId === unitId) UI.renderCurrentPage();
+    },
+    deletePolishSurface: async (unitId, surface) => {
+        if (!confirm(`${surface} silinsin mi?`)) return;
+        const arr = UnitModule.ensurePolishSurfaceList(unitId);
+        DB.data.data.polishSurfaceLists[unitId] = arr.filter(x => x !== surface);
+        await DB.save();
+        UnitModule.openPolishSurfaceModal(unitId);
+        if (UnitModule.state.activeUnitId === unitId) UI.renderCurrentPage();
+    },
+    ensureProcessColorLists: (unitId) => {
+        if (!DB.data.data.processColorLists || typeof DB.data.data.processColorLists !== 'object') {
+            DB.data.data.processColorLists = {};
+        }
+        if (!DB.data.data.processColorLists[unitId] || typeof DB.data.data.processColorLists[unitId] !== 'object') {
+            DB.data.data.processColorLists[unitId] = {};
+        }
+        const store = DB.data.data.processColorLists[unitId];
+        if (!Array.isArray(store.ELOKSAL)) store.ELOKSAL = ['Sampanya', 'Inox', 'Siyah', 'Bronz'];
+        if (!Array.isArray(store.STATIK_BOYA)) store.STATIK_BOYA = ['Mat Siyah', 'Antrasit', 'Beyaz', 'Krem'];
+        return store;
+    },
+    renderEloksalLibrary: (container, unitId) => {
+        const unit = (DB.data.data.units || []).find(u => u.id === unitId);
+        if (!Array.isArray(DB.data.data.eloksalCards)) DB.data.data.eloksalCards = [];
+        const processColors = UnitModule.ensureProcessColorLists(unitId);
+        const showForm = UnitModule.state.elxFormOpen || !!UnitModule.state.elxEditingId;
+
+        const cards = (DB.data.data.eloksalCards || [])
+            .filter(x => x.unitId === unitId)
+            .sort((a, b) => new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at));
+
+        const qName = String(UnitModule.state.elxSearchName || '').trim().toLowerCase();
+        const qId = String(UnitModule.state.elxSearchId || '').trim().toLowerCase();
+        const filtered = cards.filter(row => {
+            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
+            const idOk = !qId || String(row.cardCode || '').toLowerCase().includes(qId);
+            return nameOk && idOk;
+        });
+
+        const editing = UnitModule.state.elxEditingId
+            ? cards.find(x => x.id === UnitModule.state.elxEditingId)
+            : null;
+        const processType = UnitModule.state.elxProcessType || 'ELOKSAL';
+        const colorsForProcess = Array.isArray(processColors[processType]) ? processColors[processType] : [];
+        const draftCode = editing?.cardCode || UnitModule.generateEloksalCardCode(processType);
+
+        container.innerHTML = `
+            <div style="max-width:1300px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
+                    <div style="display:flex; align-items:center; gap:0.6rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
+                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Eloksal / Statik Boya envanteri</div>
+                        </div>
+                    </div>
+                    <button onclick="UnitModule.toggleEloksalForm()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Yeni urun ekle +'}</button>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
+                        <input id="elx_search_name" value="${UnitModule.escapeHtml(UnitModule.state.elxSearchName || '')}" oninput="UnitModule.setEloksalListFilter('name', this.value, 'elx_search_name')" placeholder="urun adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="elx_search_id" value="${UnitModule.escapeHtml(UnitModule.state.elxSearchId || '')}" oninput="UnitModule.setEloksalListFilter('id', this.value, 'elx_search_id')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                    </div>
+                    <div id="elx_list_block" class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                    <th style="padding:0.65rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Islem tipi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Renk</th>
+                                    <th style="padding:0.65rem; text-align:left;">Not</th>
+                                    <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                        <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
+                                        <td style="padding:0.65rem;">
+                                            <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processType || '-')}</span>
+                                        </td>
+                                        <td style="padding:0.65rem;">
+                                            <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</span>
+                                        </td>
+                                        <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
+                                        <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editEloksalRow('${row.id}')" class="btn-sm">duzenle</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectEloksalRow('${row.id}')" class="btn-sm" style="${UnitModule.state.elxSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deleteEloksalRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                ${showForm ? `
+                    <div id="elx_form_block" style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-top:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
+                            <div style="display:flex; gap:0.4rem;">
+                                <button onclick="UnitModule.resetEloksalDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
+                                <button onclick="UnitModule.saveEloksalRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                            <div style="grid-column:span 4;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
+                                <input id="elx_product_name" value="${UnitModule.escapeHtml(UnitModule.state.elxProductName || '')}" oninput="UnitModule.state.elxProductName=this.value" placeholder="ornek: dikme basligi" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div style="grid-column:span 5;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">islem tipi (tek secim)</label>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.5rem;">
+                                    <button type="button" onclick="UnitModule.setEloksalProcessType('ELOKSAL', false); UnitModule.openProcessColorModal('${unitId}', 'ELOKSAL')" style="height:26px; width:100%; border:1px solid #0f172a; background:white; color:#2563eb; border-radius:0.5rem; padding:0 0.45rem; font-size:0.72rem; font-weight:800; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center;">YONET (EKLE-SIL)</button>
+                                    <button type="button" onclick="UnitModule.setEloksalProcessType('STATIK_BOYA', false); UnitModule.openProcessColorModal('${unitId}', 'STATIK_BOYA')" style="height:26px; width:100%; border:1px solid #0f172a; background:white; color:#2563eb; border-radius:0.5rem; padding:0 0.45rem; font-size:0.72rem; font-weight:800; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center;">YONET (EKLE-SIL)</button>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                                    <button type="button" onclick="UnitModule.setEloksalProcessType('ELOKSAL')" style="height:38px; width:100%; border:1px solid ${processType === 'ELOKSAL' ? '#0f172a' : '#cbd5e1'}; background:${processType === 'ELOKSAL' ? '#0f172a' : 'white'}; color:${processType === 'ELOKSAL' ? 'white' : '#334155'}; border-radius:0.55rem; padding:0 0.85rem; font-weight:800; cursor:pointer;">ELOKSAL</button>
+                                    <button type="button" onclick="UnitModule.setEloksalProcessType('STATIK_BOYA')" style="height:38px; width:100%; border:1px solid ${processType === 'STATIK_BOYA' ? '#0f172a' : '#cbd5e1'}; background:${processType === 'STATIK_BOYA' ? '#0f172a' : 'white'}; color:${processType === 'STATIK_BOYA' ? 'white' : '#334155'}; border-radius:0.55rem; padding:0 0.85rem; font-weight:800; cursor:pointer;">STATIK BOYA</button>
+                                </div>
+                            </div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
+                                <input id="elx_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem; margin-top:0.7rem;">
+                            <div style="grid-column:span 12;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.2rem;"><label style="display:block; font-size:0.74rem; color:#64748b;">renk</label></div>
+                                <select id="elx_color" onchange="UnitModule.state.elxColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                                    <option value="">Renk seciniz</option>
+                                    ${colorsForProcess.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.elxColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.7rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
+                            <textarea id="elx_note" rows="4" oninput="UnitModule.state.elxNote=this.value" placeholder="not ekle" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.elxNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+
+        if (showForm) {
+            const formEl = document.getElementById('elx_form_block');
+            const listEl = document.getElementById('elx_list_block');
+            if (formEl && listEl && listEl.parentElement) {
+                listEl.parentElement.insertBefore(formEl, listEl);
+            }
+        }
+    },
+    setEloksalProcessType: (type, rerender = true) => {
+        const nextType = type === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.state.elxProcessType = nextType;
+        const unitId = UnitModule.state.activeUnitId;
+        const processColors = UnitModule.ensureProcessColorLists(unitId);
+        const options = Array.isArray(processColors[nextType]) ? processColors[nextType] : [];
+        if (!options.includes(UnitModule.state.elxColor)) UnitModule.state.elxColor = '';
+        if (rerender) UI.renderCurrentPage();
+    },
+    setEloksalListFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.elxSearchName = value || '';
+        if (field === 'id') UnitModule.state.elxSearchId = value || '';
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    toggleEloksalForm: () => {
+        if (UnitModule.state.elxFormOpen || UnitModule.state.elxEditingId) {
+            UnitModule.resetEloksalDraft(false);
+            return;
+        }
+        UnitModule.state.elxFormOpen = true;
+        UnitModule.state.elxEditingId = null;
+        UnitModule.state.elxProductName = '';
+        UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColor = '';
+        UnitModule.state.elxNote = '';
+        UI.renderCurrentPage();
+    },
+    selectEloksalRow: (id) => {
+        UnitModule.state.elxSelectedId = id;
+        UI.renderCurrentPage();
+    },
+    editEloksalRow: (id) => {
+        const row = (DB.data.data.eloksalCards || []).find(x => x.id === id);
+        if (!row) return;
+        UnitModule.state.elxFormOpen = true;
+        UnitModule.state.elxEditingId = id;
+        UnitModule.state.elxSelectedId = id;
+        UnitModule.state.elxProductName = row.productName || '';
+        UnitModule.state.elxProcessType = row.processType || 'ELOKSAL';
+        UnitModule.state.elxColor = row.color || '';
+        UnitModule.state.elxNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+    saveEloksalRow: async (unitId) => {
+        const productName = String(UnitModule.state.elxProductName || '').trim();
+        const processType = UnitModule.state.elxProcessType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        const color = String(UnitModule.state.elxColor || '').trim();
+        const note = String(UnitModule.state.elxNote || '').trim();
+
+        if (!color) return alert('Renk zorunlu.');
+
+        if (!Array.isArray(DB.data.data.eloksalCards)) DB.data.data.eloksalCards = [];
+        const all = DB.data.data.eloksalCards;
+        const now = new Date().toISOString();
+
+        const hasSameColor = all.some(row =>
+            row.unitId === unitId
+            && String(row.color || '').toLowerCase() === color.toLowerCase()
+            && row.id !== UnitModule.state.elxEditingId
+        );
+        if (hasSameColor) {
+            alert('Bu renk zaten tanimli. ELOKSAL ve STATIK BOYA icin tekrar acilamaz.');
+            return;
+        }
+
+        if (UnitModule.state.elxEditingId) {
+            const row = all.find(x => x.id === UnitModule.state.elxEditingId);
+            if (!row) return;
+            const oldType = row.processType || 'ELOKSAL';
+            row.processType = processType;
+            row.cardCode = oldType === processType ? row.cardCode : UnitModule.generateEloksalCardCode(processType);
+            row.productName = productName;
+            row.color = color;
+            row.note = note || '';
+            row.updated_at = now;
+            UnitModule.state.elxSelectedId = row.id;
+        } else {
+            const rowId = crypto.randomUUID();
+            all.push({
+                id: rowId,
+                unitId,
+                processType,
+                cardCode: UnitModule.generateEloksalCardCode(processType),
+                productName,
+                color,
+                note: note || '',
+                created_at: now,
+                updated_at: now
+            });
+            UnitModule.state.elxSelectedId = rowId;
+        }
+
+        await DB.save();
+        UnitModule.resetEloksalDraft(false);
+    },
+    deleteEloksalRow: async (id) => {
+        const row = (DB.data.data.eloksalCards || []).find(x => x.id === id);
+        if (!row) return;
+        if (!confirm(`"${row.cardCode || 'Kayit'}" silinsin mi?`)) return;
+
+        DB.data.data.eloksalCards = (DB.data.data.eloksalCards || []).filter(x => x.id !== id);
+        if (UnitModule.state.elxSelectedId === id) UnitModule.state.elxSelectedId = null;
+        if (UnitModule.state.elxEditingId === id) UnitModule.resetEloksalDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    resetEloksalDraft: (keepOpen = false) => {
+        UnitModule.state.elxFormOpen = !!keepOpen;
+        UnitModule.state.elxEditingId = null;
+        UnitModule.state.elxProductName = '';
+        UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColor = '';
+        UnitModule.state.elxNote = '';
+        UI.renderCurrentPage();
+    },
+    generateEloksalCardCode: (processType) => {
+        const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        const prefix = type === 'STATIK_BOYA' ? 'STB' : 'ELX';
+        const all = DB.data.data.eloksalCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            const code = String(row?.cardCode || '').toUpperCase();
+            const match = code.match(new RegExp(`^${prefix}-(\\d{1,12})$`));
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `${prefix}-${String(nextNum).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `${prefix}-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    openProcessColorModal: (unitId, processType) => {
+        const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.state.elxProcessType = type;
+        const lists = UnitModule.ensureProcessColorLists(unitId);
+        const colors = lists[type] || [];
+
+        const old = document.getElementById('processColorModalOverlay');
+        if (old) old.remove();
+
+        const modalHtml = `
+            <div id="processColorModalOverlay" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); backdrop-filter:blur(4px); z-index:9999; display:flex; align-items:center; justify-content:center">
+                <div style="background:white; width:430px; border-radius:1.25rem; padding:1.2rem; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                        <h3 style="font-weight:800; color:#334155; margin:0;">${type === 'ELOKSAL' ? 'Eloksal' : 'Statik Boya'} Renkleri</h3>
+                        <button onclick="document.getElementById('processColorModalOverlay').remove()" style="background:none; border:none; color:#94a3b8; cursor:pointer"><i data-lucide="x" width="20"></i></button>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; margin-bottom:1rem;">
+                        <input id="processColorInput" placeholder="Yeni renk..." style="flex:1; padding:0.7rem; border:1px solid #cbd5e1; border-radius:0.65rem; font-weight:700;">
+                        <button onclick="UnitModule.addProcessColor('${unitId}','${type}')" style="background:#2563eb; color:white; border:none; border-radius:0.65rem; padding:0 1rem; font-weight:800; cursor:pointer;">Ekle</button>
+                    </div>
+                    <div style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:0.45rem;">
+                        ${colors.length === 0 ? '<div style="text-align:center; color:#94a3b8; padding:1rem;">Renk yok.</div>' : ''}
+                        ${colors.map(c => {
+                            const colorArg = String(c).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+                            return `<div style="display:flex; justify-content:space-between; align-items:center; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem 0.7rem;">
+                                <span style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(c)}</span>
+                                <button onclick="UnitModule.deleteProcessColor('${unitId}','${type}','${colorArg}')" style="background:none; border:none; color:#dc2626; cursor:pointer;">sil</button>
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        if (window.lucide) window.lucide.createIcons();
+        const input = document.getElementById('processColorInput');
+        if (input) input.focus();
+    },
+    addProcessColor: async (unitId, processType) => {
+        const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.state.elxProcessType = type;
+        const val = String(document.getElementById('processColorInput')?.value || '').trim();
+        if (!val) return;
+        const lists = UnitModule.ensureProcessColorLists(unitId);
+        const arr = lists[type] || [];
+        const exists = arr.some(c => String(c).toLowerCase() === val.toLowerCase());
+        if (exists) return alert('Bu renk zaten var.');
+        arr.push(val);
+        lists[type] = arr;
+        await DB.save();
+        const activeUnitId = UnitModule.state.activeUnitId;
+        UnitModule.openProcessColorModal(unitId, type);
+        if (activeUnitId === unitId) UI.renderCurrentPage();
+    },
+    deleteProcessColor: async (unitId, processType, color) => {
+        const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.state.elxProcessType = type;
+        if (!confirm(`${color} silinsin mi?`)) return;
+        const lists = UnitModule.ensureProcessColorLists(unitId);
+        lists[type] = (lists[type] || []).filter(c => c !== color);
+        await DB.save();
+        const activeUnitId = UnitModule.state.activeUnitId;
+        UnitModule.openProcessColorModal(unitId, type);
+        if (activeUnitId === unitId) UI.renderCurrentPage();
     },
     canManageUnitCodes: () => {
         const role = String(DB.data?.meta?.activeRole || 'super-admin').toLowerCase();
@@ -1620,8 +2667,8 @@ const UnitModule = {
         const unit = DB.data.data.units.find(u => u.id === unitId);
 
         // EXTRA SECURITY: Strictly restrict to Extruder
-        if (!unit.name.includes('EKSTRÜDER')) {
-            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>⛔ Bu birim için stok yönetimi aktif değil.</h3></div>`;
+        if (!unit.name.includes('EKSTRÃƒÆ’Ã…â€œDER')) {
+            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>ÃƒÂ¢Ã¢â‚¬ÂºÃ¢â‚¬Â Bu birim iÃƒÆ’Ã‚Â§in stok yÃƒÆ’Ã‚Â¶netimi aktif deÃƒâ€Ã…Â¸il.</h3></div>`;
             return;
         }
 
@@ -1630,11 +2677,11 @@ const UnitModule = {
 
         // Ensure Colors Exist
         if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
-        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Şeffaf', 'Beyaz', 'Siyah', 'Antrasit'];
+        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['ÃƒÂ¯Ã‚Â¿Ã‚Â½?effaf', 'Beyaz', 'Siyah', 'Antrasit'];
         const colors = DB.data.data.unitColors[unitId];
 
         // Specific Header for Extruder
-        const title = unit.name.includes('EKSTRÜDER') ? 'EKSTRÜDER STOK EKLEME PANELİ' : `${unit.name} STOK PANELİ`;
+        const title = unit.name.includes('EKSTRÃƒÆ’Ã…â€œDER') ? 'EKSTRÃƒÆ’Ã…â€œDER STOK EKLEME PANELÃƒâ€Ã‚Â°' : `${unit.name} STOK PANELÃƒâ€Ã‚Â°`;
 
         container.innerHTML = `
             <div style="margin-bottom:2rem; padding-left:0.25rem">
@@ -1645,9 +2692,9 @@ const UnitModule = {
 
             <!-- TABS -->
             <div style="display:flex; gap:0.5rem; margin-bottom:0; padding-left:0.25rem">
-                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">ÇUBUK</button>
+                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">ÃƒÆ’Ã¢â‚¬Â¡UBUK</button>
                 <button onclick="UnitModule.setStockTab('PIPE')" class="tab-btn ${tab === 'PIPE' ? 'active' : ''}">BORU</button>
-                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">ÖZEL PROFİLLER</button>
+                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">ÃƒÆ’Ã¢â‚¬â€œZEL PROFÃƒâ€Ã‚Â°LLER</button>
             </div>
             <style>
                 .tab-btn { padding: 0.75rem 2.5rem; border-radius: 1rem 1rem 0 0; font-weight:800; font-size:0.85rem; cursor:pointer; border:1px solid transparent; background:#e2e8f0; color:#94a3b8; letter-spacing:0.05em; }
@@ -1661,18 +2708,18 @@ const UnitModule = {
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem; margin-bottom:2rem">
                     <div style="font-size:0.75rem; font-weight:800; color:#52525b; margin-bottom:1rem; letter-spacing:0.1em; display:flex; gap:0.5rem; align-items:center; text-transform:uppercase">
                         <i data-lucide="plus" width="16" height="16" color="#10b981"></i>
-                        HIZLI STOK GİRİŞİ (${tab === 'ROD' ? '<span style="color:#059669">ÇUBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFİL</span>'})
+                        HIZLI STOK GÃƒâ€Ã‚Â°RÃƒâ€Ã‚Â°ÃƒÂ¯Ã‚Â¿Ã‚Â½?Ãƒâ€Ã‚Â° (${tab === 'ROD' ? '<span style="color:#059669">ÃƒÆ’Ã¢â‚¬Â¡UBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFÃƒâ€Ã‚Â°L</span>'})
                     </div>
                     
                     <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap:1rem; align-items:end">
                         ${tab === 'PROFILE' ? `
                             <div style="grid-column:span 2">
-                                <label class="lbl">PROFİL ADI</label>
+                                <label class="lbl">PROFÃƒâ€Ã‚Â°L ADI</label>
                                 <input id="stk_name" class="inp" placeholder="40x40 Kare">
                             </div>
                         ` : `
                             <div style="grid-column:span 1">
-                                <label class="lbl">ÇAP (mm)</label>
+                                <label class="lbl">ÃƒÆ’Ã¢â‚¬Â¡AP (mm)</label>
                                 <input id="stk_dia" type="number" class="inp text-center" placeholder="50">
                             </div>
                         `}
@@ -1692,10 +2739,10 @@ const UnitModule = {
                         <div style="grid-column:span 2">
                             <label class="lbl" style="display:flex; justify-content:space-between">
                                 RENK
-                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YÖNET (EKLE/SİL) ]</button>
+                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YÃƒÆ’Ã¢â‚¬â€œNET (EKLE/SÃƒâ€Ã‚Â°L) ]</button>
                             </label>
                             <select id="stk_col" class="inp" style="cursor:pointer">
-                                <option value="Tanımsız">Seçiniz</option>
+                                <option value="TanÃƒâ€Ã‚Â±msÃƒâ€Ã‚Â±z">SeÃƒÆ’Ã‚Â§iniz</option>
                                 ${colors.map(c => `<option value="${c}">${c}</option>`).join('')}
                             </select>
                         </div>
@@ -1704,7 +2751,7 @@ const UnitModule = {
                             <div style="grid-column:span 1; display:flex; justify-content:center; padding-bottom:0.8rem">
                                 <label style="display:flex; flex-direction:column; align-items:center; cursor:pointer">
                                     <input id="stk_bub" type="checkbox" style="width:1.25rem; height:1.25rem; accent-color:#10b981; cursor:pointer">
-                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">Kabarcıklı</span>
+                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">KabarcÃƒâ€Ã‚Â±klÃƒâ€Ã‚Â±</span>
                                 </label>
                             </div>
                         ` : '<div style="grid-column:span 1"></div>'}
@@ -1733,10 +2780,10 @@ const UnitModule = {
                         <div style="grid-column:span 2; display:flex; gap:0.5rem">
                             ${UnitModule.state.editingId ? `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="flex:2; height:42px; background:#2563eb; box-shadow:0 4px 6px -1px rgba(37, 99, 235, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="save" width="18" height="18"></i> GÜNCELLE
+                                    <i data-lucide="save" width="18" height="18"></i> GÃƒÆ’Ã…â€œNCELLE
                                 </button>
                                 <button onclick="UnitModule.cancelEdit()" class="btn-primary" style="flex:1; height:42px; background:#94a3b8; box-shadow:0 4px 6px -1px rgba(148, 163, 184, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEÇ
+                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEÃƒÆ’Ã¢â‚¬Â¡
                                 </button>
                             ` : `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="width:100%; height:42px; background:#059669; box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
@@ -1759,19 +2806,19 @@ const UnitModule = {
                     <table>
                         <thead style="background:#f8fafc">
                             <tr>
-                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ürün Adı</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Çap (mm)</th>
-                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Kalınlık</th>' : ''}
+                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã…â€œrÃƒÆ’Ã‚Â¼n AdÃƒâ€Ã‚Â±</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã¢â‚¬Â¡ap (mm)</th>
+                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">KalÃƒâ€Ã‚Â±nlÃƒâ€Ã‚Â±k</th>' : ''}
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Boy (mm)</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Renk</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Özellik</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã¢â‚¬â€œzellik</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Not / Adres</th>
                                 <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Miktar / Hedef</th>
-                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">İşlem</th>
+                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸lem</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydı bulunamadı</div><div style="font-size:0.85rem">Bu kategori için henüz giriş yapılmamış.</div></td></tr>` : ''}
+                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydÃƒâ€Ã‚Â± bulunamadÃƒâ€Ã‚Â±</div><div style="font-size:0.85rem">Bu kategori iÃƒÆ’Ã‚Â§in henÃƒÆ’Ã‚Â¼z giriÃƒâ€¦Ã…Â¸ yapÃƒâ€Ã‚Â±lmamÃƒâ€Ã‚Â±Ãƒâ€¦Ã…Â¸.</div></td></tr>` : ''}
                             ${inventory.map(i => {
             // Color Logic
             let rowClass = '';
@@ -1915,7 +2962,7 @@ const UnitModule = {
         UI.renderCurrentPage();
         UnitModule.openColorModal(unitId);
     },
-    openUnit: (id) => { UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
+    openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
     openMachines: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'machines'; UI.renderCurrentPage(); },
     openStock: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'stock'; UnitModule.state.stockTab = 'ROD'; UI.renderCurrentPage(); },
     setStockTab: (t) => { UnitModule.state.stockTab = t; UI.renderCurrentPage(); },
@@ -1941,7 +2988,7 @@ const UnitModule = {
             if (document.getElementById('stk_dia')) document.getElementById('stk_dia').value = item.diameter || '';
             if (document.getElementById('stk_thick')) document.getElementById('stk_thick').value = item.thickness || '';
             if (document.getElementById('stk_len')) document.getElementById('stk_len').value = item.length || '';
-            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'Tanımsız';
+            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'TanÃƒâ€Ã‚Â±msÃƒâ€Ã‚Â±z';
             if (document.getElementById('stk_qty')) document.getElementById('stk_qty').value = item.quantity || '';
             if (document.getElementById('stk_target')) document.getElementById('stk_target').value = item.targetStock || '';
             if (document.getElementById('stk_addr')) document.getElementById('stk_addr').value = item.address || '';
@@ -1973,9 +3020,9 @@ const UnitModule = {
         if (!qty || !target) { alert('Adet ve Hedef zorunludur.'); return; }
 
         let name = '';
-        if (tab === 'ROD') name = `Ø${dia} Çubuk`;
-        else if (tab === 'PIPE') name = `Ø${dia} Boru`;
-        else name = nameInp || 'Özel Profil';
+        if (tab === 'ROD') name = `ÃƒÆ’Ã‹Å“${dia} ÃƒÆ’Ã¢â‚¬Â¡ubuk`;
+        else if (tab === 'PIPE') name = `ÃƒÆ’Ã‹Å“${dia} Boru`;
+        else name = nameInp || 'ÃƒÆ’Ã¢â‚¬â€œzel Profil';
 
         if (UnitModule.state.editingId) {
             // UPDATE EXISTING
@@ -2015,7 +3062,7 @@ const UnitModule = {
     },
 
     deleteStock: async (id) => {
-        if (confirm('Silmek istediğinize emin misiniz?')) {
+        if (confirm('Silmek istediÃƒâ€Ã…Â¸inize emin misiniz?')) {
             DB.data.data.inventory = DB.data.data.inventory.filter(i => i.id !== id);
             await DB.save();
             UI.renderCurrentPage();

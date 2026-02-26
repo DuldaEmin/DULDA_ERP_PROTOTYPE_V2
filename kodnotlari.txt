@@ -1,0 +1,25 @@
+﻿
+---
+ATOLYE IS AKISI - TARTISMA SORULARI
+
+1) Aldim/Verdim islemi tum atolyelerde zorunlu mu?
+Cevap:
+
+2) Dis fason panelinde firma bazli limit/uyari istiyor musunuz?
+Cevap:
+
+3) Mobil ilk surumde offline kuyruk gerekli mi?
+Cevap:
+
+ATOLYE IS AKISI - KARAR CEVAPLARI (2026-02-26)
+1) Aldim/Verdim tum atolyelerde zorunlu olacak.
+- Istasyonlar arasi gecislerde verim-alim protokolu uygulanacak.
+- Ayni protokol dis fason icin de uygulanacak.
+
+2) Firma bazli limit zorunlu degil.
+- Istendiginde teslim tarihi girilecek.
+- Teslim tarihi gecerse uyari verilecek.
+
+3) Internet normalde var, ancak cekmezse:
+- Mobil girisler gecici offline kuyruga alinacak.
+- Baglanti gelince otomatik senkron olacak.

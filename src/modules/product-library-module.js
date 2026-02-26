@@ -32,66 +32,1239 @@ const ProductLibraryModule = {
         consumableDraftNote: '',
         consumableDraftImageData: '',
         editingProductId: null,
-        isFormVisible: false // New State
+        isFormVisible: false, // New State
+        masterFilters: { categoryId: '', name: '', length: '', color: '', code: '' },
+        masterFormOpen: false,
+        masterEditingId: null,
+        masterSelectedId: null,
+        masterDraftCategoryId: 'cat1',
+        masterDraftName: '',
+        masterDraftUnit: 'adet',
+        masterDraftUnitAmount: '',
+        masterDraftBrand: '',
+        masterDraftPack: '',
+        masterDraftLength: '',
+        masterDraftColor: '',
+        masterDraftSupplierIds: [],
+        masterDraftSupplierLinks: [],
+        masterDraftSupplierCode: '',
+        masterDraftNote: '',
+        masterDraftAttachment: null,
+        workspaceView: 'menu' // menu | models | components | master
     },
 
     render: (container) => {
-        // Ensure Categories Exist
-        // --- INITIALIZATION & CLEANUP ---
-        // 1. Eğer hiç kategori yoksa standart 3'lüyü oluştur.
+        ProductLibraryModule.ensureMasterDefaults();
+        const view = String(ProductLibraryModule.state.workspaceView || 'menu');
+        if (view === 'master') {
+            ProductLibraryModule.renderMasterPage(container);
+            return;
+        }
+        if (view === 'models') {
+            ProductLibraryModule.renderWorkspacePlaceholder(
+                container,
+                'Urun Modelleri Olusturma',
+                'Bu alan daha sonra acilacak.'
+            );
+            return;
+        }
+        if (view === 'components') {
+            ProductLibraryModule.renderWorkspacePlaceholder(
+                container,
+                'Parca ve Bilesen Olusturma',
+                'Bu alan daha sonra acilacak.'
+            );
+            return;
+        }
+        ProductLibraryModule.renderWorkspaceMenu(container);
+    },
+
+    openWorkspace: (view) => {
+        ProductLibraryModule.state.workspaceView = String(view || 'menu');
+        UI.renderCurrentPage();
+    },
+
+    goWorkspaceMenu: () => {
+        ProductLibraryModule.state.workspaceView = 'menu';
+        UI.renderCurrentPage();
+    },
+
+    renderWorkspaceMenu: (container) => {
+        container.innerHTML = `
+            <div style="max-width:1050px; margin:0 auto;">
+                <div style="text-align:center; margin:0.5rem 0 2rem 0;">
+                    <h2 class="page-title" style="margin:0; font-size:2rem;">Urun ve Parca Olusturma</h2>
+                    <div style="color:#64748b; margin-top:0.4rem;">Uretim kartlarini buradan yonetin</div>
+                </div>
+
+                <div class="apps-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1.35rem;">
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('models'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-blue"><i data-lucide="file-plus-2" width="30" height="30"></i></div>
+                        <div class="app-name">Urun Modelleri Olusturma</div>
+                    </a>
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('components'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-orange"><i data-lucide="component" width="30" height="30"></i></div>
+                        <div class="app-name">Parca & Bilesen Olusturma</div>
+                    </a>
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('master'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-pink"><i data-lucide="library" width="30" height="30"></i></div>
+                        <div class="app-name">Master Urun Kutuphanesi</div>
+                    </a>
+                </div>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    renderWorkspacePlaceholder: (container, title, subtitle) => {
+        container.innerHTML = `
+            <div style="max-width:960px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">${ProductLibraryModule.escapeHtml(title)}</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                </div>
+                <div class="card-table" style="padding:2.2rem; text-align:center; color:#94a3b8;">
+                    <div style="font-weight:800; color:#334155; margin-bottom:0.45rem;">Hazirlaniyor</div>
+                    <div style="font-size:0.92rem;">${ProductLibraryModule.escapeHtml(subtitle || 'Bu sayfa daha sonra acilacak.')}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [
-                { id: 'cat1', name: 'Alüminyum profil', icon: '🏗️' },
-                { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩' },
-                { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' },
-                { id: 'cat_box', name: 'Koli', icon: '[ ]' },
-                { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG' }
+                { id: 'cat1', name: 'Alüminyum profil', icon: '🏗️', prefix: 'ALM' },
+                { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩', prefix: 'VID' },
+                { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭', prefix: 'AKS' },
+                { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
+                { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' }
             ];
         }
 
-        // 2. "Şekil değiştiren" (shapeshifting) sorunu çözümü:
-        // Eski 'Pleksi (Akrilik)' veya 'Ekstrüder' gibi tekil kalan kategorileri
-        // tek bir 'Ekstrüder pleksi' çatısı altında birleştir ve kopyaları temizle.
-        const cats = DB.data.data.productCategories;
-        const hasLegacyPlexi = cats.some(c => c.name === 'Pleksi (Akrilik)');
-        const hasLegacyExt = cats.some(c => c.name === 'Ekstrüder');
+        const defaults = [
+            { id: 'cat1', name: 'Alüminyum profil', icon: '🏗️', prefix: 'ALM' },
+            { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩', prefix: 'VID' },
+            { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭', prefix: 'AKS' },
+            { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
+            { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' }
+        ];
+        defaults.forEach(def => {
+            if (!DB.data.data.productCategories.some(c => c.id === def.id)) {
+                DB.data.data.productCategories.push({ ...def });
+            }
+        });
 
-        if (hasLegacyPlexi || hasLegacyExt) {
-            // Standart dışı olanları temizle, sadece bizim istediklerimiz ve kullanıcının yeni ekledikleri kalsın.
-            // Ancak, kullanıcının özel eklediği kategorilere dokunmamalıyız.
-            // Sadece bilinen ESKİ hatalı isimleri filtreliyoruz.
-            DB.data.data.productCategories = DB.data.data.productCategories.filter(c =>
-                c.name !== 'Pleksi (Akrilik)' &&
-                c.name !== 'Ekstrüder'
+        DB.data.data.productCategories = (DB.data.data.productCategories || [])
+            .filter(Boolean)
+            .map(c => {
+                const safeName = String(c.name || '').trim() || 'Adsiz Kategori';
+                return {
+                    ...c,
+                    name: safeName,
+                    icon: c.icon || '📦',
+                    prefix: ProductLibraryModule.buildCategoryPrefix(c.prefix || safeName, c.id)
+                };
+            });
+
+        if (!Array.isArray(DB.data.data.products)) DB.data.data.products = [];
+        if (!Array.isArray(DB.data.data.suppliers)) DB.data.data.suppliers = [];
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.masterUnits) || DB.data.meta.options.masterUnits.length === 0) {
+            DB.data.meta.options.masterUnits = ['adet', 'kg', 'mt', 'koli'];
+        }
+        if (!Array.isArray(DB.data.meta.options.masterColors) || DB.data.meta.options.masterColors.length === 0) {
+            DB.data.meta.options.masterColors = ['Siyah', 'Beyaz', 'Antrasit', 'Fume'];
+        }
+
+        const cats = ProductLibraryModule.getMasterCategories();
+        const firstCategoryId = cats[0]?.id || '';
+        if (!cats.some(c => c.id === ProductLibraryModule.state.masterDraftCategoryId)) {
+            ProductLibraryModule.state.masterDraftCategoryId = firstCategoryId;
+        }
+        const unitOptions = ProductLibraryModule.getMasterUnitOptions();
+        if (!unitOptions.includes(ProductLibraryModule.state.masterDraftUnit)) {
+            ProductLibraryModule.state.masterDraftUnit = unitOptions[0] || '';
+        }
+    },
+
+    normalizeAsciiUpper: (value) => {
+        return String(value || '')
+            .replace(/ı/g, 'i')
+            .replace(/İ/g, 'I')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase();
+    },
+
+    buildCategoryPrefix: (rawPrefix, categoryId = '') => {
+        const id = String(categoryId || '').toLowerCase();
+        const src = String(rawPrefix || '').trim();
+        let prefix = ProductLibraryModule.normalizeAsciiUpper(src).slice(0, 3);
+        if (!prefix) {
+            if (id === 'cat1') prefix = 'ALM';
+            else if (id === 'cat3') prefix = 'VID';
+            else if (id === 'cat_ext') prefix = 'AKS';
+            else if (id === 'cat_box') prefix = 'KLI';
+            else if (id === 'cat_sarf') prefix = 'SRF';
+            else prefix = 'URN';
+        }
+        return prefix.padEnd(3, 'X');
+    },
+
+    getMasterCategories: () => {
+        return [...(DB.data.data.productCategories || [])].sort((a, b) => {
+            return String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+        });
+    },
+
+    getMasterUnitOptions: () => {
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.masterUnits)) DB.data.meta.options.masterUnits = ['adet'];
+        return DB.data.meta.options.masterUnits;
+    },
+
+    getMasterColorOptions: () => {
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.masterColors)) DB.data.meta.options.masterColors = [];
+        return DB.data.meta.options.masterColors;
+    },
+
+    getMasterSuppliers: () => {
+        return (DB.data.data.suppliers || [])
+            .map(s => ({
+                id: String(s?.id || ''),
+                name: String(s?.name || '').trim()
+            }))
+            .filter(s => s.id && s.name)
+            .sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    },
+
+    collectGlobalCodes: (exclude = null) => {
+        const bag = new Set();
+        const add = (value) => {
+            const normalized = String(value || '').trim().toUpperCase();
+            if (!normalized) return;
+            bag.add(normalized);
+        };
+        const shouldSkip = (collection, row, field) => {
+            if (!exclude || !row) return false;
+            if (exclude.collection !== collection) return false;
+            if (String(exclude.id || '') !== String(row.id || '')) return false;
+            if (exclude.field && exclude.field !== field) return false;
+            return true;
+        };
+        const readMany = (collection, list, fields) => {
+            if (!Array.isArray(list)) return;
+            list.forEach(row => {
+                fields.forEach(field => {
+                    if (shouldSkip(collection, row, field)) return;
+                    add(row?.[field]);
+                });
+            });
+        };
+
+        readMany('products', DB.data?.data?.products, ['code']);
+        readMany('cncCards', DB.data?.data?.cncCards, ['productCode', 'cncId']);
+        readMany('sawCutOrders', DB.data?.data?.sawCutOrders, ['code']);
+        readMany('extruderLibraryCards', DB.data?.data?.extruderLibraryCards, ['cardCode']);
+        readMany('plexiPolishCards', DB.data?.data?.plexiPolishCards, ['cardCode']);
+        readMany('pvdCards', DB.data?.data?.pvdCards, ['cardCode']);
+        readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
+        readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
+        readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
+        return bag;
+    },
+
+    isGlobalCodeTaken: (code, exclude = null) => {
+        const normalized = String(code || '').trim().toUpperCase();
+        if (!normalized) return false;
+        return ProductLibraryModule.collectGlobalCodes(exclude).has(normalized);
+    },
+
+    getUnitAmountType: (unit) => {
+        const u = ProductLibraryModule.normalizeAsciiUpper(unit || '');
+        if (u === 'MT' || u === 'M' || u === 'METRE' || u === 'METER') return 'mm';
+        if (u === 'KG' || u === 'KILOGRAM') return 'gram';
+        if (u === 'ADET') return 'adet';
+        return String(unit || '').trim() || 'adet';
+    },
+
+    resolveCategoryForProduct: (product) => {
+        const categories = ProductLibraryModule.getMasterCategories();
+        const byId = categories.find(c => c.id === product?.categoryId);
+        if (byId) return byId;
+
+        const raw = String(product?.category || '').trim();
+        const rawNorm = ProductLibraryModule.normalizeAsciiUpper(raw);
+        const exact = categories.find(c => ProductLibraryModule.normalizeAsciiUpper(c.name) === rawNorm);
+        if (exact) return exact;
+
+        const type = ProductLibraryModule.normalizeAsciiUpper(product?.type || '');
+        if (rawNorm.includes('HIRDAVAT') || rawNorm.includes('VIDA') || rawNorm.includes('HARDWARE')) {
+            return categories.find(c => c.id === 'cat3') || null;
+        }
+        if (rawNorm.includes('EKSTR') || rawNorm.includes('PLEKSI') || type === 'ROD' || type === 'PIPE') {
+            return categories.find(c => c.id === 'cat_ext') || null;
+        }
+        if (rawNorm.includes('KOLI') || rawNorm.includes('KUTU')) {
+            return categories.find(c => c.id === 'cat_box') || null;
+        }
+        if (rawNorm.includes('SARF') || rawNorm.includes('GENEL')) {
+            return categories.find(c => c.id === 'cat_sarf') || null;
+        }
+        if (rawNorm.includes('ALUMINYUM') || rawNorm.includes('ALUMINUM')) {
+            return categories.find(c => c.id === 'cat1') || null;
+        }
+
+        if (raw) {
+            return {
+                id: '',
+                name: raw,
+                icon: '📦',
+                prefix: ProductLibraryModule.buildCategoryPrefix(raw)
+            };
+        }
+        return categories[0] || { id: '', name: 'Diger', icon: '📦', prefix: 'URN' };
+    },
+
+    extractSupplierRefs: (product) => {
+        const supplierOptions = ProductLibraryModule.getMasterSuppliers();
+        const refs = [];
+        const pushRef = (value) => {
+            if (!value) return;
+            if (Array.isArray(value)) {
+                value.forEach(pushRef);
+                return;
+            }
+            if (typeof value === 'object') {
+                const id = String(value.id || '').trim();
+                const name = String(value.name || '').trim();
+                if (id || name) refs.push({ id, name });
+                return;
+            }
+            const text = String(value || '').trim();
+            if (!text) return;
+            const byId = supplierOptions.find(x => x.id === text);
+            if (byId) {
+                refs.push({ id: byId.id, name: byId.name });
+                return;
+            }
+            const byName = supplierOptions.find(x =>
+                ProductLibraryModule.normalizeAsciiUpper(x.name) === ProductLibraryModule.normalizeAsciiUpper(text)
             );
+            if (byName) refs.push({ id: byName.id, name: byName.name });
+            else refs.push({ id: '', name: text });
+        };
 
-            // Eğer ana 'Ekstrüder pleksi' silindiyse veya yoksa geri ekle
-            const mainExtExists = DB.data.data.productCategories.find(c => c.id === 'cat_ext');
-            if (!mainExtExists) {
-                DB.data.data.productCategories.push({ id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🏭' });
+        pushRef(product?.suppliers);
+        pushRef(product?.supplierIds);
+        pushRef(product?.supplierId);
+        pushRef(product?.supplierNames);
+        pushRef(product?.supplierName);
+        pushRef(product?.specs?.suppliers);
+
+        const uniq = new Map();
+        refs.forEach(ref => {
+            const key = `${ref.id || ''}|${ProductLibraryModule.normalizeAsciiUpper(ref.name || '')}`;
+            if (!uniq.has(key)) uniq.set(key, ref);
+        });
+        return Array.from(uniq.values());
+    },
+
+    extractSupplierLinks: (product) => {
+        const refs = ProductLibraryModule.extractSupplierRefs(product);
+        const directLinks = Array.isArray(product?.supplierLinks)
+            ? product.supplierLinks
+            : Array.isArray(product?.specs?.supplierLinks)
+                ? product.specs.supplierLinks
+                : [];
+        const fallbackCode = String(product?.supplierProductCode || product?.specs?.supplierProductCode || '').trim();
+
+        if (directLinks.length > 0) {
+            const normalized = directLinks.map(link => ({
+                supplierId: String(link?.supplierId || link?.id || '').trim(),
+                supplierName: String(link?.supplierName || link?.name || '').trim(),
+                supplierCode: String(link?.supplierCode || link?.code || '').trim()
+            })).filter(link => link.supplierId || link.supplierName);
+
+            const uniq = new Map();
+            normalized.forEach(link => {
+                const key = link.supplierId || ProductLibraryModule.normalizeAsciiUpper(link.supplierName || '');
+                if (!uniq.has(key)) uniq.set(key, link);
+            });
+            return Array.from(uniq.values());
+        }
+
+        return refs.map(ref => ({
+            supplierId: String(ref?.id || '').trim(),
+            supplierName: String(ref?.name || '').trim(),
+            supplierCode: fallbackCode
+        }));
+    },
+
+    getMasterProducts: () => {
+        return (DB.data.data.products || []).map((raw, index) => {
+            const category = ProductLibraryModule.resolveCategoryForProduct(raw);
+            const specs = (raw?.specs && typeof raw.specs === 'object') ? raw.specs : {};
+            const supplierLinks = ProductLibraryModule.extractSupplierLinks(raw);
+            const suppliers = supplierLinks.length > 0
+                ? supplierLinks.map(link => ({ id: link.supplierId, name: link.supplierName }))
+                : ProductLibraryModule.extractSupplierRefs(raw);
+            return {
+                id: raw?.id,
+                raw,
+                orderIndex: index,
+                createdAt: String(raw?.created_at || ''),
+                updatedAt: String(raw?.updated_at || ''),
+                name: String(raw?.name || raw?.productName || '').trim(),
+                categoryId: category?.id || '',
+                categoryName: String(category?.name || raw?.category || 'Diger'),
+                categoryPrefix: String(category?.prefix || ProductLibraryModule.buildCategoryPrefix(category?.name || raw?.category)),
+                code: String(raw?.code || ''),
+                unit: String(specs?.unit || raw?.unit || '').trim(),
+                unitAmount: String(specs?.unitAmount ?? raw?.unitAmount ?? '').trim(),
+                unitAmountType: String(specs?.unitAmountType || raw?.unitAmountType || ProductLibraryModule.getUnitAmountType(specs?.unit || raw?.unit || '')).trim(),
+                brand: String(specs?.brandModel || specs?.brand || raw?.brandModel || '').trim(),
+                pack: String(specs?.packageInfo || specs?.packaging || raw?.packageInfo || '').trim(),
+                length: String(specs?.lengthMm ?? specs?.length ?? raw?.length ?? '').trim(),
+                color: String(specs?.color || raw?.color || raw?.anodizedColor || raw?.paintColor || '').trim(),
+                suppliers,
+                supplierLinks,
+                supplierCode: String(specs?.supplierProductCode || raw?.supplierProductCode || '').trim(),
+                note: String(specs?.note || raw?.note || '').trim(),
+                attachment: raw?.attachment || null,
+                previewImage: raw?.image || raw?.imageUrl || null,
+                previewPdf: raw?.pdf || raw?.pdfUrl || raw?.pdfDataUrl || raw?.drawingPdf || null
+            };
+        });
+    },
+
+    getMasterProductById: (id) => {
+        return ProductLibraryModule.getMasterProducts().find(x => x.id === id) || null;
+    },
+
+    renderMasterPage: (container) => {
+        const state = ProductLibraryModule.state;
+        const categories = ProductLibraryModule.getMasterCategories();
+        const unitOptions = ProductLibraryModule.getMasterUnitOptions();
+        const colorOptions = ProductLibraryModule.getMasterColorOptions();
+        const suppliers = ProductLibraryModule.getMasterSuppliers();
+        const records = ProductLibraryModule.getMasterProducts();
+
+        const showForm = state.masterFormOpen || !!state.masterEditingId;
+        const selectedId = state.masterSelectedId;
+        const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
+        const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
+            const label = String(link?.supplierName || '').trim();
+            const code = String(link?.supplierCode || '').trim();
+            const text = code ? `${label} ${code}` : label;
+            return `
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.45rem; padding:0.32rem 0.42rem; border-bottom:1px dashed #e2e8f0;">
+                    <div style="font-weight:700; color:#334155; font-size:0.94rem;">${ProductLibraryModule.escapeHtml(text || '-')}</div>
+                    <button type="button" onclick="ProductLibraryModule.removeMasterSupplierLink(${index})" style="height:24px; min-width:44px; border:1px solid #fecaca; background:#fff1f2; color:#b91c1c; border-radius:0.42rem; cursor:pointer; font-weight:700; font-size:0.78rem;">sil</button>
+                </div>
+            `;
+        });
+
+        const draftCode = editingRecord?.code || ProductLibraryModule.generateMasterCode(state.masterDraftCategoryId);
+
+        const qCategoryId = String(state.masterFilters.categoryId || '').trim();
+        const qName = String(state.masterFilters.name || '').trim().toLocaleLowerCase('tr-TR');
+        const qLen = String(state.masterFilters.length || '').trim().toLocaleLowerCase('tr-TR');
+        const qColor = String(state.masterFilters.color || '').trim().toLocaleLowerCase('tr-TR');
+        const qCode = String(state.masterFilters.code || '').trim().toLocaleLowerCase('tr-TR');
+
+        const toMs = (value) => {
+            const ms = Date.parse(String(value || ''));
+            return Number.isFinite(ms) ? ms : 0;
+        };
+
+        const byNewest = (a, b) => {
+            const aMs = Math.max(toMs(a.updatedAt), toMs(a.createdAt));
+            const bMs = Math.max(toMs(b.updatedAt), toMs(b.createdAt));
+            if (aMs !== bMs) return bMs - aMs;
+            return Number(b.orderIndex || 0) - Number(a.orderIndex || 0);
+        };
+
+        const byAddedOrder = (a, b) => {
+            return Number(a.orderIndex || 0) - Number(b.orderIndex || 0);
+        };
+
+        const filtered = records.filter(p => {
+            if (qCategoryId && p.categoryId !== qCategoryId) return false;
+            if (qName && !String(p.name || '').toLocaleLowerCase('tr-TR').includes(qName)) return false;
+            if (qLen) {
+                const lengthMatch = String(p.length || '').toLocaleLowerCase('tr-TR').includes(qLen);
+                const unitAmountMatch = String(p.unitAmount || '').toLocaleLowerCase('tr-TR').includes(qLen);
+                if (!lengthMatch && !unitAmountMatch) return false;
+            }
+            if (qColor && !String(p.color || '').toLocaleLowerCase('tr-TR').includes(qColor)) return false;
+            if (qCode) {
+                const codeMatch = String(p.code || '').toLocaleLowerCase('tr-TR').includes(qCode);
+                const idMatch = String(p.id || '').toLocaleLowerCase('tr-TR').includes(qCode);
+                if (!codeMatch && !idMatch) return false;
+            }
+            return true;
+        });
+
+        const sorted = [...filtered].sort((a, b) => {
+            if (qCategoryId) {
+                // Category selected: keep plain add order
+                return byAddedOrder(a, b);
+            }
+            // All products: grouped by category, newest on top inside each category
+            const catCmp = a.categoryName.localeCompare(b.categoryName, 'tr');
+            if (catCmp !== 0) return catCmp;
+            return byNewest(a, b);
+        });
+
+        let currentCategory = '';
+        const rowsHtml = sorted.length === 0
+            ? `<tr><td colspan="14" style="text-align:center; padding:1.3rem; color:#94a3b8;">Kayit bulunamadi.</td></tr>`
+            : sorted.map(p => {
+                const categoryHeader = (!qCategoryId && p.categoryName !== currentCategory)
+                    ? `<tr><td colspan="14" style="padding:0.55rem 0.7rem; background:#f8fafc; color:#334155; font-weight:800; border-top:1px solid #e2e8f0;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td></tr>`
+                    : '';
+                currentCategory = p.categoryName;
+                const suppliersText = (p.supplierLinks || []).length > 0
+                    ? p.supplierLinks
+                        .map(link => {
+                            const label = String(link?.supplierName || '').trim();
+                            const code = String(link?.supplierCode || '').trim();
+                            return code ? `${label} ${code}` : label;
+                        })
+                        .filter(Boolean)
+                        .join(', ')
+                    : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
+                const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
+                const selectedStyle = selectedId === p.id ? 'background:#ecfeff;' : '';
+                return `
+                    ${categoryHeader}
+                    <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
+                        <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
+                        <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td>
+                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.unit || '-')}</td>
+                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml((p.unitAmount ? `${p.unitAmount} ${p.unitAmountType || ''}` : '-').trim())}</td>
+                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.length || '-')}</td>
+                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.color || '-')}</td>
+                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.brand || '-')}</td>
+                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.pack || '-')}</td>
+                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
+                        <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
+                    </tr>
+                `;
+            }).join('');
+
+        container.innerHTML = `
+            <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
+                <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
+                    <div style="display:grid; grid-template-columns: 280px 1fr 190px 190px 190px 170px; gap:0.65rem; align-items:center;">
+                        <select onchange="ProductLibraryModule.setMasterFilter('categoryId', this.value)" style="width:100%; height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:700;">
+                            <option value="">tum urunler (varsayilan)</option>
+                            ${categories.map(c => `<option value="${c.id}" ${qCategoryId === c.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(c.name)}</option>`).join('')}
+                        </select>
+                        <input id="master_filter_name" value="${ProductLibraryModule.escapeHtml(state.masterFilters.name || '')}" oninput="ProductLibraryModule.setMasterFilter('name', this.value)" placeholder="urun adiyla ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
+                        <input id="master_filter_length" value="${ProductLibraryModule.escapeHtml(state.masterFilters.length || '')}" oninput="ProductLibraryModule.setMasterFilter('length', this.value)" placeholder="boy ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
+                        <input id="master_filter_color" value="${ProductLibraryModule.escapeHtml(state.masterFilters.color || '')}" oninput="ProductLibraryModule.setMasterFilter('color', this.value)" placeholder="renk ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
+                        <input id="master_filter_code" value="${ProductLibraryModule.escapeHtml(state.masterFilters.code || '')}" oninput="ProductLibraryModule.setMasterFilter('code', this.value)" placeholder="ID kod ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
+                        <button class="btn-primary" onclick="ProductLibraryModule.toggleMasterForm()" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${showForm ? 'vazgec' : 'urun ekle +'}</button>
+                    </div>
+                    ${showForm ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
+                    <div class="card-table" style="margin-top:0.85rem;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>URUN ADI</th>
+                                    <th>KATEGORI</th>
+                                    <th style="text-align:center;">BIRIM</th>
+                                    <th style="text-align:center;">BIRIM MIKTAR</th>
+                                    <th style="text-align:center;">BOY</th>
+                                    <th style="text-align:center;">RENK</th>
+                                    <th>MARKA/MODEL</th>
+                                    <th>AMBALAJ</th>
+                                    <th>TEDARIKCI</th>
+                                    <th style="font-family:monospace">KOD</th>
+                                    <th style="text-align:center;">GORUNTULE</th>
+                                    <th style="text-align:center;">DUZENLE</th>
+                                    <th style="text-align:center;">SEC</th>
+                                    <th style="text-align:center;">SIL</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rowsHtml}</tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+    },
+
+    renderMasterFormHtml: ({ categories, unitOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
+        const state = ProductLibraryModule.state;
+        return `
+            <div style="background:white; border:2px solid #0f172a; border-radius:1.25rem; padding:1.2rem 1.2rem 1.45rem; font-size:1.06rem;">
+                <div style="font-weight:800; color:#1e293b; margin-bottom:0.95rem; font-size:1.62rem;">Kutuphaneye urun ekle</div>
+                <div style="display:grid; grid-template-columns: 220px 1fr 230px 220px; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+                    <div>
+                        <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('category')">+ YONET (EKLE-SIL)</div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kategori *</label>
+                        <select onchange="ProductLibraryModule.setMasterDraft('categoryId', this.value)" ${state.masterEditingId ? 'disabled' : ''} style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                            ${categories.map(c => `<option value="${c.id}" ${state.masterDraftCategoryId === c.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(c.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">URUNUN ADI *</label>
+                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftName || '')}" oninput="ProductLibraryModule.setMasterDraft('name', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">marka model</label>
+                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftBrand || '')}" oninput="ProductLibraryModule.setMasterDraft('brand', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">ambalaj icerik</label>
+                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftPack || '')}" oninput="ProductLibraryModule.setMasterDraft('pack', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 220px 220px 220px 1fr; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+                    <div>
+                        <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('unit')">+ YONET (EKLE-SIL)</div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Birim *</label>
+                        <select onchange="ProductLibraryModule.setMasterDraft('unit', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            ${unitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftUnit === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">birim miktar (${ProductLibraryModule.escapeHtml(ProductLibraryModule.getUnitAmountType(state.masterDraftUnit || 'adet'))})</label>
+                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftUnitAmount || '')}" oninput="ProductLibraryModule.setMasterDraft('unitAmount', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                    <div>
+                        <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('color')">+ YONET (EKLE-SIL)</div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">renk</label>
+                        <select onchange="ProductLibraryModule.setMasterDraft('color', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            <option value="">renk seciniz</option>
+                            ${colorOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftColor === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kod</label>
+                        <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:45px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 340px 210px 1fr 1fr; gap:0.75rem; align-items:start; margin-bottom:0.75rem;">
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikciler sec</label>
+                        <select id="master_supplier_select" multiple onchange="ProductLibraryModule.setMasterSupplierSelection(this)" style="width:100%; min-height:110px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.4rem;">
+                            ${suppliers.length === 0 ? `<option value="">Kayitli tedarikci yok</option>` : suppliers.map(s => `<option value="${s.id}" ${state.masterDraftSupplierIds.includes(s.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(s.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikcideki kodu</label>
+                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftSupplierCode || '')}" oninput="ProductLibraryModule.setMasterDraft('supplierCode', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                        <button type="button" onclick="ProductLibraryModule.addMasterSupplierLink()" style="width:100%; height:42px; margin-top:0.45rem; border:1px solid #0f172a; background:white; color:#0f172a; border-radius:0.6rem; font-weight:800; cursor:pointer;">ekle+</button>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci listesi</label>
+                        <div style="width:100%; min-height:110px; max-height:170px; overflow:auto; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.35rem; background:white;">
+                            ${(selectedSupplierRowsHtml && selectedSupplierRowsHtml.length > 0)
+                                ? selectedSupplierRowsHtml.join('')
+                                : `<div style="color:#94a3b8; font-size:0.9rem; padding:0.45rem;">Kayitli tedarikci yok.</div>`
+                            }
+                        </div>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">resim / pdf dosya + ekle (opsiyonel)</label>
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                            <input type="file" accept=".pdf,image/*" onchange="ProductLibraryModule.handleMasterAttachment(this)" style="font-size:0.82rem;">
+                            <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(state.masterDraftAttachment?.name || 'Dosya secilmedi')}</div>
+                            <div style="display:flex; gap:0.4rem; margin-top:0.45rem;">
+                                <button class="btn-sm" onclick="ProductLibraryModule.previewMasterDraftAttachment()" ${state.masterDraftAttachment ? '' : 'disabled'}>gor</button>
+                                <button class="btn-sm" onclick="ProductLibraryModule.clearMasterAttachment()" ${state.masterDraftAttachment ? '' : 'disabled'}>kaldir</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 1fr auto; gap:0.75rem; align-items:end;">
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not ekle</label>
+                        <textarea rows="3" oninput="ProductLibraryModule.setMasterDraft('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.masterDraftNote || '')}</textarea>
+                    </div>
+                    <div style="display:flex; gap:0.6rem;">
+                        <button class="btn-sm" onclick="ProductLibraryModule.loadSelectedMasterForEdit()" ${state.masterSelectedId ? '' : 'disabled'} style="height:40px; padding:0 1rem;">duzenle</button>
+                        <button class="btn-primary" onclick="ProductLibraryModule.saveMasterProduct()" style="height:40px; padding:0 1.2rem; border-radius:0.7rem;">kaydet</button>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    setMasterFilter: (key, value) => {
+        const active = document.activeElement;
+        const activeId = active?.id || '';
+        const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
+        const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
+
+        ProductLibraryModule.state.masterFilters[key] = value || '';
+        UI.renderCurrentPage();
+
+        if (activeId && activeId.startsWith('master_filter_')) {
+            const next = document.getElementById(activeId);
+            if (next) {
+                next.focus();
+                if (start !== null && end !== null) {
+                    try { next.setSelectionRange(start, end); } catch (_) { }
+                }
             }
         }
+    },
 
-        // Ensure box category exists.
-        const hasBox = (DB.data.data.productCategories || []).some(c =>
-            c.id === 'cat_box' || String(c.name || '').toLowerCase().includes('koli')
-        );
-        if (!hasBox) {
-            DB.data.data.productCategories.push({ id: 'cat_box', name: 'Koli', icon: '[ ]' });
+    setMasterDraft: (key, value) => {
+        if (key === 'categoryId') ProductLibraryModule.state.masterDraftCategoryId = value || '';
+        if (key === 'name') ProductLibraryModule.state.masterDraftName = value || '';
+        if (key === 'unit') ProductLibraryModule.state.masterDraftUnit = value || '';
+        if (key === 'unitAmount') ProductLibraryModule.state.masterDraftUnitAmount = value || '';
+        if (key === 'brand') ProductLibraryModule.state.masterDraftBrand = value || '';
+        if (key === 'pack') ProductLibraryModule.state.masterDraftPack = value || '';
+        if (key === 'length') ProductLibraryModule.state.masterDraftLength = value || '';
+        if (key === 'color') ProductLibraryModule.state.masterDraftColor = value || '';
+        if (key === 'supplierCode') ProductLibraryModule.state.masterDraftSupplierCode = value || '';
+        if (key === 'note') ProductLibraryModule.state.masterDraftNote = value || '';
+        if (key === 'categoryId' || key === 'unit' || key === 'color') UI.renderCurrentPage();
+    },
+
+    resetMasterDraft: (keepFormOpen = true) => {
+        const cats = ProductLibraryModule.getMasterCategories();
+        ProductLibraryModule.state.masterDraftCategoryId = cats[0]?.id || '';
+        ProductLibraryModule.state.masterDraftName = '';
+        ProductLibraryModule.state.masterDraftUnit = ProductLibraryModule.getMasterUnitOptions()[0] || 'adet';
+        ProductLibraryModule.state.masterDraftUnitAmount = '';
+        ProductLibraryModule.state.masterDraftBrand = '';
+        ProductLibraryModule.state.masterDraftPack = '';
+        ProductLibraryModule.state.masterDraftLength = '';
+        ProductLibraryModule.state.masterDraftColor = '';
+        ProductLibraryModule.state.masterDraftSupplierIds = [];
+        ProductLibraryModule.state.masterDraftSupplierLinks = [];
+        ProductLibraryModule.state.masterDraftSupplierCode = '';
+        ProductLibraryModule.state.masterDraftNote = '';
+        ProductLibraryModule.state.masterDraftAttachment = null;
+        ProductLibraryModule.state.masterEditingId = null;
+        ProductLibraryModule.state.masterFormOpen = !!keepFormOpen;
+    },
+
+    toggleMasterForm: () => {
+        const show = ProductLibraryModule.state.masterFormOpen || !!ProductLibraryModule.state.masterEditingId;
+        if (show) ProductLibraryModule.resetMasterDraft(false);
+        else ProductLibraryModule.resetMasterDraft(true);
+        UI.renderCurrentPage();
+    },
+
+    setMasterSupplierSelection: (el) => {
+        ProductLibraryModule.state.masterDraftSupplierIds = Array.from(el?.selectedOptions || [])
+            .map(opt => String(opt.value || '').trim())
+            .filter(Boolean);
+        UI.renderCurrentPage();
+    },
+
+    addMasterSupplierLink: () => {
+        const supplierIds = Array.isArray(ProductLibraryModule.state.masterDraftSupplierIds)
+            ? ProductLibraryModule.state.masterDraftSupplierIds
+            : [];
+        const code = String(ProductLibraryModule.state.masterDraftSupplierCode || '').trim();
+        if (supplierIds.length === 0) {
+            alert('Lutfen tedarikci seciniz.');
+            return;
         }
-        const hasConsumable = (DB.data.data.productCategories || []).some(c =>
-            c.id === 'cat_sarf' || String(c.name || '').toLowerCase().includes('sarf')
-        );
-        if (!hasConsumable) {
-            DB.data.data.productCategories.push({ id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG' });
+        if (!code) {
+            alert('Lutfen tedarikci kodu giriniz.');
+            return;
         }
 
+        const supplierOptions = ProductLibraryModule.getMasterSuppliers();
+        const current = Array.isArray(ProductLibraryModule.state.masterDraftSupplierLinks)
+            ? ProductLibraryModule.state.masterDraftSupplierLinks
+            : [];
+        const next = [...current];
 
-        if (ProductLibraryModule.state.activeCategory) {
-            ProductLibraryModule.renderCategoryDetail(container);
+        supplierIds.forEach(id => {
+            const found = supplierOptions.find(s => s.id === id);
+            if (!found) return;
+            const idx = next.findIndex(x => (x?.supplierId || '') === id);
+            const row = {
+                supplierId: found.id,
+                supplierName: found.name,
+                supplierCode: code
+            };
+            if (idx >= 0) next[idx] = row;
+            else next.push(row);
+        });
+
+        ProductLibraryModule.state.masterDraftSupplierLinks = next;
+        ProductLibraryModule.state.masterDraftSupplierCode = '';
+        UI.renderCurrentPage();
+    },
+
+    removeMasterSupplierLink: (index) => {
+        const links = Array.isArray(ProductLibraryModule.state.masterDraftSupplierLinks)
+            ? [...ProductLibraryModule.state.masterDraftSupplierLinks]
+            : [];
+        if (index < 0 || index >= links.length) return;
+        links.splice(index, 1);
+        ProductLibraryModule.state.masterDraftSupplierLinks = links;
+        ProductLibraryModule.state.masterDraftSupplierIds = Array.from(
+            new Set(
+                links
+                    .map(link => String(link?.supplierId || '').trim())
+                    .filter(Boolean)
+            )
+        );
+        UI.renderCurrentPage();
+    },
+
+    handleMasterAttachment: (input) => {
+        const file = input?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            ProductLibraryModule.state.masterDraftAttachment = {
+                name: file.name || 'dosya',
+                type: file.type || '',
+                data: String(reader.result || '')
+            };
+            UI.renderCurrentPage();
+        };
+        reader.readAsDataURL(file);
+    },
+
+    clearMasterAttachment: () => {
+        ProductLibraryModule.state.masterDraftAttachment = null;
+        UI.renderCurrentPage();
+    },
+
+    previewMasterDraftAttachment: () => {
+        const file = ProductLibraryModule.state.masterDraftAttachment;
+        if (!file?.data) return;
+        ProductLibraryModule.openPreviewModal(file);
+    },
+
+    previewMasterAttachment: (id) => {
+        const rec = ProductLibraryModule.getMasterProductById(id);
+        if (!rec) return;
+        const attachment = rec.attachment?.data
+            ? rec.attachment
+            : rec.previewPdf
+                ? { name: 'pdf', type: 'application/pdf', data: rec.previewPdf }
+                : rec.previewImage
+                    ? { name: 'resim', type: 'image/*', data: rec.previewImage }
+                    : null;
+        if (!attachment?.data) return alert('Goruntulenecek dosya yok.');
+        ProductLibraryModule.openPreviewModal(attachment);
+    },
+
+    openPreviewModal: (attachment) => {
+        const type = String(attachment?.type || '').toLowerCase();
+        const data = String(attachment?.data || '');
+        const isPdf = type.includes('pdf') || data.startsWith('data:application/pdf');
+        const content = isPdf
+            ? `<iframe src="${data}" style="width:100%; height:72vh; border:none; border-radius:0.6rem;"></iframe>`
+            : `<img src="${data}" alt="dosya" style="max-width:100%; max-height:72vh; border-radius:0.6rem; display:block; margin:0 auto;">`;
+        Modal.open('Dosya Onizleme', content, { maxWidth: '980px' });
+    },
+
+    selectMasterProduct: (id) => {
+        ProductLibraryModule.state.masterSelectedId = id;
+        UI.renderCurrentPage();
+    },
+
+    loadMasterDraftFromRecord: (record) => {
+        if (!record) return;
+        const suppliers = ProductLibraryModule.getMasterSuppliers();
+        const supplierIds = record.suppliers
+            .map(ref => {
+                if (ref?.id) return ref.id;
+                const byName = suppliers.find(s =>
+                    ProductLibraryModule.normalizeAsciiUpper(s.name) === ProductLibraryModule.normalizeAsciiUpper(ref?.name || '')
+                );
+                return byName?.id || '';
+            })
+            .filter(Boolean);
+
+        ProductLibraryModule.state.masterFormOpen = true;
+        ProductLibraryModule.state.masterEditingId = record.id;
+        ProductLibraryModule.state.masterSelectedId = record.id;
+        ProductLibraryModule.state.masterDraftCategoryId = record.categoryId || ProductLibraryModule.state.masterDraftCategoryId;
+        ProductLibraryModule.state.masterDraftName = record.name || '';
+        ProductLibraryModule.state.masterDraftUnit = record.unit || ProductLibraryModule.getMasterUnitOptions()[0] || 'adet';
+        ProductLibraryModule.state.masterDraftUnitAmount = record.unitAmount || '';
+        ProductLibraryModule.state.masterDraftBrand = record.brand || '';
+        ProductLibraryModule.state.masterDraftPack = record.pack || '';
+        ProductLibraryModule.state.masterDraftLength = record.length || '';
+        ProductLibraryModule.state.masterDraftColor = record.color || '';
+        ProductLibraryModule.state.masterDraftSupplierIds = Array.from(new Set(supplierIds));
+        const draftLinks = Array.isArray(record.supplierLinks)
+            ? record.supplierLinks.map(link => ({
+                supplierId: String(link?.supplierId || '').trim(),
+                supplierName: String(link?.supplierName || '').trim(),
+                supplierCode: String(link?.supplierCode || '').trim()
+            })).filter(link => link.supplierId || link.supplierName)
+            : [];
+        if (draftLinks.length === 0 && Array.isArray(record.suppliers)) {
+            record.suppliers.forEach(ref => {
+                draftLinks.push({
+                    supplierId: String(ref?.id || '').trim(),
+                    supplierName: String(ref?.name || '').trim(),
+                    supplierCode: String(record.supplierCode || '').trim()
+                });
+            });
+        }
+        ProductLibraryModule.state.masterDraftSupplierLinks = draftLinks;
+        ProductLibraryModule.state.masterDraftSupplierCode = '';
+        ProductLibraryModule.state.masterDraftNote = record.note || '';
+        ProductLibraryModule.state.masterDraftAttachment = record.attachment?.data ? record.attachment : null;
+    },
+
+    editMasterProduct: (id) => {
+        const record = ProductLibraryModule.getMasterProductById(id);
+        if (!record) return;
+        ProductLibraryModule.loadMasterDraftFromRecord(record);
+        UI.renderCurrentPage();
+    },
+
+    loadSelectedMasterForEdit: () => {
+        if (!ProductLibraryModule.state.masterSelectedId) {
+            alert('Once bir kayit seciniz.');
+            return;
+        }
+        ProductLibraryModule.editMasterProduct(ProductLibraryModule.state.masterSelectedId);
+    },
+
+    generateMasterCode: (categoryId) => {
+        const categories = ProductLibraryModule.getMasterCategories();
+        const cat = categories.find(c => c.id === categoryId);
+        const prefix = ProductLibraryModule.buildCategoryPrefix(cat?.prefix || cat?.name || 'URN', categoryId);
+        const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^${escaped}-?(\\d{1,12})$`, 'i');
+        let maxNum = 0;
+        (DB.data.data.products || []).forEach(p => {
+            const code = String(p?.code || '').toUpperCase();
+            const m = code.match(regex);
+            if (!m) return;
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `${prefix}${String(nextNum).padStart(4, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `${prefix}${String(nextNum).padStart(4, '0')}`;
+        }
+        return candidate;
+    },
+
+    saveMasterProduct: async () => {
+        const s = ProductLibraryModule.state;
+        const name = String(s.masterDraftName || '').trim();
+        if (!name) return alert('Urun adi zorunlu.');
+
+        const categories = ProductLibraryModule.getMasterCategories();
+        const unitOptions = ProductLibraryModule.getMasterUnitOptions();
+        const suppliers = ProductLibraryModule.getMasterSuppliers();
+        const allProducts = DB.data.data.products || [];
+
+        let finalCategory = categories.find(c => c.id === s.masterDraftCategoryId);
+        if (s.masterEditingId) {
+            const current = allProducts.find(x => x.id === s.masterEditingId);
+            const resolved = ProductLibraryModule.resolveCategoryForProduct(current);
+            if (resolved?.id) {
+                finalCategory = categories.find(c => c.id === resolved.id) || finalCategory;
+            }
+        }
+        if (!finalCategory) return alert('Kategori seciniz.');
+
+        const unit = String(s.masterDraftUnit || '').trim();
+        if (!unit) return alert('Birim zorunlu.');
+        if (!unitOptions.includes(unit)) return alert('Birim listeden secilmelidir.');
+
+        const unitAmount = String(s.masterDraftUnitAmount || '').trim();
+        const unitAmountType = ProductLibraryModule.getUnitAmountType(unit);
+        const brand = String(s.masterDraftBrand || '').trim();
+        const pack = String(s.masterDraftPack || '').trim();
+        const length = String(s.masterDraftLength || '').trim();
+        const color = String(s.masterDraftColor || '').trim();
+        const note = String(s.masterDraftNote || '').trim();
+        const now = new Date().toISOString();
+
+        const supplierLinks = Array.isArray(s.masterDraftSupplierLinks)
+            ? s.masterDraftSupplierLinks.map(link => ({
+                supplierId: String(link?.supplierId || '').trim(),
+                supplierName: String(link?.supplierName || '').trim(),
+                supplierCode: String(link?.supplierCode || '').trim()
+            })).filter(link => link.supplierId || link.supplierName)
+            : [];
+
+        if (supplierLinks.length === 0 && Array.isArray(s.masterDraftSupplierIds) && s.masterDraftSupplierIds.length > 0) {
+            const fallbackCode = String(s.masterDraftSupplierCode || '').trim();
+            s.masterDraftSupplierIds.forEach(id => {
+                const found = suppliers.find(x => x.id === id);
+                if (!found) return;
+                supplierLinks.push({
+                    supplierId: found.id,
+                    supplierName: found.name,
+                    supplierCode: fallbackCode
+                });
+            });
+        }
+
+        const supplierRefs = Array.from(new Map(
+            supplierLinks.map(link => {
+                const key = link.supplierId || ProductLibraryModule.normalizeAsciiUpper(link.supplierName || '');
+                return [key, { id: link.supplierId, name: link.supplierName }];
+            })
+        ).values()).filter(ref => ref.id || ref.name);
+        const firstSupplierCode = supplierLinks[0]?.supplierCode || '';
+
+        if (s.masterEditingId) {
+            const idx = allProducts.findIndex(x => x.id === s.masterEditingId);
+            if (idx === -1) {
+                ProductLibraryModule.resetMasterDraft(false);
+                UI.renderCurrentPage();
+                return;
+            }
+            const old = allProducts[idx];
+            const oldSpecs = (old?.specs && typeof old.specs === 'object') ? old.specs : {};
+            allProducts[idx] = {
+                ...old,
+                categoryId: finalCategory.id,
+                category: finalCategory.name,
+                name,
+                unitAmount,
+                unitAmountType,
+                suppliers: supplierRefs,
+                supplierLinks,
+                supplierIds: supplierRefs.map(x => x.id),
+                supplierNames: supplierRefs.map(x => x.name),
+                supplierProductCode: firstSupplierCode,
+                attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : old.attachment || null,
+                specs: {
+                    ...oldSpecs,
+                    unit,
+                    unitAmount,
+                    unitAmountType,
+                    brandModel: brand,
+                    packageInfo: pack,
+                    lengthMm: length,
+                    color,
+                    suppliers: supplierRefs.map(x => x.name),
+                    supplierLinks,
+                    supplierProductCode: firstSupplierCode,
+                    note
+                },
+                updated_at: now
+            };
+            ProductLibraryModule.state.masterSelectedId = old.id;
         } else {
-            ProductLibraryModule.renderMain(container);
+            const id = crypto.randomUUID();
+            const code = ProductLibraryModule.generateMasterCode(finalCategory.id);
+            allProducts.push({
+                id,
+                categoryId: finalCategory.id,
+                category: finalCategory.name,
+                type: 'MASTER',
+                name,
+                code,
+                unitAmount,
+                unitAmountType,
+                suppliers: supplierRefs,
+                supplierLinks,
+                supplierIds: supplierRefs.map(x => x.id),
+                supplierNames: supplierRefs.map(x => x.name),
+                supplierProductCode: firstSupplierCode,
+                attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : null,
+                specs: {
+                    unit,
+                    unitAmount,
+                    unitAmountType,
+                    brandModel: brand,
+                    packageInfo: pack,
+                    lengthMm: length,
+                    color,
+                    suppliers: supplierRefs.map(x => x.name),
+                    supplierLinks,
+                    supplierProductCode: firstSupplierCode,
+                    note
+                },
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.masterSelectedId = id;
         }
+
+        await DB.save();
+        ProductLibraryModule.resetMasterDraft(false);
+        UI.renderCurrentPage();
+    },
+
+    deleteMasterProduct: async (id) => {
+        const all = DB.data.data.products || [];
+        const row = all.find(x => x.id === id);
+        if (!row) return;
+        if (!confirm('Bu urun silinsin mi?')) return;
+        DB.data.data.products = all.filter(x => x.id !== id);
+        if (ProductLibraryModule.state.masterSelectedId === id) ProductLibraryModule.state.masterSelectedId = null;
+        if (ProductLibraryModule.state.masterEditingId === id) ProductLibraryModule.resetMasterDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    openMasterDictionary: (kind) => {
+        if (kind === 'category') {
+            const categories = ProductLibraryModule.getMasterCategories();
+            Modal.open('Kategori + Yonet', `
+                <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                    <div style="display:grid; grid-template-columns:1fr 110px auto; gap:0.5rem;">
+                        <input id="master_cat_name" placeholder="kategori adi" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                        <input id="master_cat_prefix" placeholder="kod" maxlength="3" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; text-transform:uppercase; font-family:monospace; font-weight:700;">
+                        <button class="btn-primary" onclick="ProductLibraryModule.addMasterCategory()" style="height:38px; border-radius:0.55rem;">ekle</button>
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:380px; overflow:auto;">
+                        ${categories.map(c => `
+                            <div style="display:grid; grid-template-columns:1fr 90px auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                                <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(c.name)}</div>
+                                <div style="font-family:monospace; font-weight:700; color:#64748b;">${ProductLibraryModule.escapeHtml(c.prefix || '-')}</div>
+                                <button class="btn-sm" onclick="ProductLibraryModule.renameMasterCategory('${c.id}')">duzenle</button>
+                                <button class="btn-sm" onclick="ProductLibraryModule.removeMasterCategory('${c.id}')">sil</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `, { maxWidth: '720px' });
+            return;
+        }
+
+        const isUnit = kind === 'unit';
+        const key = isUnit ? 'masterUnits' : 'masterColors';
+        const title = isUnit ? 'Birim + Yonet' : 'Renk + Yonet';
+        const items = isUnit ? ProductLibraryModule.getMasterUnitOptions() : ProductLibraryModule.getMasterColorOptions();
+        Modal.open(title, `
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="display:grid; grid-template-columns:1fr auto; gap:0.5rem;">
+                    <input id="master_list_item" placeholder="yeni deger" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    <button class="btn-primary" onclick="ProductLibraryModule.addMasterOption('${key}')" style="height:38px; border-radius:0.55rem;">ekle</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:350px; overflow:auto;">
+                    ${items.map((item, idx) => `
+                        <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.renameMasterOption('${key}', ${idx})">duzenle</button>
+                            <button class="btn-sm" onclick="ProductLibraryModule.removeMasterOption('${key}', ${idx})">sil</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `, { maxWidth: '620px' });
+    },
+
+    addMasterCategory: async () => {
+        const name = String(document.getElementById('master_cat_name')?.value || '').trim();
+        const rawPrefix = String(document.getElementById('master_cat_prefix')?.value || '').trim();
+        if (!name) return alert('Kategori adi zorunlu.');
+
+        const exists = (DB.data.data.productCategories || []).some(c =>
+            ProductLibraryModule.normalizeAsciiUpper(c?.name || '') === ProductLibraryModule.normalizeAsciiUpper(name)
+        );
+        if (exists) return alert('Bu kategori zaten var.');
+
+        DB.data.data.productCategories.push({
+            id: crypto.randomUUID(),
+            name,
+            icon: '📦',
+            prefix: ProductLibraryModule.buildCategoryPrefix(rawPrefix || name)
+        });
+        await DB.save();
+        ProductLibraryModule.ensureMasterDefaults();
+        ProductLibraryModule.openMasterDictionary('category');
+        UI.renderCurrentPage();
+    },
+
+    renameMasterCategory: async (id) => {
+        const idx = (DB.data.data.productCategories || []).findIndex(c => c.id === id);
+        if (idx === -1) return;
+        const row = DB.data.data.productCategories[idx];
+        const newName = prompt('Yeni kategori adi:', row.name || '');
+        if (!newName) return;
+        const newPrefix = prompt('Kod kisaltma (3 harf):', row.prefix || '');
+        DB.data.data.productCategories[idx] = {
+            ...row,
+            name: String(newName || '').trim() || row.name,
+            prefix: ProductLibraryModule.buildCategoryPrefix(newPrefix || row.prefix || row.name, row.id)
+        };
+        await DB.save();
+        ProductLibraryModule.ensureMasterDefaults();
+        ProductLibraryModule.openMasterDictionary('category');
+        UI.renderCurrentPage();
+    },
+
+    removeMasterCategory: async (id) => {
+        const cat = (DB.data.data.productCategories || []).find(c => c.id === id);
+        const inUse = (DB.data.data.products || []).some(p => {
+            if (p?.categoryId === id) return true;
+            return cat && ProductLibraryModule.normalizeAsciiUpper(p?.category || '') === ProductLibraryModule.normalizeAsciiUpper(cat.name || '');
+        });
+        if (inUse) {
+            alert('Bu kategori urunlerde kullaniliyor. Once urunleri tasiyin/silin.');
+            return;
+        }
+        if (!confirm('Kategori silinsin mi?')) return;
+        DB.data.data.productCategories = (DB.data.data.productCategories || []).filter(c => c.id !== id);
+        await DB.save();
+        ProductLibraryModule.ensureMasterDefaults();
+        ProductLibraryModule.openMasterDictionary('category');
+        UI.renderCurrentPage();
+    },
+
+    addMasterOption: async (key) => {
+        const val = String(document.getElementById('master_list_item')?.value || '').trim();
+        if (!val) return;
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options[key])) DB.data.meta.options[key] = [];
+        const list = DB.data.meta.options[key];
+        const exists = list.some(x => ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === ProductLibraryModule.normalizeAsciiUpper(val));
+        if (exists) return alert('Bu deger zaten var.');
+        list.push(val);
+        await DB.save();
+        ProductLibraryModule.openMasterDictionary(key === 'masterUnits' ? 'unit' : 'color');
+        UI.renderCurrentPage();
+    },
+
+    renameMasterOption: async (key, index) => {
+        if (!Array.isArray(DB.data.meta.options?.[key])) return;
+        const list = DB.data.meta.options[key];
+        if (index < 0 || index >= list.length) return;
+        const oldVal = String(list[index] || '');
+        const next = prompt('Yeni deger:', oldVal);
+        if (!next) return;
+        list[index] = String(next).trim() || oldVal;
+        await DB.save();
+        ProductLibraryModule.openMasterDictionary(key === 'masterUnits' ? 'unit' : 'color');
+        UI.renderCurrentPage();
+    },
+
+    removeMasterOption: async (key, index) => {
+        if (!Array.isArray(DB.data.meta.options?.[key])) return;
+        const list = DB.data.meta.options[key];
+        if (index < 0 || index >= list.length) return;
+        if (!confirm('Bu deger silinsin mi?')) return;
+        list.splice(index, 1);
+        await DB.save();
+        ProductLibraryModule.openMasterDictionary(key === 'masterUnits' ? 'unit' : 'color');
+        UI.renderCurrentPage();
     },
 
     renderMain: (container) => {
@@ -221,15 +1394,6 @@ const ProductLibraryModule = {
     },
 
     openCategory: (id) => {
-        // Find category to check its name
-        const cat = DB.data.data.productCategories.find(c => c.id === id);
-
-        // Redirect Aluminum to new module if name matches or ID matches
-        if (id === 'cat1' || (cat && cat.name.toLowerCase().includes('alüminyum'))) {
-            Router.navigate('aluminum-inventory');
-            return;
-        }
-
         ProductLibraryModule.state.activeCategory = id;
         ProductLibraryModule.state.isFormVisible = false;
         ProductLibraryModule.state.filters = { dia: '', len: '', thick: '', color: '', surface: '' };
@@ -622,6 +1786,7 @@ const ProductLibraryModule = {
             thick: { t: 'Kalınlık Kütüphanesi', i: 'layers', k: 'thicknesses' },
             color: { t: 'Renk Kütüphanesi', i: 'palette', k: 'colors' },
             surface: { t: 'Yüzey Tipi Kütüphanesi', i: 'scan-line', k: 'surfaces' },
+            consumableTypes: { t: 'Alt Tür Kütüphanesi', i: 'list', k: 'consumableTypes' },
             // Hardware Mappings
             hardwareShapes: { t: 'Şekil Kütüphanesi', i: 'shapes', k: 'hardwareShapes' },
             hardwareDias: { t: 'Çap Kütüphanesi', i: 'circle-dashed', k: 'hardwareDias' },
@@ -1370,7 +2535,13 @@ const ProductLibraryModule = {
             const n = Number(m[1]);
             if (Number.isFinite(n) && n > maxNum) maxNum = n;
         });
-        return `SRF-${String(maxNum + 1).padStart(6, '0')}`;
+        let nextNum = maxNum + 1;
+        let candidate = `SRF-${String(nextNum).padStart(6, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `SRF-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
     },
 
     getBoxProducts: () => {
@@ -1642,7 +2813,13 @@ const ProductLibraryModule = {
             const n = Number(m[1]);
             if (Number.isFinite(n) && n > maxNum) maxNum = n;
         });
-        return `KLI-${String(maxNum + 1).padStart(6, '0')}`;
+        let nextNum = maxNum + 1;
+        let candidate = `KLI-${String(nextNum).padStart(6, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+            nextNum += 1;
+            candidate = `KLI-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
     },
 
     escapeHtml: (value) => {
@@ -1673,9 +2850,19 @@ const ProductLibraryModule = {
         const mCode = matMap[hardwareFilters.mat] || hardwareFilters.mat.substring(0, 3).toUpperCase();
         const dia = hardwareFilters.dia.replace('.', ''); // Remove dots in dia
         const len = hardwareFilters.len || '00';
-        const suffix = Math.floor(Math.random() * 1000).toString().padStart(4, '0');
-
-        const code = `${sCode}-${dia}-${len}-${mCode}-${suffix}`;
+        let code = '';
+        for (let i = 0; i < 5000; i += 1) {
+            const suffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+            const candidate = `${sCode}-${dia}-${len}-${mCode}-${suffix}`;
+            if (!ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+                code = candidate;
+                break;
+            }
+        }
+        if (!code) {
+            alert('Benzersiz urun kodu uretilemedi. Lutfen tekrar deneyin.');
+            return;
+        }
 
         const newProduct = {
             id: crypto.randomUUID(),
@@ -1749,8 +2936,19 @@ const ProductLibraryModule = {
         // Generate ID / Code
         const typeCode = extruderTab === 'ROD' ? 'CB' : 'BR'; // CB: Çubuk, BR: Boru
         const specCode = `${filters.dia}-${filters.len}-${filters.color.substring(0, 3).toUpperCase()}`;
-        const uniqueSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
-        const code = `${typeCode}-${specCode}-${uniqueSuffix}`;
+        let code = '';
+        for (let i = 0; i < 5000; i += 1) {
+            const uniqueSuffix = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+            const candidate = `${typeCode}-${specCode}-${uniqueSuffix}`;
+            if (!ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+                code = candidate;
+                break;
+            }
+        }
+        if (!code) {
+            alert('Benzersiz urun kodu uretilemedi. Lutfen tekrar deneyin.');
+            return;
+        }
 
         const newProduct = {
             id: crypto.randomUUID(),

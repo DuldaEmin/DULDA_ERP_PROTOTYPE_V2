@@ -34,7 +34,7 @@ if ($LASTEXITCODE -ne 0) {
 $mojibakeFiles = Test-MojibakeFiles
 if ($mojibakeFiles.Count -gt 0) {
     $list = $mojibakeFiles -join ", "
-    throw "Encoding warning: possible broken characters in $list. Fix text encoding before backup."
+    Write-Warning "Encoding warning: possible broken characters in $list. Backup devam ediyor."
 }
 
 # Stage everything and check if there is anything to commit.

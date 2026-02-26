@@ -203,6 +203,10 @@ header {
     background: linear-gradient(135deg, #22d3ee, #3b82f6);
 }
 
+.g-pink {
+    background: linear-gradient(135deg, #f472b6, #8b5cf6);
+}
+
 .g-gray {
     background: linear-gradient(135deg, #4b5563, #1f2937);
 }

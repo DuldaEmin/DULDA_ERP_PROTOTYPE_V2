@@ -37,7 +37,14 @@ const DB = {
             aluminumProfiles: [],
             cncCards: [],
             plexiPolishCards: [],
-            extruderLibraryCards: []
+            pvdCards: [],
+            eloksalCards: [],
+            ibrahimPolishCards: [],
+            processColorLists: {},
+            polishSurfaceLists: {},
+            extruderLibraryCards: [],
+            depoTransferLogs: [],
+            depoRoutes: []
         }
     },
     saveTimeout: null,
@@ -64,7 +71,14 @@ const DB = {
         if (!Array.isArray(d.aluminumProfiles)) d.aluminumProfiles = [];
         if (!Array.isArray(d.cncCards)) d.cncCards = [];
         if (!Array.isArray(d.plexiPolishCards)) d.plexiPolishCards = [];
+        if (!Array.isArray(d.pvdCards)) d.pvdCards = [];
+        if (!Array.isArray(d.eloksalCards)) d.eloksalCards = [];
+        if (!Array.isArray(d.ibrahimPolishCards)) d.ibrahimPolishCards = [];
+        if (!d.processColorLists || typeof d.processColorLists !== "object" || Array.isArray(d.processColorLists)) d.processColorLists = {};
+        if (!d.polishSurfaceLists || typeof d.polishSurfaceLists !== "object" || Array.isArray(d.polishSurfaceLists)) d.polishSurfaceLists = {};
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
+        if (!Array.isArray(d.depoTransferLogs)) d.depoTransferLogs = [];
+        if (!Array.isArray(d.depoRoutes)) d.depoRoutes = [];
 
         if (Array.isArray(d.productCategories)) {
             const seen = new Set();
@@ -262,6 +276,10 @@ const Router = {
             UnitModule.state.view = 'list';
             UnitModule.state.activeUnitId = null;
         }
+        // Fresh open rule: entering Product workspace starts from menu.
+        if (pageId === 'products' && Router.currentPage !== 'products' && !fromBack) {
+            ProductLibraryModule.state.workspaceView = 'menu';
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -274,10 +292,17 @@ const Router = {
             return;
         }
 
-        if (Router.currentPage === 'products' && ProductLibraryModule.state.activeCategory) {
-            ProductLibraryModule.state.activeCategory = null;
-            UI.renderCurrentPage();
-            return;
+        if (Router.currentPage === 'products') {
+            if (ProductLibraryModule.state.workspaceView && ProductLibraryModule.state.workspaceView !== 'menu') {
+                ProductLibraryModule.state.workspaceView = 'menu';
+                UI.renderCurrentPage();
+                return;
+            }
+            if (ProductLibraryModule.state.activeCategory) {
+                ProductLibraryModule.state.activeCategory = null;
+                UI.renderCurrentPage();
+                return;
+            }
         }
 
         if (Router.currentPage === 'aluminum-inventory') {
@@ -348,7 +373,13 @@ const UI = {
         else if (page === 'stock') { pageTitle.innerText = 'STOK YÖNETİMİ'; StockModule.render(container); }
         else if (page === 'purchasing') { pageTitle.innerText = 'SATIN ALMA'; PurchasingModule.render(container); }
         else if (page === 'units') { pageTitle.innerText = 'BİRİM YÖNETİMİ'; UnitModule.render(container); }
-        else if (page === 'products') { pageTitle.innerText = 'ÜRÜN KÜTÜPHANESİ'; ProductLibraryModule.render(container); }
+        else if (page === 'products') {
+            const workspaceView = String(ProductLibraryModule.state.workspaceView || 'menu');
+            pageTitle.innerText = workspaceView === 'master'
+                ? 'ÜRÜN KÜTÜPHANESİ'
+                : 'ÜRÜN VE PARÇA OLUŞTURMA';
+            ProductLibraryModule.render(container);
+        }
         else if (page === 'aluminum-inventory') {
             pageTitle.innerText = 'ALÜMİNYUM PROFİL ENVANTERİ';
             AluminumModule.render(container);
@@ -365,7 +396,7 @@ const UI = {
             { id: 'sales', title: 'Satış', icon: 'shopping-bag', gradient: 'g-orange' },
             { id: 'stock', title: 'Depo & Stok', icon: 'package', gradient: 'g-emerald' },
             { id: 'units', title: 'Birimler & Atölyeler', icon: 'hammer', gradient: 'g-yellow' },
-            { id: 'products', title: 'Master Ürün Kütüphanesi', icon: 'library', gradient: 'g-pink' },
+            { id: 'products', title: 'Ürün ve Parça Oluşturma', icon: 'boxes', gradient: 'g-pink' },
             { id: 'personnel', title: 'Personel', icon: 'users', gradient: 'g-cyan' },
             { id: 'settings', title: 'Ayarlar', icon: 'settings', gradient: 'g-gray' },
         ];

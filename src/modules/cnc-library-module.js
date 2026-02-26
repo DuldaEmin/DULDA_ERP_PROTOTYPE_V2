@@ -295,7 +295,7 @@ const CncLibraryModule = {
 
     saveCard: async (unitId) => {
         const name = document.getElementById('cnc_name')?.value.trim() || '';
-        const code = document.getElementById('cnc_code')?.value.trim() || '';
+        const code = (document.getElementById('cnc_code')?.value.trim() || '').toUpperCase();
         const linked = document.getElementById('cnc_linked')?.value.trim() || '';
         const notes = document.getElementById('cnc_notes')?.value.trim() || '';
         const drawingFile = document.getElementById('cnc_drawing')?.files?.[0];
@@ -311,6 +311,13 @@ const CncLibraryModule = {
         if (all.some(c => c.unitId === unitId && String(c.productCode || '').toLowerCase() === code.toLowerCase() && c.id !== CncLibraryModule.state.editingId)) {
             return alert('Ayni urun kodu ile kart zaten var.');
         }
+        if (CncLibraryModule.isGlobalCodeTaken(code, CncLibraryModule.state.editingId ? {
+            collection: 'cncCards',
+            id: CncLibraryModule.state.editingId,
+            field: 'productCode'
+        } : null)) {
+            return alert('Bu urun kodu zaten kullaniliyor. Tum kodlar benzersiz olmalidir.');
+        }
 
         let drawing = CncLibraryModule.state.draftDrawing ? { ...CncLibraryModule.state.draftDrawing } : null;
         if (drawingFile) {
@@ -321,12 +328,20 @@ const CncLibraryModule = {
 
         const idx = all.findIndex(c => c.id === CncLibraryModule.state.editingId);
         const now = new Date().toISOString();
+        let cncId = idx >= 0 ? (all[idx].cncId || CncLibraryModule.state.draftId) : CncLibraryModule.state.draftId;
+        if (CncLibraryModule.isGlobalCodeTaken(cncId, CncLibraryModule.state.editingId ? {
+            collection: 'cncCards',
+            id: CncLibraryModule.state.editingId,
+            field: 'cncId'
+        } : null)) {
+            cncId = CncLibraryModule.generateId();
+        }
         const payload = {
             id: idx >= 0 ? all[idx].id : crypto.randomUUID(),
             unitId,
             productName: name,
             productCode: code,
-            cncId: idx >= 0 ? (all[idx].cncId || CncLibraryModule.state.draftId) : CncLibraryModule.state.draftId,
+            cncId,
             linkedProductRef: linked,
             notes,
             operations: ops,
@@ -590,11 +605,53 @@ const CncLibraryModule = {
         });
         let next = maxNo + 1;
         let id = `CNC-${String(next).padStart(6, '0')}`;
-        while (cards.some(c => c.cncId === id)) {
+        while (cards.some(c => c.cncId === id) || CncLibraryModule.isGlobalCodeTaken(id)) {
             next += 1;
             id = `CNC-${String(next).padStart(6, '0')}`;
         }
         return id;
+    },
+
+    collectGlobalCodes: (exclude = null) => {
+        const bag = new Set();
+        const add = (value) => {
+            const normalized = String(value || '').trim().toUpperCase();
+            if (!normalized) return;
+            bag.add(normalized);
+        };
+        const shouldSkip = (collection, row, field) => {
+            if (!exclude || !row) return false;
+            if (exclude.collection !== collection) return false;
+            if (String(exclude.id || '') !== String(row.id || '')) return false;
+            if (exclude.field && exclude.field !== field) return false;
+            return true;
+        };
+        const readMany = (collection, list, fields) => {
+            if (!Array.isArray(list)) return;
+            list.forEach(row => {
+                fields.forEach(field => {
+                    if (shouldSkip(collection, row, field)) return;
+                    add(row?.[field]);
+                });
+            });
+        };
+
+        readMany('products', DB.data?.data?.products, ['code']);
+        readMany('cncCards', DB.data?.data?.cncCards, ['productCode', 'cncId']);
+        readMany('sawCutOrders', DB.data?.data?.sawCutOrders, ['code']);
+        readMany('extruderLibraryCards', DB.data?.data?.extruderLibraryCards, ['cardCode']);
+        readMany('plexiPolishCards', DB.data?.data?.plexiPolishCards, ['cardCode']);
+        readMany('pvdCards', DB.data?.data?.pvdCards, ['cardCode']);
+        readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
+        readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
+        readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
+        return bag;
+    },
+
+    isGlobalCodeTaken: (code, exclude = null) => {
+        const normalized = String(code || '').trim().toUpperCase();
+        if (!normalized) return false;
+        return CncLibraryModule.collectGlobalCodes(exclude).has(normalized);
     },
 
     renumber: (ops) => [...(ops || [])]

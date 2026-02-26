@@ -231,6 +231,7 @@ Toplam tahmin: 7-12 is gunu
 - Ayni ID/kod ikinci kez kullanilamaz (depo, atolye, dis fason, master urun kutuphanesi dahil)
 - Operasyon kurali: Bilgisayara kaydedilen her degisiklik GitHub'a da yedeklenecek
 - Operasyon kurali: GitHub yedegi en gec 15 dakikada bir otomatik commit/push ile alinacak
+- Operasyon kurali: Saatte bir otomatik saglik kontrolu calisacak (git durumu, yedek gorevi, hizli JS parse)
 
 ## 12) Acik Sorular
 - Kismi tamamlanan isler icin otomatik durum "Kismi Tamam" olsun mu?

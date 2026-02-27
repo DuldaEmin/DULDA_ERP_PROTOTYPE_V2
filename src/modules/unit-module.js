@@ -736,7 +736,7 @@ const UnitModule = {
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
-                        <div style="font-size:0.875rem; color:#64748b"> - Bu birim icin modul henuz tanimlanmadi.</div>
+                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} - Bu birim icin modul henuz tanimlanmadi.</div>
                     </div>
                 </div>
             </div>
@@ -2679,7 +2679,7 @@ const UnitModule = {
 
         // EXTRA SECURITY: Strictly restrict to Extruder
         if (!unit.name.includes('EKSTRUDER')) {
-            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>ÃƒÂ¢Ã¢â‚¬ÂºÃ¢â‚¬Â Bu birim iÃƒÆ’Ã‚Â§in stok yÃƒÆ’Ã‚Â¶netimi aktif deÃƒâ€Ã…Â¸il.</h3></div>`;
+            container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>Bu birim icin stok yonetimi aktif degil.</h3></div>`;
             return;
         }
 
@@ -2688,11 +2688,11 @@ const UnitModule = {
 
         // Ensure Colors Exist
         if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
-        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['ÃƒÂ¯Ã‚Â¿Ã‚Â½?effaf', 'Beyaz', 'Siyah', 'Antrasit'];
+        if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Seffaf', 'Beyaz', 'Siyah', 'Antrasit'];
         const colors = DB.data.data.unitColors[unitId];
 
         // Specific Header for Extruder
-        const title = unit.name.includes('EKSTRÃƒÆ’Ã…â€œDER') ? 'EKSTRÃƒÆ’Ã…â€œDER STOK EKLEME PANELÃƒâ€Ã‚Â°' : `${unit.name} STOK PANELÃƒâ€Ã‚Â°`;
+        const title = unit.name.includes('EKSTRUDER') ? 'EKSTRUDER STOK EKLEME PANELI' : `${unit.name} STOK PANELI`;
 
         container.innerHTML = `
             <div style="margin-bottom:2rem; padding-left:0.25rem">
@@ -2703,9 +2703,9 @@ const UnitModule = {
 
             <!-- TABS -->
             <div style="display:flex; gap:0.5rem; margin-bottom:0; padding-left:0.25rem">
-                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">ÃƒÆ’Ã¢â‚¬Â¡UBUK</button>
+                <button onclick="UnitModule.setStockTab('ROD')" class="tab-btn ${tab === 'ROD' ? 'active' : ''}">CUBUK</button>
                 <button onclick="UnitModule.setStockTab('PIPE')" class="tab-btn ${tab === 'PIPE' ? 'active' : ''}">BORU</button>
-                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">ÃƒÆ’Ã¢â‚¬â€œZEL PROFÃƒâ€Ã‚Â°LLER</button>
+                <button onclick="UnitModule.setStockTab('PROFILE')" class="tab-btn ${tab === 'PROFILE' ? 'active' : ''}">OZEL PROFILLER</button>
             </div>
             <style>
                 .tab-btn { padding: 0.75rem 2.5rem; border-radius: 1rem 1rem 0 0; font-weight:800; font-size:0.85rem; cursor:pointer; border:1px solid transparent; background:#e2e8f0; color:#94a3b8; letter-spacing:0.05em; }
@@ -2719,18 +2719,18 @@ const UnitModule = {
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:1rem; padding:1.5rem; margin-bottom:2rem">
                     <div style="font-size:0.75rem; font-weight:800; color:#52525b; margin-bottom:1rem; letter-spacing:0.1em; display:flex; gap:0.5rem; align-items:center; text-transform:uppercase">
                         <i data-lucide="plus" width="16" height="16" color="#10b981"></i>
-                        HIZLI STOK GÃƒâ€Ã‚Â°RÃƒâ€Ã‚Â°ÃƒÂ¯Ã‚Â¿Ã‚Â½?Ãƒâ€Ã‚Â° (${tab === 'ROD' ? '<span style="color:#059669">ÃƒÆ’Ã¢â‚¬Â¡UBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFÃƒâ€Ã‚Â°L</span>'})
+                        HIZLI STOK GIRISI (${tab === 'ROD' ? '<span style="color:#059669">CUBUK</span>' : tab === 'PIPE' ? '<span style="color:#059669">BORU</span>' : '<span style="color:#059669">PROFIL</span>'})
                     </div>
                     
                     <div style="display:grid; grid-template-columns: repeat(12, 1fr); gap:1rem; align-items:end">
                         ${tab === 'PROFILE' ? `
                             <div style="grid-column:span 2">
-                                <label class="lbl">PROFÃƒâ€Ã‚Â°L ADI</label>
+                                <label class="lbl">PROFIL ADI</label>
                                 <input id="stk_name" class="inp" placeholder="40x40 Kare">
                             </div>
                         ` : `
                             <div style="grid-column:span 1">
-                                <label class="lbl">ÃƒÆ’Ã¢â‚¬Â¡AP (mm)</label>
+                                <label class="lbl">CAP (mm)</label>
                                 <input id="stk_dia" type="number" class="inp text-center" placeholder="50">
                             </div>
                         `}
@@ -2750,10 +2750,10 @@ const UnitModule = {
                         <div style="grid-column:span 2">
                             <label class="lbl" style="display:flex; justify-content:space-between">
                                 RENK
-                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YÃƒÆ’Ã¢â‚¬â€œNET (EKLE/SÃƒâ€Ã‚Â°L) ]</button>
+                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
                             </label>
                             <select id="stk_col" class="inp" style="cursor:pointer">
-                                <option value="TanÃƒâ€Ã‚Â±msÃƒâ€Ã‚Â±z">SeÃƒÆ’Ã‚Â§iniz</option>
+                                <option value="Tanimsiz">Seciniz</option>
                                 ${colors.map(c => `<option value="${c}">${c}</option>`).join('')}
                             </select>
                         </div>
@@ -2762,7 +2762,7 @@ const UnitModule = {
                             <div style="grid-column:span 1; display:flex; justify-content:center; padding-bottom:0.8rem">
                                 <label style="display:flex; flex-direction:column; align-items:center; cursor:pointer">
                                     <input id="stk_bub" type="checkbox" style="width:1.25rem; height:1.25rem; accent-color:#10b981; cursor:pointer">
-                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">KabarcÃƒâ€Ã‚Â±klÃƒâ€Ã‚Â±</span>
+                                    <span style="font-size:0.6rem; font-weight:700; color:#64748b; margin-top:0.25rem">Kabarcikli</span>
                                 </label>
                             </div>
                         ` : '<div style="grid-column:span 1"></div>'}
@@ -2791,10 +2791,10 @@ const UnitModule = {
                         <div style="grid-column:span 2; display:flex; gap:0.5rem">
                             ${UnitModule.state.editingId ? `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="flex:2; height:42px; background:#2563eb; box-shadow:0 4px 6px -1px rgba(37, 99, 235, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="save" width="18" height="18"></i> GÃƒÆ’Ã…â€œNCELLE
+                                    <i data-lucide="save" width="18" height="18"></i> GUNCELLE
                                 </button>
                                 <button onclick="UnitModule.cancelEdit()" class="btn-primary" style="flex:1; height:42px; background:#94a3b8; box-shadow:0 4px 6px -1px rgba(148, 163, 184, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
-                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEÃƒÆ’Ã¢â‚¬Â¡
+                                    <i data-lucide="rotate-ccw" width="18" height="18"></i> VAZGEC
                                 </button>
                             ` : `
                                 <button onclick="UnitModule.saveStock('${unitId}')" class="btn-primary" style="width:100%; height:42px; background:#059669; box-shadow:0 4px 6px -1px rgba(16, 185, 129, 0.2); display:flex; align-items:center; justify-content:center; gap:0.5rem">
@@ -2817,19 +2817,19 @@ const UnitModule = {
                     <table>
                         <thead style="background:#f8fafc">
                             <tr>
-                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã…â€œrÃƒÆ’Ã‚Â¼n AdÃƒâ€Ã‚Â±</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã¢â‚¬Â¡ap (mm)</th>
-                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">KalÃƒâ€Ã‚Â±nlÃƒâ€Ã‚Â±k</th>' : ''}
+                                <th style="font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Urun Adi</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Cap (mm)</th>
+                                ${tab === 'PIPE' ? '<th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Kalinlik</th>' : ''}
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Boy (mm)</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Renk</th>
-                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">ÃƒÆ’Ã¢â‚¬â€œzellik</th>
+                                <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ozellik</th>
                                 <th style="text-align:center; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Not / Adres</th>
                                 <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Miktar / Hedef</th>
-                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸lem</th>
+                                <th style="text-align:right; font-size:0.7rem; color:#94a3b8; font-weight:700; text-transform:uppercase">Islem</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydÃƒâ€Ã‚Â± bulunamadÃƒâ€Ã‚Â±</div><div style="font-size:0.85rem">Bu kategori iÃƒÆ’Ã‚Â§in henÃƒÆ’Ã‚Â¼z giriÃƒâ€¦Ã…Â¸ yapÃƒâ€Ã‚Â±lmamÃƒâ€Ã‚Â±Ãƒâ€¦Ã…Â¸.</div></td></tr>` : ''}
+                            ${inventory.length === 0 ? `<tr><td colspan="10" style="text-align:center; padding:4rem; color:#94a3b8"><div style="display:flex; justify-content:center; margin-bottom:1rem"><div style="background:#f8fafc; padding:1.5rem; border-radius:50%"><i data-lucide="box" width="32" height="32" color="#cbd5e1"></i></div></div><div style="font-weight:700; margin-bottom:0.5rem">Stok kaydi bulunamadi</div><div style="font-size:0.85rem">Bu kategori icin henuz giris yapilmamis.</div></td></tr>` : ''}
                             ${inventory.map(i => {
             // Color Logic
             let rowClass = '';
@@ -2999,7 +2999,7 @@ const UnitModule = {
             if (document.getElementById('stk_dia')) document.getElementById('stk_dia').value = item.diameter || '';
             if (document.getElementById('stk_thick')) document.getElementById('stk_thick').value = item.thickness || '';
             if (document.getElementById('stk_len')) document.getElementById('stk_len').value = item.length || '';
-            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'TanÃƒâ€Ã‚Â±msÃƒâ€Ã‚Â±z';
+            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'Tanimsiz';
             if (document.getElementById('stk_qty')) document.getElementById('stk_qty').value = item.quantity || '';
             if (document.getElementById('stk_target')) document.getElementById('stk_target').value = item.targetStock || '';
             if (document.getElementById('stk_addr')) document.getElementById('stk_addr').value = item.address || '';
@@ -3031,9 +3031,9 @@ const UnitModule = {
         if (!qty || !target) { alert('Adet ve Hedef zorunludur.'); return; }
 
         let name = '';
-        if (tab === 'ROD') name = `ÃƒÆ’Ã‹Å“${dia} ÃƒÆ’Ã¢â‚¬Â¡ubuk`;
-        else if (tab === 'PIPE') name = `ÃƒÆ’Ã‹Å“${dia} Boru`;
-        else name = nameInp || 'ÃƒÆ’Ã¢â‚¬â€œzel Profil';
+        if (tab === 'ROD') name = `O${dia} Cubuk`;
+        else if (tab === 'PIPE') name = `O${dia} Boru`;
+        else name = nameInp || 'Ozel Profil';
 
         if (UnitModule.state.editingId) {
             // UPDATE EXISTING

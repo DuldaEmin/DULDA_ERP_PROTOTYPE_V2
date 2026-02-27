@@ -4,6 +4,101 @@
  */
 const STORAGE_KEY = "DULDA_ERP_STATE";
 
+const MojibakeFix = {
+    markerRegex: /[ÃÂâ�]/,
+    attrs: ['placeholder', 'title', 'aria-label', 'value'],
+    observer: null,
+
+    needsFix: (text) => {
+        if (!text) return false;
+        return MojibakeFix.markerRegex.test(String(text));
+    },
+
+    decodePass: (text) => {
+        try {
+            // Reinterpret mojibake text as latin1 bytes and decode as UTF-8.
+            return decodeURIComponent(escape(String(text)));
+        } catch (_e) {
+            return String(text);
+        }
+    },
+
+    normalize: (text) => {
+        let out = String(text ?? '');
+        if (!MojibakeFix.needsFix(out)) return out;
+        for (let i = 0; i < 3; i += 1) {
+            const next = MojibakeFix.decodePass(out);
+            if (!next || next === out) break;
+            out = next;
+            if (!MojibakeFix.needsFix(out)) break;
+        }
+        return out;
+    },
+
+    sanitizeTextNode: (node) => {
+        const raw = node?.nodeValue;
+        if (!MojibakeFix.needsFix(raw)) return;
+        const fixed = MojibakeFix.normalize(raw);
+        if (fixed !== raw) node.nodeValue = fixed;
+    },
+
+    sanitizeElementAttrs: (el) => {
+        if (!el || !el.getAttribute) return;
+        MojibakeFix.attrs.forEach((attr) => {
+            const raw = el.getAttribute(attr);
+            if (!MojibakeFix.needsFix(raw)) return;
+            const fixed = MojibakeFix.normalize(raw);
+            if (fixed !== raw) el.setAttribute(attr, fixed);
+            if (attr === 'value' && 'value' in el && typeof el.value === 'string' && MojibakeFix.needsFix(el.value)) {
+                el.value = MojibakeFix.normalize(el.value);
+            }
+        });
+    },
+
+    sanitizeTree: (root) => {
+        const start = root || document.body;
+        if (!start) return;
+
+        if (start.nodeType === Node.TEXT_NODE) {
+            MojibakeFix.sanitizeTextNode(start);
+            return;
+        }
+
+        if (start.nodeType !== Node.ELEMENT_NODE && start.nodeType !== Node.DOCUMENT_NODE) return;
+
+        const walker = document.createTreeWalker(start, NodeFilter.SHOW_TEXT, null);
+        let textNode = walker.nextNode();
+        while (textNode) {
+            MojibakeFix.sanitizeTextNode(textNode);
+            textNode = walker.nextNode();
+        }
+
+        if (start.querySelectorAll) {
+            MojibakeFix.sanitizeElementAttrs(start);
+            start.querySelectorAll('*').forEach((el) => MojibakeFix.sanitizeElementAttrs(el));
+        }
+    },
+
+    installObserver: () => {
+        if (MojibakeFix.observer || !document?.body) return;
+        MojibakeFix.observer = new MutationObserver((mutations) => {
+            mutations.forEach((m) => {
+                if (m.type === 'characterData') {
+                    MojibakeFix.sanitizeTextNode(m.target);
+                    return;
+                }
+                m.addedNodes.forEach((n) => MojibakeFix.sanitizeTree(n));
+            });
+        });
+        MojibakeFix.observer.observe(document.body, {
+            subtree: true,
+            childList: true,
+            characterData: true
+        });
+    }
+};
+window.MojibakeFix = MojibakeFix;
+
 const App = {
     init: async () => {
         console.log("DULDA ERP Initializing...");
@@ -13,6 +108,8 @@ const App = {
         // Initialize Router and UI
         Router.init();
         UI.init();
+        MojibakeFix.installObserver();
+        MojibakeFix.sanitizeTree(document.body);
         if (DB.storageMode === "disk") UI.updateStatus("🟢 Dosyaya Otomatik Kayıt");
         else UI.updateStatus("🟡 Tarayıcı Kaydı (Yedek)");
     },
@@ -386,6 +483,7 @@ const UI = {
         }
         else container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8;"><h3>🚧 Modül Hazırlanıyor: ${page}</h3></div>`;
 
+        MojibakeFix.sanitizeTree(container);
         if (window.lucide) window.lucide.createIcons();
     },
 

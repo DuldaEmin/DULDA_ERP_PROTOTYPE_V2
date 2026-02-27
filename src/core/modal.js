@@ -20,6 +20,9 @@ const Modal = {
         </div>`;
 
         document.body.appendChild(overlay);
+        if (window.MojibakeFix && typeof window.MojibakeFix.sanitizeTree === 'function') {
+            window.MojibakeFix.sanitizeTree(overlay);
+        }
     },
     close: () => document.getElementById('m')?.remove()
 };

@@ -736,7 +736,7 @@ const UnitModule = {
                     <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ Bu birim iÃƒÆ’Ã‚Â§in modÃƒÆ’Ã‚Â¼l henÃƒÆ’Ã‚Â¼z tanÃƒâ€Ã‚Â±mlanmadÃƒâ€Ã‚Â±.</div>
+                        <div style="font-size:0.875rem; color:#64748b"> - Bu birim icin modul henuz tanimlanmadi.</div>
                     </div>
                 </div>
             </div>
@@ -2678,7 +2678,7 @@ const UnitModule = {
         const unit = DB.data.data.units.find(u => u.id === unitId);
 
         // EXTRA SECURITY: Strictly restrict to Extruder
-        if (!unit.name.includes('EKSTRÃƒÆ’Ã…â€œDER')) {
+        if (!unit.name.includes('EKSTRUDER')) {
             container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8"><h3>ÃƒÂ¢Ã¢â‚¬ÂºÃ¢â‚¬Â Bu birim iÃƒÆ’Ã‚Â§in stok yÃƒÆ’Ã‚Â¶netimi aktif deÃƒâ€Ã…Â¸il.</h3></div>`;
             return;
         }

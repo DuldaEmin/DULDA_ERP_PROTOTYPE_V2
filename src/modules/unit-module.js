@@ -60,6 +60,7 @@ const UnitModule = {
         extruderSearchDia: '',
         extruderSearchLen: '',
         extruderSearchColor: '',
+        extruderSearchKind: '',
         extruderSearchCode: '',
         extruderSelectedId: null,
         extruderFormOpen: false,
@@ -92,17 +93,17 @@ const UnitModule = {
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
             DB.data.data.units = [
-                { id: 'u1', name: 'CNC ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
-                { id: 'u2', name: 'EKSTRÃƒÆ’Ã…â€œDER ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
+                { id: 'u1', name: 'CNC ATOLYESI', type: 'internal' },
+                { id: 'u2', name: 'EKSTRUDER ATOLYESI', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
                 { id: 'u4', name: 'PAKETLEME', type: 'internal' },
-                { id: 'u5', name: 'PLEKSÃƒâ€Ã‚Â° POLÃƒâ€Ã‚Â°SAJ ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
-                { id: 'u7', name: 'TESTERE ATÃƒÆ’Ã¢â‚¬â€œLYESÃƒâ€Ã‚Â°', type: 'internal' },
+                { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
+                { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
                 { id: 'u_dtm', name: 'DEPO TRANSFER MERKEZI', type: 'internal' },
-                { id: 'u8', name: 'AKPA ALÃƒÆ’Ã…â€œMÃƒâ€Ã‚Â°NYUM A.ÃƒÂ¯Ã‚Â¿Ã‚Â½?', type: 'external' },
-                { id: 'u9', name: 'HÃƒâ€Ã‚Â°LAL PWD', type: 'external' },
-                { id: 'u10', name: 'Ãƒâ€Ã‚Â°BRAHÃƒâ€Ã‚Â°M POLÃƒâ€Ã‚Â°SAJ', type: 'external' },
-                { id: 'u11', name: 'TEKÃƒâ€Ã‚Â°N ELOKSAL', type: 'external' }
+                { id: 'u8', name: 'AKPA ALUMINYUM A.S.', type: 'external' },
+                { id: 'u9', name: 'HILAL PWD', type: 'external' },
+                { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
+                { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
             ];
             if (DB.fileHandle) DB.save();
         }
@@ -131,8 +132,8 @@ const UnitModule = {
 
         if (!DB.data.data.machines || DB.data.data.machines.length === 0) {
             DB.data.data.machines = [
-                { id: 'm1', unitId: 'u2', name: 'EkstrÃƒÆ’Ã‚Â¼der HattÃƒâ€Ã‚Â± 1', status: 'ACTIVE' },
-                { id: 'm2', unitId: 'u2', name: 'EkstrÃƒÆ’Ã‚Â¼der HattÃƒâ€Ã‚Â± 2', status: 'MAINTENANCE' },
+                { id: 'm1', unitId: 'u2', name: 'Ekstruder Hatti 1', status: 'ACTIVE' },
+                { id: 'm2', unitId: 'u2', name: 'Ekstruder Hatti 2', status: 'MAINTENANCE' },
                 { id: 'm3', unitId: 'u1', name: 'CNC Kesim 1', status: 'IDLE' }
             ];
         }
@@ -278,6 +279,7 @@ const UnitModule = {
         UnitModule.state.extruderSearchDia = '';
         UnitModule.state.extruderSearchLen = '';
         UnitModule.state.extruderSearchColor = '';
+        UnitModule.state.extruderSearchKind = '';
         UnitModule.state.extruderSearchCode = '';
         UnitModule.state.extruderSelectedId = null;
         UnitModule.state.extruderFormOpen = false;
@@ -319,7 +321,7 @@ const UnitModule = {
             UnitModule.openPolishLibrary(id);
             return;
         }
-        if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ') || unitName.includes('POLÃƒâ€Ã‚Â°SAJ')) {
+        if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
             UnitModule.openPlexiLibrary(id);
             return;
         }
@@ -575,7 +577,7 @@ const UnitModule = {
         if (personnel.length === 0 && !DB.data.meta.personnelInitialized?.[unitId]) {
             // Seed defaults ONLY ONCE
             const defaults = [
-                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet YÃƒâ€Ã‚Â±lmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
+                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet Yilmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
                 { id: crypto.randomUUID(), unitId, fullName: 'Mehmet Demir', permissions: { production: true, waste: false, admin: false }, isActive: true },
             ];
             DB.data.data.personnel.push(...defaults);
@@ -590,8 +592,8 @@ const UnitModule = {
                 <div style="display:flex; align-items:center; gap:1rem">
                      <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                      <div>
-                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel YÃƒÆ’Ã‚Â¶netimi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit.name} ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢ ÃƒÆ’Ã¢â‚¬Â¡alÃƒâ€Ã‚Â±Ãƒâ€¦Ã…Â¸an listesi ve yetkilendirme</div>
+                        <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel Yonetimi</h2>
+                        <div style="font-size:0.875rem; color:#64748b">${unit.name} - Calisan listesi ve yetkilendirme</div>
                      </div>
                 </div>
                 <button onclick="UnitModule.openPersonnelModal('${unitId}')" class="btn-primary" style="display:flex; gap:0.5rem; align-items:center">
@@ -605,11 +607,11 @@ const UnitModule = {
                         <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
                             <th style="padding:1.5rem">Ad Soyad</th>
                             <th style="padding:1.5rem">Yetkiler</th>
-                            <th style="padding:1.5rem; text-align:right">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸lemler</th>
+                            <th style="padding:1.5rem; text-align:right">Islemler</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">KayÃƒâ€Ã‚Â±tlÃƒâ€Ã‚Â± personel yok.</td></tr>' : personnel.map(p => `
+                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli personel yok.</td></tr>' : personnel.map(p => `
                             <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; align-items:center; gap:0.75rem font-weight:600; color:#334155">
@@ -620,7 +622,7 @@ const UnitModule = {
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
                                         ${p.permissions.admin ? '<span style="background:#faf5ff; color:#9333ea; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="shield" width="12"></i> Admin</span>' : ''}
-                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> ÃƒÆ’Ã…â€œretim</span>' : ''}
+                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Uretim</span>' : ''}
                                         ${p.permissions.waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
                                     </div>
                                 </td>
@@ -640,7 +642,7 @@ const UnitModule = {
         const person = personId ? DB.data.data.personnel.find(p => p.id === personId) : null;
         const perms = person?.permissions || { production: true, waste: false, admin: false };
 
-        Modal.open(person ? 'Personeli DÃƒÆ’Ã‚Â¼zenle' : 'Yeni Personel Ekle', `
+        Modal.open(person ? 'Personeli Duzenle' : 'Yeni Personel Ekle', `
             <div style="display:flex; flex-direction:column; gap:1rem">
                 <div>
                     <label style="display:block; font-size:0.875rem; font-weight:700; color:#334155; margin-bottom:0.25rem">Ad Soyad</label>
@@ -653,8 +655,8 @@ const UnitModule = {
                     <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ecfdf5; color:#047857; padding:0.5rem; border-radius:0.25rem"><i data-lucide="factory" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">ÃƒÆ’Ã…â€œretim BaÃƒâ€¦Ã…Â¸latabilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">Ãƒâ€Ã‚Â°Ãƒâ€¦Ã…Â¸ emri yetkisi</div>
+                            <div style="font-weight:600; font-size:0.9rem">Uretim Baslatabilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">Is emri yetkisi</div>
                         </div>
                     </div>
                     <input id="p_perm_prod" type="checkbox" ${perms.production ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -664,8 +666,8 @@ const UnitModule = {
                      <div style="display:flex; gap:0.75rem; align-items:center">
                         <div style="background:#ffedd5; color:#c2410c; padding:0.5rem; border-radius:0.25rem"><i data-lucide="alert-circle" width="18"></i></div>
                         <div>
-                            <div style="font-weight:600; font-size:0.9rem">Fire OnayÃƒâ€Ã‚Â± Verebilir</div>
-                            <div style="font-size:0.75rem; color:#94a3b8">HatalÃƒâ€Ã‚Â± ÃƒÆ’Ã‚Â¼retim giriÃƒâ€¦Ã…Â¸i</div>
+                            <div style="font-weight:600; font-size:0.9rem">Fire Onayi Verebilir</div>
+                            <div style="font-size:0.75rem; color:#94a3b8">Hatali uretim girisi</div>
                         </div>
                     </div>
                     <input id="p_perm_waste" type="checkbox" ${perms.waste ? 'checked' : ''} style="width:1.25rem; height:1.25rem">
@@ -693,7 +695,7 @@ const UnitModule = {
         const waste = document.getElementById('p_perm_waste').checked;
         const admin = document.getElementById('p_perm_admin').checked;
 
-        if (!name) return alert("Ãƒâ€Ã‚Â°sim giriniz.");
+        if (!name) return alert("Isim giriniz.");
 
         if (!DB.data.data.personnel) DB.data.data.personnel = [];
 
@@ -719,7 +721,7 @@ const UnitModule = {
     },
 
     deletePersonnel: async (id, unitId) => {
-        if (!confirm("Bu personeli silmek (pasife almak) istediÃƒâ€Ã…Â¸inize emin misiniz?")) return;
+        if (!confirm("Bu personeli silmek (pasife almak) istediginize emin misiniz?")) return;
         const p = DB.data.data.personnel.find(x => x.id === id);
         if (p) p.isActive = false; // Soft delete
         await DB.save();
@@ -739,8 +741,8 @@ const UnitModule = {
                 </div>
             </div>
             <div class="card-table" style="padding:2rem; text-align:center; color:#94a3b8">
-                <div style="font-weight:700; color:#475569; margin-bottom:0.5rem">BoÃƒâ€¦Ã…Â¸ Sayfa</div>
-                <div style="font-size:0.9rem">Bu birimin ÃƒÆ’Ã‚Â¼rÃƒÆ’Ã‚Â¼n ekleme modÃƒÆ’Ã‚Â¼lÃƒÆ’Ã‚Â¼ daha sonra eklenecek.</div>
+                <div style="font-weight:700; color:#475569; margin-bottom:0.5rem">Bos Sayfa</div>
+                <div style="font-size:0.9rem">Bu birimin urun ekleme modulu daha sonra eklenecek.</div>
             </div>
         `;
     },
@@ -1055,15 +1057,17 @@ const UnitModule = {
         const qDia = String(UnitModule.state.extruderSearchDia || '').trim();
         const qLen = String(UnitModule.state.extruderSearchLen || '').trim();
         const qColor = String(UnitModule.state.extruderSearchColor || '').trim().toLowerCase();
+        const qKind = String(UnitModule.state.extruderSearchKind || '').trim().toUpperCase();
         const qCode = String(UnitModule.state.extruderSearchCode || '').trim().toLowerCase();
         const filtered = cards.filter(row => {
             const diaOk = !qDia || String(row.diameterMm ?? '').trim() === qDia;
             const lenOk = !qLen || String(row.lengthMm ?? '').trim() === qLen;
             const colorOk = !qColor || String(row.color || '').toLowerCase().includes(qColor);
+            const kindOk = !qKind || String(row.kind || '').toUpperCase() === qKind;
             const codeOk = !qCode
                 || String(row.cardCode || '').toLowerCase().includes(qCode)
                 || String(row.id || '').toLowerCase().includes(qCode);
-            return diaOk && lenOk && colorOk && codeOk;
+            return diaOk && lenOk && colorOk && kindOk && codeOk;
         });
 
         const editing = UnitModule.state.extruderEditingId
@@ -1095,6 +1099,12 @@ const UnitModule = {
                         <input id="ext_search_dia" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchDia || '')}" oninput="UnitModule.setExtruderListFilter('dia', this.value, 'ext_search_dia')" placeholder="cap ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
                         <input id="ext_search_len" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchLen || '')}" oninput="UnitModule.setExtruderListFilter('len', this.value, 'ext_search_len')" placeholder="boy ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
                         <input id="ext_search_color" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchColor || '')}" oninput="UnitModule.setExtruderListFilter('color', this.value, 'ext_search_color')" placeholder="renk ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600;">
+                        <select id="ext_search_kind" onchange="UnitModule.setExtruderListFilter('kind', this.value, 'ext_search_kind')" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:190px; font-weight:600; background:white;">
+                            <option value="">cinsi ile ara</option>
+                            <option value="ROD" ${String(UnitModule.state.extruderSearchKind || '') === 'ROD' ? 'selected' : ''}>CUBUK</option>
+                            <option value="PIPE" ${String(UnitModule.state.extruderSearchKind || '') === 'PIPE' ? 'selected' : ''}>BORU</option>
+                            <option value="PROFILE" ${String(UnitModule.state.extruderSearchKind || '') === 'PROFILE' ? 'selected' : ''}>OZEL PROFIL</option>
+                        </select>
                         <input id="ext_search_code" value="${UnitModule.escapeHtml(UnitModule.state.extruderSearchCode || '')}" oninput="UnitModule.setExtruderListFilter('code', this.value, 'ext_search_code')" placeholder="ID ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
                     </div>
                     <div id="ext_list_block" class="card-table">
@@ -1226,6 +1236,7 @@ const UnitModule = {
         if (field === 'dia') UnitModule.state.extruderSearchDia = value || '';
         if (field === 'len') UnitModule.state.extruderSearchLen = value || '';
         if (field === 'color') UnitModule.state.extruderSearchColor = value || '';
+        if (field === 'kind') UnitModule.state.extruderSearchKind = String(value || '').toUpperCase();
         if (field === 'code') UnitModule.state.extruderSearchCode = value || '';
         UI.renderCurrentPage();
         if (!focusId) return;
@@ -1525,8 +1536,8 @@ const UnitModule = {
                         </div>
 
                         <div style="display:flex; gap:0.55rem; margin-top:0.75rem; flex-wrap:wrap;">
-                            <button onclick="UnitModule.togglePlexiFlag('fire')" style="border:1px solid ${UnitModule.state.plexiUseFire ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseFire ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseFire ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">atesle polisaj ${UnitModule.state.plexiUseFire ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“' : '+'}</button>
-                            <button onclick="UnitModule.togglePlexiFlag('brush')" style="border:1px solid ${UnitModule.state.plexiUseBrush ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseBrush ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseBrush ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">firca ile polisaj ${UnitModule.state.plexiUseBrush ? 'ÃƒÂ¢Ã…â€œÃ¢â‚¬Å“' : '+'}</button>
+                            <button onclick="UnitModule.togglePlexiFlag('fire')" style="border:1px solid ${UnitModule.state.plexiUseFire ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseFire ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseFire ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">atesle polisaj ${UnitModule.state.plexiUseFire ? 'AKTIF' : '+'}</button>
+                            <button onclick="UnitModule.togglePlexiFlag('brush')" style="border:1px solid ${UnitModule.state.plexiUseBrush ? '#22c55e' : '#cbd5e1'}; background:${UnitModule.state.plexiUseBrush ? '#dcfce7' : 'white'}; color:${UnitModule.state.plexiUseBrush ? '#166534' : '#334155'}; border-radius:0.55rem; padding:0.45rem 0.8rem; font-weight:700; cursor:pointer;">firca ile polisaj ${UnitModule.state.plexiUseBrush ? 'AKTIF' : '+'}</button>
                         </div>
 
                         <div style="margin-top:0.7rem;">
@@ -3062,7 +3073,7 @@ const UnitModule = {
     },
 
     deleteStock: async (id) => {
-        if (confirm('Silmek istediÃƒâ€Ã…Â¸inize emin misiniz?')) {
+        if (confirm('Silmek istediginize emin misiniz?')) {
             DB.data.data.inventory = DB.data.data.inventory.filter(i => i.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -3212,11 +3223,3 @@ const UnitModule = {
         return role === 'super-admin';
     }
 };
-
-
-
-
-
-
-
-

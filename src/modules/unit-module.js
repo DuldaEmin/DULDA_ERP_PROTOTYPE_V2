@@ -773,7 +773,7 @@ const UnitModule = {
         };
 
         readMany('products', DB.data?.data?.products, ['code']);
-        readMany('cncCards', DB.data?.data?.cncCards, ['productCode', 'cncId']);
+        readMany('cncCards', DB.data?.data?.cncCards, ['cncId']);
         readMany('sawCutOrders', DB.data?.data?.sawCutOrders, ['code']);
         readMany('extruderLibraryCards', DB.data?.data?.extruderLibraryCards, ['cardCode']);
         readMany('plexiPolishCards', DB.data?.data?.plexiPolishCards, ['cardCode']);

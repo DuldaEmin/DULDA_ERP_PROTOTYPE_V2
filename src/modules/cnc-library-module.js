@@ -26,8 +26,7 @@ const CncLibraryModule = {
                     ? String(c.productName || '').toLowerCase().includes(CncLibraryModule.state.searchName.toLowerCase())
                     : true;
                 const idOk = CncLibraryModule.state.searchId
-                    ? String(c.cncId || '').toLowerCase().includes(CncLibraryModule.state.searchId.toLowerCase()) ||
-                    String(c.productCode || '').toLowerCase().includes(CncLibraryModule.state.searchId.toLowerCase())
+                    ? String(c.cncId || '').toLowerCase().includes(CncLibraryModule.state.searchId.toLowerCase())
                     : true;
                 return nameOk && idOk;
             })
@@ -60,14 +59,13 @@ const CncLibraryModule = {
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
                         <input id="cnc_search_name" value="${CncLibraryModule.escape(CncLibraryModule.state.searchName)}" oninput="CncLibraryModule.setSearch('name', this.value, this.selectionStart)" placeholder="isimle ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
-                        <input id="cnc_search_id" value="${CncLibraryModule.escape(CncLibraryModule.state.searchId)}" oninput="CncLibraryModule.setSearch('id', this.value, this.selectionStart)" placeholder="ID / kod ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <input id="cnc_search_id" value="${CncLibraryModule.escape(CncLibraryModule.state.searchId)}" oninput="CncLibraryModule.setSearch('id', this.value, this.selectionStart)" placeholder="ID ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
                     </div>
                     <div id="cnc_table_block" class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
                             <thead>
                                 <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
                                     <th style="padding:0.65rem; text-align:left;">Urun ismi</th>
-                                    <th style="padding:0.65rem; text-align:left;">Kodu</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
                                     <th style="padding:0.65rem; text-align:center;">Operasyon</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
@@ -75,10 +73,9 @@ const CncLibraryModule = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
+                                ${filtered.length === 0 ? `<tr><td colspan="5" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${CncLibraryModule.state.selectedId === card.id ? 'background:#eff6ff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700;">${CncLibraryModule.escape(card.productName || '-')}</td>
-                                        <td style="padding:0.65rem; font-family:monospace;">${CncLibraryModule.escape(card.productCode || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace;">${CncLibraryModule.escape(card.cncId || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
                                             <button onclick="CncLibraryModule.viewCardOperations('${card.id}')" style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:0.5rem; padding:0.2rem 0.75rem; font-weight:700; cursor:pointer;">görüntüle</button>
@@ -111,19 +108,15 @@ const CncLibraryModule = {
                         </div>
 
                         <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
-                            <div style="grid-column:span 4;">
+                            <div style="grid-column:span 5;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun ismi *</label>
                                 <input id="cnc_name" value="${CncLibraryModule.escape(editingCard?.productName || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                            </div>
-                            <div style="grid-column:span 3;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun kodu *</label>
-                                <input id="cnc_code" value="${CncLibraryModule.escape(editingCard?.productCode || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div style="grid-column:span 2;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="cnc_id" disabled value="${CncLibraryModule.escape(editingCard?.cncId || CncLibraryModule.state.draftId)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
                             </div>
-                            <div style="grid-column:span 3;">
+                            <div style="grid-column:span 5;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">bagli urun ID/kod</label>
                                 <input id="cnc_linked" list="cnc_refs" value="${CncLibraryModule.escape(editingCard?.linkedProductRef || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                 <datalist id="cnc_refs">
@@ -295,29 +288,18 @@ const CncLibraryModule = {
 
     saveCard: async (unitId) => {
         const name = document.getElementById('cnc_name')?.value.trim() || '';
-        const code = (document.getElementById('cnc_code')?.value.trim() || '').toUpperCase();
         const linked = document.getElementById('cnc_linked')?.value.trim() || '';
         const notes = document.getElementById('cnc_notes')?.value.trim() || '';
         const drawingFile = document.getElementById('cnc_drawing')?.files?.[0];
         const ops = CncLibraryModule.renumber(CncLibraryModule.state.draftOperations);
 
-        if (!name || !code) return alert('Urun ismi ve urun kodu zorunlu.');
+        if (!name) return alert('Urun ismi zorunlu.');
         if (ops.length === 0) return alert('En az bir operasyon ekleyin.');
         if (ops.some(op => !op.name || !op.machineType || Number(op.durationSec || 0) <= 0 || (!String(op.gcodeText || '').trim() && !String(op.gcodeFileDataUrl || '').trim()))) {
             return alert('Operasyon ad, makine, sure ve G kodu zorunlu.');
         }
 
         const all = DB.data.data.cncCards || [];
-        if (all.some(c => c.unitId === unitId && String(c.productCode || '').toLowerCase() === code.toLowerCase() && c.id !== CncLibraryModule.state.editingId)) {
-            return alert('Ayni urun kodu ile kart zaten var.');
-        }
-        if (CncLibraryModule.isGlobalCodeTaken(code, CncLibraryModule.state.editingId ? {
-            collection: 'cncCards',
-            id: CncLibraryModule.state.editingId,
-            field: 'productCode'
-        } : null)) {
-            return alert('Bu urun kodu zaten kullaniliyor. Tum kodlar benzersiz olmalidir.');
-        }
 
         let drawing = CncLibraryModule.state.draftDrawing ? { ...CncLibraryModule.state.draftDrawing } : null;
         if (drawingFile) {
@@ -340,7 +322,6 @@ const CncLibraryModule = {
             id: idx >= 0 ? all[idx].id : crypto.randomUUID(),
             unitId,
             productName: name,
-            productCode: code,
             cncId,
             linkedProductRef: linked,
             notes,
@@ -637,7 +618,7 @@ const CncLibraryModule = {
         };
 
         readMany('products', DB.data?.data?.products, ['code']);
-        readMany('cncCards', DB.data?.data?.cncCards, ['productCode', 'cncId']);
+        readMany('cncCards', DB.data?.data?.cncCards, ['cncId']);
         readMany('sawCutOrders', DB.data?.data?.sawCutOrders, ['code']);
         readMany('extruderLibraryCards', DB.data?.data?.extruderLibraryCards, ['cardCode']);
         readMany('plexiPolishCards', DB.data?.data?.plexiPolishCards, ['cardCode']);

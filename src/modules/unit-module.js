@@ -72,7 +72,17 @@ const UnitModule = {
         extruderDraftLen: '',
         extruderDraftColor: '',
         extruderDraftBubble: false,
-        extruderDraftNote: ''
+        extruderDraftNote: '',
+        depoTaskSearchName: '',
+        depoTaskSearchCode: '',
+        depoTaskSearchTarget: '',
+        depoTaskEditingId: null,
+        depoTaskDraftCode: '',
+        depoTaskDraftName: '',
+        depoTaskDraftSourceId: '',
+        depoTaskDraftTargetId: '',
+        depoTaskDraftType: 'GONDER',
+        depoTaskDraftNote: ''
     },
 
     render: (container) => {

@@ -42,3 +42,11 @@ Yeni gelistirmelerde zorunlu kural:
 - referans alanlari = ilgili varligin id'si
 - metin alanlari (ad, aciklama) sadece gorunum amaclidir
 
+## 5) Is Kutuphanesi Kurali
+Birimlerdeki urun kutuphanesi, urun listesi degil is tanimi kutuphanesidir.
+
+Bu kutuphanelerdeki kartlar su amaca hizmet eder:
+- Kart ID'si istasyonda yapilacak isi standartlar (ornek: `TST-000003` = 55 mm kesim gorevi)
+- Rota satirinda bu ID secildiginde is parca turunden bagimsiz ayni kuralla uygulanir
+- Kartin is tanimi degisebilir, ancak kart ID'si degismez
+- Siparis adedi bu kutuphane kartinda degil, siparis/operasyon kaydinda tutulur

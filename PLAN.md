@@ -237,6 +237,7 @@ Ek anayasa karari (2026-03-02):
 - Bu programda her unsur bir ID'dir (urun, parca, bilesen, musteri, tedarikci, calisan, siparis, stok hareketi, birim, makine, kategori, islem karti).
 - Iliskiler isim ile degil sadece ID ile kurulur; ad/etiket alanlari sadece gorunum amaclidir.
 - Bos veya tekrar eden ID kabul edilmez; veri yukleme/saklama asamasinda otomatik duzeltme uygulanir.
+- Birim kutuphaneleri urun listesi degil is tanimi kutuphanesidir; rota satirinda secilen kart ID'si ilgili istasyonda yapilacak isi standart olarak belirler.
 
 ## 12) Acik Sorular
 - Kismi tamamlanan isler icin otomatik durum "Kismi Tamam" olsun mu?

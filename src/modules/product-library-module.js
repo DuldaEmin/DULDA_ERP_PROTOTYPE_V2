@@ -64,6 +64,7 @@ const ProductLibraryModule = {
         componentRoutePicker: null,
         componentDraftNote: '',
         componentDraftFiles: [],
+        masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master
     },
 
@@ -240,6 +241,19 @@ const ProductLibraryModule = {
         const subGroups = ProductLibraryModule.getPartSubGroups();
         ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
         ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        UI.renderCurrentPage();
+    },
+
+    openMasterPickerForComponent: () => {
+        ProductLibraryModule.state.masterPickerSource = 'component';
+        ProductLibraryModule.state.masterFormOpen = false;
+        ProductLibraryModule.state.masterEditingId = null;
+        ProductLibraryModule.state.workspaceView = 'master';
+        UI.renderCurrentPage();
+    },
+
+    clearComponentMasterCode: () => {
+        ProductLibraryModule.state.componentDraftMasterCode = '';
         UI.renderCurrentPage();
     },
 
@@ -731,7 +745,7 @@ const ProductLibraryModule = {
                     <h2 class="page-title" style="margin:0;">Parca ve Bilesen Detay</h2>
                     <button class="btn-sm" onclick="ProductLibraryModule.closeComponentCardView()">geri</button>
                 </div>
-                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.7rem;">
                         <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div></div>
                         <div><div style="font-size:0.72rem; color:#64748b;">urun grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</div></div>
@@ -742,7 +756,7 @@ const ProductLibraryModule = {
                     <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155;">${ProductLibraryModule.escapeHtml(row?.note || '-')}</div></div>
                 </div>
 
-                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="font-weight:700; margin-bottom:0.6rem;">Rota</div>
                     <table style="width:100%; border-collapse:collapse;">
                         <thead>
@@ -863,7 +877,7 @@ const ProductLibraryModule = {
                 </div>
 
                 ${state.componentFormOpen ? `
-                    <div class="card-table" style="padding:1rem;">
+                    <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">Parca ve Bilesen olustur</h3>
                             <div style="display:flex; gap:0.5rem;">
@@ -900,7 +914,11 @@ const ProductLibraryModule = {
                             <div>
                                 <div style="margin-bottom:0.65rem;">
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kod *</label>
-                                    <input value="${ProductLibraryModule.escapeHtml(state.componentDraftMasterCode || '')}" oninput="ProductLibraryModule.state.componentDraftMasterCode=this.value.toUpperCase()" placeholder="ID kod yaz" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace;">
+                                    <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;">
+                                        <input value="${ProductLibraryModule.escapeHtml(state.componentDraftMasterCode || '')}" oninput="ProductLibraryModule.state.componentDraftMasterCode=this.value.toUpperCase()" placeholder="ID kod yaz" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace;">
+                                        <button class="btn-sm" onclick="ProductLibraryModule.openMasterPickerForComponent()" style="height:40px; min-width:110px;">goruntule</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.clearComponentMasterCode()" style="height:40px; min-width:80px;">sil</button>
+                                    </div>
                                 </div>
                                 <div style="display:flex; flex-direction:column; gap:0.45rem;">
                                     ${routes.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Henuz rota istasyonu eklenmedi.</div>' : routes.map((r, idx) => `
@@ -1273,6 +1291,7 @@ const ProductLibraryModule = {
 
         const showForm = state.masterFormOpen || !!state.masterEditingId;
         const selectedId = state.masterSelectedId;
+        const isComponentPicker = state.masterPickerSource === 'component';
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -1373,7 +1392,7 @@ const ProductLibraryModule = {
                         <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isComponentPicker ? 'ekle' : 'sec'}</button></td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
                     </tr>
                 `;
@@ -1381,6 +1400,12 @@ const ProductLibraryModule = {
 
         container.innerHTML = `
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
+                ${isComponentPicker ? `
+                    <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="font-weight:700;">Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">parca formuna don</button>
+                    </div>
+                ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
                     <div style="display:grid; grid-template-columns: 280px 1fr 190px 190px 190px 170px; gap:0.65rem; align-items:center;">
                         <select onchange="ProductLibraryModule.setMasterFilter('categoryId', this.value)" style="width:100%; height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:700;">

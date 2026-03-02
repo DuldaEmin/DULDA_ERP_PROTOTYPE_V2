@@ -243,30 +243,16 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    openComponentDictionary: async (kind) => {
-        const key = kind === 'group' ? 'partGroups' : 'partSubGroups';
-        if (!Array.isArray(DB.data.meta.options[key])) DB.data.meta.options[key] = ['Genel'];
-        const current = Array.from(new Set(DB.data.meta.options[key].map(x => String(x || '').trim()).filter(Boolean)));
-        const message = `Yeni deger eklemek icin direkt yaz.\nSilmek icin basina - koy (ornek: -Genel)\nMevcut: ${current.join(', ') || '-'}`;
-        const raw = prompt(message, '');
-        if (raw == null) return;
-        const val = String(raw || '').trim();
-        if (!val) return;
+    getComponentDictionaryMeta: (kind) => {
+        const isGroup = String(kind || '') === 'group';
+        return {
+            kind: isGroup ? 'group' : 'subGroup',
+            key: isGroup ? 'partGroups' : 'partSubGroups',
+            title: isGroup ? 'Urun Grubu + Yonet' : 'Urun Alt Grubu + Yonet'
+        };
+    },
 
-        if (val.startsWith('-')) {
-            const target = val.slice(1).trim();
-            if (!target) return;
-            DB.data.meta.options[key] = current.filter(x =>
-                ProductLibraryModule.normalizeAsciiUpper(x) !== ProductLibraryModule.normalizeAsciiUpper(target)
-            );
-            if (DB.data.meta.options[key].length === 0) DB.data.meta.options[key] = ['Genel'];
-        } else {
-            const exists = current.some(x =>
-                ProductLibraryModule.normalizeAsciiUpper(x) === ProductLibraryModule.normalizeAsciiUpper(val)
-            );
-            DB.data.meta.options[key] = exists ? current : [...current, val];
-        }
-
+    syncComponentDictionaryDrafts: () => {
         const groups = ProductLibraryModule.getPartGroups();
         const subGroups = ProductLibraryModule.getPartSubGroups();
         if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
@@ -275,8 +261,75 @@ const ProductLibraryModule = {
         if (!subGroups.includes(ProductLibraryModule.state.componentDraftSubGroup)) {
             ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
         }
+    },
 
+    openComponentDictionary: (kind) => {
+        const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options[meta.key]) || DB.data.meta.options[meta.key].length === 0) {
+            DB.data.meta.options[meta.key] = ['Genel'];
+        }
+
+        const items = meta.key === 'partGroups'
+            ? ProductLibraryModule.getPartGroups()
+            : ProductLibraryModule.getPartSubGroups();
+
+        Modal.open(meta.title, `
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="display:grid; grid-template-columns:1fr auto; gap:0.5rem;">
+                    <input id="component_dict_item" placeholder="yeni deger" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    <button class="btn-primary" onclick="ProductLibraryModule.addComponentDictionaryOption('${meta.kind}')" style="height:38px; border-radius:0.55rem;">ekle</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:350px; overflow:auto;">
+                    ${items.map((item, idx) => `
+                        <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.removeComponentDictionaryOption('${meta.kind}', ${idx})">sil</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `, { maxWidth: '620px' });
+    },
+
+    addComponentDictionaryOption: async (kind) => {
+        const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options[meta.key])) DB.data.meta.options[meta.key] = ['Genel'];
+
+        const val = String(document.getElementById('component_dict_item')?.value || '').trim();
+        if (!val) return;
+
+        const list = DB.data.meta.options[meta.key];
+        const exists = list.some(x =>
+            ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === ProductLibraryModule.normalizeAsciiUpper(val)
+        );
+        if (exists) return alert('Bu deger zaten var.');
+
+        list.push(val);
+        DB.data.meta.options[meta.key] = Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)));
+        ProductLibraryModule.syncComponentDictionaryDrafts();
         await DB.save();
+        ProductLibraryModule.openComponentDictionary(meta.kind);
+        UI.renderCurrentPage();
+    },
+
+    removeComponentDictionaryOption: async (kind, index) => {
+        const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
+        if (!Array.isArray(DB.data.meta.options?.[meta.key])) return;
+        const list = DB.data.meta.options[meta.key];
+        const idx = Number(index);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        if (list.length <= 1) return alert('En az bir secenek kalmalidir.');
+
+        if (!confirm(`"${String(list[idx] || '')}" silinsin mi?`)) return;
+        list.splice(idx, 1);
+        if (list.length === 0) list.push('Genel');
+
+        DB.data.meta.options[meta.key] = Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)));
+        ProductLibraryModule.syncComponentDictionaryDrafts();
+        await DB.save();
+        ProductLibraryModule.openComponentDictionary(meta.kind);
         UI.renderCurrentPage();
     },
 
@@ -502,7 +555,24 @@ const ProductLibraryModule = {
         }
 
         if (normalized.length === 0) return;
-        ProductLibraryModule.state.componentDraftFiles = normalized;
+
+        const existing = Array.isArray(ProductLibraryModule.state.componentDraftFiles)
+            ? ProductLibraryModule.state.componentDraftFiles
+            : [];
+        const merged = [...existing];
+        const seen = new Set(
+            existing.map(file => `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`)
+        );
+
+        normalized.forEach(file => {
+            const key = `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(file);
+        });
+
+        ProductLibraryModule.state.componentDraftFiles = merged;
+        if (input) input.value = '';
         UI.renderCurrentPage();
     },
 
@@ -808,13 +878,15 @@ const ProductLibraryModule = {
                                 <input value="${ProductLibraryModule.escapeHtml(state.componentDraftName || '')}" oninput="ProductLibraryModule.state.componentDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun grubu <button class="btn-link" type="button" onclick="ProductLibraryModule.openComponentDictionary('group')" style="margin-left:0.2rem; font-size:0.72rem;">+ yonet (ekle-sil)</button></label>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun grubu</label>
+                                <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openComponentDictionary('group')">+ YONET (EKLE-SIL)</div>
                                 <select onchange="ProductLibraryModule.state.componentDraftGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                     ${groups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                                 </select>
                             </div>
                             <div>
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun alt grubu <button class="btn-link" type="button" onclick="ProductLibraryModule.openComponentDictionary('subGroup')" style="margin-left:0.2rem; font-size:0.72rem;">+ yonet (ekle-sil)</button></label>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun alt grubu</label>
+                                <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openComponentDictionary('subGroup')">+ YONET (EKLE-SIL)</div>
                                 <select onchange="ProductLibraryModule.state.componentDraftSubGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                     ${subGroups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftSubGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                                 </select>
@@ -851,7 +923,7 @@ const ProductLibraryModule = {
                             <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.65rem;">
                                 <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle (opsiyonel)</div>
                                 <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleComponentFiles(this)" style="width:100%;">
-                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Yeni dosya secildiginde onceki dosyalar degisir.</div>
+                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Yeni secilen dosyalar listeye eklenir.</div>
                                 <div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:220px; overflow:auto;">
                                     ${files.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : files.map((file, idx) => `
                                         <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;">

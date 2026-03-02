@@ -101,10 +101,11 @@
         "baba pleksi"
       ],
       "partSubGroups": [
-        "Genel"
+        "Genel",
+        "deneme"
       ]
     },
-    "updated_at": "2026-03-02T14:20:44.734Z",
+    "updated_at": "2026-03-02T15:55:29.901Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -808,7 +809,18 @@
         ]
       }
     },
-    "ibrahimPolishCards": [],
+    "ibrahimPolishCards": [
+      {
+        "id": "2cb0d97a-662b-42eb-8ba0-a1eeb3d4fadd",
+        "unitId": "u10",
+        "cardCode": "IPS-000001",
+        "productName": "parlak polisaj",
+        "surface": "Parlak",
+        "note": "ürünleri kağıda sar",
+        "created_at": "2026-03-02T15:53:57.239Z",
+        "updated_at": "2026-03-02T15:53:57.239Z"
+      }
+    ],
     "polishSurfaceLists": {
       "u10": [
         "Parlak",

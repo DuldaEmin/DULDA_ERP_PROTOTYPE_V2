@@ -100,11 +100,14 @@ const ProductLibraryModule = {
     },
 
     openWorkspace: (view) => {
-        ProductLibraryModule.state.workspaceView = String(view || 'menu');
+        const nextView = String(view || 'menu');
+        ProductLibraryModule.state.workspaceView = nextView;
+        if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
         UI.renderCurrentPage();
     },
 
     goWorkspaceMenu: () => {
+        ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         UI.renderCurrentPage();
     },
@@ -837,7 +840,7 @@ const ProductLibraryModule = {
                     <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
                 </div>
 
-                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:center;">
                         <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <input id="cmp_filter_group" value="${ProductLibraryModule.escapeHtml(filters.group || '')}" oninput="ProductLibraryModule.setComponentFilter('group', this.value, 'cmp_filter_group')" placeholder="urun grubu ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
@@ -847,7 +850,7 @@ const ProductLibraryModule = {
                     </div>
                 </div>
 
-                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <table style="width:100%; border-collapse:collapse;">
                         <thead>
                             <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
@@ -1722,7 +1725,27 @@ const ProductLibraryModule = {
     },
 
     selectMasterProduct: (id) => {
+        const record = ProductLibraryModule.getMasterProductById(id);
+        if (!record) return;
         ProductLibraryModule.state.masterSelectedId = id;
+        if (ProductLibraryModule.state.masterPickerSource === 'component') {
+            const code = String(record.code || '').trim();
+            if (!code) {
+                alert('Secilen kayitta ID kod bulunamadi.');
+                return;
+            }
+            ProductLibraryModule.state.componentDraftMasterCode = code;
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.state.componentFormOpen = true;
+            ProductLibraryModule.state.masterPickerSource = '';
+        }
+        UI.renderCurrentPage();
+    },
+
+    cancelMasterPicker: () => {
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'components';
+        ProductLibraryModule.state.componentFormOpen = true;
         UI.renderCurrentPage();
     },
 

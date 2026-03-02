@@ -79,6 +79,7 @@ const UnitModule = {
         depoTaskSearchTarget: '',
         depoTaskFormOpen: false,
         depoTaskEditingId: null,
+        depoTaskSelectedId: null,
         depoTaskDraftCode: '',
         depoTaskDraftName: '',
         depoTaskDraftSourceId: '',
@@ -189,7 +190,7 @@ const UnitModule = {
 
     openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
     openDepoTransfer: () => {
-        UnitModule.state.activeUnitId = null;
+        UnitModule.state.activeUnitId = 'u_dtm';
         UnitModule.state.view = 'depoTransfer';
         UnitModule.state.depoTaskSearchName = '';
         UnitModule.state.depoTaskSearchRoute = '';
@@ -197,6 +198,7 @@ const UnitModule = {
         UnitModule.state.depoTaskSearchTarget = '';
         UnitModule.state.depoTaskFormOpen = false;
         UnitModule.state.depoTaskEditingId = null;
+        UnitModule.state.depoTaskSelectedId = null;
         UnitModule.state.depoTaskDraftCode = '';
         UnitModule.state.depoTaskDraftName = '';
         UnitModule.state.depoTaskDraftSourceId = '';
@@ -337,6 +339,10 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     openUnitLibrary: (id) => {
+        if (id === 'u_dtm') {
+            UnitModule.openDepoTransfer();
+            return;
+        }
         const unit = (DB.data.data.units || []).find(u => u.id === id);
         const unitName = String(unit?.name || '').toUpperCase();
         if (unitName.includes('CNC')) {
@@ -392,6 +398,12 @@ const UnitModule = {
         const view = String(UnitModule.state.view || '');
         const unitId = String(UnitModule.state.activeUnitId || '');
 
+        if (view === 'depoTransfer') {
+            const selectedId = String(UnitModule.state.depoTaskSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.id || '') === selectedId);
+            return String(row?.taskCode || '').trim().toUpperCase();
+        }
         if (view === 'cncLibrary') {
             const selectedId = String((typeof CncLibraryModule !== 'undefined' ? CncLibraryModule?.state?.selectedId : '') || '');
             if (!selectedId) return '';
@@ -445,7 +457,8 @@ const UnitModule = {
     confirmComponentRouteProcessPick: () => {
         const picker = UnitModule.getActiveComponentRoutePicker();
         if (!picker) return;
-        if (String(UnitModule.state.activeUnitId || '') !== String(picker.stationId || '')) {
+        const currentUnitId = String(UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || ''));
+        if (currentUnitId !== String(picker.stationId || '')) {
             alert('Yanlis birim kutuphanesindesiniz. Hedef birime geciniz.');
             return;
         }
@@ -459,6 +472,10 @@ const UnitModule = {
     goToComponentRoutePickerTarget: () => {
         const picker = UnitModule.getActiveComponentRoutePicker();
         if (!picker) return;
+        if (String(picker.stationId || '') === 'u_dtm') {
+            UnitModule.openDepoTransfer();
+            return;
+        }
         UnitModule.openUnitLibrary(picker.stationId);
     },
     cancelComponentRouteProcessPick: () => {
@@ -474,9 +491,10 @@ const UnitModule = {
         if (!picker) return;
         const selectedCode = String(UnitModule.getSelectedProcessCodeForPicker() || '').trim().toUpperCase();
         const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
-        const activeUnitName = units.find(u => String(u?.id || '') === String(UnitModule.state.activeUnitId || ''))?.name || '-';
+        const currentUnitId = String(UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || ''));
+        const activeUnitName = units.find(u => String(u?.id || '') === currentUnitId)?.name || '-';
         const targetUnitName = units.find(u => String(u?.id || '') === String(picker.stationId || ''))?.name || picker.stationId;
-        const sameUnit = String(UnitModule.state.activeUnitId || '') === String(picker.stationId || '');
+        const sameUnit = currentUnitId === String(picker.stationId || '');
         const canAdd = sameUnit && !!selectedCode;
 
         container.insertAdjacentHTML('afterbegin', `
@@ -669,12 +687,13 @@ const UnitModule = {
                         </thead>
                         <tbody>
                             ${filteredTasks.length === 0 ? `<tr><td colspan="5" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
-                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#eff6ff;' : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(unitMap[t.targetUnitId] || t.targetUnitId || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(t.note || '-')}</td>
                                     <td style="padding:0.55rem; text-align:right;">
+                                        <button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>
                                         <button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button>
                                         <button class="btn-sm" onclick="UnitModule.deleteDepoTask('${t.id}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
                                     </td>
@@ -747,6 +766,7 @@ const UnitModule = {
     startEditDepoTask: (taskId) => {
         const row = (DB.data.data.depoTransferTasks || []).find(x => x.id === taskId);
         if (!row) return;
+        UnitModule.state.depoTaskSelectedId = row.id;
         UnitModule.state.depoTaskFormOpen = true;
         UnitModule.state.depoTaskEditingId = row.id;
         UnitModule.state.depoTaskDraftCode = row.taskCode || UnitModule.getNextDepoTaskCode();
@@ -766,6 +786,10 @@ const UnitModule = {
         UnitModule.state.depoTaskDraftTargetId = '';
         UnitModule.state.depoTaskDraftType = 'GONDER';
         UnitModule.state.depoTaskDraftNote = '';
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+    },
+    selectDepoTask: (taskId) => {
+        UnitModule.state.depoTaskSelectedId = taskId;
         UnitModule.renderDepoTransfer(document.getElementById('main-content'));
     },
     saveDepoTask: async () => {
@@ -829,6 +853,7 @@ const UnitModule = {
 
         DB.data.data.depoTransferTasks = (DB.data.data.depoTransferTasks || []).filter(x => x.id !== taskId);
         if (UnitModule.state.depoTaskEditingId === taskId) UnitModule.resetDepoTaskDraft();
+        if (UnitModule.state.depoTaskSelectedId === taskId) UnitModule.state.depoTaskSelectedId = null;
         await DB.save();
         UnitModule.renderDepoTransfer(document.getElementById('main-content'));
     },

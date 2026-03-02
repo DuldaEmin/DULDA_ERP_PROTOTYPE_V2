@@ -142,6 +142,98 @@ const MojibakeFix = {
 };
 window.MojibakeFix = MojibakeFix;
 
+const IdentityPolicy = {
+    entityPrefixes: {
+        products: 'URN',
+        customers: 'MUS',
+        suppliers: 'TED',
+        personnel: 'USR',
+        orders: 'SIP',
+        stock_movements: 'TRX',
+        units: 'UNT',
+        machines: 'MAC',
+        productCategories: 'CAT',
+        inventory: 'INV',
+        aluminumProfiles: 'ALM',
+        cncCards: 'CNC',
+        plexiPolishCards: 'PLX',
+        pvdCards: 'PVD',
+        eloksalCards: 'ELX',
+        ibrahimPolishCards: 'POL',
+        extruderLibraryCards: 'EXT',
+        depoTransferLogs: 'DTL',
+        depoRoutes: 'DRT',
+        workOrders: 'WKO',
+        workOrderTransactions: 'WKT',
+        outsourceTransfers: 'OST'
+    },
+
+    normalizeId: (value) => String(value ?? '').trim(),
+
+    makeId: (prefix, usedIds) => {
+        const cleanPrefix = String(prefix || 'ID')
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase()
+            .slice(0, 3) || 'ID';
+
+        for (let i = 0; i < 20; i += 1) {
+            const token = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+                ? globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+                : Math.random().toString(36).slice(2, 10).toUpperCase();
+            const candidate = `${cleanPrefix}-${token}`;
+            if (!usedIds.has(candidate)) return candidate;
+        }
+
+        let seq = 1;
+        while (true) {
+            const candidate = `${cleanPrefix}-${String(seq).padStart(6, '0')}`;
+            if (!usedIds.has(candidate)) return candidate;
+            seq += 1;
+        }
+    },
+
+    ensureCollectionIds: (list, prefix, usedIds) => {
+        if (!Array.isArray(list)) return false;
+        let changed = false;
+
+        for (let i = 0; i < list.length; i += 1) {
+            const row = list[i];
+            if (!row || typeof row !== 'object') continue;
+
+            const current = IdentityPolicy.normalizeId(row.id);
+            if (!current || usedIds.has(current)) {
+                row.id = IdentityPolicy.makeId(prefix, usedIds);
+                changed = true;
+            } else if (String(row.id) !== current) {
+                row.id = current;
+                changed = true;
+            }
+            usedIds.add(String(row.id));
+        }
+
+        return changed;
+    },
+
+    enforce: (root) => {
+        const d = root?.data;
+        if (!d || typeof d !== 'object') return false;
+
+        const usedIds = new Set();
+        let changed = false;
+
+        Object.keys(IdentityPolicy.entityPrefixes).forEach((key) => {
+            const list = d[key];
+            if (!Array.isArray(list)) return;
+            if (IdentityPolicy.ensureCollectionIds(list, IdentityPolicy.entityPrefixes[key], usedIds)) {
+                changed = true;
+            }
+        });
+
+        return changed;
+    }
+};
+window.IdentityPolicy = IdentityPolicy;
+
 const App = {
     init: async () => {
         console.log("DULDA ERP Initializing...");
@@ -169,6 +261,8 @@ const DB = {
         data: {
             products: [],
             customers: [],
+            suppliers: [],
+            personnel: [],
             stock_movements: [],
             orders: [],
             units: [],
@@ -183,6 +277,9 @@ const DB = {
             processColorLists: {},
             polishSurfaceLists: {},
             extruderLibraryCards: [],
+            workOrders: [],
+            workOrderTransactions: [],
+            outsourceTransfers: [],
             depoTransferLogs: [],
             depoRoutes: []
         }
@@ -203,6 +300,8 @@ const DB = {
 
         if (!Array.isArray(d.products)) d.products = [];
         if (!Array.isArray(d.customers)) d.customers = [];
+        if (!Array.isArray(d.suppliers)) d.suppliers = [];
+        if (!Array.isArray(d.personnel)) d.personnel = [];
         if (!Array.isArray(d.stock_movements)) d.stock_movements = [];
         if (!Array.isArray(d.orders)) d.orders = [];
         if (!Array.isArray(d.units)) d.units = [];
@@ -217,17 +316,16 @@ const DB = {
         if (!d.processColorLists || typeof d.processColorLists !== "object" || Array.isArray(d.processColorLists)) d.processColorLists = {};
         if (!d.polishSurfaceLists || typeof d.polishSurfaceLists !== "object" || Array.isArray(d.polishSurfaceLists)) d.polishSurfaceLists = {};
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
+        if (!Array.isArray(d.workOrders)) d.workOrders = [];
+        if (!Array.isArray(d.workOrderTransactions)) d.workOrderTransactions = [];
+        if (!Array.isArray(d.outsourceTransfers)) d.outsourceTransfers = [];
         if (!Array.isArray(d.depoTransferLogs)) d.depoTransferLogs = [];
         if (!Array.isArray(d.depoRoutes)) d.depoRoutes = [];
+        if (!Array.isArray(d.productCategories)) d.productCategories = [];
 
-        if (Array.isArray(d.productCategories)) {
-            const seen = new Set();
-            d.productCategories = d.productCategories.filter(c => {
-                if (!c || !c.id) return false;
-                if (seen.has(c.id)) return false;
-                seen.add(c.id);
-                return true;
-            });
+        const identityChanged = IdentityPolicy.enforce(DB.data);
+        if (identityChanged) {
+            console.warn("ID Anayasasi uygulandi: eksik veya tekrar eden id alanlari duzeltildi.");
         }
     },
 

@@ -233,6 +233,11 @@ Toplam tahmin: 7-12 is gunu
 - Operasyon kurali: GitHub yedegi en gec 15 dakikada bir otomatik commit/push ile alinacak
 - Operasyon kurali: Saatte bir otomatik saglik kontrolu calisacak (git durumu, yedek gorevi, hizli JS parse)
 
+Ek anayasa karari (2026-03-02):
+- Bu programda her unsur bir ID'dir (urun, parca, bilesen, musteri, tedarikci, calisan, siparis, stok hareketi, birim, makine, kategori, islem karti).
+- Iliskiler isim ile degil sadece ID ile kurulur; ad/etiket alanlari sadece gorunum amaclidir.
+- Bos veya tekrar eden ID kabul edilmez; veri yukleme/saklama asamasinda otomatik duzeltme uygulanir.
+
 ## 12) Acik Sorular
 - Kismi tamamlanan isler icin otomatik durum "Kismi Tamam" olsun mu?
 - Ilk surumde barkod/QR okutma gerekli mi?

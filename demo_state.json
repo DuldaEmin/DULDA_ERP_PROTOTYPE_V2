@@ -105,7 +105,7 @@
         "deneme"
       ]
     },
-    "updated_at": "2026-03-02T16:32:58.936Z",
+    "updated_at": "2026-03-02T16:40:52.739Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -919,7 +919,12 @@
           {
             "id": "a4702379-42f1-47ae-87ca-216a9adc9bf0",
             "stationId": "u_dtm",
-            "processId": ""
+            "processId": "DTR-000001"
+          },
+          {
+            "id": "15bd4f6a-4e02-419c-998d-1fcb3343e0e6",
+            "stationId": "u9",
+            "processId": "PVD-000001"
           }
         ],
         "attachments": [
@@ -938,7 +943,7 @@
         ],
         "note": "",
         "created_at": "2026-03-02T16:29:00.829Z",
-        "updated_at": "2026-03-02T16:29:30.388Z"
+        "updated_at": "2026-03-02T16:40:52.738Z"
       }
     ],
     "partWorkOrders": []

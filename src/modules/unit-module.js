@@ -645,6 +645,8 @@ const UnitModule = {
         const canDeleteTask = UnitModule.isSuperAdmin();
         const activeTaskCode = UnitModule.state.depoTaskDraftCode || UnitModule.getNextDepoTaskCode();
         const isFormOpen = !!UnitModule.state.depoTaskFormOpen;
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        const isDepoPickerMode = !!picker && String(picker.stationId || '') === 'u_dtm';
 
         container.innerHTML = `
             <div style="margin-bottom:1.25rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
@@ -687,15 +689,17 @@ const UnitModule = {
                         </thead>
                         <tbody>
                             ${filteredTasks.length === 0 ? `<tr><td colspan="5" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
-                                <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#eff6ff;' : ''}">
+                                <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#eff6ff;' : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(unitMap[t.targetUnitId] || t.targetUnitId || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(t.note || '-')}</td>
                                     <td style="padding:0.55rem; text-align:right;">
-                                        <button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>
-                                        <button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button>
-                                        <button class="btn-sm" onclick="UnitModule.deleteDepoTask('${t.id}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
+                                        <div style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                            ${isDepoPickerMode ? `<button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>` : ''}
+                                            <button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button>
+                                            <button class="btn-sm" onclick="UnitModule.deleteDepoTask('${t.id}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
+                                        </div>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -746,14 +750,14 @@ const UnitModule = {
         UnitModule.state.depoTaskDraftName = '';
         UnitModule.state.depoTaskDraftTargetId = '';
         UnitModule.state.depoTaskDraftNote = '';
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     setDepoTaskFilter: (field, value, focusId) => {
         if (field === 'name') UnitModule.state.depoTaskSearchName = value || '';
         if (field === 'code') UnitModule.state.depoTaskSearchCode = value || '';
         if (field === 'route') UnitModule.state.depoTaskSearchRoute = value || '';
         if (field === 'target') UnitModule.state.depoTaskSearchTarget = value || '';
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
         if (!focusId) return;
         setTimeout(() => {
             const el = document.getElementById(focusId);
@@ -775,7 +779,7 @@ const UnitModule = {
         UnitModule.state.depoTaskDraftTargetId = row.targetUnitId || '';
         UnitModule.state.depoTaskDraftType = row.taskType || 'GONDER';
         UnitModule.state.depoTaskDraftNote = row.note || '';
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     resetDepoTaskDraft: () => {
         UnitModule.state.depoTaskFormOpen = false;
@@ -786,11 +790,11 @@ const UnitModule = {
         UnitModule.state.depoTaskDraftTargetId = '';
         UnitModule.state.depoTaskDraftType = 'GONDER';
         UnitModule.state.depoTaskDraftNote = '';
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     selectDepoTask: (taskId) => {
         UnitModule.state.depoTaskSelectedId = taskId;
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     saveDepoTask: async () => {
         const taskName = String(UnitModule.state.depoTaskDraftName || '').trim();
@@ -855,7 +859,7 @@ const UnitModule = {
         if (UnitModule.state.depoTaskEditingId === taskId) UnitModule.resetDepoTaskDraft();
         if (UnitModule.state.depoTaskSelectedId === taskId) UnitModule.state.depoTaskSelectedId = null;
         await DB.save();
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     saveDepoRoute: async () => {
         const routeName = String(document.getElementById('route_name')?.value || '').trim();
@@ -888,7 +892,7 @@ const UnitModule = {
         });
 
         await DB.save();
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     deleteDepoRoute: async (routeId) => {
         const row = (DB.data.data.depoRoutes || []).find(x => x.id === routeId);
@@ -897,7 +901,7 @@ const UnitModule = {
 
         DB.data.data.depoRoutes = (DB.data.data.depoRoutes || []).filter(x => x.id !== routeId);
         await DB.save();
-        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        UI.renderCurrentPage();
     },
     renderUnitPersonnel: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);

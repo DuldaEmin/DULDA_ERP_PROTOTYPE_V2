@@ -153,6 +153,553 @@ const ProductLibraryModule = {
         `;
     },
 
+    ensureComponentDefaults: () => {
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.partComponentCards)) DB.data.data.partComponentCards = [];
+        if (!Array.isArray(DB.data.data.partWorkOrders)) DB.data.data.partWorkOrders = [];
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.partGroups) || DB.data.meta.options.partGroups.length === 0) {
+            DB.data.meta.options.partGroups = ['Genel'];
+        }
+        if (!Array.isArray(DB.data.meta.options.partSubGroups) || DB.data.meta.options.partSubGroups.length === 0) {
+            DB.data.meta.options.partSubGroups = ['Genel'];
+        }
+
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
+            ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
+        }
+        if (!subGroups.includes(ProductLibraryModule.state.componentDraftSubGroup)) {
+            ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        }
+    },
+
+    getPartGroups: () => {
+        const all = Array.isArray(DB.data?.meta?.options?.partGroups) ? DB.data.meta.options.partGroups : ['Genel'];
+        const clean = Array.from(new Set(all.map(x => String(x || '').trim()).filter(Boolean)));
+        return clean.sort((a, b) => a.localeCompare(b, 'tr'));
+    },
+
+    getPartSubGroups: () => {
+        const all = Array.isArray(DB.data?.meta?.options?.partSubGroups) ? DB.data.meta.options.partSubGroups : ['Genel'];
+        const clean = Array.from(new Set(all.map(x => String(x || '').trim()).filter(Boolean)));
+        return clean.sort((a, b) => a.localeCompare(b, 'tr'));
+    },
+
+    setComponentFilter: (field, value, focusId = '') => {
+        if (!ProductLibraryModule.state.componentFilters || typeof ProductLibraryModule.state.componentFilters !== 'object') {
+            ProductLibraryModule.state.componentFilters = { name: '', group: '', subGroup: '', code: '' };
+        }
+        if (!['name', 'group', 'subGroup', 'code'].includes(field)) return;
+        ProductLibraryModule.state.componentFilters[field] = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+
+    openComponentForm: () => {
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = true;
+        ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentDraftCode = ProductLibraryModule.generateComponentCode();
+        ProductLibraryModule.state.componentDraftName = '';
+        ProductLibraryModule.state.componentDraftMasterCode = '';
+        ProductLibraryModule.state.componentDraftRoutes = [];
+        ProductLibraryModule.state.componentDraftRouteStationId = '';
+        ProductLibraryModule.state.componentDraftNote = '';
+        ProductLibraryModule.state.componentDraftFiles = [];
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
+        ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        UI.renderCurrentPage();
+    },
+
+    resetComponentDraft: (close = true) => {
+        ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentDraftCode = '';
+        ProductLibraryModule.state.componentDraftName = '';
+        ProductLibraryModule.state.componentDraftMasterCode = '';
+        ProductLibraryModule.state.componentDraftRoutes = [];
+        ProductLibraryModule.state.componentDraftRouteStationId = '';
+        ProductLibraryModule.state.componentDraftNote = '';
+        ProductLibraryModule.state.componentDraftFiles = [];
+        if (close) ProductLibraryModule.state.componentFormOpen = false;
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
+        ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        UI.renderCurrentPage();
+    },
+
+    openComponentDictionary: async (kind) => {
+        const key = kind === 'group' ? 'partGroups' : 'partSubGroups';
+        if (!Array.isArray(DB.data.meta.options[key])) DB.data.meta.options[key] = ['Genel'];
+        const current = Array.from(new Set(DB.data.meta.options[key].map(x => String(x || '').trim()).filter(Boolean)));
+        const message = `Yeni deger eklemek icin direkt yaz.\nSilmek icin basina - koy (ornek: -Genel)\nMevcut: ${current.join(', ') || '-'}`;
+        const raw = prompt(message, '');
+        if (raw == null) return;
+        const val = String(raw || '').trim();
+        if (!val) return;
+
+        if (val.startsWith('-')) {
+            const target = val.slice(1).trim();
+            if (!target) return;
+            DB.data.meta.options[key] = current.filter(x =>
+                ProductLibraryModule.normalizeAsciiUpper(x) !== ProductLibraryModule.normalizeAsciiUpper(target)
+            );
+            if (DB.data.meta.options[key].length === 0) DB.data.meta.options[key] = ['Genel'];
+        } else {
+            const exists = current.some(x =>
+                ProductLibraryModule.normalizeAsciiUpper(x) === ProductLibraryModule.normalizeAsciiUpper(val)
+            );
+            DB.data.meta.options[key] = exists ? current : [...current, val];
+        }
+
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
+            ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
+        }
+        if (!subGroups.includes(ProductLibraryModule.state.componentDraftSubGroup)) {
+            ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        }
+
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    getComponentCards: () => {
+        return (DB.data.data.partComponentCards || [])
+            .filter(row => !row?.archived_at)
+            .slice()
+            .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    },
+
+    getComponentCardById: (id) => {
+        return ProductLibraryModule.getComponentCards().find(row => String(row.id) === String(id)) || null;
+    },
+
+    generateComponentCode: (exclude = null) => {
+        const all = DB.data.data.partComponentCards || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            if (exclude && String(exclude) === String(row?.id || '')) return;
+            const code = String(row?.code || '').trim().toUpperCase();
+            const m = code.match(/^PRC-(\d{6})$/);
+            if (!m) return;
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `PRC-${String(nextNum).padStart(6, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate, exclude ? { collection: 'partComponentCards', id: exclude, field: 'code' } : null)) {
+            nextNum += 1;
+            candidate = `PRC-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+
+    startEditComponentCard: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row) return;
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = true;
+        ProductLibraryModule.state.componentEditingId = row.id;
+        ProductLibraryModule.state.componentDraftCode = row.code || ProductLibraryModule.generateComponentCode(row.id);
+        ProductLibraryModule.state.componentDraftName = row.name || '';
+        ProductLibraryModule.state.componentDraftGroup = row.group || ProductLibraryModule.getPartGroups()[0] || '';
+        ProductLibraryModule.state.componentDraftSubGroup = row.subGroup || ProductLibraryModule.getPartSubGroups()[0] || '';
+        ProductLibraryModule.state.componentDraftMasterCode = row.masterCode || '';
+        ProductLibraryModule.state.componentDraftRoutes = Array.isArray(row.routes)
+            ? row.routes.map(r => ({
+                id: String(r?.id || crypto.randomUUID()),
+                stationId: String(r?.stationId || ''),
+                processId: String(r?.processId || '')
+            }))
+            : [];
+        ProductLibraryModule.state.componentDraftRouteStationId = '';
+        ProductLibraryModule.state.componentDraftNote = row.note || '';
+        ProductLibraryModule.state.componentDraftFiles = Array.isArray(row.attachments)
+            ? row.attachments
+                .map(file => ({
+                    name: String(file?.name || 'dosya'),
+                    type: String(file?.type || ''),
+                    size: Number(file?.size || 0),
+                    data: String(file?.data || '')
+                }))
+                .filter(file => file.data)
+            : [];
+        UI.renderCurrentPage();
+    },
+
+    openComponentCardView: (id) => {
+        ProductLibraryModule.state.componentViewingId = String(id || '');
+        ProductLibraryModule.state.componentFormOpen = false;
+        UI.renderCurrentPage();
+    },
+
+    closeComponentCardView: () => {
+        ProductLibraryModule.state.componentViewingId = null;
+        UI.renderCurrentPage();
+    },
+
+    setComponentRouteStation: (value) => {
+        ProductLibraryModule.state.componentDraftRouteStationId = String(value || '').trim();
+    },
+
+    addComponentRouteRow: () => {
+        const stationId = String(ProductLibraryModule.state.componentDraftRouteStationId || '').trim();
+        if (!stationId) {
+            alert('Lutfen istasyon seciniz.');
+            return;
+        }
+        if (!Array.isArray(ProductLibraryModule.state.componentDraftRoutes)) {
+            ProductLibraryModule.state.componentDraftRoutes = [];
+        }
+        ProductLibraryModule.state.componentDraftRoutes.push({
+            id: crypto.randomUUID(),
+            stationId,
+            processId: ''
+        });
+        ProductLibraryModule.state.componentDraftRouteStationId = '';
+        UI.renderCurrentPage();
+    },
+
+    setComponentRouteProcess: (routeId, value) => {
+        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        const row = list.find(x => String(x.id) === String(routeId));
+        if (!row) return;
+        row.processId = String(value || '').trim().toUpperCase();
+    },
+
+    editComponentRouteRow: (routeId) => {
+        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        const row = list.find(x => String(x.id) === String(routeId));
+        if (!row) return;
+        const next = prompt('Islem ID giriniz', String(row.processId || ''));
+        if (next == null) return;
+        row.processId = String(next || '').trim().toUpperCase();
+        UI.renderCurrentPage();
+    },
+
+    removeComponentRouteRow: (routeId) => {
+        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        ProductLibraryModule.state.componentDraftRoutes = list.filter(x => String(x.id) !== String(routeId));
+        UI.renderCurrentPage();
+    },
+
+    readFileAsDataUrl: (file) => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => reject(new Error('Dosya okunamadi'));
+            reader.readAsDataURL(file);
+        });
+    },
+
+    handleComponentFiles: async (input) => {
+        const fileList = Array.from(input?.files || []);
+        if (fileList.length === 0) return;
+
+        const maxFileSize = 20 * 1024 * 1024;
+        const allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+        const normalized = [];
+
+        for (const file of fileList) {
+            const name = String(file?.name || '');
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            if (!allowed.includes(ext)) {
+                alert(`Desteklenmeyen dosya: ${name}`);
+                continue;
+            }
+            if (Number(file?.size || 0) > maxFileSize) {
+                alert(`${name} 20MB sinirini asiyor.`);
+                continue;
+            }
+            try {
+                const data = await ProductLibraryModule.readFileAsDataUrl(file);
+                normalized.push({
+                    name,
+                    type: String(file.type || ''),
+                    size: Number(file.size || 0),
+                    data
+                });
+            } catch (_) { }
+        }
+
+        if (normalized.length === 0) return;
+        ProductLibraryModule.state.componentDraftFiles = normalized;
+        UI.renderCurrentPage();
+    },
+
+    removeComponentDraftFile: (index) => {
+        const files = Array.isArray(ProductLibraryModule.state.componentDraftFiles)
+            ? [...ProductLibraryModule.state.componentDraftFiles]
+            : [];
+        if (index < 0 || index >= files.length) return;
+        files.splice(index, 1);
+        ProductLibraryModule.state.componentDraftFiles = files;
+        UI.renderCurrentPage();
+    },
+
+    clearComponentDraftFiles: () => {
+        ProductLibraryModule.state.componentDraftFiles = [];
+        UI.renderCurrentPage();
+    },
+
+    previewComponentDraftFile: (index) => {
+        const files = Array.isArray(ProductLibraryModule.state.componentDraftFiles) ? ProductLibraryModule.state.componentDraftFiles : [];
+        const file = files[index];
+        if (!file?.data) return;
+        ProductLibraryModule.openPreviewModal(file);
+    },
+
+    previewComponentCardFile: (cardId, index) => {
+        const row = ProductLibraryModule.getComponentCardById(cardId);
+        if (!row) return;
+        const files = Array.isArray(row.attachments) ? row.attachments : [];
+        const file = files[index];
+        if (!file?.data) return;
+        ProductLibraryModule.openPreviewModal(file);
+    },
+
+    renderComponentView: (container, row) => {
+        const units = (DB.data.data.units || []).slice();
+        const unitMap = {};
+        units.forEach(u => { unitMap[u.id] = u.name; });
+        const routes = Array.isArray(row?.routes) ? row.routes : [];
+        const files = Array.isArray(row?.attachments) ? row.attachments : [];
+
+        container.innerHTML = `
+            <div style="max-width:1120px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Parca ve Bilesen Detay</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.closeComponentCardView()">geri</button>
+                </div>
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.7rem;">
+                        <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">urun grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">urun alt grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-weight:700; font-family:monospace; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</div></div>
+                    </div>
+                    <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kod</div><div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row?.masterCode || '-')}</div></div>
+                    <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155;">${ProductLibraryModule.escapeHtml(row?.note || '-')}</div></div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <div style="font-weight:700; margin-bottom:0.6rem;">Rota</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.5rem; text-align:left;">Sira</th>
+                                <th style="padding:0.5rem; text-align:left;">Istasyon</th>
+                                <th style="padding:0.5rem; text-align:left;">Islem ID</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${routes.length === 0 ? '<tr><td colspan="3" style="padding:0.8rem; color:#94a3b8;">Rota tanimli degil.</td></tr>' : routes.map((r, idx) => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:0.5rem;">${idx + 1}</td>
+                                    <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</td>
+                                    <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(r.processId || '-')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card-table" style="padding:1rem;">
+                    <div style="font-weight:700; margin-bottom:0.6rem;">Dosyalar</div>
+                    ${files.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : `
+                        <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                            ${files.map((file, idx) => `
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem 0.6rem;">
+                                    <div style="font-size:0.86rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                    <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
+
+    renderComponentsPage: (container) => {
+        const viewingId = String(ProductLibraryModule.state.componentViewingId || '').trim();
+        if (viewingId) {
+            const row = ProductLibraryModule.getComponentCardById(viewingId);
+            if (row) {
+                ProductLibraryModule.renderComponentView(container, row);
+                return;
+            }
+            ProductLibraryModule.state.componentViewingId = null;
+        }
+
+        const units = (DB.data.data.units || []).slice();
+        const unitMap = {};
+        units.forEach(u => { unitMap[u.id] = u.name; });
+
+        const state = ProductLibraryModule.state;
+        const filters = state.componentFilters || { name: '', group: '', subGroup: '', code: '' };
+        const qName = String(filters.name || '').trim().toLowerCase();
+        const qGroup = String(filters.group || '').trim().toLowerCase();
+        const qSub = String(filters.subGroup || '').trim().toLowerCase();
+        const qCode = String(filters.code || '').trim().toLowerCase();
+        const rows = ProductLibraryModule.getComponentCards().filter(row => {
+            const nameOk = !qName || String(row?.name || '').toLowerCase().includes(qName);
+            const groupOk = !qGroup || String(row?.group || '').toLowerCase().includes(qGroup);
+            const subOk = !qSub || String(row?.subGroup || '').toLowerCase().includes(qSub);
+            const codeOk = !qCode || String(row?.code || '').toLowerCase().includes(qCode);
+            return nameOk && groupOk && subOk && codeOk;
+        });
+
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        const files = Array.isArray(state.componentDraftFiles) ? state.componentDraftFiles : [];
+        const routes = Array.isArray(state.componentDraftRoutes) ? state.componentDraftRoutes : [];
+        const draftCode = String(state.componentDraftCode || ProductLibraryModule.generateComponentCode(state.componentEditingId || null));
+
+        container.innerHTML = `
+            <div style="max-width:1220px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Parca ve Bilesen</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:center;">
+                        <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <input id="cmp_filter_group" value="${ProductLibraryModule.escapeHtml(filters.group || '')}" oninput="ProductLibraryModule.setComponentFilter('group', this.value, 'cmp_filter_group')" placeholder="urun grubu ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <input id="cmp_filter_sub" value="${ProductLibraryModule.escapeHtml(filters.subGroup || '')}" oninput="ProductLibraryModule.setComponentFilter('subGroup', this.value, 'cmp_filter_sub')" placeholder="urun alt grubu" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <button class="btn-primary" onclick="ProductLibraryModule.openComponentForm()" style="height:42px; min-width:135px;">urun ekle +</button>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">urun adi</th>
+                                <th style="padding:0.55rem; text-align:left;">urun grubu</th>
+                                <th style="padding:0.55rem; text-align:left;">urun alt grubu</th>
+                                <th style="padding:0.55rem; text-align:left;">ID kod</th>
+                                <th style="padding:0.55rem; text-align:center;">goruntule</th>
+                                <th style="padding:0.55rem; text-align:center;">duzenle</th>
+                                <th style="padding:0.55rem; text-align:center;">sec</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.length === 0 ? '<tr><td colspan="7" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli parca/bilesen yok.</td></tr>' : rows.map(row => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
+                                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</td>
+                                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</td>
+                                    <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><input type="checkbox" disabled></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${state.componentFormOpen ? `
+                    <div class="card-table" style="padding:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
+                            <h3 style="margin:0; font-size:1.45rem; color:#334155;">Parca ve Bilesen olustur</h3>
+                            <div style="display:flex; gap:0.5rem;">
+                                ${state.componentEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteComponentCard('${state.componentEditingId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
+                                <button class="btn-sm" onclick="ProductLibraryModule.resetComponentDraft(true)">Vazgec</button>
+                                <button class="btn-primary" onclick="ProductLibraryModule.saveComponentCard()">Kaydet</button>
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi *</label>
+                                <input value="${ProductLibraryModule.escapeHtml(state.componentDraftName || '')}" oninput="ProductLibraryModule.state.componentDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun grubu <button class="btn-link" type="button" onclick="ProductLibraryModule.openComponentDictionary('group')" style="margin-left:0.2rem; font-size:0.72rem;">+ yonet (ekle-sil)</button></label>
+                                <select onchange="ProductLibraryModule.state.componentDraftGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                    ${groups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun alt grubu <button class="btn-link" type="button" onclick="ProductLibraryModule.openComponentDictionary('subGroup')" style="margin-left:0.2rem; font-size:0.72rem;">+ yonet (ekle-sil)</button></label>
+                                <select onchange="ProductLibraryModule.state.componentDraftSubGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                    ${subGroups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftSubGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ID kod</label>
+                                <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
+                            </div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:1.65fr 0.95fr; gap:0.9rem;">
+                            <div>
+                                <div style="margin-bottom:0.65rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kod *</label>
+                                    <input value="${ProductLibraryModule.escapeHtml(state.componentDraftMasterCode || '')}" oninput="ProductLibraryModule.state.componentDraftMasterCode=this.value.toUpperCase()" placeholder="ID kod yaz" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace;">
+                                </div>
+                                <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                    ${routes.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Henuz rota istasyonu eklenmedi.</div>' : routes.map((r, idx) => `
+                                        <div style="display:grid; grid-template-columns:1.2fr 1fr auto auto; gap:0.45rem; align-items:center;">
+                                            <div style="font-weight:600; color:#334155;">${idx + 1}. istasyon ${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</div>
+                                            <input value="${ProductLibraryModule.escapeHtml(r.processId || '')}" oninput="ProductLibraryModule.setComponentRouteProcess('${r.id}', this.value)" placeholder="islem ID yaz" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace;">
+                                            <button class="btn-sm" onclick="ProductLibraryModule.editComponentRouteRow('${r.id}')">duzenle</button>
+                                            <button class="btn-sm" onclick="ProductLibraryModule.removeComponentRouteRow('${r.id}')">sil</button>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem; margin-top:0.7rem; max-width:430px;">
+                                    <select onchange="ProductLibraryModule.setComponentRouteStation(this.value)" style="height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem;">
+                                        <option value="">istasyon sec</option>
+                                        ${units.map(u => `<option value="${u.id}" ${String(state.componentDraftRouteStationId || '') === String(u.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(u.name)}</option>`).join('')}
+                                    </select>
+                                    <button class="btn-primary" onclick="ProductLibraryModule.addComponentRouteRow()">rota istasyonu ekle +</button>
+                                </div>
+                            </div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.65rem;">
+                                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle (opsiyonel)</div>
+                                <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleComponentFiles(this)" style="width:100%;">
+                                <div style="font-size:0.75rem; color:#94a3b8; margin-top:0.25rem;">Yeni dosya secildiginde onceki dosyalar degisir.</div>
+                                <div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:220px; overflow:auto;">
+                                    ${files.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : files.map((file, idx) => `
+                                        <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;">
+                                            <div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                            <div style="display:flex; gap:0.35rem;">
+                                                <button class="btn-sm" onclick="ProductLibraryModule.previewComponentDraftFile(${idx})">gor</button>
+                                                <button class="btn-sm" onclick="ProductLibraryModule.removeComponentDraftFile(${idx})">kaldir</button>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                ${files.length > 0 ? '<button class="btn-sm" style="margin-top:0.5rem;" onclick="ProductLibraryModule.clearComponentDraftFiles()">tumunu kaldir</button>' : ''}
+                            </div>
+                        </div>
+                        <div style="margin-top:0.95rem;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not aciklama ekle</label>
+                            <textarea rows="5" oninput="ProductLibraryModule.state.componentDraftNote=this.value" style="width:100%; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0.65rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.componentDraftNote || '')}</textarea>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
     ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [

@@ -98,6 +98,7 @@ const UnitModule = {
         if (!DB.data.data.processColorLists || typeof DB.data.data.processColorLists !== 'object') DB.data.data.processColorLists = {};
         if (!DB.data.data.polishSurfaceLists || typeof DB.data.data.polishSurfaceLists !== 'object') DB.data.data.polishSurfaceLists = {};
         if (!DB.data.data.extruderLibraryCards) DB.data.data.extruderLibraryCards = [];
+        if (!DB.data.data.depoTransferTasks) DB.data.data.depoTransferTasks = [];
         if (!DB.data.data.depoTransferLogs) DB.data.data.depoTransferLogs = [];
         if (!DB.data.data.depoRoutes) DB.data.data.depoRoutes = [];
 
@@ -183,7 +184,21 @@ const UnitModule = {
     },
 
     openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
-    openDepoTransfer: () => { UnitModule.state.activeUnitId = null; UnitModule.state.view = 'depoTransfer'; UI.renderCurrentPage(); },
+    openDepoTransfer: () => {
+        UnitModule.state.activeUnitId = null;
+        UnitModule.state.view = 'depoTransfer';
+        UnitModule.state.depoTaskSearchName = '';
+        UnitModule.state.depoTaskSearchCode = '';
+        UnitModule.state.depoTaskSearchTarget = '';
+        UnitModule.state.depoTaskEditingId = null;
+        UnitModule.state.depoTaskDraftCode = '';
+        UnitModule.state.depoTaskDraftName = '';
+        UnitModule.state.depoTaskDraftSourceId = '';
+        UnitModule.state.depoTaskDraftTargetId = '';
+        UnitModule.state.depoTaskDraftType = 'GONDER';
+        UnitModule.state.depoTaskDraftNote = '';
+        UI.renderCurrentPage();
+    },
     openMachines: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'machines'; UI.renderCurrentPage(); },
     openStock: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'stock'; UnitModule.state.stockTab = 'ROD'; UI.renderCurrentPage(); },
     openPersonnel: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'personnel'; UI.renderCurrentPage(); },
@@ -471,8 +486,23 @@ const UnitModule = {
         const routes = (DB.data.data.depoRoutes || [])
             .slice()
             .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+        const tasks = (DB.data.data.depoTransferTasks || [])
+            .slice()
+            .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
 
         const unitOptions = units.map(u => `<option value="${u.id}">${UnitModule.escapeHtml(u.name)} (${u.type === 'external' ? 'Dis' : 'Ic'})</option>`).join('');
+        const qName = String(UnitModule.state.depoTaskSearchName || '').trim().toLowerCase();
+        const qCode = String(UnitModule.state.depoTaskSearchCode || '').trim().toLowerCase();
+        const qTarget = String(UnitModule.state.depoTaskSearchTarget || '').trim().toLowerCase();
+        const filteredTasks = tasks.filter(row => {
+            const nameOk = !qName || String(row.taskName || '').toLowerCase().includes(qName);
+            const codeOk = !qCode || String(row.taskCode || '').toLowerCase().includes(qCode);
+            const targetName = String(unitMap[row.targetUnitId] || '').toLowerCase();
+            const targetOk = !qTarget || targetName.includes(qTarget) || String(row.targetUnitId || '').toLowerCase().includes(qTarget);
+            return nameOk && codeOk && targetOk;
+        });
+        const canDeleteTask = UnitModule.isSuperAdmin();
+        const activeTaskCode = UnitModule.state.depoTaskDraftCode || UnitModule.getNextDepoTaskCode();
 
         container.innerHTML = `
             <div style="margin-bottom:1.25rem; display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
@@ -496,7 +526,7 @@ const UnitModule = {
                 Aldim/Verdim transfer formlari sonraki fazda eklenecek. Bu ekranda su an sadece rota tanimlanir.
             </div>
 
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem;">
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
                     <div style="font-weight:800; color:#0f172a; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.45rem;">
                         <i data-lucide="workflow" width="16" height="16"></i> Urun Rotasi Tanimla
@@ -547,7 +577,181 @@ const UnitModule = {
                     </div>
                 </div>
             </div>
+
+            <div style="display:flex; flex-direction:column; gap:1rem;">
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="library" width="16" height="16"></i> Transfer Is Tanimi Kutuphanesi
+                    </div>
+                    <div style="display:flex; flex-direction:column; gap:0.6rem; max-width:560px;">
+                        <input id="depo_task_name" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskDraftName || '')}" oninput="UnitModule.state.depoTaskDraftName=this.value" placeholder="Standart islem adi (orn: Hilal PVD urun gonderme)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
+                        <input id="depo_task_code" value="${UnitModule.escapeHtml(activeTaskCode)}" readonly style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:700; font-family:monospace;">
+                        <select id="depo_task_target" onchange="UnitModule.state.depoTaskDraftTargetId=this.value" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
+                            <option value="">Gidecegi yer</option>
+                            ${units.map(u => `<option value="${u.id}" ${String(UnitModule.state.depoTaskDraftTargetId || '') === String(u.id) ? 'selected' : ''}>${UnitModule.escapeHtml(u.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="margin-top:0.75rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="btn-primary" onclick="UnitModule.saveDepoTask()" style="display:inline-flex; align-items:center; gap:0.45rem;">
+                            <i data-lucide="save" width="16" height="16"></i> ${UnitModule.state.depoTaskEditingId ? 'Degisikligi Kaydet' : 'Islem Ekle'}
+                        </button>
+                        ${UnitModule.state.depoTaskEditingId ? `<button class="btn-sm" onclick="UnitModule.resetDepoTaskDraft()">Vazgec</button>` : ''}
+                    </div>
+                    <div style="font-size:0.77rem; color:#64748b; margin-top:0.55rem;">Bu kutuphane urun degil, standart gorev kartidir. Rotalar bu ID ile is cagirir.</div>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
+                    <div style="font-weight:800; color:#0f172a; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="clipboard-list" width="16" height="16"></i> Kayitli Transfer Is Tanimlari
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.5rem; margin-bottom:0.65rem;">
+                        <input id="depo_task_search_name" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchName || '')}" oninput="UnitModule.setDepoTaskFilter('name', this.value, 'depo_task_search_name')" placeholder="islem adi ara" style="border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.45rem 0.6rem; font-weight:600;">
+                        <input id="depo_task_search_code" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchCode || '')}" oninput="UnitModule.setDepoTaskFilter('code', this.value, 'depo_task_search_code')" placeholder="ID ara" style="border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.45rem 0.6rem; font-weight:600;">
+                        <input id="depo_task_search_target" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchTarget || '')}" oninput="UnitModule.setDepoTaskFilter('target', this.value, 'depo_task_search_target')" placeholder="gidecegi yer ara" style="border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.45rem 0.6rem; font-weight:600;">
+                    </div>
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.55rem; text-align:left;">Islem adi</th>
+                                    <th style="padding:0.55rem; text-align:left;">ID</th>
+                                    <th style="padding:0.55rem; text-align:left;">Gidecegi yer</th>
+                                    <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${filteredTasks.length === 0 ? `<tr><td colspan="4" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli is tanimi yok.</td></tr>` : filteredTasks.map(t => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
+                                        <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
+                                        <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(unitMap[t.targetUnitId] || t.targetUnitId || '-')}</td>
+                                        <td style="padding:0.55rem; text-align:right;">
+                                            <button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button>
+                                            <button class="btn-sm" onclick="UnitModule.deleteDepoTask('${t.id}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         `;
+    },
+    getNextDepoTaskCode: () => {
+        if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
+        const max = (DB.data.data.depoTransferTasks || []).reduce((acc, row) => {
+            const code = String(row?.taskCode || '').trim().toUpperCase();
+            const m = code.match(/^DTR-(\d{6})$/);
+            if (!m) return acc;
+            return Math.max(acc, Number(m[1]));
+        }, 0);
+        let next = max + 1;
+        let candidate = `DTR-${String(next).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            next += 1;
+            candidate = `DTR-${String(next).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    setDepoTaskFilter: (field, value, focusId) => {
+        if (field === 'name') UnitModule.state.depoTaskSearchName = value || '';
+        if (field === 'code') UnitModule.state.depoTaskSearchCode = value || '';
+        if (field === 'target') UnitModule.state.depoTaskSearchTarget = value || '';
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+    startEditDepoTask: (taskId) => {
+        const row = (DB.data.data.depoTransferTasks || []).find(x => x.id === taskId);
+        if (!row) return;
+        UnitModule.state.depoTaskEditingId = row.id;
+        UnitModule.state.depoTaskDraftCode = row.taskCode || UnitModule.getNextDepoTaskCode();
+        UnitModule.state.depoTaskDraftName = row.taskName || '';
+        UnitModule.state.depoTaskDraftSourceId = row.sourceUnitId || '';
+        UnitModule.state.depoTaskDraftTargetId = row.targetUnitId || '';
+        UnitModule.state.depoTaskDraftType = row.taskType || 'GONDER';
+        UnitModule.state.depoTaskDraftNote = row.note || '';
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+    },
+    resetDepoTaskDraft: () => {
+        UnitModule.state.depoTaskEditingId = null;
+        UnitModule.state.depoTaskDraftCode = '';
+        UnitModule.state.depoTaskDraftName = '';
+        UnitModule.state.depoTaskDraftSourceId = '';
+        UnitModule.state.depoTaskDraftTargetId = '';
+        UnitModule.state.depoTaskDraftType = 'GONDER';
+        UnitModule.state.depoTaskDraftNote = '';
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
+    },
+    saveDepoTask: async () => {
+        const taskName = String(UnitModule.state.depoTaskDraftName || '').trim();
+        const targetUnitId = String(UnitModule.state.depoTaskDraftTargetId || '').trim();
+        const taskCode = String(UnitModule.state.depoTaskDraftCode || UnitModule.getNextDepoTaskCode()).trim().toUpperCase();
+
+        if (!taskName) return alert('Is tanimi zorunlu.');
+        if (!targetUnitId) return alert('Gidecegi yer zorunlu.');
+
+        const validUnitIds = new Set((DB.data.data.units || []).map(u => u.id));
+        if (!validUnitIds.has(targetUnitId)) {
+            return alert('Gecersiz hedef secimi.');
+        }
+
+        const editId = UnitModule.state.depoTaskEditingId;
+        const exclude = editId ? { collection: 'depoTransferTasks', id: editId, field: 'taskCode' } : null;
+        if (UnitModule.isGlobalCodeTaken(taskCode, exclude)) {
+            return alert('Bu is tanimi ID zaten kullaniliyor.');
+        }
+
+        if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
+        const now = new Date().toISOString();
+        const all = DB.data.data.depoTransferTasks;
+        if (editId) {
+            const row = all.find(x => x.id === editId);
+            if (!row) return;
+            row.taskName = taskName;
+            row.taskCode = taskCode;
+            row.targetUnitId = targetUnitId;
+            row.sourceUnitId = String(row.sourceUnitId || '');
+            row.taskType = 'GONDER';
+            row.note = String(row.note || '');
+            row.updated_at = now;
+        } else {
+            all.push({
+                id: crypto.randomUUID(),
+                taskName,
+                taskCode,
+                sourceUnitId: '',
+                targetUnitId,
+                taskType: 'GONDER',
+                note: '',
+                created_at: now,
+                updated_at: now
+            });
+        }
+
+        await DB.save();
+        UnitModule.resetDepoTaskDraft();
+    },
+    deleteDepoTask: async (taskId) => {
+        if (!UnitModule.isSuperAdmin()) {
+            alert('Bu islem sadece super admin icin acik.');
+            return;
+        }
+        const row = (DB.data.data.depoTransferTasks || []).find(x => x.id === taskId);
+        if (!row) return;
+        if (!confirm(`"${row.taskName}" silinsin mi?`)) return;
+
+        DB.data.data.depoTransferTasks = (DB.data.data.depoTransferTasks || []).filter(x => x.id !== taskId);
+        if (UnitModule.state.depoTaskEditingId === taskId) UnitModule.resetDepoTaskDraft();
+        await DB.save();
+        UnitModule.renderDepoTransfer(document.getElementById('main-content'));
     },
     saveDepoRoute: async () => {
         const routeName = String(document.getElementById('route_name')?.value || '').trim();
@@ -808,6 +1012,7 @@ const UnitModule = {
         readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
         readMany('montageCards', DB.data?.data?.montageCards, ['cardCode', 'productCode']);
+        readMany('depoTransferTasks', DB.data?.data?.depoTransferTasks, ['taskCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
         return bag;
     },

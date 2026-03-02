@@ -61,6 +61,7 @@ const ProductLibraryModule = {
         componentDraftMasterCode: '',
         componentDraftRoutes: [],
         componentDraftRouteStationId: '',
+        componentRoutePicker: null,
         componentDraftNote: '',
         componentDraftFiles: [],
         workspaceView: 'menu' // menu | models | components | assembly | master
@@ -209,6 +210,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentFormOpen = true;
         ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.componentDraftCode = ProductLibraryModule.generateComponentCode();
         ProductLibraryModule.state.componentDraftName = '';
         ProductLibraryModule.state.componentDraftMasterCode = '';
@@ -225,6 +227,7 @@ const ProductLibraryModule = {
 
     resetComponentDraft: (close = true) => {
         ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.componentDraftCode = '';
         ProductLibraryModule.state.componentDraftName = '';
         ProductLibraryModule.state.componentDraftMasterCode = '';
@@ -312,6 +315,7 @@ const ProductLibraryModule = {
         const row = ProductLibraryModule.getComponentCardById(id);
         if (!row) return;
         ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.componentFormOpen = true;
         ProductLibraryModule.state.componentEditingId = row.id;
         ProductLibraryModule.state.componentDraftCode = row.code || ProductLibraryModule.generateComponentCode(row.id);
@@ -356,6 +360,73 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftRouteStationId = String(value || '').trim();
     },
 
+    openComponentRouteProcessPicker: (routeId) => {
+        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        const row = list.find(x => String(x.id) === String(routeId));
+        if (!row) return alert('Rota satiri bulunamadi.');
+
+        const stationId = String(row.stationId || '').trim();
+        if (!stationId) return alert('Lutfen once istasyon seciniz.');
+
+        ProductLibraryModule.state.componentRoutePicker = {
+            routeId: String(routeId),
+            stationId
+        };
+
+        if (typeof Router === 'undefined') {
+            alert('Yonlendirme modulu bulunamadi.');
+            return;
+        }
+        Router.navigate('units');
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.openUnitLibrary === 'function') {
+            UnitModule.openUnitLibrary(stationId);
+        }
+    },
+
+    applyComponentRouteProcessFromPicker: (processId) => {
+        const picker = ProductLibraryModule.state.componentRoutePicker;
+        if (!picker || !picker.routeId) return false;
+
+        const code = String(processId || '').trim().toUpperCase();
+        if (!code) return false;
+
+        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        const row = list.find(x => String(x.id) === String(picker.routeId));
+        if (!row) {
+            ProductLibraryModule.state.componentRoutePicker = null;
+            alert('Rota satiri bulunamadi.');
+            return false;
+        }
+
+        row.processId = code;
+        ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.workspaceView = 'components';
+        ProductLibraryModule.state.componentFormOpen = true;
+        ProductLibraryModule.state.componentViewingId = null;
+
+        if (typeof Router !== 'undefined') {
+            Router.navigate('products', { fromBack: true });
+        } else {
+            UI.renderCurrentPage();
+        }
+        return true;
+    },
+
+    cancelComponentRouteProcessPicker: () => {
+        const picker = ProductLibraryModule.state.componentRoutePicker;
+        if (!picker) return;
+        ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.workspaceView = 'components';
+        ProductLibraryModule.state.componentFormOpen = true;
+        ProductLibraryModule.state.componentViewingId = null;
+
+        if (typeof Router !== 'undefined') {
+            Router.navigate('products', { fromBack: true });
+        } else {
+            UI.renderCurrentPage();
+        }
+    },
+
     addComponentRouteRow: () => {
         const stationId = String(ProductLibraryModule.state.componentDraftRouteStationId || '').trim();
         if (!stationId) {
@@ -382,13 +453,7 @@ const ProductLibraryModule = {
     },
 
     editComponentRouteRow: (routeId) => {
-        const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
-        const row = list.find(x => String(x.id) === String(routeId));
-        if (!row) return;
-        const next = prompt('Islem ID giriniz', String(row.processId || ''));
-        if (next == null) return;
-        row.processId = String(next || '').trim().toUpperCase();
-        UI.renderCurrentPage();
+        ProductLibraryModule.openComponentRouteProcessPicker(routeId);
     },
 
     removeComponentRouteRow: (routeId) => {
@@ -769,8 +834,8 @@ const ProductLibraryModule = {
                                     ${routes.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Henuz rota istasyonu eklenmedi.</div>' : routes.map((r, idx) => `
                                         <div style="display:grid; grid-template-columns:1.2fr 1fr auto auto; gap:0.45rem; align-items:center;">
                                             <div style="font-weight:600; color:#334155;">${idx + 1}. istasyon ${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</div>
-                                            <input value="${ProductLibraryModule.escapeHtml(r.processId || '')}" oninput="ProductLibraryModule.setComponentRouteProcess('${r.id}', this.value)" placeholder="islem ID yaz" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace;">
-                                            <button class="btn-sm" onclick="ProductLibraryModule.editComponentRouteRow('${r.id}')">duzenle</button>
+                                            <input readonly value="${ProductLibraryModule.escapeHtml(r.processId || '')}" placeholder="islem secilmedi" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace; background:#f8fafc;">
+                                            <button class="btn-sm" onclick="ProductLibraryModule.editComponentRouteRow('${r.id}')">${String(r.processId || '').trim() ? 'duzenle' : 'goruntule'}</button>
                                             <button class="btn-sm" onclick="ProductLibraryModule.removeComponentRouteRow('${r.id}')">sil</button>
                                         </div>
                                     `).join('')}

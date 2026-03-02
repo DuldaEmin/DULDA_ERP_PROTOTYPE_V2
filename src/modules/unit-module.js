@@ -183,6 +183,8 @@ const UnitModule = {
         } else if (view === 'depoTransfer') {
             UnitModule.renderDepoTransfer(container);
         }
+
+        UnitModule.renderComponentRoutePickerPanel(container);
     },
 
     openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
@@ -372,6 +374,127 @@ const UnitModule = {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'unitLibraryEmpty';
         UI.renderCurrentPage();
+    },
+    getActiveComponentRoutePicker: () => {
+        const moduleRef = typeof ProductLibraryModule !== 'undefined' ? ProductLibraryModule : null;
+        const picker = moduleRef?.state?.componentRoutePicker;
+        if (!picker || typeof picker !== 'object') return null;
+        const routeId = String(picker.routeId || '').trim();
+        const stationId = String(picker.stationId || '').trim();
+        if (!routeId || !stationId) return null;
+        return { routeId, stationId };
+    },
+    shouldShowComponentRoutePickerPanel: () => {
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        return !!picker;
+    },
+    getSelectedProcessCodeForPicker: () => {
+        const view = String(UnitModule.state.view || '');
+        const unitId = String(UnitModule.state.activeUnitId || '');
+
+        if (view === 'cncLibrary') {
+            const selectedId = String((typeof CncLibraryModule !== 'undefined' ? CncLibraryModule?.state?.selectedId : '') || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.cncCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cncId || '').trim().toUpperCase();
+        }
+        if (view === 'sawCut') {
+            const selectedId = String(UnitModule.state.sawSelectedOrderId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.sawCutOrders || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.code || '').trim().toUpperCase();
+        }
+        if (view === 'extruderLibrary') {
+            const selectedId = String(UnitModule.state.extruderSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.extruderLibraryCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || '').trim().toUpperCase();
+        }
+        if (view === 'plexiLibrary') {
+            const selectedId = String(UnitModule.state.plexiSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.plexiPolishCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || '').trim().toUpperCase();
+        }
+        if (view === 'pvdLibrary') {
+            const selectedId = String(UnitModule.state.pvdSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.pvdCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || '').trim().toUpperCase();
+        }
+        if (view === 'polishLibrary') {
+            const selectedId = String(UnitModule.state.polishSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.ibrahimPolishCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || '').trim().toUpperCase();
+        }
+        if (view === 'eloksalLibrary') {
+            const selectedId = String(UnitModule.state.elxSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.eloksalCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || '').trim().toUpperCase();
+        }
+        if (view === 'montageLibrary') {
+            const selectedId = String((typeof MontageLibraryModule !== 'undefined' ? MontageLibraryModule?.state?.selectedId : '') || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.montageCards || []).find(x => String(x?.id || '') === selectedId && String(x?.unitId || '') === unitId);
+            return String(row?.cardCode || row?.productCode || '').trim().toUpperCase();
+        }
+        return '';
+    },
+    confirmComponentRouteProcessPick: () => {
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        if (!picker) return;
+        if (String(UnitModule.state.activeUnitId || '') !== String(picker.stationId || '')) {
+            alert('Yanlis birim kutuphanesindesiniz. Hedef birime geciniz.');
+            return;
+        }
+        const code = String(UnitModule.getSelectedProcessCodeForPicker() || '').trim().toUpperCase();
+        if (!code) return alert('Once listeden bir islem seciniz.');
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof ProductLibraryModule.applyComponentRouteProcessFromPicker !== 'function') {
+            return alert('Parca/Bilesen modulu bulunamadi.');
+        }
+        ProductLibraryModule.applyComponentRouteProcessFromPicker(code);
+    },
+    goToComponentRoutePickerTarget: () => {
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        if (!picker) return;
+        UnitModule.openUnitLibrary(picker.stationId);
+    },
+    cancelComponentRouteProcessPick: () => {
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof ProductLibraryModule.cancelComponentRouteProcessPicker !== 'function') {
+            Router.navigate('products', { fromBack: true });
+            return;
+        }
+        ProductLibraryModule.cancelComponentRouteProcessPicker();
+    },
+    renderComponentRoutePickerPanel: (container) => {
+        if (!container || !UnitModule.shouldShowComponentRoutePickerPanel()) return;
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        if (!picker) return;
+        const selectedCode = String(UnitModule.getSelectedProcessCodeForPicker() || '').trim().toUpperCase();
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const activeUnitName = units.find(u => String(u?.id || '') === String(UnitModule.state.activeUnitId || ''))?.name || '-';
+        const targetUnitName = units.find(u => String(u?.id || '') === String(picker.stationId || ''))?.name || picker.stationId;
+        const sameUnit = String(UnitModule.state.activeUnitId || '') === String(picker.stationId || '');
+        const canAdd = sameUnit && !!selectedCode;
+
+        container.insertAdjacentHTML('afterbegin', `
+            <div style="position:sticky; top:0.4rem; z-index:35; margin-bottom:0.85rem;">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; border:1px solid #93c5fd; background:#eff6ff; border-radius:0.85rem; padding:0.65rem 0.8rem; box-shadow:0 8px 18px rgba(15,23,42,0.06);">
+                    <div>
+                        <div style="font-weight:800; color:#1e3a8a;">Rota icin islem secimi</div>
+                        <div style="font-size:0.82rem; color:#334155;">Hedef birim: <strong>${UnitModule.escapeHtml(targetUnitName)}</strong> | Acik birim: <strong>${UnitModule.escapeHtml(activeUnitName)}</strong></div>
+                        <div style="font-size:0.82rem; color:${sameUnit ? '#334155' : '#b45309'};">${sameUnit ? (selectedCode ? `Secili ID: <span style="font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(selectedCode)}</span>` : 'Listeden bir satir secin, sonra Ekle butonuna basin.') : 'Su an hedef birimde degilsiniz. Hedef birime git butonunu kullanin.'}</div>
+                    </div>
+                    <div style="display:flex; gap:0.45rem; align-items:center;">
+                        <button class="btn-sm" onclick="UnitModule.goToComponentRoutePickerTarget()">hedef birime git</button>
+                        <button class="btn-sm" onclick="UnitModule.cancelComponentRouteProcessPick()">vazgec</button>
+                        <button class="btn-primary" onclick="UnitModule.confirmComponentRouteProcessPick()" ${canAdd ? '' : 'disabled'} style="${canAdd ? '' : 'opacity:0.55; cursor:not-allowed;'}">ekle</button>
+                    </div>
+                </div>
+            </div>
+        `);
     },
     setStockTab: (t) => { UnitModule.state.stockTab = t; UI.renderCurrentPage(); },
 

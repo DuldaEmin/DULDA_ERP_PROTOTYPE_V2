@@ -74,8 +74,10 @@ const UnitModule = {
         extruderDraftBubble: false,
         extruderDraftNote: '',
         depoTaskSearchName: '',
+        depoTaskSearchRoute: '',
         depoTaskSearchCode: '',
         depoTaskSearchTarget: '',
+        depoTaskFormOpen: false,
         depoTaskEditingId: null,
         depoTaskDraftCode: '',
         depoTaskDraftName: '',
@@ -188,8 +190,10 @@ const UnitModule = {
         UnitModule.state.activeUnitId = null;
         UnitModule.state.view = 'depoTransfer';
         UnitModule.state.depoTaskSearchName = '';
+        UnitModule.state.depoTaskSearchRoute = '';
         UnitModule.state.depoTaskSearchCode = '';
         UnitModule.state.depoTaskSearchTarget = '';
+        UnitModule.state.depoTaskFormOpen = false;
         UnitModule.state.depoTaskEditingId = null;
         UnitModule.state.depoTaskDraftCode = '';
         UnitModule.state.depoTaskDraftName = '';

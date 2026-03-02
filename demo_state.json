@@ -97,7 +97,7 @@
         "antrasit bej"
       ]
     },
-    "updated_at": "2026-03-02T11:01:28.981Z",
+    "updated_at": "2026-03-02T11:49:37.556Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -919,6 +919,19 @@
     ],
     "workOrders": [],
     "workOrderTransactions": [],
-    "outsourceTransfers": []
+    "outsourceTransfers": [],
+    "depoTransferTasks": [
+      {
+        "id": "c9c1140c-7657-4030-a8be-b4a107e405c8",
+        "taskName": "polisaj  a ürün gönderme",
+        "taskCode": "DTR-000001",
+        "sourceUnitId": "",
+        "targetUnitId": "u10",
+        "taskType": "GONDER",
+        "note": "malzemeleri sarmasını söyle .",
+        "created_at": "2026-03-02T11:49:37.556Z",
+        "updated_at": "2026-03-02T11:49:37.556Z"
+      }
+    ]
   }
 }

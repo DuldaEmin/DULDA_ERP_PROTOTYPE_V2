@@ -306,6 +306,148 @@ const MontageLibraryModule = {
         `;
     },
 
+    escapeJsString: (value) => {
+        return String(value ?? '')
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'");
+    },
+
+    resolveComponentRef: (rawId) => {
+        const needle = String(rawId || '').trim().toUpperCase();
+        if (!needle) return [];
+        const d = DB.data?.data || {};
+        const results = [];
+
+        const normalize = (v) => String(v || '').trim().toUpperCase();
+        const eqAny = (row, fields) => fields.some((k) => normalize(row?.[k]) === needle) || normalize(row?.id) === needle;
+
+        const push = (source, title, row, pairs) => {
+            results.push({
+                source,
+                title,
+                id: String(row?.id || '-'),
+                rows: pairs.map((x) => ({ label: x.label, value: x.value }))
+            });
+        };
+
+        (d.products || []).forEach((row) => {
+            if (!eqAny(row, ['code'])) return;
+            push('products', 'Master urun', row, [
+                { label: 'Urun adi', value: row?.name || '-' },
+                { label: 'Urun kodu', value: row?.code || '-' },
+                { label: 'Kategori', value: row?.categoryId || '-' },
+                { label: 'Birim', value: row?.unit || '-' }
+            ]);
+        });
+
+        (d.cncCards || []).forEach((row) => {
+            if (!eqAny(row, ['cncId'])) return;
+            push('cncCards', 'CNC karti', row, [
+                { label: 'Urun adi', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cncId || '-' },
+                { label: 'Bagli urun', value: row?.linkedProductRef || '-' },
+                { label: 'Operasyon', value: Array.isArray(row?.operations) ? row.operations.length : 0 }
+            ]);
+        });
+
+        (d.sawCutOrders || []).forEach((row) => {
+            if (!eqAny(row, ['code'])) return;
+            push('sawCutOrders', 'Testere islemi', row, [
+                { label: 'Islem adi', value: row?.processName || '-' },
+                { label: 'Islem kodu', value: row?.code || '-' },
+                { label: 'Olcu (mm)', value: row?.lengthMm ?? row?.cutLengthMm ?? '-' },
+                { label: 'Pah', value: row?.hasChamfer ? 'VAR' : 'YOK' }
+            ]);
+        });
+
+        (d.extruderLibraryCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode'])) return;
+            push('extruderLibraryCards', 'Ekstruder karti', row, [
+                { label: 'Urun adi', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Tip', value: row?.kind || '-' },
+                { label: 'Cap', value: row?.diameterMm ?? '-' },
+                { label: 'Boy', value: row?.lengthMm ?? '-' },
+                { label: 'Renk', value: row?.color || '-' }
+            ]);
+        });
+
+        (d.plexiPolishCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode'])) return;
+            push('plexiPolishCards', 'Pleksi polisaj karti', row, [
+                { label: 'Urun', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Sure (dk)', value: row?.ovenMinutes ?? '-' }
+            ]);
+        });
+
+        (d.pvdCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode'])) return;
+            push('pvdCards', 'PVD karti', row, [
+                { label: 'Urun', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Renk', value: row?.color || '-' }
+            ]);
+        });
+
+        (d.eloksalCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode'])) return;
+            push('eloksalCards', 'Eloksal karti', row, [
+                { label: 'Urun', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Islem tipi', value: row?.processType || '-' },
+                { label: 'Renk', value: row?.color || '-' }
+            ]);
+        });
+
+        (d.ibrahimPolishCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode'])) return;
+            push('ibrahimPolishCards', 'Ibrahim polisaj karti', row, [
+                { label: 'Urun', value: row?.productName || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Yuzey', value: row?.surface || '-' }
+            ]);
+        });
+
+        (d.montageCards || []).forEach((row) => {
+            if (!eqAny(row, ['cardCode', 'productCode'])) return;
+            push('montageCards', 'Montaj karti', row, [
+                { label: 'Urun', value: row?.productName || '-' },
+                { label: 'Urun kodu', value: row?.productCode || '-' },
+                { label: 'Kart kodu', value: row?.cardCode || '-' },
+                { label: 'Bilesen sayisi', value: Array.isArray(row?.componentIds) ? row.componentIds.length : 0 }
+            ]);
+        });
+
+        return results;
+    },
+
+    previewComponentRef: (componentId) => {
+        const idText = String(componentId || '').trim().toUpperCase();
+        if (!idText) return;
+        const matches = MontageLibraryModule.resolveComponentRef(idText);
+        const body = matches.length === 0
+            ? `<div style="font-size:0.88rem; color:#64748b; padding:0.6rem;">Bu ID icin kayit bulunamadi: <strong>${UnitModule.escapeHtml(idText)}</strong></div>`
+            : matches.map((entry) => `
+                <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem; margin-bottom:0.55rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.35rem;">
+                        <div style="font-size:0.88rem; font-weight:700; color:#0f172a;">${UnitModule.escapeHtml(entry.title)}</div>
+                        <div style="font-family:monospace; font-size:0.78rem; color:#1d4ed8;">id: ${UnitModule.escapeHtml(entry.id)}</div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0.35rem;">
+                        ${entry.rows.map((row) => `
+                            <div style="border:1px solid #f1f5f9; border-radius:0.5rem; padding:0.35rem 0.45rem;">
+                                <div style="font-size:0.7rem; color:#64748b;">${UnitModule.escapeHtml(row.label)}</div>
+                                <div style="font-size:0.82rem; color:#334155; font-weight:700; word-break:break-word;">${UnitModule.escapeHtml(row.value)}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+
+        Modal.open(`Bilesen ID detay - ${UnitModule.escapeHtml(idText)}`, `<div>${body}</div>`, { maxWidth: '760px' });
+    },
+
     previewRow: (rowId) => {
         const row = (DB.data.data.montageCards || []).find(x => x.id === rowId);
         if (!row) return;
@@ -330,7 +472,7 @@ const MontageLibraryModule = {
                     <div style="font-size:0.78rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Bilesen ID listesi</div>
                     ${ids.length === 0
                 ? `<div style="font-size:0.78rem; color:#94a3b8;">Bilesen yok.</div>`
-                : `<div style="display:flex; flex-wrap:wrap; gap:0.35rem;">${ids.map(idText => `<span style="display:inline-flex; font-family:monospace; border:1px solid #cbd5e1; background:#f8fafc; border-radius:999px; padding:0.2rem 0.55rem; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(idText)}</span>`).join('')}</div>`
+                : `<div style="display:flex; flex-wrap:wrap; gap:0.35rem;">${ids.map(idText => `<button onclick="MontageLibraryModule.previewComponentRef('${MontageLibraryModule.escapeJsString(idText)}')" style="display:inline-flex; font-family:monospace; border:1px solid #93c5fd; background:#eff6ff; border-radius:999px; padding:0.2rem 0.55rem; font-size:0.78rem; color:#1d4ed8; cursor:pointer;">${UnitModule.escapeHtml(idText)}</button>`).join('')}</div>`
             }
                 </div>
                 ${MontageLibraryModule.renderFilePreview(row.id, 'tech', row.techDrawing)}

@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | unitLibraryEmpty | depoTransfer
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | montageLibrary | unitLibraryEmpty | depoTransfer
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -72,21 +72,7 @@ const UnitModule = {
         extruderDraftLen: '',
         extruderDraftColor: '',
         extruderDraftBubble: false,
-        extruderDraftNote: '',
-        montageSearchName: '',
-        montageSearchCode: '',
-        montageSearchId: '',
-        montageFormOpen: false,
-        montageEditingId: null,
-        montageSelectedId: null,
-        montageDraftCardCode: '',
-        montageDraftProductName: '',
-        montageDraftProductCode: '',
-        montageDraftTechDrawing: null,
-        montageDraftExplodedDrawing: null,
-        montageDraftComponents: [],
-        montageDraftComponentInput: '',
-        montageDraftNote: ''
+        extruderDraftNote: ''
     },
 
     render: (container) => {
@@ -178,7 +164,7 @@ const UnitModule = {
         } else if (view === 'extruderLibrary') {
             UnitModule.renderExtruderLibrary(container, activeUnitId);
         } else if (view === 'montageLibrary') {
-            UnitModule.renderMontageLibrary(container, activeUnitId);
+            MontageLibraryModule.render(container, activeUnitId);
         } else if (view === 'unitLibraryEmpty') {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         } else if (view === 'depoTransfer') {
@@ -314,20 +300,9 @@ const UnitModule = {
     openMontageLibrary: (id) => {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'montageLibrary';
-        UnitModule.state.montageSearchName = '';
-        UnitModule.state.montageSearchCode = '';
-        UnitModule.state.montageSearchId = '';
-        UnitModule.state.montageSelectedId = null;
-        UnitModule.state.montageFormOpen = false;
-        UnitModule.state.montageEditingId = null;
-        UnitModule.state.montageDraftCardCode = '';
-        UnitModule.state.montageDraftProductName = '';
-        UnitModule.state.montageDraftProductCode = '';
-        UnitModule.state.montageDraftTechDrawing = null;
-        UnitModule.state.montageDraftExplodedDrawing = null;
-        UnitModule.state.montageDraftComponents = [];
-        UnitModule.state.montageDraftComponentInput = '';
-        UnitModule.state.montageDraftNote = '';
+        if (typeof MontageLibraryModule !== 'undefined' && MontageLibraryModule && typeof MontageLibraryModule.resetState === 'function') {
+            MontageLibraryModule.resetState();
+        }
         UI.renderCurrentPage();
     },
     openUnitLibrary: (id) => {

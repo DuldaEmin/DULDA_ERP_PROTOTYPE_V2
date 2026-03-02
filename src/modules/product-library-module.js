@@ -50,7 +50,7 @@ const ProductLibraryModule = {
         masterDraftSupplierCode: '',
         masterDraftNote: '',
         masterDraftAttachment: null,
-        workspaceView: 'menu' // menu | models | components | master
+        workspaceView: 'menu' // menu | models | components | assembly | master
     },
 
     render: (container) => {
@@ -64,7 +64,7 @@ const ProductLibraryModule = {
             ProductLibraryModule.renderWorkspacePlaceholder(
                 container,
                 'Urun Modelleri Olusturma',
-                'Bu alan daha sonra acilacak.'
+                'Sayfa yapim asamasindadir.'
             );
             return;
         }
@@ -72,7 +72,15 @@ const ProductLibraryModule = {
             ProductLibraryModule.renderWorkspacePlaceholder(
                 container,
                 'Parca ve Bilesen Olusturma',
-                'Bu alan daha sonra acilacak.'
+                'Sayfa yapim asamasindadir.'
+            );
+            return;
+        }
+        if (view === 'assembly') {
+            ProductLibraryModule.renderWorkspacePlaceholder(
+                container,
+                'Montaj Grubu Olusturma',
+                'Sayfa yapim asamasindadir.'
             );
             return;
         }
@@ -102,6 +110,10 @@ const ProductLibraryModule = {
                         <div class="icon-box g-blue"><i data-lucide="file-plus-2" width="30" height="30"></i></div>
                         <div class="app-name">Urun Modelleri Olusturma</div>
                     </a>
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('assembly'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-emerald"><i data-lucide="blocks" width="30" height="30"></i></div>
+                        <div class="app-name">Montaj Grubu Olusturma</div>
+                    </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('components'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-orange"><i data-lucide="component" width="30" height="30"></i></div>
                         <div class="app-name">Parca & Bilesen Olusturma</div>
@@ -125,7 +137,7 @@ const ProductLibraryModule = {
                 </div>
                 <div class="card-table" style="padding:2.2rem; text-align:center; color:#94a3b8;">
                     <div style="font-weight:800; color:#334155; margin-bottom:0.45rem;">Hazirlaniyor</div>
-                    <div style="font-size:0.92rem;">${ProductLibraryModule.escapeHtml(subtitle || 'Bu sayfa daha sonra acilacak.')}</div>
+                    <div style="font-size:0.92rem;">${ProductLibraryModule.escapeHtml(subtitle || 'Sayfa yapim asamasindadir.')}</div>
                 </div>
             </div>
         `;

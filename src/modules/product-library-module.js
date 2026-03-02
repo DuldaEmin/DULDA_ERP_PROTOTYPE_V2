@@ -472,6 +472,117 @@ const ProductLibraryModule = {
         ProductLibraryModule.openPreviewModal(file);
     },
 
+    saveComponentCard: async () => {
+        const s = ProductLibraryModule.state;
+        const all = DB.data?.data?.partComponentCards || [];
+
+        const name = String(s.componentDraftName || '').trim();
+        if (!name) return alert('Urun adi zorunlu.');
+
+        const groups = ProductLibraryModule.getPartGroups();
+        const subGroups = ProductLibraryModule.getPartSubGroups();
+        const group = groups.includes(String(s.componentDraftGroup || '')) ? String(s.componentDraftGroup || '') : (groups[0] || 'Genel');
+        const subGroup = subGroups.includes(String(s.componentDraftSubGroup || '')) ? String(s.componentDraftSubGroup || '') : (subGroups[0] || 'Genel');
+
+        const code = String(
+            s.componentDraftCode || ProductLibraryModule.generateComponentCode(s.componentEditingId || null)
+        ).trim().toUpperCase();
+        if (!/^PRC-\d{6}$/.test(code)) return alert('ID kod formati gecersiz. Beklenen: PRC-000001');
+
+        const exclude = s.componentEditingId
+            ? { collection: 'partComponentCards', id: s.componentEditingId, field: 'code' }
+            : null;
+        if (ProductLibraryModule.isGlobalCodeTaken(code, exclude)) {
+            return alert('Bu ID kod baska bir kayitta kullaniliyor.');
+        }
+
+        const masterCode = String(s.componentDraftMasterCode || '').trim().toUpperCase();
+        if (!masterCode) return alert('Master urun kutuphanesi hammadde ID kod zorunlu.');
+
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const unitIds = new Set(units.map(u => String(u?.id || '')));
+        const routesRaw = Array.isArray(s.componentDraftRoutes) ? s.componentDraftRoutes : [];
+        const routes = routesRaw
+            .map(r => ({
+                id: String(r?.id || crypto.randomUUID()),
+                stationId: String(r?.stationId || '').trim(),
+                processId: String(r?.processId || '').trim().toUpperCase()
+            }))
+            .filter(r => r.stationId);
+        const invalidStation = routes.find(r => !unitIds.has(r.stationId));
+        if (invalidStation) return alert('Rota satirinda gecersiz istasyon secimi var.');
+
+        const files = (Array.isArray(s.componentDraftFiles) ? s.componentDraftFiles : [])
+            .map(file => ({
+                name: String(file?.name || 'dosya').trim() || 'dosya',
+                type: String(file?.type || '').trim(),
+                size: Number(file?.size || 0),
+                data: String(file?.data || '')
+            }))
+            .filter(file => file.data);
+
+        const note = String(s.componentDraftNote || '').trim();
+        const now = new Date().toISOString();
+
+        if (s.componentEditingId) {
+            const idx = all.findIndex(x => String(x?.id || '') === String(s.componentEditingId));
+            if (idx === -1) {
+                ProductLibraryModule.resetComponentDraft(true);
+                UI.renderCurrentPage();
+                return;
+            }
+            const old = all[idx];
+            all[idx] = {
+                ...old,
+                code,
+                name,
+                group,
+                subGroup,
+                masterCode,
+                routes,
+                attachments: files,
+                note,
+                updated_at: now
+            };
+        } else {
+            all.push({
+                id: crypto.randomUUID(),
+                code,
+                name,
+                group,
+                subGroup,
+                masterCode,
+                routes,
+                attachments: files,
+                note,
+                created_at: now,
+                updated_at: now
+            });
+        }
+
+        await DB.save();
+        ProductLibraryModule.resetComponentDraft(true);
+    },
+
+    deleteComponentCard: async (id) => {
+        const all = DB.data?.data?.partComponentCards || [];
+        const row = all.find(x => String(x?.id || '') === String(id || ''));
+        if (!row) return;
+        if (!confirm('Bu parca/bilesen karti silinsin mi?')) return;
+
+        DB.data.data.partComponentCards = all.filter(x => String(x?.id || '') !== String(id || ''));
+        if (String(ProductLibraryModule.state.componentEditingId || '') === String(id || '')) {
+            ProductLibraryModule.state.componentEditingId = null;
+            ProductLibraryModule.state.componentFormOpen = false;
+        }
+        if (String(ProductLibraryModule.state.componentViewingId || '') === String(id || '')) {
+            ProductLibraryModule.state.componentViewingId = null;
+        }
+
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
     renderComponentView: (container, row) => {
         const units = (DB.data.data.units || []).slice();
         const unitMap = {};
@@ -843,6 +954,7 @@ const ProductLibraryModule = {
         readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
+        readMany('partComponentCards', DB.data?.data?.partComponentCards, ['code']);
         return bag;
     },
 

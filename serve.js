@@ -8,6 +8,11 @@ const port = Number.isFinite(portArg) && portArg > 0 ? portArg : 5500;
 const root = __dirname;
 const dataFile = path.join(root, "demo_state.json");
 const maxBodySize = 20 * 1024 * 1024;
+const noCacheHeaders = {
+  "Cache-Control": "no-store, no-cache, must-revalidate",
+  Pragma: "no-cache",
+  Expires: "0",
+};
 
 const mimeMap = {
   ".html": "text/html; charset=utf-8",
@@ -22,7 +27,7 @@ const mimeMap = {
 };
 
 function sendJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8" });
+  res.writeHead(statusCode, { "Content-Type": "application/json; charset=utf-8", ...noCacheHeaders });
   res.end(JSON.stringify(payload));
 }
 
@@ -101,14 +106,14 @@ const server = http.createServer(async (req, res) => {
 
     fs.readFile(filePath, (readErr, data) => {
       if (readErr) {
-        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
+        res.writeHead(404, { "Content-Type": "text/plain; charset=utf-8", ...noCacheHeaders });
         res.end("Not Found");
         return;
       }
 
       const ext = path.extname(filePath).toLowerCase();
       const contentType = mimeMap[ext] || "application/octet-stream";
-      res.writeHead(200, { "Content-Type": contentType });
+      res.writeHead(200, { "Content-Type": contentType, ...noCacheHeaders });
       res.end(data);
     });
   });

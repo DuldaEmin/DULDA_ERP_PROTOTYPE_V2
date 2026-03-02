@@ -5,7 +5,7 @@
 const STORAGE_KEY = "DULDA_ERP_STATE";
 
 const MojibakeFix = {
-    markerRegex: /[ÃÂâ�]/,
+    markerRegex: /[ÃÂâÄÅÆƒ‚�]/,
     attrs: ['placeholder', 'title', 'aria-label', 'value'],
     observer: null,
 
@@ -33,6 +33,49 @@ const MojibakeFix = {
             if (!MojibakeFix.needsFix(out)) break;
         }
         return out;
+    },
+
+    sanitizeObjectStrings: (value, seen = new WeakSet()) => {
+        if (!value || typeof value !== 'object') return false;
+        if (seen.has(value)) return false;
+        seen.add(value);
+
+        let changed = false;
+
+        if (Array.isArray(value)) {
+            for (let i = 0; i < value.length; i += 1) {
+                const entry = value[i];
+                if (typeof entry === 'string') {
+                    const fixed = MojibakeFix.normalize(entry);
+                    if (fixed !== entry) {
+                        value[i] = fixed;
+                        changed = true;
+                    }
+                    continue;
+                }
+                if (entry && typeof entry === 'object' && MojibakeFix.sanitizeObjectStrings(entry, seen)) {
+                    changed = true;
+                }
+            }
+            return changed;
+        }
+
+        Object.keys(value).forEach((key) => {
+            const entry = value[key];
+            if (typeof entry === 'string') {
+                const fixed = MojibakeFix.normalize(entry);
+                if (fixed !== entry) {
+                    value[key] = fixed;
+                    changed = true;
+                }
+                return;
+            }
+            if (entry && typeof entry === 'object' && MojibakeFix.sanitizeObjectStrings(entry, seen)) {
+                changed = true;
+            }
+        });
+
+        return changed;
     },
 
     sanitizeTextNode: (node) => {
@@ -275,9 +318,13 @@ const DB = {
 
         if (loaded) DB.data = loaded;
         DB.normalizeData();
+        const repairedMojibake = MojibakeFix.sanitizeObjectStrings(DB.data);
+        if (repairedMojibake) {
+            console.warn("Mojibake metinler bulundu ve otomatik duzeltildi.");
+        }
 
         // If local wins, sync it to disk so next run is consistent.
-        if (loaded && DB.storageMode === "localStorage") {
+        if (loaded && (DB.storageMode === "localStorage" || repairedMojibake)) {
             await DB.save();
         }
 

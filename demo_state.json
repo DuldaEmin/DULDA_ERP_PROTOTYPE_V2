@@ -105,7 +105,7 @@
         "deneme"
       ]
     },
-    "updated_at": "2026-03-02T16:29:30.388Z",
+    "updated_at": "2026-03-02T16:32:58.936Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -881,15 +881,15 @@
     "outsourceTransfers": [],
     "depoTransferTasks": [
       {
-        "id": "c9c1140c-7657-4030-a8be-b4a107e405c8",
-        "taskName": "polisaj  a ürün gönderme",
+        "id": "8579ce98-e0fb-4edd-a1df-2d2329f28110",
+        "taskName": "polisaj deneme",
         "taskCode": "DTR-000001",
         "sourceUnitId": "",
         "targetUnitId": "u10",
         "taskType": "GONDER",
-        "note": "malzemeleri sarmasını söyle .",
-        "created_at": "2026-03-02T11:49:37.556Z",
-        "updated_at": "2026-03-02T11:49:37.556Z"
+        "note": "deneme",
+        "created_at": "2026-03-02T16:32:58.936Z",
+        "updated_at": "2026-03-02T16:32:58.936Z"
       }
     ],
     "partComponentCards": [

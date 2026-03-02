@@ -50,11 +50,25 @@ const ProductLibraryModule = {
         masterDraftSupplierCode: '',
         masterDraftNote: '',
         masterDraftAttachment: null,
+        componentFilters: { name: '', group: '', subGroup: '', code: '' },
+        componentFormOpen: false,
+        componentEditingId: null,
+        componentViewingId: null,
+        componentDraftCode: '',
+        componentDraftName: '',
+        componentDraftGroup: '',
+        componentDraftSubGroup: '',
+        componentDraftMasterCode: '',
+        componentDraftRoutes: [],
+        componentDraftRouteStationId: '',
+        componentDraftNote: '',
+        componentDraftFiles: [],
         workspaceView: 'menu' // menu | models | components | assembly | master
     },
 
     render: (container) => {
         ProductLibraryModule.ensureMasterDefaults();
+        ProductLibraryModule.ensureComponentDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
         if (view === 'master') {
             ProductLibraryModule.renderMasterPage(container);
@@ -69,11 +83,7 @@ const ProductLibraryModule = {
             return;
         }
         if (view === 'components') {
-            ProductLibraryModule.renderWorkspacePlaceholder(
-                container,
-                'Parca ve Bilesen Olusturma',
-                'Sayfa yapim asamasindadir.'
-            );
+            ProductLibraryModule.renderComponentsPage(container);
             return;
         }
         if (view === 'assembly') {

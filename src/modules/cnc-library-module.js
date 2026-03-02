@@ -20,6 +20,8 @@ const CncLibraryModule = {
 
         const unit = (DB.data.data.units || []).find(u => u.id === unitId);
         const cards = (DB.data.data.cncCards || []).filter(c => c.unitId === unitId);
+        const role = String(DB.data?.meta?.activeRole || 'super-admin').toLowerCase();
+        const canDelete = role === 'super-admin';
         const filtered = cards
             .filter(c => {
                 const nameOk = CncLibraryModule.state.searchName
@@ -67,27 +69,28 @@ const CncLibraryModule = {
                                 <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
                                     <th style="padding:0.65rem; text-align:left;">Urun ismi</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
-                                    <th style="padding:0.65rem; text-align:center;">Operasyon</th>
+                                    <th style="padding:0.65rem; text-align:center;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="5" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
+                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${CncLibraryModule.state.selectedId === card.id ? 'background:#eff6ff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700;">${CncLibraryModule.escape(card.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace;">${CncLibraryModule.escape(card.cncId || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
-                                            <button onclick="CncLibraryModule.viewCardOperations('${card.id}')" style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:0.5rem; padding:0.2rem 0.75rem; font-weight:700; cursor:pointer;">görüntüle</button>
+                                            <button onclick="CncLibraryModule.viewCardOperations('${card.id}')" style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:0.5rem; padding:0.2rem 0.75rem; font-weight:700; cursor:pointer;">goruntule</button>
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="CncLibraryModule.startEdit('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.2rem 0.5rem; cursor:pointer;">duzenle</button>
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
-                                            <label style="display:inline-flex; align-items:center; gap:0.35rem;">
-                                                <input type="checkbox" ${CncLibraryModule.state.selectedId === card.id ? 'checked' : ''} onchange="CncLibraryModule.toggleRowSelect('${card.id}', this.checked)" style="width:16px; height:16px; cursor:pointer;">
-                                                <button onclick="CncLibraryModule.selectCard('${card.id}')" style="border:1px solid ${CncLibraryModule.state.selectedId === card.id ? '#2563eb' : '#cbd5e1'}; background:${CncLibraryModule.state.selectedId === card.id ? '#dbeafe' : 'white'}; color:${CncLibraryModule.state.selectedId === card.id ? '#1d4ed8' : '#334155'}; border-radius:0.4rem; padding:0.2rem 0.6rem; font-weight:700; cursor:pointer;">sec</button>
-                                            </label>
+                                            <button onclick="CncLibraryModule.selectCard('${card.id}')" style="border:1px solid ${CncLibraryModule.state.selectedId === card.id ? '#2563eb' : '#cbd5e1'}; background:${CncLibraryModule.state.selectedId === card.id ? '#dbeafe' : 'white'}; color:${CncLibraryModule.state.selectedId === card.id ? '#1d4ed8' : '#334155'}; border-radius:0.4rem; padding:0.2rem 0.6rem; font-weight:700; cursor:pointer;">sec</button>
+                                        </td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="CncLibraryModule.deleteCard('${card.id}')" ${canDelete ? '' : 'disabled'} style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.4rem; padding:0.2rem 0.6rem; cursor:${canDelete ? 'pointer' : 'not-allowed'}; opacity:${canDelete ? '1' : '0.45'};">sil</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -676,3 +679,4 @@ const CncLibraryModule = {
         });
     }
 };
+

@@ -1207,13 +1207,14 @@ const UnitModule = {
                             <th style="text-align:center">OLCU (mm)</th>
                             <th style="text-align:center">PAH</th>
                             <th style="font-family:monospace">ID</th>
+                            <th style="text-align:center">GORUNTULE</th>
                             <th style="text-align:center">DUZENLE</th>
                             <th style="text-align:center">SEC</th>
                             <th style="text-align:right">SIL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${filteredRows.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
+                        ${filteredRows.length === 0 ? `<tr><td colspan="8" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
                             <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#f0f9ff' : ''}">
                                 <td style="font-weight:700; color:#334155">${r.processName || '-'}</td>
                                 <td style="text-align:center; font-weight:700; color:#0f766e">${r.lengthMm ?? r.cutLengthMm ?? '-'}</td>
@@ -1221,6 +1222,7 @@ const UnitModule = {
                                     <span style="display:inline-flex; padding:0.2rem 0.55rem; border-radius:999px; font-size:0.72rem; font-weight:700; border:1px solid ${r.hasChamfer ? '#16a34a' : '#cbd5e1'}; color:${r.hasChamfer ? '#166534' : '#475569'}; background:${r.hasChamfer ? '#dcfce7' : '#f8fafc'}">${r.hasChamfer ? 'VAR' : 'YOK'}</span>
                                 </td>
                                 <td style="font-family:monospace; color:#475569; font-weight:700">${r.code || '-'}</td>
+                                <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.previewSawRow('${r.id}')">goruntule</button></td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.editSawRow('${r.id}')">duzenle</button></td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
                                 <td style="text-align:right"><button class="btn-sm btn-danger" onclick="UnitModule.deleteSawRow('${r.id}')">sil</button></td>
@@ -1266,6 +1268,35 @@ const UnitModule = {
     selectSawRow: (id) => {
         UnitModule.state.sawSelectedOrderId = id;
         UI.renderCurrentPage();
+    },
+
+    previewSawRow: (id) => {
+        const row = (DB.data.data.sawCutOrders || []).find(x => x.id === id);
+        if (!row) return;
+        Modal.open(`Islem Detay - ${UnitModule.escapeHtml(row.processName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Islem adi</div>
+                    <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">ID</div>
+                    <div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.code || '-')}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Olcu (mm)</div>
+                    <div style="font-weight:700; color:#334155;">${Number.isFinite(Number(row.lengthMm ?? row.cutLengthMm)) ? Number(row.lengthMm ?? row.cutLengthMm) : '-'}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Pah</div>
+                    <div style="font-weight:700; color:#334155;">${row.hasChamfer ? 'VAR' : 'YOK'}</div>
+                </div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Not</div>
+                    <div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div>
+                </div>
+            </div>
+        `, { maxWidth: '760px' });
     },
 
     editSawRow: (id) => {
@@ -1429,13 +1460,14 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:center;">Renk</th>
                                     <th style="padding:0.65rem; text-align:center;">Ozellik</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
                                     <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="12" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
@@ -1445,6 +1477,9 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:center;">${UnitModule.escapeHtml(row.color || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${row.isBubble ? '<span style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.72rem; font-weight:700;">Kabarcikli</span>' : '-'}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.previewExtruderRow('${row.id}')" class="btn-sm">goruntule</button>
+                                        </td>
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="UnitModule.editExtruderRow('${row.id}')" class="btn-sm">duzenle</button>
                                         </td>
@@ -1584,6 +1619,24 @@ const UnitModule = {
     selectExtruderRow: (id) => {
         UnitModule.state.extruderSelectedId = id;
         UI.renderCurrentPage();
+    },
+    previewExtruderRow: (id) => {
+        const row = (DB.data.data.extruderLibraryCards || []).find(x => x.id === id);
+        if (!row) return;
+        const typeLabel = (kind) => kind === 'PIPE' ? 'BORU' : (kind === 'PROFILE' ? 'OZEL PROFIL' : 'CUBUK');
+        Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Tip</div><div style="font-weight:700; color:#334155;">${typeLabel(row.kind)}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Cap (mm)</div><div style="font-weight:700; color:#334155;">${Number.isFinite(Number(row.diameterMm)) ? Number(row.diameterMm) : '-'}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Kalinlik (mm)</div><div style="font-weight:700; color:#334155;">${Number.isFinite(Number(row.thicknessMm)) ? Number(row.thicknessMm) : '-'}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Boy (mm)</div><div style="font-weight:700; color:#334155;">${Number.isFinite(Number(row.lengthMm)) ? Number(row.lengthMm) : '-'}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Kabarcik</div><div style="font-weight:700; color:#334155;">${row.isBubble ? 'VAR' : 'YOK'}</div></div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
+            </div>
+        `, { maxWidth: '760px' });
     },
     editExtruderRow: (id) => {
         const row = (DB.data.data.extruderLibraryCards || []).find(x => x.id === id);
@@ -1787,13 +1840,14 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:center;">Firca</th>
                                     <th style="padding:0.65rem; text-align:center;">Firin (dk)</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
                                     <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
@@ -1804,6 +1858,9 @@ const UnitModule = {
                                         </td>
                                         <td style="padding:0.65rem; text-align:center; font-weight:700; color:#0f766e;">${Number.isFinite(Number(row.ovenMinutes)) ? Number(row.ovenMinutes) : '-'}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;">
+                                            <button onclick="UnitModule.previewPlexiRow('${row.id}')" class="btn-sm">goruntule</button>
+                                        </td>
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="UnitModule.editPlexiRow('${row.id}')" class="btn-sm">duzenle</button>
                                         </td>
@@ -1903,6 +1960,20 @@ const UnitModule = {
     selectPlexiRow: (id) => {
         UnitModule.state.plexiSelectedId = id;
         UI.renderCurrentPage();
+    },
+    previewPlexiRow: (id) => {
+        const row = (DB.data.data.plexiPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.processName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Islem adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Ates polisaj</div><div style="font-weight:700; color:#334155;">${row.firePolish ? 'VAR' : 'YOK'}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Firca polisaj</div><div style="font-weight:700; color:#334155;">${row.brushPolish ? 'VAR' : 'YOK'}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Firin (dk)</div><div style="font-weight:700; color:#334155;">${Number.isFinite(Number(row.ovenMinutes)) ? Number(row.ovenMinutes) : '-'}</div></div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
+            </div>
+        `, { maxWidth: '760px' });
     },
     editPlexiRow: (id) => {
         const row = (DB.data.data.plexiPolishCards || []).find(x => x.id === id);
@@ -2072,13 +2143,14 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:left;">Renk</th>
                                     <th style="padding:0.65rem; text-align:left;">Not</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
                                     <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
@@ -2086,6 +2158,7 @@ const UnitModule = {
                                         </td>
                                         <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPvdRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPvdRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPvdRow('${row.id}')" class="btn-sm" style="${UnitModule.state.pvdSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePvdRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
@@ -2172,6 +2245,18 @@ const UnitModule = {
     selectPvdRow: (id) => {
         UnitModule.state.pvdSelectedId = id;
         UI.renderCurrentPage();
+    },
+    previewPvdRow: (id) => {
+        const row = (DB.data.data.pvdCards || []).find(x => x.id === id);
+        if (!row) return;
+        Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</div></div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
+            </div>
+        `, { maxWidth: '720px' });
     },
     editPvdRow: (id) => {
         const row = (DB.data.data.pvdCards || []).find(x => x.id === id);
@@ -2330,18 +2415,20 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:left;">Yuzey</th>
                                     <th style="padding:0.65rem; text-align:left;">Not</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
                                     <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</span></td>
                                         <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPolishRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPolishRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPolishRow('${row.id}')" class="btn-sm" style="${UnitModule.state.polishSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePolishRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
@@ -2428,6 +2515,18 @@ const UnitModule = {
     selectPolishRow: (id) => {
         UnitModule.state.polishSelectedId = id;
         UI.renderCurrentPage();
+    },
+    previewPolishRow: (id) => {
+        const row = (DB.data.data.ibrahimPolishCards || []).find(x => x.id === id);
+        if (!row) return;
+        Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Yuzey</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</div></div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
+            </div>
+        `, { maxWidth: '720px' });
     },
     editPolishRow: (id) => {
         const row = (DB.data.data.ibrahimPolishCards || []).find(x => x.id === id);
@@ -2634,13 +2733,14 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:left;">Renk</th>
                                     <th style="padding:0.65rem; text-align:left;">Not</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
+                                    <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
                                     <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ecfeff;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
@@ -2651,6 +2751,7 @@ const UnitModule = {
                                         </td>
                                         <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewEloksalRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editEloksalRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectEloksalRow('${row.id}')" class="btn-sm" style="${UnitModule.state.elxSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deleteEloksalRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
@@ -2758,6 +2859,19 @@ const UnitModule = {
     selectEloksalRow: (id) => {
         UnitModule.state.elxSelectedId = id;
         UI.renderCurrentPage();
+    },
+    previewEloksalRow: (id) => {
+        const row = (DB.data.data.eloksalCards || []).find(x => x.id === id);
+        if (!row) return;
+        Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Islem tipi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processType || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</div></div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
+            </div>
+        `, { maxWidth: '720px' });
     },
     editEloksalRow: (id) => {
         const row = (DB.data.data.eloksalCards || []).find(x => x.id === id);

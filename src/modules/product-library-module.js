@@ -64,6 +64,16 @@ const ProductLibraryModule = {
         componentRoutePicker: null,
         componentDraftNote: '',
         componentDraftFiles: [],
+        assemblyFilters: { name: '', code: '' },
+        assemblySourceFilters: { source: 'all', name: '', code: '' },
+        assemblyFormOpen: false,
+        assemblyEditingId: null,
+        assemblyViewingId: null,
+        assemblySelectedId: null,
+        assemblyDraftCode: '',
+        assemblyDraftName: '',
+        assemblyDraftNote: '',
+        assemblyDraftItems: [],
         masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master
     },
@@ -71,6 +81,7 @@ const ProductLibraryModule = {
     render: (container) => {
         ProductLibraryModule.ensureMasterDefaults();
         ProductLibraryModule.ensureComponentDefaults();
+        ProductLibraryModule.ensureAssemblyDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
         if (view === 'master') {
             ProductLibraryModule.renderMasterPage(container);
@@ -89,11 +100,7 @@ const ProductLibraryModule = {
             return;
         }
         if (view === 'assembly') {
-            ProductLibraryModule.renderWorkspacePlaceholder(
-                container,
-                'Montaj Grubu Olusturma',
-                'Sayfa yapim asamasindadir.'
-            );
+            ProductLibraryModule.renderAssemblyPage(container);
             return;
         }
         ProductLibraryModule.renderWorkspaceMenu(container);
@@ -969,6 +976,520 @@ const ProductLibraryModule = {
         `;
     },
 
+    ensureAssemblyDefaults: () => {
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.assemblyGroups)) DB.data.data.assemblyGroups = [];
+    },
+
+    getAssemblyGroups: () => {
+        return (DB.data.data.assemblyGroups || [])
+            .filter(row => !row?.archived_at)
+            .slice()
+            .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+    },
+
+    getAssemblyGroupById: (id) => {
+        return ProductLibraryModule.getAssemblyGroups().find(row => String(row?.id || '') === String(id || '')) || null;
+    },
+
+    generateAssemblyCode: (exclude = null) => {
+        const all = DB.data.data.assemblyGroups || [];
+        let maxNum = 0;
+        all.forEach(row => {
+            if (exclude && String(exclude) === String(row?.id || '')) return;
+            const code = String(row?.code || '').trim().toUpperCase();
+            const m = code.match(/^MNT-(\d{6})$/);
+            if (!m) return;
+            const n = Number(m[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+        let nextNum = maxNum + 1;
+        let candidate = `MNT-${String(nextNum).padStart(6, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate, exclude ? { collection: 'assemblyGroups', id: exclude, field: 'code' } : null)) {
+            nextNum += 1;
+            candidate = `MNT-${String(nextNum).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+
+    setAssemblyFilter: (field, value, focusId = '') => {
+        if (!ProductLibraryModule.state.assemblyFilters || typeof ProductLibraryModule.state.assemblyFilters !== 'object') {
+            ProductLibraryModule.state.assemblyFilters = { name: '', code: '' };
+        }
+        if (!['name', 'code'].includes(field)) return;
+        ProductLibraryModule.state.assemblyFilters[field] = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+
+    setAssemblySourceFilter: (field, value, focusId = '') => {
+        if (!ProductLibraryModule.state.assemblySourceFilters || typeof ProductLibraryModule.state.assemblySourceFilters !== 'object') {
+            ProductLibraryModule.state.assemblySourceFilters = { source: 'all', name: '', code: '' };
+        }
+        if (!['source', 'name', 'code'].includes(field)) return;
+        ProductLibraryModule.state.assemblySourceFilters[field] = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+
+    getAssemblySourceRows: () => {
+        const masterRows = ProductLibraryModule.getMasterProducts()
+            .map(row => ({
+                source: 'master',
+                refId: String(row?.id || ''),
+                code: String(row?.code || '').trim().toUpperCase(),
+                name: String(row?.name || '').trim(),
+                group: String(row?.categoryName || 'Master').trim()
+            }))
+            .filter(row => row.code && row.name);
+
+        const componentRows = ProductLibraryModule.getComponentCards()
+            .map(row => ({
+                source: 'component',
+                refId: String(row?.id || ''),
+                code: String(row?.code || '').trim().toUpperCase(),
+                name: String(row?.name || '').trim(),
+                group: [String(row?.group || '').trim(), String(row?.subGroup || '').trim()].filter(Boolean).join(' / ') || 'Parca'
+            }))
+            .filter(row => row.code && row.name);
+
+        const all = [...masterRows, ...componentRows];
+        all.sort((a, b) => {
+            const srcCmp = String(a.source).localeCompare(String(b.source));
+            if (srcCmp !== 0) return srcCmp;
+            return String(a.name || '').localeCompare(String(b.name || ''), 'tr');
+        });
+        return all;
+    },
+
+    openAssemblyForm: () => {
+        ProductLibraryModule.state.assemblyViewingId = null;
+        ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyEditingId = null;
+        ProductLibraryModule.state.assemblyDraftCode = ProductLibraryModule.generateAssemblyCode();
+        ProductLibraryModule.state.assemblyDraftName = '';
+        ProductLibraryModule.state.assemblyDraftNote = '';
+        ProductLibraryModule.state.assemblyDraftItems = [];
+        ProductLibraryModule.state.assemblySourceFilters = { source: 'all', name: '', code: '' };
+        UI.renderCurrentPage();
+    },
+
+    resetAssemblyDraft: (close = true) => {
+        ProductLibraryModule.state.assemblyEditingId = null;
+        ProductLibraryModule.state.assemblyDraftCode = ProductLibraryModule.generateAssemblyCode();
+        ProductLibraryModule.state.assemblyDraftName = '';
+        ProductLibraryModule.state.assemblyDraftNote = '';
+        ProductLibraryModule.state.assemblyDraftItems = [];
+        ProductLibraryModule.state.assemblySourceFilters = { source: 'all', name: '', code: '' };
+        if (close) ProductLibraryModule.state.assemblyFormOpen = false;
+        UI.renderCurrentPage();
+    },
+
+    startEditAssemblyGroup: (id) => {
+        const row = ProductLibraryModule.getAssemblyGroupById(id);
+        if (!row) return;
+        ProductLibraryModule.state.assemblyViewingId = null;
+        ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyEditingId = row.id;
+        ProductLibraryModule.state.assemblySelectedId = row.id;
+        ProductLibraryModule.state.assemblyDraftCode = String(row.code || ProductLibraryModule.generateAssemblyCode(row.id));
+        ProductLibraryModule.state.assemblyDraftName = String(row.name || '');
+        ProductLibraryModule.state.assemblyDraftNote = String(row.note || '');
+        ProductLibraryModule.state.assemblyDraftItems = (Array.isArray(row.items) ? row.items : [])
+            .map(item => ({
+                id: String(item?.id || crypto.randomUUID()),
+                source: String(item?.source || 'component'),
+                refId: String(item?.refId || ''),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qty: Number(item?.qty || 1)
+            }))
+            .filter(item => item.code && item.name);
+        UI.renderCurrentPage();
+    },
+
+    openAssemblyGroupView: (id) => {
+        ProductLibraryModule.state.assemblyViewingId = String(id || '');
+        ProductLibraryModule.state.assemblyFormOpen = false;
+        UI.renderCurrentPage();
+    },
+
+    closeAssemblyGroupView: () => {
+        ProductLibraryModule.state.assemblyViewingId = null;
+        UI.renderCurrentPage();
+    },
+
+    selectAssemblyGroup: (id) => {
+        ProductLibraryModule.state.assemblySelectedId = String(id || '');
+        UI.renderCurrentPage();
+    },
+
+    setAssemblyDraftItemQty: (code, value) => {
+        const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        const row = list.find(item => String(item?.code || '') === String(code || ''));
+        if (!row) return;
+        const qty = Number(value || 0);
+        row.qty = Number.isFinite(qty) && qty > 0 ? Math.floor(qty) : 0;
+    },
+
+    removeAssemblyDraftItem: (code) => {
+        const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        ProductLibraryModule.state.assemblyDraftItems = list.filter(item => String(item?.code || '') !== String(code || ''));
+        UI.renderCurrentPage();
+    },
+
+    addAssemblyDraftItem: (source, refId) => {
+        const all = ProductLibraryModule.getAssemblySourceRows();
+        const row = all.find(item => String(item.source) === String(source || '') && String(item.refId) === String(refId || ''));
+        if (!row) return;
+        const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        if (list.some(item => String(item?.code || '') === row.code)) {
+            alert('Bu kod zaten montaj listesinde var.');
+            return;
+        }
+        list.push({
+            id: crypto.randomUUID(),
+            source: row.source,
+            refId: row.refId,
+            code: row.code,
+            name: row.name,
+            qty: 1
+        });
+        ProductLibraryModule.state.assemblyDraftItems = list;
+        UI.renderCurrentPage();
+    },
+
+    saveAssemblyGroup: async () => {
+        const s = ProductLibraryModule.state;
+        const all = DB.data?.data?.assemblyGroups || [];
+
+        const name = String(s.assemblyDraftName || '').trim();
+        if (!name) return alert('Montaj grubu adi zorunlu.');
+
+        const code = String(s.assemblyDraftCode || ProductLibraryModule.generateAssemblyCode(s.assemblyEditingId || null)).trim().toUpperCase();
+        if (!/^MNT-\d{6}$/.test(code)) return alert('ID kod formati gecersiz. Beklenen: MNT-000001');
+
+        const exclude = s.assemblyEditingId
+            ? { collection: 'assemblyGroups', id: s.assemblyEditingId, field: 'code' }
+            : null;
+        if (ProductLibraryModule.isGlobalCodeTaken(code, exclude)) {
+            return alert('Bu ID kod baska bir kayitta kullaniliyor.');
+        }
+
+        const items = (Array.isArray(s.assemblyDraftItems) ? s.assemblyDraftItems : [])
+            .map(item => ({
+                id: String(item?.id || crypto.randomUUID()),
+                source: String(item?.source || 'component'),
+                refId: String(item?.refId || ''),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qty: Math.floor(Number(item?.qty || 0))
+            }))
+            .filter(item => item.code && item.name);
+
+        if (items.length === 0) return alert('En az bir kalem secmelisiniz.');
+        if (items.some(item => !Number.isFinite(item.qty) || item.qty <= 0)) return alert('Her kalem icin adet 1 veya daha buyuk olmalidir.');
+
+        const seenCodes = new Set();
+        for (const item of items) {
+            if (seenCodes.has(item.code)) return alert('Ayni kod birden fazla kez eklenemez.');
+            seenCodes.add(item.code);
+        }
+
+        const note = String(s.assemblyDraftNote || '').trim();
+        const now = new Date().toISOString();
+
+        if (s.assemblyEditingId) {
+            const idx = all.findIndex(x => String(x?.id || '') === String(s.assemblyEditingId));
+            if (idx === -1) {
+                ProductLibraryModule.resetAssemblyDraft(true);
+                return;
+            }
+            const old = all[idx];
+            all[idx] = {
+                ...old,
+                code,
+                name,
+                note,
+                items,
+                updated_at: now
+            };
+            ProductLibraryModule.state.assemblySelectedId = old.id;
+        } else {
+            const id = crypto.randomUUID();
+            all.push({
+                id,
+                code,
+                name,
+                note,
+                items,
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.assemblySelectedId = id;
+        }
+
+        await DB.save();
+        ProductLibraryModule.resetAssemblyDraft(true);
+    },
+
+    deleteAssemblyGroup: async (id) => {
+        const all = DB.data?.data?.assemblyGroups || [];
+        const row = all.find(x => String(x?.id || '') === String(id || ''));
+        if (!row) return;
+        if (!confirm('Bu montaj grubu silinsin mi?')) return;
+
+        DB.data.data.assemblyGroups = all.filter(x => String(x?.id || '') !== String(id || ''));
+        if (String(ProductLibraryModule.state.assemblySelectedId || '') === String(id || '')) {
+            ProductLibraryModule.state.assemblySelectedId = null;
+        }
+        if (String(ProductLibraryModule.state.assemblyEditingId || '') === String(id || '')) {
+            ProductLibraryModule.resetAssemblyDraft(true);
+            return;
+        }
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    renderAssemblyView: (container, row) => {
+        const items = Array.isArray(row?.items) ? row.items : [];
+        container.innerHTML = `
+            <div style="max-width:1320px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Montaj Grubu Detay</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.closeAssemblyGroupView()">geri</button>
+                </div>
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:0.7rem;">
+                        <div><div style="font-size:0.72rem; color:#64748b;">montaj grubu adi</div><div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-family:monospace; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">kalem sayisi</div><div style="font-weight:700; color:#334155;">${items.length}</div></div>
+                    </div>
+                    <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155; white-space:pre-wrap;">${ProductLibraryModule.escapeHtml(row?.note || '-')}</div></div>
+                </div>
+                <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="font-weight:700; margin-bottom:0.6rem;">Grup Kalemleri</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">Kaynak</th>
+                                <th style="padding:0.55rem; text-align:left;">Urun adi</th>
+                                <th style="padding:0.55rem; text-align:left;">ID kod</th>
+                                <th style="padding:0.55rem; text-align:center;">Adet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.length === 0 ? '<tr><td colspan="4" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem yok.</td></tr>' : items.map(item => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:0.55rem;">${item.source === 'master' ? 'Master' : 'Parca/Bilesen'}</td>
+                                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
+                                    <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
+                                    <td style="padding:0.55rem; text-align:center; font-weight:700;">${Number(item.qty || 0)}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    },
+
+    renderAssemblyPage: (container) => {
+        const viewingId = String(ProductLibraryModule.state.assemblyViewingId || '').trim();
+        if (viewingId) {
+            const row = ProductLibraryModule.getAssemblyGroupById(viewingId);
+            if (row) {
+                ProductLibraryModule.renderAssemblyView(container, row);
+                return;
+            }
+            ProductLibraryModule.state.assemblyViewingId = null;
+        }
+
+        const state = ProductLibraryModule.state;
+        const filters = state.assemblyFilters || { name: '', code: '' };
+        const qName = String(filters.name || '').trim().toLowerCase();
+        const qCode = String(filters.code || '').trim().toLowerCase();
+        const rows = ProductLibraryModule.getAssemblyGroups().filter(row => {
+            const nameOk = !qName || String(row?.name || '').toLowerCase().includes(qName);
+            const codeOk = !qCode || String(row?.code || '').toLowerCase().includes(qCode);
+            return nameOk && codeOk;
+        });
+
+        const showForm = !!state.assemblyFormOpen;
+        const draftCode = String(state.assemblyDraftCode || ProductLibraryModule.generateAssemblyCode(state.assemblyEditingId || null));
+        const draftItems = Array.isArray(state.assemblyDraftItems) ? state.assemblyDraftItems : [];
+        const draftCodes = new Set(draftItems.map(item => String(item?.code || '').trim().toUpperCase()).filter(Boolean));
+
+        const sourceFilters = state.assemblySourceFilters || { source: 'all', name: '', code: '' };
+        const qSrcSource = String(sourceFilters.source || 'all').trim().toLowerCase();
+        const qSrcName = String(sourceFilters.name || '').trim().toLowerCase();
+        const qSrcCode = String(sourceFilters.code || '').trim().toLowerCase();
+        const sourceRows = ProductLibraryModule.getAssemblySourceRows().filter(row => {
+            const sourceOk = qSrcSource === 'all' || String(row.source || '') === qSrcSource;
+            const nameOk = !qSrcName || String(row.name || '').toLowerCase().includes(qSrcName);
+            const codeOk = !qSrcCode || String(row.code || '').toLowerCase().includes(qSrcCode);
+            return sourceOk && nameOk && codeOk;
+        });
+
+        container.innerHTML = `
+            <div style="max-width:1420px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Montaj Grubu Olusturma</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.7rem; align-items:center;">
+                        <input id="asm_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setAssemblyFilter('name', this.value, 'asm_filter_name')" placeholder="montaj grubu adi ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; font-weight:600;">
+                        <input id="asm_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setAssemblyFilter('code', this.value, 'asm_filter_code')" placeholder="ID kod ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; font-weight:600;">
+                        <button class="btn-primary" onclick="ProductLibraryModule.openAssemblyForm()" style="height:42px; min-width:160px;">grup ekle +</button>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">Montaj grubu</th>
+                                <th style="padding:0.55rem; text-align:center;">Kalem</th>
+                                <th style="padding:0.55rem; text-align:left;">ID kod</th>
+                                <th style="padding:0.55rem; text-align:center;">Goruntule</th>
+                                <th style="padding:0.55rem; text-align:center;">Duzenle</th>
+                                <th style="padding:0.55rem; text-align:center;">Sec</th>
+                                <th style="padding:0.55rem; text-align:center;">Sil</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.length === 0 ? '<tr><td colspan="7" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli montaj grubu yok.</td></tr>' : rows.map(row => `
+                                <tr style="border-bottom:1px solid #f1f5f9; ${state.assemblySelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
+                                    <td style="padding:0.55rem; text-align:center; font-weight:700;">${Array.isArray(row?.items) ? row.items.length : 0}</td>
+                                    <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openAssemblyGroupView('${row.id}')">gor</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditAssemblyGroup('${row.id}')">duzenle</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectAssemblyGroup('${row.id}')" style="${state.assemblySelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteAssemblyGroup('${row.id}')">sil</button></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+
+                ${showForm ? `
+                    <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.8rem;">
+                            <h3 style="margin:0; font-size:1.3rem; color:#334155;">Montaj grubu olustur</h3>
+                            <div style="display:flex; gap:0.5rem;">
+                                ${state.assemblyEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteAssemblyGroup('${state.assemblyEditingId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
+                                <button class="btn-sm" onclick="ProductLibraryModule.resetAssemblyDraft(true)">Vazgec</button>
+                                <button class="btn-primary" onclick="ProductLibraryModule.saveAssemblyGroup()">Kaydet</button>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1.5fr 1fr 2fr; gap:0.7rem; margin-bottom:0.8rem;">
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">montaj grubu adi *</label>
+                                <input value="${ProductLibraryModule.escapeHtml(state.assemblyDraftName || '')}" oninput="ProductLibraryModule.state.assemblyDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ID kod</label>
+                                <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not</label>
+                                <input value="${ProductLibraryModule.escapeHtml(state.assemblyDraftNote || '')}" oninput="ProductLibraryModule.state.assemblyDraftNote=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1.25fr 1fr; gap:0.85rem;">
+                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem;">
+                                    <strong style="font-size:0.92rem;">Secilen Kalemler</strong>
+                                    <span style="font-size:0.8rem; color:#64748b;">Toplam: ${draftItems.length}</span>
+                                </div>
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                            <th style="padding:0.45rem; text-align:left;">Kaynak</th>
+                                            <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.45rem; text-align:left;">ID kod</th>
+                                            <th style="padding:0.45rem; text-align:center;">Adet</th>
+                                            <th style="padding:0.45rem; text-align:right;">Islem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${draftItems.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : draftItems.map(item => `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.45rem;">${item.source === 'master' ? 'Master' : 'Parca'}</td>
+                                                <td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
+                                                <td style="padding:0.45rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
+                                                <td style="padding:0.45rem; text-align:center;">
+                                                    <input type="number" min="1" step="1" value="${Number(item.qty || 1)}" onchange="ProductLibraryModule.setAssemblyDraftItemQty('${ProductLibraryModule.escapeHtml(item.code || '')}', this.value)" style="width:80px; height:34px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; text-align:center;">
+                                                </td>
+                                                <td style="padding:0.45rem; text-align:right;"><button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyDraftItem('${ProductLibraryModule.escapeHtml(item.code || '')}')">sil</button></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
+                                <strong style="font-size:0.92rem;">Kalem Ekle</strong>
+                                <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0.45rem; margin:0.55rem 0 0.6rem;">
+                                    <select id="asm_src_source" onchange="ProductLibraryModule.setAssemblySourceFilter('source', this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
+                                        <option value="all" ${qSrcSource === 'all' ? 'selected' : ''}>tum kaynaklar</option>
+                                        <option value="master" ${qSrcSource === 'master' ? 'selected' : ''}>master</option>
+                                        <option value="component" ${qSrcSource === 'component' ? 'selected' : ''}>parca/bilesen</option>
+                                    </select>
+                                    <input id="asm_src_name" value="${ProductLibraryModule.escapeHtml(sourceFilters.name || '')}" oninput="ProductLibraryModule.setAssemblySourceFilter('name', this.value, 'asm_src_name')" placeholder="urun adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
+                                    <input id="asm_src_code" value="${ProductLibraryModule.escapeHtml(sourceFilters.code || '')}" oninput="ProductLibraryModule.setAssemblySourceFilter('code', this.value, 'asm_src_code')" placeholder="ID kod ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
+                                </div>
+                                <div style="max-height:440px; overflow:auto;">
+                                    <table style="width:100%; border-collapse:collapse;">
+                                        <thead>
+                                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                                <th style="padding:0.42rem; text-align:left;">Kaynak</th>
+                                                <th style="padding:0.42rem; text-align:left;">Urun</th>
+                                                <th style="padding:0.42rem; text-align:left;">ID kod</th>
+                                                <th style="padding:0.42rem; text-align:right;">Ekle</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${sourceRows.length === 0 ? '<tr><td colspan="4" style="padding:0.8rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>' : sourceRows.map(row => `
+                                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                                    <td style="padding:0.42rem;">${row.source === 'master' ? 'Master' : 'Parca'}</td>
+                                                    <td style="padding:0.42rem;"><div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div><div style="font-size:0.76rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.group || '-')}</div></td>
+                                                    <td style="padding:0.42rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row.code || '-')}</td>
+                                                    <td style="padding:0.42rem; text-align:right;">
+                                                        <button class="btn-sm" onclick="ProductLibraryModule.addAssemblyDraftItem('${row.source}', '${row.refId}')" ${draftCodes.has(row.code) ? 'disabled' : ''} style="${draftCodes.has(row.code) ? 'opacity:0.45; cursor:not-allowed;' : ''}">${draftCodes.has(row.code) ? 'ekli' : 'ekle'}</button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
     ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [
@@ -1113,6 +1634,7 @@ const ProductLibraryModule = {
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
         readMany('partComponentCards', DB.data?.data?.partComponentCards, ['code']);
+        readMany('assemblyGroups', DB.data?.data?.assemblyGroups, ['code']);
         return bag;
     },
 

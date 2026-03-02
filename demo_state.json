@@ -101,11 +101,11 @@
         "baba pleksi"
       ],
       "partSubGroups": [
-        "Genel",
-        "deneme"
+        "deneme",
+        "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-02T16:40:52.739Z",
+    "updated_at": "2026-03-02T17:45:54.037Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -898,7 +898,7 @@
         "code": "PRC-000001",
         "name": "100 lük ruby gövde",
         "group": "baba pleksi",
-        "subGroup": "deneme",
+        "subGroup": "sarı eloksal",
         "masterCode": "HAM0001",
         "routes": [
           {
@@ -943,9 +943,10 @@
         ],
         "note": "",
         "created_at": "2026-03-02T16:29:00.829Z",
-        "updated_at": "2026-03-02T16:40:52.738Z"
+        "updated_at": "2026-03-02T17:45:54.037Z"
       }
     ],
-    "partWorkOrders": []
+    "partWorkOrders": [],
+    "assemblyGroups": []
   }
 }

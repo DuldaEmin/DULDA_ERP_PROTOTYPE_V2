@@ -205,6 +205,7 @@ const UnitModule = {
         UnitModule.state.depoTaskDraftTargetId = '';
         UnitModule.state.depoTaskDraftType = 'GONDER';
         UnitModule.state.depoTaskDraftNote = '';
+        UnitModule.applyPickerPreselectForStation('u_dtm');
         UI.renderCurrentPage();
     },
     openMachines: (id) => { if (id) UnitModule.state.activeUnitId = id; UnitModule.state.view = 'machines'; UI.renderCurrentPage(); },
@@ -347,34 +348,42 @@ const UnitModule = {
         const unitName = String(unit?.name || '').toUpperCase();
         if (unitName.includes('CNC')) {
             UnitModule.openCncLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u2' || unitName.includes('EKSTR')) {
             UnitModule.openExtruderLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (unitName.includes('TESTERE')) {
             UnitModule.openSawCut(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
             UnitModule.openPvdLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u11' || unitName.includes('ELOKSAL')) {
             UnitModule.openEloksalLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
             UnitModule.openPolishLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
             UnitModule.openPlexiLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         if (id === 'u3' || unitName.includes('MONTAJ')) {
             UnitModule.openMontageLibrary(id);
+            if (UnitModule.applyPickerPreselectForStation(id)) UI.renderCurrentPage();
             return;
         }
         UnitModule.state.activeUnitId = id;
@@ -389,6 +398,75 @@ const UnitModule = {
         const stationId = String(picker.stationId || '').trim();
         if (!routeId || !stationId) return null;
         return { routeId, stationId };
+    },
+    getPickerExistingProcessCodeForStation: (stationId) => {
+        const picker = UnitModule.getActiveComponentRoutePicker();
+        if (!picker) return '';
+        if (String(picker.stationId || '') !== String(stationId || '')) return '';
+        const moduleRef = typeof ProductLibraryModule !== 'undefined' ? ProductLibraryModule : null;
+        const routes = Array.isArray(moduleRef?.state?.componentDraftRoutes) ? moduleRef.state.componentDraftRoutes : [];
+        const row = routes.find(x => String(x?.id || '') === String(picker.routeId || ''));
+        return String(row?.processId || '').trim().toUpperCase();
+    },
+    applyPickerPreselectForStation: (stationId) => {
+        const code = UnitModule.getPickerExistingProcessCodeForStation(stationId);
+        if (!code) return false;
+
+        const normalizedStationId = String(stationId || '').trim();
+        if (!normalizedStationId) return false;
+        const unit = (DB.data?.data?.units || []).find(u => String(u?.id || '') === normalizedStationId);
+        const unitName = String(unit?.name || '').toUpperCase();
+
+        if (normalizedStationId === 'u_dtm') {
+            const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.taskCode || '').trim().toUpperCase() === code);
+            UnitModule.state.depoTaskSelectedId = row?.id || null;
+            return true;
+        }
+        if (unitName.includes('CNC')) {
+            if (typeof CncLibraryModule !== 'undefined' && CncLibraryModule?.state) {
+                const row = (DB.data?.data?.cncCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cncId || '').trim().toUpperCase() === code);
+                CncLibraryModule.state.selectedId = row?.id || null;
+            }
+            return true;
+        }
+        if (normalizedStationId === 'u2' || unitName.includes('EKSTR')) {
+            const row = (DB.data?.data?.extruderLibraryCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            UnitModule.state.extruderSelectedId = row?.id || null;
+            return true;
+        }
+        if (unitName.includes('TESTERE')) {
+            const row = (DB.data?.data?.sawCutOrders || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.code || '').trim().toUpperCase() === code);
+            UnitModule.state.sawSelectedOrderId = row?.id || null;
+            return true;
+        }
+        if (normalizedStationId === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            const row = (DB.data?.data?.pvdCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            UnitModule.state.pvdSelectedId = row?.id || null;
+            return true;
+        }
+        if (normalizedStationId === 'u11' || unitName.includes('ELOKSAL')) {
+            const row = (DB.data?.data?.eloksalCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            UnitModule.state.elxSelectedId = row?.id || null;
+            return true;
+        }
+        if (normalizedStationId === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            const row = (DB.data?.data?.ibrahimPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            UnitModule.state.polishSelectedId = row?.id || null;
+            return true;
+        }
+        if (normalizedStationId === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
+            const row = (DB.data?.data?.plexiPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            UnitModule.state.plexiSelectedId = row?.id || null;
+            return true;
+        }
+        if (normalizedStationId === 'u3' || unitName.includes('MONTAJ')) {
+            if (typeof MontageLibraryModule !== 'undefined' && MontageLibraryModule?.state) {
+                const row = (DB.data?.data?.montageCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || x?.productCode || '').trim().toUpperCase() === code);
+                MontageLibraryModule.state.selectedId = row?.id || null;
+            }
+            return true;
+        }
+        return false;
     },
     shouldShowComponentRoutePickerPanel: () => {
         const picker = UnitModule.getActiveComponentRoutePicker();
@@ -689,7 +767,7 @@ const UnitModule = {
                         </thead>
                         <tbody>
                             ${filteredTasks.length === 0 ? `<tr><td colspan="5" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
-                                <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#eff6ff;' : ''}">
+                                <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#ffe4e6;' : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(unitMap[t.targetUnitId] || t.targetUnitId || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
@@ -1244,7 +1322,7 @@ const UnitModule = {
                     </thead>
                     <tbody>
                         ${filteredRows.length === 0 ? `<tr><td colspan="8" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
-                            <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#f0f9ff' : ''}">
+                            <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#ffe4e6' : ''}">
                                 <td style="font-weight:700; color:#334155">${r.processName || '-'}</td>
                                 <td style="text-align:center; font-weight:700; color:#0f766e">${r.lengthMm ?? r.cutLengthMm ?? '-'}</td>
                                 <td style="text-align:center">
@@ -1497,7 +1575,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="12" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.diameterMm)) ? Number(row.diameterMm) : '-'}</td>
@@ -1877,7 +1955,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
                                             <span style="display:inline-block; min-width:48px; border:1px solid ${row.firePolish ? '#22c55e' : '#cbd5e1'}; background:${row.firePolish ? '#dcfce7' : 'white'}; color:${row.firePolish ? '#166534' : '#64748b'}; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.73rem; font-weight:700;">${row.firePolish ? 'Var' : '-'}</span>
@@ -2180,7 +2258,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
                                             <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</span>
@@ -2452,7 +2530,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</span></td>
                                         <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
@@ -2770,7 +2848,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
                                             <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processType || '-')}</span>

@@ -1379,7 +1379,7 @@ const ProductLibraryModule = {
                         .join(', ')
                     : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
                 const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
-                const selectedStyle = selectedId === p.id ? 'background:#ecfeff;' : '';
+                const selectedStyle = selectedId === p.id ? 'background:#ffe4e6;' : '';
                 return `
                     ${categoryHeader}
                     <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
@@ -3118,7 +3118,7 @@ const ProductLibraryModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="10" style="padding:1.2rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(p => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.consumableSelectedId === p.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.consumableSelectedId === p.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
                                         <td style="padding:0.65rem;">${ProductLibraryModule.escapeHtml(p.specs?.subType || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.specs?.unit || '-')}</td>
@@ -3484,7 +3484,7 @@ const ProductLibraryModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1.2rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(p => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.boxSelectedId === p.id ? 'background:#ecfeff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${ProductLibraryModule.state.boxSelectedId === p.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center; font-family:monospace;">${Number(p.specs?.widthMm || 0)},${Number(p.specs?.lengthMm || 0)},${Number(p.specs?.heightMm || 0)}</td>
                                         <td style="padding:0.65rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.specs?.printType || '-')}</td>

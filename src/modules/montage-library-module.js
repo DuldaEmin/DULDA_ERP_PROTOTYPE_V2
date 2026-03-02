@@ -544,7 +544,7 @@ const MontageLibraryModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${MontageLibraryModule.state.selectedId === row.id ? 'background:#eff6ff;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${MontageLibraryModule.state.selectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.productCode || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>

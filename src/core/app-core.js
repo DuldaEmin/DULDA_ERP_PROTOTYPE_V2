@@ -161,6 +161,7 @@ const IdentityPolicy = {
         eloksalCards: 'ELX',
         ibrahimPolishCards: 'POL',
         extruderLibraryCards: 'EXT',
+        montageCards: 'MNT',
         depoTransferLogs: 'DTL',
         depoRoutes: 'DRT',
         workOrders: 'WKO',
@@ -277,6 +278,7 @@ const DB = {
             processColorLists: {},
             polishSurfaceLists: {},
             extruderLibraryCards: [],
+            montageCards: [],
             workOrders: [],
             workOrderTransactions: [],
             outsourceTransfers: [],
@@ -316,6 +318,7 @@ const DB = {
         if (!d.processColorLists || typeof d.processColorLists !== "object" || Array.isArray(d.processColorLists)) d.processColorLists = {};
         if (!d.polishSurfaceLists || typeof d.polishSurfaceLists !== "object" || Array.isArray(d.polishSurfaceLists)) d.polishSurfaceLists = {};
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
+        if (!Array.isArray(d.montageCards)) d.montageCards = [];
         if (!Array.isArray(d.workOrders)) d.workOrders = [];
         if (!Array.isArray(d.workOrderTransactions)) d.workOrderTransactions = [];
         if (!Array.isArray(d.outsourceTransfers)) d.outsourceTransfers = [];
@@ -347,6 +350,7 @@ const DB = {
                 "cncCards",
                 "plexiPolishCards",
                 "extruderLibraryCards",
+                "montageCards",
                 "suppliers",
                 "productCategories",
                 "personnel"

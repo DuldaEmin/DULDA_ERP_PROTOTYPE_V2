@@ -72,7 +72,21 @@ const UnitModule = {
         extruderDraftLen: '',
         extruderDraftColor: '',
         extruderDraftBubble: false,
-        extruderDraftNote: ''
+        extruderDraftNote: '',
+        montageSearchName: '',
+        montageSearchCode: '',
+        montageSearchId: '',
+        montageFormOpen: false,
+        montageEditingId: null,
+        montageSelectedId: null,
+        montageDraftCardCode: '',
+        montageDraftProductName: '',
+        montageDraftProductCode: '',
+        montageDraftTechDrawing: null,
+        montageDraftExplodedDrawing: null,
+        montageDraftComponents: [],
+        montageDraftComponentInput: '',
+        montageDraftNote: ''
     },
 
     render: (container) => {
@@ -84,6 +98,7 @@ const UnitModule = {
         if (!DB.data.data.pvdCards) DB.data.data.pvdCards = [];
         if (!DB.data.data.eloksalCards) DB.data.data.eloksalCards = [];
         if (!DB.data.data.ibrahimPolishCards) DB.data.data.ibrahimPolishCards = [];
+        if (!DB.data.data.montageCards) DB.data.data.montageCards = [];
         if (!DB.data.data.processColorLists || typeof DB.data.data.processColorLists !== 'object') DB.data.data.processColorLists = {};
         if (!DB.data.data.polishSurfaceLists || typeof DB.data.data.polishSurfaceLists !== 'object') DB.data.data.polishSurfaceLists = {};
         if (!DB.data.data.extruderLibraryCards) DB.data.data.extruderLibraryCards = [];
@@ -162,6 +177,8 @@ const UnitModule = {
             UnitModule.renderPolishLibrary(container, activeUnitId);
         } else if (view === 'extruderLibrary') {
             UnitModule.renderExtruderLibrary(container, activeUnitId);
+        } else if (view === 'montageLibrary') {
+            UnitModule.renderMontageLibrary(container, activeUnitId);
         } else if (view === 'unitLibraryEmpty') {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         } else if (view === 'depoTransfer') {
@@ -294,6 +311,25 @@ const UnitModule = {
         UnitModule.state.extruderDraftNote = '';
         UI.renderCurrentPage();
     },
+    openMontageLibrary: (id) => {
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'montageLibrary';
+        UnitModule.state.montageSearchName = '';
+        UnitModule.state.montageSearchCode = '';
+        UnitModule.state.montageSearchId = '';
+        UnitModule.state.montageSelectedId = null;
+        UnitModule.state.montageFormOpen = false;
+        UnitModule.state.montageEditingId = null;
+        UnitModule.state.montageDraftCardCode = '';
+        UnitModule.state.montageDraftProductName = '';
+        UnitModule.state.montageDraftProductCode = '';
+        UnitModule.state.montageDraftTechDrawing = null;
+        UnitModule.state.montageDraftExplodedDrawing = null;
+        UnitModule.state.montageDraftComponents = [];
+        UnitModule.state.montageDraftComponentInput = '';
+        UnitModule.state.montageDraftNote = '';
+        UI.renderCurrentPage();
+    },
     openUnitLibrary: (id) => {
         const unit = (DB.data.data.units || []).find(u => u.id === id);
         const unitName = String(unit?.name || '').toUpperCase();
@@ -323,6 +359,10 @@ const UnitModule = {
         }
         if (id === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
             UnitModule.openPlexiLibrary(id);
+            return;
+        }
+        if (id === 'u3' || unitName.includes('MONTAJ')) {
+            UnitModule.openMontageLibrary(id);
             return;
         }
         UnitModule.state.activeUnitId = id;
@@ -782,6 +822,7 @@ const UnitModule = {
         readMany('pvdCards', DB.data?.data?.pvdCards, ['cardCode']);
         readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
+        readMany('montageCards', DB.data?.data?.montageCards, ['cardCode', 'productCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
         return bag;
     },

@@ -2387,7 +2387,7 @@ const UnitModule = {
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
+                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem; align-items:end;">
                             <div style="grid-column:span 5;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
                                 <input id="pvd_product_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdProductName || '')}" oninput="UnitModule.state.pvdProductName=this.value" placeholder="ornek: 40x40 boru tutacak" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">

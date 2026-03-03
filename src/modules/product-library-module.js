@@ -50,6 +50,12 @@ const ProductLibraryModule = {
         masterDraftSupplierCode: '',
         masterDraftNote: '',
         masterDraftAttachment: null,
+        colorActiveType: '',
+        colorFilters: { name: '', code: '' },
+        colorEditingId: null,
+        colorSelectedId: null,
+        colorDraftName: '',
+        colorDraftNote: '',
         componentFilters: { name: '', group: '', subGroup: '', code: '' },
         componentFormOpen: false,
         componentEditingId: null,
@@ -75,11 +81,12 @@ const ProductLibraryModule = {
         assemblyDraftNote: '',
         assemblyDraftItems: [],
         masterPickerSource: '',
-        workspaceView: 'menu' // menu | models | components | assembly | master
+        workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
 
     render: (container) => {
         ProductLibraryModule.ensureMasterDefaults();
+        ProductLibraryModule.ensureColorLibraryDefaults();
         ProductLibraryModule.ensureComponentDefaults();
         ProductLibraryModule.ensureAssemblyDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
@@ -101,6 +108,10 @@ const ProductLibraryModule = {
         }
         if (view === 'assembly') {
             ProductLibraryModule.renderAssemblyPage(container);
+            return;
+        }
+        if (view === 'colors') {
+            ProductLibraryModule.renderColorLibraryPage(container);
             return;
         }
         ProductLibraryModule.renderWorkspaceMenu(container);
@@ -144,6 +155,10 @@ const ProductLibraryModule = {
                         <div class="icon-box g-pink"><i data-lucide="library" width="30" height="30"></i></div>
                         <div class="app-name">Master Urun Kutuphanesi</div>
                     </a>
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('colors'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-cyan"><i data-lucide="palette" width="30" height="30"></i></div>
+                        <div class="app-name">Renk Kutuphanesi</div>
+                    </a>
                 </div>
             </div>
         `;
@@ -160,6 +175,357 @@ const ProductLibraryModule = {
                 <div class="card-table" style="padding:2.2rem; text-align:center; color:#94a3b8;">
                     <div style="font-weight:800; color:#334155; margin-bottom:0.45rem;">Hazirlaniyor</div>
                     <div style="font-size:0.92rem;">${ProductLibraryModule.escapeHtml(subtitle || 'Sayfa yapim asamasindadir.')}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    getColorTypeOptions: () => ([
+        { id: 'eloksal', label: 'Eloksal Renkleri', shortLabel: 'Eloksal', prefix: 'ELO' },
+        { id: 'pvd', label: 'Pvd krom kaplama', shortLabel: 'PVD', prefix: 'PVD' },
+        { id: 'boya', label: 'Elektrostatik boya', shortLabel: 'Boya', prefix: 'BOY' },
+        { id: 'pleksi', label: 'Pleksi renk', shortLabel: 'Pleksi', prefix: 'PLX' }
+    ]),
+
+    normalizeColorType: (value) => {
+        const text = ProductLibraryModule.normalizeAsciiUpper(value || '');
+        if (!text) return '';
+        if (text.includes('ELOKSAL') || text.includes('ALOKSAL')) return 'eloksal';
+        if (text.includes('PVD')) return 'pvd';
+        if (text.includes('BOYA') || text.includes('ELEKTROSTATIK')) return 'boya';
+        if (text.includes('PLEKSI')) return 'pleksi';
+        return '';
+    },
+
+    getColorTypeMeta: (type) => {
+        const key = String(type || '').trim();
+        return ProductLibraryModule.getColorTypeOptions().find(x => x.id === key) || null;
+    },
+
+    ensureColorLibraryDefaults: () => {
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.colorLibrary)) DB.data.data.colorLibrary = [];
+
+        const typeOptions = ProductLibraryModule.getColorTypeOptions();
+        const typeIdSet = new Set(typeOptions.map(x => x.id));
+        let changed = false;
+        DB.data.data.colorLibrary = (DB.data.data.colorLibrary || [])
+            .filter(x => x && typeof x === 'object')
+            .map((row) => {
+                const normalizedType = ProductLibraryModule.normalizeColorType(row.type || row.processType || row.category || '');
+                const type = typeIdSet.has(normalizedType) ? normalizedType : '';
+                const normalized = {
+                    id: String(row.id || '').trim() || crypto.randomUUID(),
+                    type,
+                    name: String(row.name || row.colorName || '').trim(),
+                    note: typeof row.note === 'string' ? row.note : '',
+                    code: String(row.code || '').trim().toUpperCase(),
+                    created_at: row.created_at || new Date().toISOString(),
+                    updated_at: row.updated_at || row.created_at || new Date().toISOString()
+                };
+                if (
+                    normalized.id !== row.id ||
+                    normalized.type !== row.type ||
+                    normalized.name !== row.name ||
+                    normalized.note !== row.note ||
+                    normalized.code !== row.code
+                ) {
+                    changed = true;
+                }
+                return normalized;
+            })
+            .filter(row => row.type && row.name);
+
+        if (changed && typeof DB.markDirty === 'function') DB.markDirty();
+    },
+
+    getColorLibraryItems: () => {
+        ProductLibraryModule.ensureColorLibraryDefaults();
+        return [...(DB.data.data.colorLibrary || [])].sort((a, b) => {
+            return String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+        });
+    },
+
+    setColorType: (type) => {
+        const meta = ProductLibraryModule.getColorTypeMeta(type);
+        if (!meta) return;
+        ProductLibraryModule.state.colorActiveType = meta.id;
+        ProductLibraryModule.state.colorEditingId = null;
+        ProductLibraryModule.state.colorDraftName = '';
+        ProductLibraryModule.state.colorDraftNote = '';
+        UI.renderCurrentPage();
+    },
+
+    setColorFilter: (field, value, focusId = '') => {
+        if (!ProductLibraryModule.state.colorFilters || typeof ProductLibraryModule.state.colorFilters !== 'object') {
+            ProductLibraryModule.state.colorFilters = { name: '', code: '' };
+        }
+        if (!['name', 'code'].includes(field)) return;
+        ProductLibraryModule.state.colorFilters[field] = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+
+    setColorDraft: (field, value) => {
+        if (field === 'name') ProductLibraryModule.state.colorDraftName = String(value || '');
+        if (field === 'note') ProductLibraryModule.state.colorDraftNote = String(value || '');
+    },
+
+    resetColorDraft: (render = true) => {
+        ProductLibraryModule.state.colorEditingId = null;
+        ProductLibraryModule.state.colorDraftName = '';
+        ProductLibraryModule.state.colorDraftNote = '';
+        if (render) UI.renderCurrentPage();
+    },
+
+    selectColorLibraryItem: (id) => {
+        ProductLibraryModule.state.colorSelectedId = String(id || '');
+        UI.renderCurrentPage();
+    },
+
+    previewColorLibraryItem: (id) => {
+        const row = ProductLibraryModule.getColorLibraryItems().find(x => String(x.id) === String(id || ''));
+        if (!row) return;
+        const typeMeta = ProductLibraryModule.getColorTypeMeta(row.type);
+        Modal.open('Renk Detay', `
+            <div style="display:grid; grid-template-columns:150px 1fr; gap:0.5rem; font-size:0.95rem;">
+                <div style="color:#64748b;">Kategori</div><div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(typeMeta?.label || '-')}</div>
+                <div style="color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div>
+                <div style="color:#64748b;">ID kodu</div><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.code || '-')}</div>
+                <div style="color:#64748b;">Not</div><div style="white-space:pre-wrap; color:#334155;">${ProductLibraryModule.escapeHtml(row.note || '-')}</div>
+            </div>
+        `, { maxWidth: '640px' });
+    },
+
+    generateColorCode: (type, excludeId = '') => {
+        const meta = ProductLibraryModule.getColorTypeMeta(type);
+        if (!meta) return '';
+        const all = ProductLibraryModule.getColorLibraryItems();
+        let maxNum = 0;
+        all.forEach(item => {
+            if (item.type !== meta.id) return;
+            const code = String(item.code || '').toUpperCase().trim();
+            const match = code.match(new RegExp(`^CLR-${meta.prefix}-(\\d{1,12})$`));
+            if (!match) return;
+            const n = Number(match[1]);
+            if (Number.isFinite(n) && n > maxNum) maxNum = n;
+        });
+
+        let nextNum = maxNum + 1;
+        let candidate = `CLR-${meta.prefix}-${String(nextNum).padStart(4, '0')}`;
+        while (
+            ProductLibraryModule.isGlobalCodeTaken(candidate) ||
+            all.some(item => {
+                if (String(item.id || '') === String(excludeId || '')) return false;
+                return String(item.code || '').toUpperCase() === candidate;
+            })
+        ) {
+            nextNum += 1;
+            candidate = `CLR-${meta.prefix}-${String(nextNum).padStart(4, '0')}`;
+        }
+        return candidate;
+    },
+
+    saveColorLibraryItem: async () => {
+        ProductLibraryModule.ensureColorLibraryDefaults();
+        const state = ProductLibraryModule.state;
+        const activeType = ProductLibraryModule.normalizeColorType(state.colorActiveType);
+        if (!activeType) {
+            alert('Lutfen once renk kategorisi seciniz.');
+            return;
+        }
+
+        const name = String(state.colorDraftName || '').trim();
+        if (!name) {
+            alert('Lutfen renk adini giriniz.');
+            return;
+        }
+        const note = String(state.colorDraftNote || '').trim();
+
+        const all = DB.data.data.colorLibrary || [];
+        const duplicate = all.some(item => {
+            const sameType = ProductLibraryModule.normalizeColorType(item.type) === activeType;
+            const sameName = ProductLibraryModule.normalizeAsciiUpper(item.name || '') === ProductLibraryModule.normalizeAsciiUpper(name);
+            const otherRecord = String(item.id || '') !== String(state.colorEditingId || '');
+            return sameType && sameName && otherRecord;
+        });
+        if (duplicate) {
+            alert('Bu kategoride ayni renk adi zaten var.');
+            return;
+        }
+
+        const now = new Date().toISOString();
+        if (state.colorEditingId) {
+            const idx = all.findIndex(x => String(x.id || '') === String(state.colorEditingId || ''));
+            if (idx === -1) {
+                ProductLibraryModule.resetColorDraft();
+                return;
+            }
+            const old = all[idx];
+            all[idx] = {
+                ...old,
+                type: activeType,
+                name,
+                note,
+                code: String(old.code || '').trim().toUpperCase() || ProductLibraryModule.generateColorCode(activeType, old.id),
+                updated_at: now
+            };
+            ProductLibraryModule.state.colorSelectedId = old.id;
+        } else {
+            const id = crypto.randomUUID();
+            all.push({
+                id,
+                type: activeType,
+                name,
+                note,
+                code: ProductLibraryModule.generateColorCode(activeType),
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.colorSelectedId = id;
+        }
+
+        await DB.save();
+        ProductLibraryModule.resetColorDraft(false);
+        UI.renderCurrentPage();
+    },
+
+    startEditColorLibraryItem: (id) => {
+        const row = ProductLibraryModule.getColorLibraryItems().find(x => String(x.id) === String(id || ''));
+        if (!row) return;
+        ProductLibraryModule.state.colorActiveType = row.type;
+        ProductLibraryModule.state.colorEditingId = row.id;
+        ProductLibraryModule.state.colorSelectedId = row.id;
+        ProductLibraryModule.state.colorDraftName = row.name || '';
+        ProductLibraryModule.state.colorDraftNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+
+    deleteColorLibraryItem: async (id) => {
+        ProductLibraryModule.ensureColorLibraryDefaults();
+        const row = (DB.data.data.colorLibrary || []).find(x => String(x.id || '') === String(id || ''));
+        if (!row) return;
+        if (!confirm(`"${row.name || ''}" silinsin mi?`)) return;
+        DB.data.data.colorLibrary = (DB.data.data.colorLibrary || []).filter(x => String(x.id || '') !== String(id || ''));
+        if (String(ProductLibraryModule.state.colorSelectedId || '') === String(id || '')) ProductLibraryModule.state.colorSelectedId = null;
+        if (String(ProductLibraryModule.state.colorEditingId || '') === String(id || '')) ProductLibraryModule.resetColorDraft(false);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    renderColorLibraryPage: (container) => {
+        ProductLibraryModule.ensureColorLibraryDefaults();
+        const state = ProductLibraryModule.state;
+        const typeOptions = ProductLibraryModule.getColorTypeOptions();
+        const activeType = ProductLibraryModule.normalizeColorType(state.colorActiveType);
+        const activeMeta = ProductLibraryModule.getColorTypeMeta(activeType);
+        const allRows = ProductLibraryModule.getColorLibraryItems();
+        const qName = ProductLibraryModule.normalizeAsciiUpper(state.colorFilters?.name || '');
+        const qCode = ProductLibraryModule.normalizeAsciiUpper(state.colorFilters?.code || '');
+        const rows = allRows.filter(item => {
+            if (!activeType) return false;
+            if (item.type !== activeType) return false;
+            const nameOk = !qName || ProductLibraryModule.normalizeAsciiUpper(item.name || '').includes(qName);
+            const codeOk = !qCode || ProductLibraryModule.normalizeAsciiUpper(item.code || '').includes(qCode);
+            return nameOk && codeOk;
+        });
+        const editingRow = state.colorEditingId
+            ? allRows.find(x => String(x.id || '') === String(state.colorEditingId || ''))
+            : null;
+        const draftCode = activeType
+            ? (editingRow?.code || ProductLibraryModule.generateColorCode(activeType, editingRow?.id || ''))
+            : '';
+        const disabled = !activeType;
+
+        container.innerHTML = `
+            <div style="max-width:1220px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Renk Kutuphanesi</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="font-weight:700; color:#334155; margin-bottom:0.55rem;">Kaplama / boya kategorisi sec</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.7rem;">
+                        ${typeOptions.map(opt => `
+                            <button type="button" onclick="ProductLibraryModule.setColorType('${opt.id}')" style="height:42px; border-radius:0.7rem; border:1px solid ${activeType === opt.id ? '#1d4ed8' : '#cbd5e1'}; background:${activeType === opt.id ? '#bfdbfe' : 'white'}; color:${activeType === opt.id ? '#1e3a8a' : '#334155'}; font-weight:${activeType === opt.id ? '800' : '700'}; padding:0 1rem; cursor:pointer;">${ProductLibraryModule.escapeHtml(opt.label)}</button>
+                        `).join('')}
+                    </div>
+                    ${activeType ? '' : '<div style="margin-top:0.65rem; color:#64748b; font-size:0.9rem;">Lutfen bir kategori secin. Secim yapinca liste ve renk kaydetme aktif olur.</div>'}
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="display:grid; grid-template-columns:170px 1fr 220px 1fr auto; gap:0.7rem; align-items:end; margin-bottom:0.8rem;">
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kategori</label>
+                            <input disabled value="${ProductLibraryModule.escapeHtml(activeMeta?.shortLabel || '')}" placeholder="kategori seciniz" style="width:100%; height:42px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:#f8fafc; font-weight:700;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">renk adi *</label>
+                            <input ${disabled ? 'disabled' : ''} value="${ProductLibraryModule.escapeHtml(state.colorDraftName || '')}" oninput="ProductLibraryModule.setColorDraft('name', this.value)" placeholder="renk giriniz" style="width:100%; height:42px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:${disabled ? '#f8fafc' : 'white'};">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">ID kodu</label>
+                            <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" placeholder="otomatik" style="width:100%; height:42px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not ekle</label>
+                            <input ${disabled ? 'disabled' : ''} value="${ProductLibraryModule.escapeHtml(state.colorDraftNote || '')}" oninput="ProductLibraryModule.setColorDraft('note', this.value)" placeholder="not" style="width:100%; height:42px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:${disabled ? '#f8fafc' : 'white'};">
+                        </div>
+                        <div style="display:flex; gap:0.45rem;">
+                            ${state.colorEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.resetColorDraft()" style="height:42px;">vazgec</button>` : ''}
+                            <button class="btn-primary" onclick="ProductLibraryModule.saveColorLibraryItem()" ${disabled ? 'disabled' : ''} style="height:42px; border-radius:0.65rem; ${disabled ? 'opacity:0.55; cursor:not-allowed;' : ''}">${state.colorEditingId ? 'guncelle' : 'renk kaydet +'}</button>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+                        <input id="color_filter_name" ${disabled ? 'disabled' : ''} value="${ProductLibraryModule.escapeHtml(state.colorFilters?.name || '')}" oninput="ProductLibraryModule.setColorFilter('name', this.value, 'color_filter_name')" placeholder="renk adiyla ara" style="height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:${disabled ? '#f8fafc' : 'white'};">
+                        <input id="color_filter_code" ${disabled ? 'disabled' : ''} value="${ProductLibraryModule.escapeHtml(state.colorFilters?.code || '')}" oninput="ProductLibraryModule.setColorFilter('code', this.value, 'color_filter_code')" placeholder="ID kod ile ara" style="height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; background:${disabled ? '#f8fafc' : 'white'};">
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">No</th>
+                                <th style="padding:0.55rem; text-align:left;">Kategori</th>
+                                <th style="padding:0.55rem; text-align:left;">Renk</th>
+                                <th style="padding:0.55rem; text-align:left;">Not</th>
+                                <th style="padding:0.55rem; text-align:left;">ID kodu</th>
+                                <th style="padding:0.55rem; text-align:center;">goruntule</th>
+                                <th style="padding:0.55rem; text-align:center;">duzenle</th>
+                                <th style="padding:0.55rem; text-align:center;">sec</th>
+                                <th style="padding:0.55rem; text-align:center;">sil</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${!activeType
+                ? '<tr><td colspan="9" style="padding:1rem; color:#94a3b8; text-align:center;">Listeyi gormek icin once kategori seciniz.</td></tr>'
+                : rows.length === 0
+                    ? '<tr><td colspan="9" style="padding:1rem; color:#94a3b8; text-align:center;">Secili kategoride renk kaydi yok.</td></tr>'
+                    : rows.map((row, index) => `
+                                        <tr style="border-bottom:1px solid #f1f5f9; background:${String(state.colorSelectedId || '') === String(row.id || '') ? '#f8fafc' : 'white'};">
+                                            <td style="padding:0.55rem; color:#334155;">${index + 1}</td>
+                                            <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getColorTypeMeta(row.type)?.shortLabel || '-')}</td>
+                                            <td style="padding:0.55rem; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</td>
+                                            <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.note || '-')}</td>
+                                            <td style="padding:0.55rem; font-family:monospace; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.code || '-')}</td>
+                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewColorLibraryItem('${row.id}')">gor</button></td>
+                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditColorLibraryItem('${row.id}')">duzenle</button></td>
+                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectColorLibraryItem('${row.id}')" style="${String(state.colorSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${String(state.colorSelectedId || '') === String(row.id || '') ? 'secili' : 'sec'}</button></td>
+                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteColorLibraryItem('${row.id}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
+                                        </tr>
+                                    `).join('')}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         `;
@@ -1684,6 +2050,7 @@ const ProductLibraryModule = {
         readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
+        readMany('colorLibrary', DB.data?.data?.colorLibrary, ['code']);
         readMany('partComponentCards', DB.data?.data?.partComponentCards, ['code']);
         readMany('assemblyGroups', DB.data?.data?.assemblyGroups, ['code']);
         return bag;

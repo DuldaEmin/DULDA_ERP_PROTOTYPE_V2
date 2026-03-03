@@ -105,7 +105,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-03T12:18:58.893Z",
+    "updated_at": "2026-03-03T12:30:49.031Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -948,6 +948,160 @@
     ],
     "partWorkOrders": [],
     "assemblyGroups": [],
-    "colorLibrary": []
+    "colorLibrary": [
+      {
+        "id": "7cd649d1-9689-49be-98bb-a10457327bf5",
+        "type": "eloksal",
+        "name": "P5",
+        "note": "",
+        "code": "CLR-ELO-0001",
+        "created_at": "2026-03-03T12:24:24.312Z",
+        "updated_at": "2026-03-03T12:25:04.094Z"
+      },
+      {
+        "id": "8aa2918d-7163-4917-b4bb-d88a3999cfc9",
+        "type": "eloksal",
+        "name": "P0",
+        "note": "",
+        "code": "CLR-ELO-0002",
+        "created_at": "2026-03-03T12:25:16.187Z",
+        "updated_at": "2026-03-03T12:25:16.187Z"
+      },
+      {
+        "id": "04361015-a53a-4761-8838-cfa66d31883f",
+        "type": "eloksal",
+        "name": "P01",
+        "note": "",
+        "code": "CLR-ELO-0003",
+        "created_at": "2026-03-03T12:25:27.371Z",
+        "updated_at": "2026-03-03T12:25:51.591Z"
+      },
+      {
+        "id": "5170e35a-ebe6-4212-b8b1-668a95785f1d",
+        "type": "eloksal",
+        "name": "P1",
+        "note": "",
+        "code": "CLR-ELO-0004",
+        "created_at": "2026-03-03T12:26:30.569Z",
+        "updated_at": "2026-03-03T12:26:30.569Z"
+      },
+      {
+        "id": "8e5b6ed7-60fa-4565-a70f-d49db19f3692",
+        "type": "eloksal",
+        "name": "P2",
+        "note": "",
+        "code": "CLR-ELO-0005",
+        "created_at": "2026-03-03T12:26:45.427Z",
+        "updated_at": "2026-03-03T12:26:45.427Z"
+      },
+      {
+        "id": "a31063ba-3fdd-4ccb-a84e-60d0c00e2613",
+        "type": "eloksal",
+        "name": "P3",
+        "note": "",
+        "code": "CLR-ELO-0006",
+        "created_at": "2026-03-03T12:27:03.131Z",
+        "updated_at": "2026-03-03T12:27:03.131Z"
+      },
+      {
+        "id": "de09246b-83ad-425f-96ed-52821f8c8d28",
+        "type": "eloksal",
+        "name": "P4",
+        "note": "",
+        "code": "CLR-ELO-0007",
+        "created_at": "2026-03-03T12:27:11.129Z",
+        "updated_at": "2026-03-03T12:27:11.129Z"
+      },
+      {
+        "id": "a1504269-5cd5-4b32-b4b8-caf46ad40620",
+        "type": "pvd",
+        "name": "ROSE GOLD",
+        "note": "",
+        "code": "CLR-PVD-0001",
+        "created_at": "2026-03-03T12:27:42.574Z",
+        "updated_at": "2026-03-03T12:27:42.574Z"
+      },
+      {
+        "id": "1b8d6a6b-2c76-4873-a34a-6c40bcda1858",
+        "type": "pvd",
+        "name": "SATİNA ROSE GOLD",
+        "note": "",
+        "code": "CLR-PVD-0002",
+        "created_at": "2026-03-03T12:28:16.338Z",
+        "updated_at": "2026-03-03T12:28:16.338Z"
+      },
+      {
+        "id": "4c5c735f-7888-4294-8fca-a5fd5fd10193",
+        "type": "pvd",
+        "name": "GOLD",
+        "note": "",
+        "code": "CLR-PVD-0003",
+        "created_at": "2026-03-03T12:28:34.667Z",
+        "updated_at": "2026-03-03T12:28:34.667Z"
+      },
+      {
+        "id": "d4bc0aad-d25c-4024-b98e-3708c2563501",
+        "type": "pvd",
+        "name": "SATİNA GOLD",
+        "note": "",
+        "code": "CLR-PVD-0004",
+        "created_at": "2026-03-03T12:29:01.337Z",
+        "updated_at": "2026-03-03T12:29:01.337Z"
+      },
+      {
+        "id": "405060a5-7ec8-4ad2-98eb-8cca1a60f2af",
+        "type": "pvd",
+        "name": "BLACK",
+        "note": "",
+        "code": "CLR-PVD-0005",
+        "created_at": "2026-03-03T12:29:38.333Z",
+        "updated_at": "2026-03-03T12:29:38.333Z"
+      },
+      {
+        "id": "f8d9235b-f369-40b5-9707-362f413e837e",
+        "type": "boya",
+        "name": "RAL 9012",
+        "note": "",
+        "code": "CLR-BOY-0001",
+        "created_at": "2026-03-03T12:30:13.769Z",
+        "updated_at": "2026-03-03T12:30:13.769Z"
+      },
+      {
+        "id": "a116a4e8-418f-4a8a-8f37-cc869ffe3537",
+        "type": "pleksi",
+        "name": "SARI",
+        "note": "",
+        "code": "CLR-PLX-0001",
+        "created_at": "2026-03-03T12:30:23.149Z",
+        "updated_at": "2026-03-03T12:30:23.149Z"
+      },
+      {
+        "id": "5d51b4e4-400a-48c1-bf59-e931dd33d1c6",
+        "type": "pleksi",
+        "name": "ŞEFFAF",
+        "note": "",
+        "code": "CLR-PLX-0002",
+        "created_at": "2026-03-03T12:30:31.347Z",
+        "updated_at": "2026-03-03T12:30:31.347Z"
+      },
+      {
+        "id": "5ac09b26-e930-479d-981f-01e9cdd1076d",
+        "type": "pleksi",
+        "name": "ANTRASİT",
+        "note": "",
+        "code": "CLR-PLX-0003",
+        "created_at": "2026-03-03T12:30:38.493Z",
+        "updated_at": "2026-03-03T12:30:38.493Z"
+      },
+      {
+        "id": "48508652-2a41-45ad-9bea-e980572fcc7f",
+        "type": "pleksi",
+        "name": "DİFİZÖR",
+        "note": "",
+        "code": "CLR-PLX-0004",
+        "created_at": "2026-03-03T12:30:49.031Z",
+        "updated_at": "2026-03-03T12:30:49.031Z"
+      }
+    ]
   }
 }

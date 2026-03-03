@@ -349,8 +349,8 @@ const ProductLibraryModule = {
         }
         const note = String(state.colorDraftNote || '').trim();
 
-        const all = DB.data.data.colorLibrary || [];
-        const duplicate = all.some(item => {
+        const rows = Array.isArray(DB.data.data.colorLibrary) ? DB.data.data.colorLibrary : [];
+        const duplicate = rows.some(item => {
             const sameType = ProductLibraryModule.normalizeColorType(item.type) === activeType;
             const sameName = ProductLibraryModule.normalizeAsciiUpper(item.name || '') === ProductLibraryModule.normalizeAsciiUpper(name);
             const otherRecord = String(item.id || '') !== String(state.colorEditingId || '');
@@ -363,13 +363,14 @@ const ProductLibraryModule = {
 
         const now = new Date().toISOString();
         if (state.colorEditingId) {
-            const idx = all.findIndex(x => String(x.id || '') === String(state.colorEditingId || ''));
+            const list = Array.isArray(DB.data.data.colorLibrary) ? DB.data.data.colorLibrary : [];
+            const idx = list.findIndex(x => String(x.id || '') === String(state.colorEditingId || ''));
             if (idx === -1) {
                 ProductLibraryModule.resetColorDraft();
                 return;
             }
-            const old = all[idx];
-            all[idx] = {
+            const old = list[idx];
+            list[idx] = {
                 ...old,
                 type: activeType,
                 name,
@@ -380,12 +381,14 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.colorSelectedId = old.id;
         } else {
             const id = crypto.randomUUID();
-            all.push({
+            const code = ProductLibraryModule.generateColorCode(activeType);
+            if (!Array.isArray(DB.data.data.colorLibrary)) DB.data.data.colorLibrary = [];
+            DB.data.data.colorLibrary.push({
                 id,
                 type: activeType,
                 name,
                 note,
-                code: ProductLibraryModule.generateColorCode(activeType),
+                code,
                 created_at: now,
                 updated_at: now
             });

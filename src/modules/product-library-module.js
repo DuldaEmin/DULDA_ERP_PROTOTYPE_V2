@@ -1226,11 +1226,24 @@ const ProductLibraryModule = {
 
         const state = ProductLibraryModule.state;
         const filters = state.componentFilters || { name: '', group: '', subGroup: '', code: '' };
+        const allComponentRows = ProductLibraryModule.getComponentCards();
+        const categorySearchOptions = Array.from(new Set(
+            allComponentRows.map(row => String(row?.group || '').trim()).filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'tr'));
+        const colorSearchOptions = Array.from(new Set(
+            allComponentRows.map(row => String(row?.subGroup || '').trim()).filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'tr'));
+        if (String(filters.group || '').trim() && !categorySearchOptions.includes(String(filters.group || '').trim())) {
+            categorySearchOptions.unshift(String(filters.group || '').trim());
+        }
+        if (String(filters.subGroup || '').trim() && !colorSearchOptions.includes(String(filters.subGroup || '').trim())) {
+            colorSearchOptions.unshift(String(filters.subGroup || '').trim());
+        }
         const qName = String(filters.name || '').trim().toLowerCase();
         const qGroup = String(filters.group || '').trim().toLowerCase();
         const qSub = String(filters.subGroup || '').trim().toLowerCase();
         const qCode = String(filters.code || '').trim().toLowerCase();
-        const rows = ProductLibraryModule.getComponentCards().filter(row => {
+        const rows = allComponentRows.filter(row => {
             const nameOk = !qName || String(row?.name || '').toLowerCase().includes(qName);
             const groupOk = !qGroup || String(row?.group || '').toLowerCase().includes(qGroup);
             const subOk = !qSub || String(row?.subGroup || '').toLowerCase().includes(qSub);
@@ -1270,8 +1283,14 @@ const ProductLibraryModule = {
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:center;">
                         <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <input id="cmp_filter_group" value="${ProductLibraryModule.escapeHtml(filters.group || '')}" oninput="ProductLibraryModule.setComponentFilter('group', this.value, 'cmp_filter_group')" placeholder="kategori ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <input id="cmp_filter_sub" value="${ProductLibraryModule.escapeHtml(filters.subGroup || '')}" oninput="ProductLibraryModule.setComponentFilter('subGroup', this.value, 'cmp_filter_sub')" placeholder="renk ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <select id="cmp_filter_group" onchange="ProductLibraryModule.setComponentFilter('group', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600; background:white;">
+                            <option value="">kategori ile ara</option>
+                            ${categorySearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.group || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}
+                        </select>
+                        <select id="cmp_filter_sub" onchange="ProductLibraryModule.setComponentFilter('subGroup', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600; background:white;">
+                            <option value="">renk ile ara</option>
+                            ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.subGroup || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}
+                        </select>
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <button class="btn-primary" onclick="ProductLibraryModule.openComponentForm()" style="height:42px; min-width:135px;">urun ekle +</button>
                     </div>

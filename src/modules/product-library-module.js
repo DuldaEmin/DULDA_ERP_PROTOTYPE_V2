@@ -44,7 +44,9 @@ const ProductLibraryModule = {
         masterDraftBrand: '',
         masterDraftPack: '',
         masterDraftLength: '',
+        masterDraftColorType: '',
         masterDraftColor: '',
+        masterDraftColorCode: '',
         masterDraftSupplierIds: [],
         masterDraftSupplierLinks: [],
         masterDraftSupplierCode: '',
@@ -1965,6 +1967,10 @@ const ProductLibraryModule = {
         if (!unitOptions.includes(ProductLibraryModule.state.masterDraftUnit)) {
             ProductLibraryModule.state.masterDraftUnit = unitOptions[0] || '';
         }
+        ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.normalizeColorType(ProductLibraryModule.state.masterDraftColorType || '');
+        if (!ProductLibraryModule.state.masterDraftColorType) {
+            ProductLibraryModule.state.masterDraftColorCode = '';
+        }
     },
 
     normalizeAsciiUpper: (value) => {
@@ -2008,6 +2014,77 @@ const ProductLibraryModule = {
         if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
         if (!Array.isArray(DB.data.meta.options.masterColors)) DB.data.meta.options.masterColors = [];
         return DB.data.meta.options.masterColors;
+    },
+    inferColorTypeFromCode: (code) => {
+        const raw = String(code || '').trim().toUpperCase();
+        if (raw.startsWith('CLR-ELO-')) return 'eloksal';
+        if (raw.startsWith('CLR-PVD-')) return 'pvd';
+        if (raw.startsWith('CLR-BOY-')) return 'boya';
+        if (raw.startsWith('CLR-PLX-')) return 'pleksi';
+        return '';
+    },
+    getColorLibraryItemsByType: (type) => {
+        const normalized = ProductLibraryModule.normalizeColorType(type);
+        if (!normalized) return [];
+        const rows = ProductLibraryModule.getColorLibraryItems()
+            .filter(row => ProductLibraryModule.normalizeColorType(row?.type) === normalized)
+            .map(row => ({
+                id: String(row?.id || ''),
+                type: normalized,
+                name: String(row?.name || '').trim(),
+                code: String(row?.code || '').trim().toUpperCase()
+            }))
+            .filter(row => row.name);
+        const uniq = new Map();
+        rows.forEach(row => {
+            const key = row.name.toLowerCase();
+            if (!uniq.has(key)) uniq.set(key, row);
+        });
+        return Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    },
+    getMasterColorItemsWithFallback: (type) => {
+        const normalized = ProductLibraryModule.normalizeColorType(type);
+        if (!normalized) return [];
+        const primary = ProductLibraryModule.getColorLibraryItemsByType(normalized);
+        if (primary.length > 0) return primary;
+        return ProductLibraryModule.getMasterColorOptions()
+            .map(name => ({
+                id: '',
+                type: normalized,
+                name: String(name || '').trim(),
+                code: ''
+            }))
+            .filter(row => row.name);
+    },
+    resolveMasterColorTypeForRecord: (record) => {
+        const raw = record?.raw || {};
+        const specs = (raw?.specs && typeof raw.specs === 'object') ? raw.specs : {};
+        const fromRecord = ProductLibraryModule.normalizeColorType(
+            specs?.colorType || raw?.colorType || record?.colorType || ''
+        );
+        if (fromRecord) return fromRecord;
+        const fromCode = ProductLibraryModule.inferColorTypeFromCode(
+            specs?.colorCode || raw?.colorCode || record?.colorCode || ''
+        );
+        if (fromCode) return fromCode;
+        const colorName = String(record?.color || '').trim().toLowerCase();
+        if (!colorName) return '';
+        const matches = ProductLibraryModule.getColorLibraryItems().filter(item =>
+            String(item?.name || '').trim().toLowerCase() === colorName
+        );
+        const types = Array.from(new Set(matches.map(item => ProductLibraryModule.normalizeColorType(item?.type || '')).filter(Boolean)));
+        if (types.length === 1) return types[0];
+        return '';
+    },
+    setMasterColorType: (type) => {
+        ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.normalizeColorType(type);
+        ProductLibraryModule.state.masterDraftColor = '';
+        ProductLibraryModule.state.masterDraftColorCode = '';
+        UI.renderCurrentPage();
+    },
+    setMasterColor: (name, code = '') => {
+        ProductLibraryModule.state.masterDraftColor = String(name || '').trim();
+        ProductLibraryModule.state.masterDraftColorCode = String(code || '').trim().toUpperCase();
     },
 
     getMasterSuppliers: () => {
@@ -2211,7 +2288,9 @@ const ProductLibraryModule = {
                 brand: String(specs?.brandModel || specs?.brand || raw?.brandModel || '').trim(),
                 pack: String(specs?.packageInfo || specs?.packaging || raw?.packageInfo || '').trim(),
                 length: String(specs?.lengthMm ?? specs?.length ?? raw?.length ?? '').trim(),
+                colorType: String(specs?.colorType || raw?.colorType || '').trim(),
                 color: String(specs?.color || raw?.color || raw?.anodizedColor || raw?.paintColor || '').trim(),
+                colorCode: String(specs?.colorCode || raw?.colorCode || '').trim().toUpperCase(),
                 suppliers,
                 supplierLinks,
                 supplierCode: String(specs?.supplierProductCode || raw?.supplierProductCode || '').trim(),
@@ -2231,7 +2310,6 @@ const ProductLibraryModule = {
         const state = ProductLibraryModule.state;
         const categories = ProductLibraryModule.getMasterCategories();
         const unitOptions = ProductLibraryModule.getMasterUnitOptions();
-        const colorOptions = ProductLibraryModule.getMasterColorOptions();
         const suppliers = ProductLibraryModule.getMasterSuppliers();
         const records = ProductLibraryModule.getMasterProducts();
 
@@ -2252,6 +2330,23 @@ const ProductLibraryModule = {
         });
 
         const draftCode = editingRecord?.code || ProductLibraryModule.generateMasterCode(state.masterDraftCategoryId);
+        const colorTypeOptions = ProductLibraryModule.getColorTypeOptions();
+        const activeColorType = ProductLibraryModule.normalizeColorType(state.masterDraftColorType || '');
+        ProductLibraryModule.state.masterDraftColorType = activeColorType;
+        const colorOptions = ProductLibraryModule.getMasterColorItemsWithFallback(activeColorType);
+        if (state.masterDraftColor) {
+            const exists = colorOptions.some(row =>
+                String(row.name || '').toLowerCase() === String(state.masterDraftColor || '').toLowerCase()
+            );
+            if (!exists) {
+                colorOptions.unshift({
+                    id: '',
+                    type: activeColorType,
+                    name: String(state.masterDraftColor || ''),
+                    code: String(state.masterDraftColorCode || '').trim().toUpperCase()
+                });
+            }
+        }
 
         const qCategoryId = String(state.masterFilters.categoryId || '').trim();
         const qName = String(state.masterFilters.name || '').trim().toLocaleLowerCase('tr-TR');
@@ -2364,7 +2459,7 @@ const ProductLibraryModule = {
                         <input id="master_filter_code" value="${ProductLibraryModule.escapeHtml(state.masterFilters.code || '')}" oninput="ProductLibraryModule.setMasterFilter('code', this.value)" placeholder="ID kod ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
                         <button class="btn-primary" onclick="ProductLibraryModule.toggleMasterForm()" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${showForm ? 'vazgec' : 'urun ekle +'}</button>
                     </div>
-                    ${showForm ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
+                    ${showForm ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
                     <div class="card-table" style="margin-top:0.85rem;">
                         <table>
                             <thead>
@@ -2394,7 +2489,7 @@ const ProductLibraryModule = {
         if (window.lucide) window.lucide.createIcons();
     },
 
-    renderMasterFormHtml: ({ categories, unitOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
+    renderMasterFormHtml: ({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
         const state = ProductLibraryModule.state;
         return `
             <div style="background:white; border:2px solid #0f172a; border-radius:1.25rem; padding:1.2rem 1.2rem 1.45rem; font-size:1.06rem;">
@@ -2421,7 +2516,7 @@ const ProductLibraryModule = {
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 220px 220px 220px 1fr; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+                <div style="display:grid; grid-template-columns: 220px 220px 340px 1fr; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('unit')">+ YONET (EKLE-SIL)</div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Birim *</label>
@@ -2433,13 +2528,25 @@ const ProductLibraryModule = {
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">birim miktar (${ProductLibraryModule.escapeHtml(ProductLibraryModule.getUnitAmountType(state.masterDraftUnit || 'adet'))})</label>
                         <input value="${ProductLibraryModule.escapeHtml(state.masterDraftUnitAmount || '')}" oninput="ProductLibraryModule.setMasterDraft('unitAmount', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                     </div>
-                    <div>
-                        <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('color')">+ YONET (EKLE-SIL)</div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">renk</label>
-                        <select onchange="ProductLibraryModule.setMasterDraft('color', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                            <option value="">renk seciniz</option>
-                            ${colorOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftColor === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
-                        </select>
+                    <div style="width:100%; max-width:440px;">
+                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.45rem; margin-bottom:0.2rem;">
+                            <label style="display:block; font-size:0.72rem; color:#64748b;">kategori / renk</label>
+                            <button type="button" onclick="ProductLibraryModule.openWorkspace('colors')" style="height:22px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.4rem; padding:0 0.45rem; font-size:0.66rem; font-weight:800; cursor:pointer; white-space:nowrap;">YONET (EKLE-SIL)</button>
+                        </div>
+                        <div style="height:45px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                            <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                <select onchange="ProductLibraryModule.setMasterColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.65rem; font-weight:700; color:#334155;">
+                                    <option value="">kategori sec</option>
+                                    ${colorTypeOptions.map(opt => `<option value="${opt.id}" ${state.masterDraftColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.label)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="background:${state.masterDraftColorType ? 'white' : '#f8fafc'};">
+                                <select ${state.masterDraftColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setMasterColor(this.value, this.options[this.selectedIndex]?.dataset?.code || '')" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.65rem; font-weight:700; color:${state.masterDraftColorType ? '#111827' : '#94a3b8'};">
+                                    <option value="">renk sec</option>
+                                    ${colorOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x.name || '')}" data-code="${ProductLibraryModule.escapeHtml(x.code || '')}" ${String(state.masterDraftColor || '') === String(x.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x.name || '')}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kod</label>
@@ -2524,9 +2631,11 @@ const ProductLibraryModule = {
         if (key === 'pack') ProductLibraryModule.state.masterDraftPack = value || '';
         if (key === 'length') ProductLibraryModule.state.masterDraftLength = value || '';
         if (key === 'color') ProductLibraryModule.state.masterDraftColor = value || '';
+        if (key === 'colorType') ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.normalizeColorType(value || '');
+        if (key === 'colorCode') ProductLibraryModule.state.masterDraftColorCode = String(value || '').trim().toUpperCase();
         if (key === 'supplierCode') ProductLibraryModule.state.masterDraftSupplierCode = value || '';
         if (key === 'note') ProductLibraryModule.state.masterDraftNote = value || '';
-        if (key === 'categoryId' || key === 'unit' || key === 'color') UI.renderCurrentPage();
+        if (key === 'categoryId' || key === 'unit' || key === 'colorType') UI.renderCurrentPage();
     },
 
     resetMasterDraft: (keepFormOpen = true) => {
@@ -2538,7 +2647,9 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.masterDraftBrand = '';
         ProductLibraryModule.state.masterDraftPack = '';
         ProductLibraryModule.state.masterDraftLength = '';
+        ProductLibraryModule.state.masterDraftColorType = '';
         ProductLibraryModule.state.masterDraftColor = '';
+        ProductLibraryModule.state.masterDraftColorCode = '';
         ProductLibraryModule.state.masterDraftSupplierIds = [];
         ProductLibraryModule.state.masterDraftSupplierLinks = [];
         ProductLibraryModule.state.masterDraftSupplierCode = '';
@@ -2715,7 +2826,9 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.masterDraftBrand = record.brand || '';
         ProductLibraryModule.state.masterDraftPack = record.pack || '';
         ProductLibraryModule.state.masterDraftLength = record.length || '';
+        ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.resolveMasterColorTypeForRecord(record);
         ProductLibraryModule.state.masterDraftColor = record.color || '';
+        ProductLibraryModule.state.masterDraftColorCode = String(record.colorCode || '').trim().toUpperCase();
         ProductLibraryModule.state.masterDraftSupplierIds = Array.from(new Set(supplierIds));
         const draftLinks = Array.isArray(record.supplierLinks)
             ? record.supplierLinks.map(link => ({
@@ -2806,9 +2919,14 @@ const ProductLibraryModule = {
         const brand = String(s.masterDraftBrand || '').trim();
         const pack = String(s.masterDraftPack || '').trim();
         const length = String(s.masterDraftLength || '').trim();
+        const colorType = ProductLibraryModule.normalizeColorType(s.masterDraftColorType || '');
         const color = String(s.masterDraftColor || '').trim();
+        const colorCode = String(s.masterDraftColorCode || '').trim().toUpperCase();
         const note = String(s.masterDraftNote || '').trim();
         const now = new Date().toISOString();
+
+        if (color && !colorType) return alert('Renk kategorisi seciniz.');
+        if (colorType && !color) return alert('Renk seciniz.');
 
         const supplierLinks = Array.isArray(s.masterDraftSupplierLinks)
             ? s.masterDraftSupplierLinks.map(link => ({
@@ -2860,6 +2978,8 @@ const ProductLibraryModule = {
                 supplierIds: supplierRefs.map(x => x.id),
                 supplierNames: supplierRefs.map(x => x.name),
                 supplierProductCode: firstSupplierCode,
+                colorType,
+                colorCode,
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : old.attachment || null,
                 specs: {
                     ...oldSpecs,
@@ -2869,7 +2989,9 @@ const ProductLibraryModule = {
                     brandModel: brand,
                     packageInfo: pack,
                     lengthMm: length,
+                    colorType,
                     color,
+                    colorCode,
                     suppliers: supplierRefs.map(x => x.name),
                     supplierLinks,
                     supplierProductCode: firstSupplierCode,
@@ -2895,6 +3017,8 @@ const ProductLibraryModule = {
                 supplierIds: supplierRefs.map(x => x.id),
                 supplierNames: supplierRefs.map(x => x.name),
                 supplierProductCode: firstSupplierCode,
+                colorType,
+                colorCode,
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : null,
                 specs: {
                     unit,
@@ -2903,7 +3027,9 @@ const ProductLibraryModule = {
                     brandModel: brand,
                     packageInfo: pack,
                     lengthMm: length,
+                    colorType,
                     color,
+                    colorCode,
                     suppliers: supplierRefs.map(x => x.name),
                     supplierLinks,
                     supplierProductCode: firstSupplierCode,

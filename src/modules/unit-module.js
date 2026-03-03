@@ -49,7 +49,9 @@ const UnitModule = {
         elxEditingId: null,
         elxProductName: '',
         elxProcessType: 'ELOKSAL',
+        elxColorType: 'eloksal',
         elxColor: '',
+        elxColorCode: '',
         elxNote: '',
         polishSearchName: '',
         polishSearchId: '',
@@ -72,7 +74,9 @@ const UnitModule = {
         extruderDraftDia: '',
         extruderDraftThick: '',
         extruderDraftLen: '',
+        extruderDraftColorType: '',
         extruderDraftColor: '',
+        extruderDraftColorCode: '',
         extruderDraftBubble: false,
         extruderDraftNote: '',
         depoTaskSearchName: '',
@@ -297,7 +301,9 @@ const UnitModule = {
         UnitModule.state.elxEditingId = null;
         UnitModule.state.elxProductName = '';
         UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColorType = 'eloksal';
         UnitModule.state.elxColor = '';
+        UnitModule.state.elxColorCode = '';
         UnitModule.state.elxNote = '';
         UI.renderCurrentPage();
     },
@@ -330,7 +336,9 @@ const UnitModule = {
         UnitModule.state.extruderDraftDia = '';
         UnitModule.state.extruderDraftThick = '';
         UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColorType = '';
         UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftColorCode = '';
         UnitModule.state.extruderDraftBubble = false;
         UnitModule.state.extruderDraftNote = '';
         UI.renderCurrentPage();
@@ -1527,6 +1535,25 @@ const UnitModule = {
             : null;
         const draftCode = editing?.cardCode || UnitModule.generateExtruderCardCode();
         const draftType = String(UnitModule.state.extruderDraftType || 'ROD');
+        const colorTypeOptions = UnitModule.getSharedColorTypeOptions();
+        const activeColorType = UnitModule.normalizeSharedColorType(UnitModule.state.extruderDraftColorType);
+        UnitModule.state.extruderDraftColorType = activeColorType;
+        const availableColors = activeColorType
+            ? UnitModule.getSharedColorItemsWithFallback(activeColorType, colors)
+            : [];
+        if (UnitModule.state.extruderDraftColor) {
+            const exists = availableColors.some(row =>
+                String(row.name || '').toLowerCase() === String(UnitModule.state.extruderDraftColor || '').toLowerCase()
+            );
+            if (!exists) {
+                availableColors.unshift({
+                    id: '',
+                    name: String(UnitModule.state.extruderDraftColor || ''),
+                    code: String(UnitModule.state.extruderDraftColorCode || '').trim().toUpperCase(),
+                    type: activeColorType || ''
+                });
+            }
+        }
         const typeLabel = (kind) => kind === 'PIPE' ? 'BORU' : (kind === 'PROFILE' ? 'OZEL PROFIL' : 'CUBUK');
 
         container.innerHTML = `
@@ -1645,17 +1672,24 @@ const UnitModule = {
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">boy (mm) *</label>
                                 <input id="ext_len" type="number" min="0" value="${UnitModule.escapeHtml(String(UnitModule.state.extruderDraftLen || ''))}" oninput="UnitModule.state.extruderDraftLen=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 3;">
-                                <label style="display:flex; justify-content:space-between; font-size:0.65rem; font-weight:700; color:#64748b; margin-bottom:0.4rem; margin-left:0.25rem;">
-                                    RENK
-                                    <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
-                                </label>
-                                <select id="ext_color" onchange="UnitModule.state.extruderDraftColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                                    <option value="">Seciniz</option>
-                                    ${colors.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.extruderDraftColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
-                                </select>
+                            <div style="grid-column:span 4; width:100%; max-width:440px; justify-self:start;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori / renk *</label>
+                                <div style="height:38px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                        <select id="ext_color_type" onchange="UnitModule.setExtruderColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:#334155;">
+                                            <option value="">kategori sec</option>
+                                            ${colorTypeOptions.map(opt => `<option value="${opt.id}" ${activeColorType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div style="background:${activeColorType ? 'white' : '#f8fafc'};">
+                                        <select id="ext_color" ${activeColorType ? '' : 'disabled'} onchange="UnitModule.state.extruderDraftColor=this.value; UnitModule.state.extruderDraftColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${activeColorType ? '#111827' : '#94a3b8'};">
+                                            <option value="">renk sec</option>
+                                            ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.extruderDraftColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
-                            <div style="grid-column:span 3;">
+                            <div style="grid-column:span 2;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="ext_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
                             </div>
@@ -1716,7 +1750,9 @@ const UnitModule = {
         UnitModule.state.extruderDraftDia = '';
         UnitModule.state.extruderDraftThick = '';
         UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColorType = '';
         UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftColorCode = '';
         UnitModule.state.extruderDraftBubble = false;
         UnitModule.state.extruderDraftNote = '';
         UI.renderCurrentPage();
@@ -1760,7 +1796,9 @@ const UnitModule = {
         UnitModule.state.extruderDraftDia = Number.isFinite(Number(row.diameterMm)) ? String(row.diameterMm) : '';
         UnitModule.state.extruderDraftThick = Number.isFinite(Number(row.thicknessMm)) ? String(row.thicknessMm) : '';
         UnitModule.state.extruderDraftLen = Number.isFinite(Number(row.lengthMm)) ? String(row.lengthMm) : '';
+        UnitModule.state.extruderDraftColorType = UnitModule.resolveSharedColorTypeForRow(row, '');
         UnitModule.state.extruderDraftColor = row.color || '';
+        UnitModule.state.extruderDraftColorCode = String(row.colorCode || '').trim().toUpperCase();
         UnitModule.state.extruderDraftBubble = !!row.isBubble;
         UnitModule.state.extruderDraftNote = row.note || '';
         UI.renderCurrentPage();
@@ -1771,7 +1809,9 @@ const UnitModule = {
         const diaRaw = String(UnitModule.state.extruderDraftDia || '').trim();
         const thickRaw = String(UnitModule.state.extruderDraftThick || '').trim();
         const lenRaw = String(UnitModule.state.extruderDraftLen || '').trim();
+        const colorType = UnitModule.normalizeSharedColorType(UnitModule.state.extruderDraftColorType || '');
         const color = String(UnitModule.state.extruderDraftColor || '').trim();
+        const colorCode = String(UnitModule.state.extruderDraftColorCode || '').trim().toUpperCase();
         const isBubble = !!UnitModule.state.extruderDraftBubble;
         const note = String(UnitModule.state.extruderDraftNote || '').trim();
 
@@ -1781,6 +1821,10 @@ const UnitModule = {
 
         if (!Number.isFinite(len) || Number(len) <= 0) {
             alert('Boy (mm) zorunlu ve 0dan buyuk olmali.');
+            return;
+        }
+        if (!colorType) {
+            alert('Renk kategorisi seciniz.');
             return;
         }
         if (!color) {
@@ -1825,7 +1869,9 @@ const UnitModule = {
             row.diameterMm = Number.isFinite(dia) ? Number(dia) : null;
             row.thicknessMm = kind === 'PIPE' && Number.isFinite(thick) ? Number(thick) : null;
             row.lengthMm = Number(len);
+            row.colorType = colorType;
             row.color = color;
+            row.colorCode = colorCode;
             row.isBubble = kind === 'ROD' ? isBubble : false;
             row.note = note || '';
             row.updated_at = now;
@@ -1841,7 +1887,9 @@ const UnitModule = {
                 diameterMm: Number.isFinite(dia) ? Number(dia) : null,
                 thicknessMm: kind === 'PIPE' && Number.isFinite(thick) ? Number(thick) : null,
                 lengthMm: Number(len),
+                colorType,
                 color,
+                colorCode,
                 isBubble: kind === 'ROD' ? isBubble : false,
                 note: note || '',
                 created_at: now,
@@ -1872,7 +1920,9 @@ const UnitModule = {
         UnitModule.state.extruderDraftDia = '';
         UnitModule.state.extruderDraftThick = '';
         UnitModule.state.extruderDraftLen = '';
+        UnitModule.state.extruderDraftColorType = '';
         UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftColorCode = '';
         UnitModule.state.extruderDraftBubble = false;
         UnitModule.state.extruderDraftNote = '';
         UI.renderCurrentPage();
@@ -2249,25 +2299,102 @@ const UnitModule = {
         });
         return Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     },
-    resolvePvdColorTypeForRow: (row) => {
+    getSharedColorItemsWithFallback: (type, fallbackNames = []) => {
+        const normalized = UnitModule.normalizeSharedColorType(type);
+        if (!normalized) return [];
+        const primary = UnitModule.getSharedColorLibraryItems(normalized);
+        if (primary.length > 0) return primary;
+        return (fallbackNames || [])
+            .map(name => ({ id: '', name: String(name || '').trim(), code: '', type: normalized }))
+            .filter(item => item.name);
+    },
+    resolveSharedColorTypeForRow: (row, defaultType = '') => {
         const fromRow = UnitModule.normalizeSharedColorType(row?.colorType || '');
         if (fromRow) return fromRow;
         const fromCode = UnitModule.inferColorTypeFromCode(row?.colorCode || '');
         if (fromCode) return fromCode;
 
         const colorName = String(row?.color || '').trim().toLowerCase();
-        if (!colorName) return 'pvd';
+        if (!colorName) return UnitModule.normalizeSharedColorType(defaultType || '');
         const list = Array.isArray(DB.data?.data?.colorLibrary) ? DB.data.data.colorLibrary : [];
         const matches = list.filter(item => String(item?.name || '').trim().toLowerCase() === colorName);
         const types = Array.from(new Set(matches.map(item => UnitModule.normalizeSharedColorType(item?.type || '')).filter(Boolean)));
         if (types.length === 1) return types[0];
-        return 'pvd';
+        return UnitModule.normalizeSharedColorType(defaultType || '');
+    },
+    resolvePvdColorTypeForRow: (row) => {
+        return UnitModule.resolveSharedColorTypeForRow(row, 'pvd') || 'pvd';
+    },
+    resolveEloksalColorTypeForRow: (row) => {
+        const defaultType = String(row?.processType || '') === 'STATIK_BOYA' ? 'boya' : 'eloksal';
+        return UnitModule.resolveSharedColorTypeForRow(row, defaultType) || defaultType;
     },
     setPvdColorType: (type) => {
         UnitModule.state.pvdColorType = UnitModule.normalizeSharedColorType(type);
         UnitModule.state.pvdColor = '';
         UnitModule.state.pvdColorCode = '';
         UI.renderCurrentPage();
+    },
+    setExtruderColorType: (type) => {
+        UnitModule.state.extruderDraftColorType = UnitModule.normalizeSharedColorType(type);
+        UnitModule.state.extruderDraftColor = '';
+        UnitModule.state.extruderDraftColorCode = '';
+        UI.renderCurrentPage();
+    },
+    setEloksalColorCategory: (type) => {
+        const normalized = UnitModule.normalizeSharedColorType(type);
+        const processType = normalized === 'boya' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.setEloksalProcessType(processType);
+    },
+    refreshStockColorOptions: (selectedColor = '', selectedCode = '') => {
+        const typeEl = document.getElementById('stk_color_type');
+        const colorEl = document.getElementById('stk_col');
+        const codeEl = document.getElementById('stk_col_code');
+        if (!typeEl || !colorEl) return;
+
+        const activeType = UnitModule.normalizeSharedColorType(typeEl.value || '');
+        const unitId = UnitModule.state.activeUnitId;
+        const fallback = Array.isArray(DB.data?.data?.unitColors?.[unitId]) ? DB.data.data.unitColors[unitId] : [];
+        const items = activeType ? UnitModule.getSharedColorItemsWithFallback(activeType, fallback) : [];
+
+        const wantsColor = String(selectedColor || '').trim();
+        const wantsCode = String(selectedCode || '').trim().toUpperCase();
+        if (wantsColor) {
+            const exists = items.some(row => String(row.name || '').toLowerCase() === wantsColor.toLowerCase());
+            if (!exists) {
+                items.unshift({ id: '', name: wantsColor, code: wantsCode, type: activeType });
+            }
+        }
+
+        const options = ['<option value="">renk sec</option>']
+            .concat(items.map(row => {
+                const name = UnitModule.escapeHtml(row.name || '');
+                const code = UnitModule.escapeHtml(row.code || '');
+                const selected = wantsColor && String(row.name || '') === wantsColor ? ' selected' : '';
+                return `<option value="${name}" data-code="${code}"${selected}>${name}</option>`;
+            }))
+            .join('');
+
+        colorEl.innerHTML = options;
+        colorEl.disabled = !activeType;
+        colorEl.style.color = activeType ? '#334155' : '#94a3b8';
+        if (!activeType) colorEl.value = '';
+        if (codeEl) {
+            const opt = colorEl.options[colorEl.selectedIndex];
+            codeEl.value = opt?.dataset?.code || '';
+        }
+    },
+    setStockColorType: (type) => {
+        const typeEl = document.getElementById('stk_color_type');
+        if (typeEl) typeEl.value = UnitModule.normalizeSharedColorType(type);
+        UnitModule.refreshStockColorOptions();
+    },
+    setStockColorValue: () => {
+        const colorEl = document.getElementById('stk_col');
+        const codeEl = document.getElementById('stk_col_code');
+        if (!colorEl || !codeEl) return;
+        const opt = colorEl.options[colorEl.selectedIndex];
+        codeEl.value = opt?.dataset?.code || '';
     },
     renderPvdLibrary: (container, unitId) => {
         const unit = (DB.data.data.units || []).find(u => u.id === unitId);
@@ -2298,15 +2425,9 @@ const UnitModule = {
         const activeType = UnitModule.normalizeSharedColorType(UnitModule.state.pvdColorType);
         UnitModule.state.pvdColorType = activeType;
 
-        const libraryColors = activeType ? UnitModule.getSharedColorLibraryItems(activeType) : [];
-        const fallbackPvdColors = (DB.data.data.unitColors[unitId] || []).map(name => ({
-            id: '',
-            name: String(name || '').trim(),
-            code: ''
-        })).filter(row => row.name);
-        const availableColors = libraryColors.length > 0 || activeType !== 'pvd'
-            ? libraryColors
-            : fallbackPvdColors;
+        const availableColors = activeType
+            ? UnitModule.getSharedColorItemsWithFallback(activeType, activeType === 'pvd' ? (DB.data.data.unitColors[unitId] || []) : [])
+            : [];
 
         if (UnitModule.state.pvdColor) {
             const exists = availableColors.some(row =>
@@ -2394,8 +2515,8 @@ const UnitModule = {
                             </div>
                             <div style="grid-column:span 4; width:100%; max-width:440px; justify-self:start;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori / renk *</label>
-                                <div style="height:44px; border:2px solid #1f2937; border-radius:0.95rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
-                                    <div style="background:#d9e9f8; border-right:1px solid #1f2937;">
+                                <div style="height:44px; border:1px solid #cbd5e1; border-radius:0.95rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
                                         <select id="pvd_color_type" onchange="UnitModule.setPvdColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:#334155;">
                                             <option value="">kategori sec</option>
                                             ${typeOptions.map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
@@ -2930,8 +3051,30 @@ const UnitModule = {
         const editing = UnitModule.state.elxEditingId
             ? cards.find(x => x.id === UnitModule.state.elxEditingId)
             : null;
-        const processType = UnitModule.state.elxProcessType || 'ELOKSAL';
-        const colorsForProcess = Array.isArray(processColors[processType]) ? processColors[processType] : [];
+        const typeOptions = UnitModule.getSharedColorTypeOptions()
+            .filter(opt => opt.id === 'eloksal' || opt.id === 'boya');
+        const activeColorType = UnitModule.normalizeSharedColorType(UnitModule.state.elxColorType || '')
+            || (UnitModule.state.elxProcessType === 'STATIK_BOYA' ? 'boya' : 'eloksal');
+        UnitModule.state.elxColorType = activeColorType;
+        const processType = activeColorType === 'boya' ? 'STATIK_BOYA' : 'ELOKSAL';
+        UnitModule.state.elxProcessType = processType;
+        const fallbackColors = activeColorType === 'boya'
+            ? (processColors.STATIK_BOYA || [])
+            : (processColors.ELOKSAL || []);
+        const colorsForProcess = UnitModule.getSharedColorItemsWithFallback(activeColorType, fallbackColors);
+        if (UnitModule.state.elxColor) {
+            const exists = colorsForProcess.some(row =>
+                String(row.name || '').toLowerCase() === String(UnitModule.state.elxColor || '').toLowerCase()
+            );
+            if (!exists) {
+                colorsForProcess.unshift({
+                    id: '',
+                    name: String(UnitModule.state.elxColor || ''),
+                    code: String(UnitModule.state.elxColorCode || '').trim().toUpperCase(),
+                    type: activeColorType
+                });
+            }
+        }
         const draftCode = editing?.cardCode || UnitModule.generateEloksalCardCode(processType);
 
         container.innerHTML = `
@@ -3009,30 +3152,29 @@ const UnitModule = {
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
                                 <input id="elx_product_name" value="${UnitModule.escapeHtml(UnitModule.state.elxProductName || '')}" oninput="UnitModule.state.elxProductName=this.value" placeholder="ornek: dikme basligi" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 5;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">islem tipi (tek secim)</label>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-bottom:0.5rem;">
-                                    <button type="button" onclick="UnitModule.setEloksalProcessType('ELOKSAL', false); UnitModule.openProcessColorModal('${unitId}', 'ELOKSAL')" style="height:26px; width:100%; border:1px solid #0f172a; background:white; color:#2563eb; border-radius:0.5rem; padding:0 0.45rem; font-size:0.72rem; font-weight:800; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center;">YONET (EKLE-SIL)</button>
-                                    <button type="button" onclick="UnitModule.setEloksalProcessType('STATIK_BOYA', false); UnitModule.openProcessColorModal('${unitId}', 'STATIK_BOYA')" style="height:26px; width:100%; border:1px solid #0f172a; background:white; color:#2563eb; border-radius:0.5rem; padding:0 0.45rem; font-size:0.72rem; font-weight:800; cursor:pointer; white-space:nowrap; display:flex; align-items:center; justify-content:center;">YONET (EKLE-SIL)</button>
+                            <div style="grid-column:span 4; width:100%; max-width:440px; justify-self:start;">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.2rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b;">kategori / renk *</label>
+                                    <button type="button" onclick="UnitModule.openProcessColorModal('${unitId}', '${processType}')" style="height:22px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.45rem; padding:0 0.45rem; font-size:0.66rem; font-weight:800; cursor:pointer; white-space:nowrap;">YONET (EKLE-SIL)</button>
                                 </div>
-                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
-                                    <button type="button" onclick="UnitModule.setEloksalProcessType('ELOKSAL')" style="height:38px; width:100%; border:1px solid ${processType === 'ELOKSAL' ? '#0f172a' : '#cbd5e1'}; background:${processType === 'ELOKSAL' ? '#0f172a' : 'white'}; color:${processType === 'ELOKSAL' ? 'white' : '#334155'}; border-radius:0.55rem; padding:0 0.85rem; font-weight:800; cursor:pointer;">ELOKSAL</button>
-                                    <button type="button" onclick="UnitModule.setEloksalProcessType('STATIK_BOYA')" style="height:38px; width:100%; border:1px solid ${processType === 'STATIK_BOYA' ? '#0f172a' : '#cbd5e1'}; background:${processType === 'STATIK_BOYA' ? '#0f172a' : 'white'}; color:${processType === 'STATIK_BOYA' ? 'white' : '#334155'}; border-radius:0.55rem; padding:0 0.85rem; font-weight:800; cursor:pointer;">STATIK BOYA</button>
+                                <div style="height:38px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                        <select id="elx_color_type" onchange="UnitModule.setEloksalColorCategory(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:#334155;">
+                                            <option value="">kategori sec</option>
+                                            ${typeOptions.map(opt => `<option value="${opt.id}" ${activeColorType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div style="background:${activeColorType ? 'white' : '#f8fafc'};">
+                                        <select id="elx_color" ${activeColorType ? '' : 'disabled'} onchange="UnitModule.state.elxColor=this.value; UnitModule.state.elxColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${activeColorType ? '#111827' : '#94a3b8'};">
+                                            <option value="">renk sec</option>
+                                            ${colorsForProcess.map(c => `<option value="${UnitModule.escapeHtml(c.name || '')}" data-code="${UnitModule.escapeHtml(c.code || '')}" ${String(UnitModule.state.elxColor || '') === String(c.name || '') ? 'selected' : ''}>${UnitModule.escapeHtml(c.name || '')}</option>`).join('')}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div style="grid-column:span 3;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="elx_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
-                            </div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem; margin-top:0.7rem;">
-                            <div style="grid-column:span 12;">
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.2rem;"><label style="display:block; font-size:0.74rem; color:#64748b;">renk</label></div>
-                                <select id="elx_color" onchange="UnitModule.state.elxColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
-                                    <option value="">Renk seciniz</option>
-                                    ${colorsForProcess.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.elxColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
-                                </select>
                             </div>
                         </div>
 
@@ -3056,10 +3198,19 @@ const UnitModule = {
     setEloksalProcessType: (type, rerender = true) => {
         const nextType = type === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
         UnitModule.state.elxProcessType = nextType;
+        UnitModule.state.elxColorType = nextType === 'STATIK_BOYA' ? 'boya' : 'eloksal';
         const unitId = UnitModule.state.activeUnitId;
         const processColors = UnitModule.ensureProcessColorLists(unitId);
         const options = Array.isArray(processColors[nextType]) ? processColors[nextType] : [];
-        if (!options.includes(UnitModule.state.elxColor)) UnitModule.state.elxColor = '';
+        const keepColor = options.includes(UnitModule.state.elxColor);
+        if (!keepColor) {
+            const shared = UnitModule.getSharedColorLibraryItems(UnitModule.state.elxColorType);
+            const hasInShared = shared.some(row => String(row.name || '') === String(UnitModule.state.elxColor || ''));
+            if (!hasInShared) {
+                UnitModule.state.elxColor = '';
+                UnitModule.state.elxColorCode = '';
+            }
+        }
         if (rerender) UI.renderCurrentPage();
     },
     setEloksalListFilter: (field, value, focusId) => {
@@ -3084,7 +3235,9 @@ const UnitModule = {
         UnitModule.state.elxEditingId = null;
         UnitModule.state.elxProductName = '';
         UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColorType = 'eloksal';
         UnitModule.state.elxColor = '';
+        UnitModule.state.elxColorCode = '';
         UnitModule.state.elxNote = '';
         UI.renderCurrentPage();
     },
@@ -3095,11 +3248,13 @@ const UnitModule = {
     previewEloksalRow: (id) => {
         const row = (DB.data.data.eloksalCards || []).find(x => x.id === id);
         if (!row) return;
+        const colorType = UnitModule.resolveEloksalColorTypeForRow(row);
+        const colorTypeLabel = (UnitModule.getSharedColorTypeOptions().find(x => x.id === colorType)?.label) || '-';
         Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
             <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
-                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Islem tipi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processType || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk kategorisi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(colorTypeLabel)}</div></div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</div></div>
                 <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
             </div>
@@ -3113,16 +3268,21 @@ const UnitModule = {
         UnitModule.state.elxSelectedId = id;
         UnitModule.state.elxProductName = row.productName || '';
         UnitModule.state.elxProcessType = row.processType || 'ELOKSAL';
+        UnitModule.state.elxColorType = UnitModule.resolveEloksalColorTypeForRow(row);
         UnitModule.state.elxColor = row.color || '';
+        UnitModule.state.elxColorCode = String(row.colorCode || '').trim().toUpperCase();
         UnitModule.state.elxNote = row.note || '';
         UI.renderCurrentPage();
     },
     saveEloksalRow: async (unitId) => {
         const productName = String(UnitModule.state.elxProductName || '').trim();
-        const processType = UnitModule.state.elxProcessType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
+        const colorType = UnitModule.normalizeSharedColorType(UnitModule.state.elxColorType || '');
+        const processType = colorType === 'boya' ? 'STATIK_BOYA' : 'ELOKSAL';
         const color = String(UnitModule.state.elxColor || '').trim();
+        const colorCode = String(UnitModule.state.elxColorCode || '').trim().toUpperCase();
         const note = String(UnitModule.state.elxNote || '').trim();
 
+        if (!colorType) return alert('Renk kategorisi seciniz.');
         if (!color) return alert('Renk zorunlu.');
 
         if (!Array.isArray(DB.data.data.eloksalCards)) DB.data.data.eloksalCards = [];
@@ -3131,11 +3291,12 @@ const UnitModule = {
 
         const hasSameColor = all.some(row =>
             row.unitId === unitId
+            && UnitModule.normalizeSharedColorType(row.colorType || UnitModule.resolveEloksalColorTypeForRow(row)) === colorType
             && String(row.color || '').toLowerCase() === color.toLowerCase()
             && row.id !== UnitModule.state.elxEditingId
         );
         if (hasSameColor) {
-            alert('Bu renk zaten tanimli. ELOKSAL ve STATIK BOYA icin tekrar acilamaz.');
+            alert('Bu kategoride ayni renk zaten tanimli.');
             return;
         }
 
@@ -3146,7 +3307,9 @@ const UnitModule = {
             row.processType = processType;
             row.cardCode = oldType === processType ? row.cardCode : UnitModule.generateEloksalCardCode(processType);
             row.productName = productName;
+            row.colorType = colorType;
             row.color = color;
+            row.colorCode = colorCode;
             row.note = note || '';
             row.updated_at = now;
             UnitModule.state.elxSelectedId = row.id;
@@ -3158,7 +3321,9 @@ const UnitModule = {
                 processType,
                 cardCode: UnitModule.generateEloksalCardCode(processType),
                 productName,
+                colorType,
                 color,
+                colorCode,
                 note: note || '',
                 created_at: now,
                 updated_at: now
@@ -3185,7 +3350,9 @@ const UnitModule = {
         UnitModule.state.elxEditingId = null;
         UnitModule.state.elxProductName = '';
         UnitModule.state.elxProcessType = 'ELOKSAL';
+        UnitModule.state.elxColorType = 'eloksal';
         UnitModule.state.elxColor = '';
+        UnitModule.state.elxColorCode = '';
         UnitModule.state.elxNote = '';
         UI.renderCurrentPage();
     },
@@ -3345,7 +3512,6 @@ const UnitModule = {
         // Ensure Colors Exist
         if (!DB.data.data.unitColors) DB.data.data.unitColors = {};
         if (!DB.data.data.unitColors[unitId]) DB.data.data.unitColors[unitId] = ['Seffaf', 'Beyaz', 'Siyah', 'Antrasit'];
-        const colors = DB.data.data.unitColors[unitId];
 
         // Specific Header for Extruder
         const title = unit.name.includes('EKSTRUDER') ? 'EKSTRUDER STOK EKLEME PANELI' : `${unit.name} STOK PANELI`;
@@ -3403,15 +3569,25 @@ const UnitModule = {
                             <input id="stk_len" type="number" class="inp" placeholder="2000">
                         </div>
 
-                        <div style="grid-column:span 2">
-                            <label class="lbl" style="display:flex; justify-content:space-between">
-                                RENK
-                                <button onclick="UnitModule.openColorModal('${unitId}')" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
-                            </label>
-                            <select id="stk_col" class="inp" style="cursor:pointer">
-                                <option value="Tanimsiz">Seciniz</option>
-                                ${colors.map(c => `<option value="${c}">${c}</option>`).join('')}
-                            </select>
+                        <div style="grid-column:span 3; width:100%; max-width:440px;">
+                            <div class="lbl" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.3rem;">
+                                <span>KATEGORI / RENK</span>
+                                <button onclick="Router.navigate('product-library'); ProductLibraryModule.openWorkspace('colors');" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
+                            </div>
+                            <div style="height:42px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%; background:white;">
+                                <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                    <select id="stk_color_type" onchange="UnitModule.setStockColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.65rem; font-size:0.9rem; font-weight:700; color:#334155;">
+                                        <option value="">kategori sec</option>
+                                        ${UnitModule.getSharedColorTypeOptions().map(opt => `<option value="${opt.id}">${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div style="background:#f8fafc;">
+                                    <select id="stk_col" onchange="UnitModule.setStockColorValue()" disabled style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.65rem; font-size:0.9rem; font-weight:700; color:#94a3b8;">
+                                        <option value="">renk sec</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <input id="stk_col_code" type="hidden" value="">
                         </div>
 
                         ${tab === 'ROD' ? `
@@ -3655,7 +3831,9 @@ const UnitModule = {
             if (document.getElementById('stk_dia')) document.getElementById('stk_dia').value = item.diameter || '';
             if (document.getElementById('stk_thick')) document.getElementById('stk_thick').value = item.thickness || '';
             if (document.getElementById('stk_len')) document.getElementById('stk_len').value = item.length || '';
-            if (document.getElementById('stk_col')) document.getElementById('stk_col').value = item.color || 'Tanimsiz';
+            const colorType = UnitModule.resolveSharedColorTypeForRow(item, '');
+            if (document.getElementById('stk_color_type')) document.getElementById('stk_color_type').value = colorType;
+            UnitModule.refreshStockColorOptions(item.color || '', item.colorCode || '');
             if (document.getElementById('stk_qty')) document.getElementById('stk_qty').value = item.quantity || '';
             if (document.getElementById('stk_target')) document.getElementById('stk_target').value = item.targetStock || '';
             if (document.getElementById('stk_addr')) document.getElementById('stk_addr').value = item.address || '';
@@ -3677,7 +3855,9 @@ const UnitModule = {
         const dia = document.getElementById('stk_dia')?.value;
         const thick = document.getElementById('stk_thick')?.value;
         const len = document.getElementById('stk_len')?.value;
+        const colType = UnitModule.normalizeSharedColorType(document.getElementById('stk_color_type')?.value || '');
         const col = document.getElementById('stk_col')?.value;
+        const colCode = String(document.getElementById('stk_col_code')?.value || '').trim().toUpperCase();
         const qty = document.getElementById('stk_qty')?.value;
         const target = document.getElementById('stk_target')?.value;
         const addr = document.getElementById('stk_addr')?.value;
@@ -3685,6 +3865,8 @@ const UnitModule = {
         const isBub = document.getElementById('stk_bub')?.checked;
 
         if (!qty || !target) { alert('Adet ve Hedef zorunludur.'); return; }
+        if (!colType) { alert('Renk kategorisi seciniz.'); return; }
+        if (!col) { alert('Renk seciniz.'); return; }
 
         let name = '';
         if (tab === 'ROD') name = `O${dia} Cubuk`;
@@ -3697,7 +3879,7 @@ const UnitModule = {
             if (idx !== -1) {
                 DB.data.data.inventory[idx] = {
                     ...DB.data.data.inventory[idx],
-                    name, diameter: dia, thickness: thick, length: len, color: col,
+                    name, diameter: dia, thickness: thick, length: len, colorType: colType, color: col, colorCode: colCode,
                     quantity: Number(qty), targetStock: Number(target), address: addr, isBubble: isBub,
                     updated_at: new Date().toISOString()
                 };
@@ -3713,7 +3895,9 @@ const UnitModule = {
                 diameter: dia,
                 thickness: thick,
                 length: len,
+                colorType: colType,
                 color: col,
+                colorCode: colCode,
                 quantity: Number(qty),
                 targetStock: Number(target),
                 address: addr,

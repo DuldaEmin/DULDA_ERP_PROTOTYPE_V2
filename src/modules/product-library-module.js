@@ -2630,7 +2630,10 @@ const ProductLibraryModule = {
         if (key === 'brand') ProductLibraryModule.state.masterDraftBrand = value || '';
         if (key === 'pack') ProductLibraryModule.state.masterDraftPack = value || '';
         if (key === 'length') ProductLibraryModule.state.masterDraftLength = value || '';
-        if (key === 'color') ProductLibraryModule.state.masterDraftColor = value || '';
+        if (key === 'color') {
+            ProductLibraryModule.state.masterDraftColor = value || '';
+            ProductLibraryModule.state.masterDraftColorCode = '';
+        }
         if (key === 'colorType') ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.normalizeColorType(value || '');
         if (key === 'colorCode') ProductLibraryModule.state.masterDraftColorCode = String(value || '').trim().toUpperCase();
         if (key === 'supplierCode') ProductLibraryModule.state.masterDraftSupplierCode = value || '';

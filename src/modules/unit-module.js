@@ -3379,6 +3379,7 @@ const UnitModule = {
     openProcessColorModal: (unitId, processType) => {
         const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
         UnitModule.state.elxProcessType = type;
+        UnitModule.state.elxColorType = type === 'STATIK_BOYA' ? 'boya' : 'eloksal';
         const lists = UnitModule.ensureProcessColorLists(unitId);
         const colors = lists[type] || [];
 
@@ -3417,6 +3418,7 @@ const UnitModule = {
     addProcessColor: async (unitId, processType) => {
         const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
         UnitModule.state.elxProcessType = type;
+        UnitModule.state.elxColorType = type === 'STATIK_BOYA' ? 'boya' : 'eloksal';
         const val = String(document.getElementById('processColorInput')?.value || '').trim();
         if (!val) return;
         const lists = UnitModule.ensureProcessColorLists(unitId);
@@ -3433,6 +3435,7 @@ const UnitModule = {
     deleteProcessColor: async (unitId, processType, color) => {
         const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
         UnitModule.state.elxProcessType = type;
+        UnitModule.state.elxColorType = type === 'STATIK_BOYA' ? 'boya' : 'eloksal';
         if (!confirm(`${color} silinsin mi?`)) return;
         const lists = UnitModule.ensureProcessColorLists(unitId);
         lists[type] = (lists[type] || []).filter(c => c !== color);
@@ -3569,7 +3572,7 @@ const UnitModule = {
                             <input id="stk_len" type="number" class="inp" placeholder="2000">
                         </div>
 
-                        <div style="grid-column:span 3; width:100%; max-width:440px;">
+                        <div style="grid-column:span 2; width:100%; max-width:440px;">
                             <div class="lbl" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.3rem;">
                                 <span>KATEGORI / RENK</span>
                                 <button onclick="Router.navigate('product-library'); ProductLibraryModule.openWorkspace('colors');" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
@@ -3831,7 +3834,7 @@ const UnitModule = {
             if (document.getElementById('stk_dia')) document.getElementById('stk_dia').value = item.diameter || '';
             if (document.getElementById('stk_thick')) document.getElementById('stk_thick').value = item.thickness || '';
             if (document.getElementById('stk_len')) document.getElementById('stk_len').value = item.length || '';
-            const colorType = UnitModule.resolveSharedColorTypeForRow(item, '');
+            const colorType = UnitModule.resolveSharedColorTypeForRow(item, 'eloksal');
             if (document.getElementById('stk_color_type')) document.getElementById('stk_color_type').value = colorType;
             UnitModule.refreshStockColorOptions(item.color || '', item.colorCode || '');
             if (document.getElementById('stk_qty')) document.getElementById('stk_qty').value = item.quantity || '';

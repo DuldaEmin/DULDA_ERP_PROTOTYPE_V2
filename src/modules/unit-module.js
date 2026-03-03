@@ -2392,20 +2392,21 @@ const UnitModule = {
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
                                 <input id="pvd_product_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdProductName || '')}" oninput="UnitModule.state.pvdProductName=this.value" placeholder="ornek: 40x40 boru tutacak" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 5; display:flex; flex-direction:column; gap:0.55rem;">
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori seciniz *</label>
-                                    <select id="pvd_color_type" onchange="UnitModule.setPvdColorType(this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
-                                        <option value="">kategori seciniz</option>
-                                        ${typeOptions.map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Renk seciniz *</label>
-                                    <select id="pvd_color" ${activeType ? '' : 'disabled'} onchange="UnitModule.state.pvdColor=this.value; UnitModule.state.pvdColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700; background:${activeType ? 'white' : '#f8fafc'};">
-                                        <option value="">Renk seciniz</option>
-                                        ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.pvdColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
-                                    </select>
+                            <div style="grid-column:span 5; width:100%; max-width:520px; justify-self:start;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori / renk *</label>
+                                <div style="height:44px; border:2px solid #1f2937; border-radius:0.95rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                    <div style="background:#d9e9f8; border-right:1px solid #1f2937;">
+                                        <select id="pvd_color_type" onchange="UnitModule.setPvdColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.75rem; font-weight:700; color:#334155;">
+                                            <option value="">kategori sec</option>
+                                            ${typeOptions.map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div style="background:${activeType ? 'white' : '#f8fafc'};">
+                                        <select id="pvd_color" ${activeType ? '' : 'disabled'} onchange="UnitModule.state.pvdColor=this.value; UnitModule.state.pvdColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.75rem; font-weight:700; color:${activeType ? '#111827' : '#94a3b8'};">
+                                            <option value="">renk sec</option>
+                                            ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.pvdColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
+                                        </select>
+                                    </div>
                                 </div>
                             </div>
                             <div style="grid-column:span 2;">

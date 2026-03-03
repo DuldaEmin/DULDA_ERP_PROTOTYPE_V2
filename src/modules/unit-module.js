@@ -41,7 +41,6 @@ const UnitModule = {
         pvdColorType: '',
         pvdColor: '',
         pvdColorCode: '',
-        pvdColorLibraryOpen: false,
         pvdNote: '',
         elxSearchName: '',
         elxSearchId: '',
@@ -282,10 +281,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = false;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
-        UnitModule.state.pvdColorType = 'pvd';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
         UnitModule.state.pvdColorCode = '';
-        UnitModule.state.pvdColorLibraryOpen = false;
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },
@@ -2269,11 +2267,6 @@ const UnitModule = {
         UnitModule.state.pvdColorType = UnitModule.normalizeSharedColorType(type);
         UnitModule.state.pvdColor = '';
         UnitModule.state.pvdColorCode = '';
-        UnitModule.state.pvdColorLibraryOpen = false;
-        UI.renderCurrentPage();
-    },
-    togglePvdColorLibraryPanel: () => {
-        UnitModule.state.pvdColorLibraryOpen = !UnitModule.state.pvdColorLibraryOpen;
         UI.renderCurrentPage();
     },
     renderPvdLibrary: (container, unitId) => {
@@ -2302,9 +2295,7 @@ const UnitModule = {
             : null;
         const draftCode = editing?.cardCode || UnitModule.generatePvdCardCode();
         const typeOptions = UnitModule.getSharedColorTypeOptions();
-        const activeType = UnitModule.normalizeSharedColorType(UnitModule.state.pvdColorType) || 'pvd';
-        const activeTypeLabel = typeOptions.find(x => x.id === activeType)?.label || 'Kategori sec';
-        const colorPanelOpen = !!UnitModule.state.pvdColorLibraryOpen;
+        const activeType = UnitModule.normalizeSharedColorType(UnitModule.state.pvdColorType);
         UnitModule.state.pvdColorType = activeType;
 
         const libraryColors = activeType ? UnitModule.getSharedColorLibraryItems(activeType) : [];
@@ -2401,34 +2392,27 @@ const UnitModule = {
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
                                 <input id="pvd_product_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdProductName || '')}" oninput="UnitModule.state.pvdProductName=this.value" placeholder="ornek: 40x40 boru tutacak" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 5;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem; display:flex; justify-content:space-between;">
-                                    <span>renk * <span style="font-weight:700; color:#2563eb;">(${UnitModule.escapeHtml(activeTypeLabel)})</span></span>
-                                    <button onclick="UnitModule.togglePvdColorLibraryPanel()" type="button" style="color:#2563eb; font-size:0.68rem; font-weight:800; background:none; border:none; cursor:pointer;">RENK KUTUPHANESI ${colorPanelOpen ? '▲' : '▼'}</button>
-                                </label>
-                                <select id="pvd_color" ${activeType ? '' : 'disabled'} onchange="UnitModule.state.pvdColor=this.value; UnitModule.state.pvdColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700; background:${activeType ? 'white' : '#f8fafc'};">
-                                    <option value="">Renk seciniz</option>
-                                    ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.pvdColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
-                                </select>
+                            <div style="grid-column:span 5; display:flex; flex-direction:column; gap:0.55rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori seciniz *</label>
+                                    <select id="pvd_color_type" onchange="UnitModule.setPvdColorType(this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                                        <option value="">kategori seciniz</option>
+                                        ${typeOptions.map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Renk seciniz *</label>
+                                    <select id="pvd_color" ${activeType ? '' : 'disabled'} onchange="UnitModule.state.pvdColor=this.value; UnitModule.state.pvdColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700; background:${activeType ? 'white' : '#f8fafc'};">
+                                        <option value="">Renk seciniz</option>
+                                        ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.pvdColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
+                                    </select>
+                                </div>
                             </div>
                             <div style="grid-column:span 2;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="pvd_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
                             </div>
                         </div>
-
-                        ${colorPanelOpen ? `
-                            <div style="margin-top:0.55rem; border:1px solid #bfdbfe; background:#eff6ff; border-radius:0.7rem; padding:0.6rem 0.7rem;">
-                                <div style="font-size:0.72rem; color:#1e40af; font-weight:800; margin-bottom:0.45rem;">Renk kategorisi sec</div>
-                                <div style="display:flex; flex-wrap:wrap; gap:0.45rem;">
-                                    ${typeOptions.map(opt => `
-                                        <button type="button" onclick="UnitModule.setPvdColorType('${opt.id}')" style="height:32px; border-radius:0.55rem; border:1px solid ${activeType === opt.id ? '#1d4ed8' : '#93c5fd'}; background:${activeType === opt.id ? '#bfdbfe' : 'white'}; color:${activeType === opt.id ? '#1e3a8a' : '#334155'}; font-weight:700; padding:0 0.7rem; cursor:pointer;">
-                                            ${UnitModule.escapeHtml(opt.label)}
-                                        </button>
-                                    `).join('')}
-                                </div>
-                            </div>
-                        ` : ''}
 
                         <div style="margin-top:0.7rem;">
                             <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">not (opsiyonel)</label>
@@ -2468,10 +2452,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = true;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
-        UnitModule.state.pvdColorType = 'pvd';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
         UnitModule.state.pvdColorCode = '';
-        UnitModule.state.pvdColorLibraryOpen = false;
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },
@@ -2504,7 +2487,6 @@ const UnitModule = {
         UnitModule.state.pvdColorType = UnitModule.resolvePvdColorTypeForRow(row);
         UnitModule.state.pvdColor = row.color || '';
         UnitModule.state.pvdColorCode = String(row.colorCode || '').trim().toUpperCase();
-        UnitModule.state.pvdColorLibraryOpen = false;
         UnitModule.state.pvdNote = row.note || '';
         UI.renderCurrentPage();
     },
@@ -2578,10 +2560,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = !!keepOpen;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
-        UnitModule.state.pvdColorType = 'pvd';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
         UnitModule.state.pvdColorCode = '';
-        UnitModule.state.pvdColorLibraryOpen = false;
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },

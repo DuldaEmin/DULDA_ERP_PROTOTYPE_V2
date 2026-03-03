@@ -1303,7 +1303,7 @@ const ProductLibraryModule = {
                 </div>
 
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:center;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:end;">
                         <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <select id="cmp_filter_group" onchange="ProductLibraryModule.setComponentFilter('group', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600; background:white;">
                             <option value="">kategori ile ara</option>
@@ -1370,7 +1370,7 @@ const ProductLibraryModule = {
                                 <button class="btn-primary" onclick="ProductLibraryModule.saveComponentCard()">Kaydet</button>
                             </div>
                         </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.75rem; margin-bottom:0.85rem;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; margin-bottom:0.85rem;">
                             <div>
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi *</label>
                                 <input value="${ProductLibraryModule.escapeHtml(state.componentDraftName || '')}" oninput="ProductLibraryModule.state.componentDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">

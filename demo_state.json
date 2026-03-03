@@ -105,7 +105,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-02T17:45:54.037Z",
+    "updated_at": "2026-03-03T12:18:58.893Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -947,6 +947,7 @@
       }
     ],
     "partWorkOrders": [],
-    "assemblyGroups": []
+    "assemblyGroups": [],
+    "colorLibrary": []
   }
 }

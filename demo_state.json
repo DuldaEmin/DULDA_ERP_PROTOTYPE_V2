@@ -98,14 +98,15 @@
       ],
       "partGroups": [
         "Genel",
-        "baba pleksi"
+        "baba pleksi",
+        "dikme boru"
       ],
       "partSubGroups": [
         "deneme",
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-03T14:56:00.972Z",
+    "updated_at": "2026-03-03T15:18:08.926Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",

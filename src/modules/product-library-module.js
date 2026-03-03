@@ -1322,8 +1322,10 @@ const ProductLibraryModule = {
                                 <input value="${ProductLibraryModule.escapeHtml(state.componentDraftName || '')}" oninput="ProductLibraryModule.state.componentDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori</label>
-                                <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openComponentDictionary('group')">+ YONET (EKLE-SIL)</div>
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; margin-bottom:0.2rem; min-height:20px;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b;">kategori</label>
+                                    <button type="button" onclick="ProductLibraryModule.openComponentDictionary('group')" style="height:20px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.4rem; padding:0 0.4rem; font-size:0.64rem; font-weight:800; cursor:pointer; white-space:nowrap;">+yonet (ekle-sil)</button>
+                                </div>
                                 <select onchange="ProductLibraryModule.state.componentDraftGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                     ${groups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                                 </select>

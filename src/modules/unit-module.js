@@ -2474,10 +2474,13 @@ const UnitModule = {
     previewPvdRow: (id) => {
         const row = (DB.data.data.pvdCards || []).find(x => x.id === id);
         if (!row) return;
+        const colorType = UnitModule.resolvePvdColorTypeForRow(row);
+        const colorTypeLabel = (UnitModule.getSharedColorTypeOptions().find(x => x.id === colorType)?.label) || '-';
         Modal.open(`Kart Detay - ${UnitModule.escapeHtml(row.productName || '-')}`, `
             <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Urun adi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</div></div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">ID</div><div style="font-weight:700; color:#334155; font-family:monospace;">${UnitModule.escapeHtml(row.cardCode || '-')}</div></div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk kategorisi</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(colorTypeLabel)}</div></div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Renk</div><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</div></div>
                 <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div></div>
             </div>

@@ -58,7 +58,7 @@ const ProductLibraryModule = {
         colorSelectedId: null,
         colorDraftName: '',
         colorDraftNote: '',
-        componentFilters: { name: '', group: '', subGroup: '', code: '' },
+        componentFilters: { name: '', group: '', colorType: '', subGroup: '', code: '' },
         componentFormOpen: false,
         componentEditingId: null,
         componentViewingId: null,
@@ -596,13 +596,26 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftSubGroup = String(name || '').trim();
         ProductLibraryModule.state.componentDraftColorCode = String(code || '').trim().toUpperCase();
     },
+    setComponentSearchColorType: (type) => {
+        if (!ProductLibraryModule.state.componentFilters || typeof ProductLibraryModule.state.componentFilters !== 'object') {
+            ProductLibraryModule.state.componentFilters = { name: '', group: '', colorType: '', subGroup: '', code: '' };
+        }
+        ProductLibraryModule.state.componentFilters.colorType = ProductLibraryModule.normalizeColorType(type);
+        ProductLibraryModule.state.componentFilters.subGroup = '';
+        UI.renderCurrentPage();
+    },
 
     setComponentFilter: (field, value, focusId = '') => {
         if (!ProductLibraryModule.state.componentFilters || typeof ProductLibraryModule.state.componentFilters !== 'object') {
-            ProductLibraryModule.state.componentFilters = { name: '', group: '', subGroup: '', code: '' };
+            ProductLibraryModule.state.componentFilters = { name: '', group: '', colorType: '', subGroup: '', code: '' };
         }
-        if (!['name', 'group', 'subGroup', 'code'].includes(field)) return;
-        ProductLibraryModule.state.componentFilters[field] = String(value || '');
+        if (!['name', 'group', 'colorType', 'subGroup', 'code'].includes(field)) return;
+        if (field === 'colorType') {
+            ProductLibraryModule.state.componentFilters.colorType = ProductLibraryModule.normalizeColorType(value || '');
+            ProductLibraryModule.state.componentFilters.subGroup = '';
+        } else {
+            ProductLibraryModule.state.componentFilters[field] = String(value || '');
+        }
         UI.renderCurrentPage();
         if (!focusId) return;
         setTimeout(() => {
@@ -1225,19 +1238,26 @@ const ProductLibraryModule = {
         units.forEach(u => { unitMap[u.id] = u.name; });
 
         const state = ProductLibraryModule.state;
-        const filters = state.componentFilters || { name: '', group: '', subGroup: '', code: '' };
+        const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getComponentCards();
-        const categorySearchOptions = Array.from(new Set(
-            allComponentRows.map(row => String(row?.group || '').trim()).filter(Boolean)
-        )).sort((a, b) => a.localeCompare(b, 'tr'));
-        const colorSearchOptions = Array.from(new Set(
-            allComponentRows.map(row => String(row?.subGroup || '').trim()).filter(Boolean)
-        )).sort((a, b) => a.localeCompare(b, 'tr'));
+        const categorySearchOptions = ProductLibraryModule.getPartGroups();
+        const qColorType = ProductLibraryModule.normalizeColorType(filters.colorType || '');
+        const colorSearchOptions = ProductLibraryModule.getMasterColorItemsWithFallback(qColorType);
         if (String(filters.group || '').trim() && !categorySearchOptions.includes(String(filters.group || '').trim())) {
             categorySearchOptions.unshift(String(filters.group || '').trim());
         }
-        if (String(filters.subGroup || '').trim() && !colorSearchOptions.includes(String(filters.subGroup || '').trim())) {
-            colorSearchOptions.unshift(String(filters.subGroup || '').trim());
+        if (String(filters.subGroup || '').trim()) {
+            const exists = colorSearchOptions.some(row =>
+                String(row.name || '').toLowerCase() === String(filters.subGroup || '').trim().toLowerCase()
+            );
+            if (!exists) {
+                colorSearchOptions.unshift({
+                    id: '',
+                    type: qColorType,
+                    name: String(filters.subGroup || '').trim(),
+                    code: ''
+                });
+            }
         }
         const qName = String(filters.name || '').trim().toLowerCase();
         const qGroup = String(filters.group || '').trim().toLowerCase();
@@ -1246,9 +1266,11 @@ const ProductLibraryModule = {
         const rows = allComponentRows.filter(row => {
             const nameOk = !qName || String(row?.name || '').toLowerCase().includes(qName);
             const groupOk = !qGroup || String(row?.group || '').toLowerCase().includes(qGroup);
-            const subOk = !qSub || String(row?.subGroup || '').toLowerCase().includes(qSub);
+            const rowColorType = ProductLibraryModule.resolveComponentColorType(row);
+            const typeOk = !qColorType || rowColorType === qColorType;
+            const subOk = !qSub || String(row?.subGroup || '').toLowerCase() === qSub;
             const codeOk = !qCode || String(row?.code || '').toLowerCase().includes(qCode);
-            return nameOk && groupOk && subOk && codeOk;
+            return nameOk && groupOk && typeOk && subOk && codeOk;
         });
 
         const groups = ProductLibraryModule.getPartGroups();
@@ -1287,10 +1309,23 @@ const ProductLibraryModule = {
                             <option value="">kategori ile ara</option>
                             ${categorySearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.group || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}
                         </select>
-                        <select id="cmp_filter_sub" onchange="ProductLibraryModule.setComponentFilter('subGroup', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600; background:white;">
-                            <option value="">renk ile ara</option>
-                            ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.subGroup || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}
-                        </select>
+                        <div>
+                            <div style="font-size:0.72rem; color:#64748b; margin:0 0 0.16rem 0.15rem;">kategori / renk</div>
+                            <div style="height:42px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                    <select id="cmp_filter_color_type" onchange="ProductLibraryModule.setComponentSearchColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:#334155;">
+                                        <option value="">kategori sec</option>
+                                        ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${qColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div style="background:${qColorType ? 'white' : '#f8fafc'};">
+                                    <select id="cmp_filter_sub" ${qColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setComponentFilter('subGroup', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${qColorType ? '#111827' : '#94a3b8'};">
+                                        <option value="">renk sec</option>
+                                        ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${String(filters.subGroup || '') === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <button class="btn-primary" onclick="ProductLibraryModule.openComponentForm()" style="height:42px; min-width:135px;">urun ekle +</button>
                     </div>

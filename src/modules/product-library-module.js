@@ -65,7 +65,9 @@ const ProductLibraryModule = {
         componentDraftCode: '',
         componentDraftName: '',
         componentDraftGroup: '',
+        componentDraftColorType: '',
         componentDraftSubGroup: '',
+        componentDraftColorCode: '',
         componentDraftMasterCode: '',
         componentDraftRoutes: [],
         componentDraftRouteStationId: '',
@@ -550,12 +552,12 @@ const ProductLibraryModule = {
         }
 
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
         if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
             ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
         }
-        if (!subGroups.includes(ProductLibraryModule.state.componentDraftSubGroup)) {
-            ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        ProductLibraryModule.state.componentDraftColorType = ProductLibraryModule.normalizeColorType(ProductLibraryModule.state.componentDraftColorType || '');
+        if (!ProductLibraryModule.state.componentDraftColorType) {
+            ProductLibraryModule.state.componentDraftColorCode = '';
         }
     },
 
@@ -569,6 +571,30 @@ const ProductLibraryModule = {
         const all = Array.isArray(DB.data?.meta?.options?.partSubGroups) ? DB.data.meta.options.partSubGroups : ['Genel'];
         const clean = Array.from(new Set(all.map(x => String(x || '').trim()).filter(Boolean)));
         return clean.sort((a, b) => a.localeCompare(b, 'tr'));
+    },
+    resolveComponentColorType: (row) => {
+        const fromRow = ProductLibraryModule.normalizeColorType(row?.colorType || '');
+        if (fromRow) return fromRow;
+        const fromCode = ProductLibraryModule.inferColorTypeFromCode(row?.colorCode || '');
+        if (fromCode) return fromCode;
+        const colorName = String(row?.subGroup || '').trim().toLowerCase();
+        if (!colorName) return '';
+        const matches = ProductLibraryModule.getColorLibraryItems().filter(item =>
+            String(item?.name || '').trim().toLowerCase() === colorName
+        );
+        const types = Array.from(new Set(matches.map(item => ProductLibraryModule.normalizeColorType(item?.type || '')).filter(Boolean)));
+        if (types.length === 1) return types[0];
+        return '';
+    },
+    setComponentColorType: (type) => {
+        ProductLibraryModule.state.componentDraftColorType = ProductLibraryModule.normalizeColorType(type);
+        ProductLibraryModule.state.componentDraftSubGroup = '';
+        ProductLibraryModule.state.componentDraftColorCode = '';
+        UI.renderCurrentPage();
+    },
+    setComponentColor: (name, code = '') => {
+        ProductLibraryModule.state.componentDraftSubGroup = String(name || '').trim();
+        ProductLibraryModule.state.componentDraftColorCode = String(code || '').trim().toUpperCase();
     },
 
     setComponentFilter: (field, value, focusId = '') => {
@@ -601,9 +627,10 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftNote = '';
         ProductLibraryModule.state.componentDraftFiles = [];
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
         ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
-        ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        ProductLibraryModule.state.componentDraftColorType = '';
+        ProductLibraryModule.state.componentDraftSubGroup = '';
+        ProductLibraryModule.state.componentDraftColorCode = '';
         UI.renderCurrentPage();
     },
 
@@ -619,9 +646,10 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftFiles = [];
         if (close) ProductLibraryModule.state.componentFormOpen = false;
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
         ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
-        ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
+        ProductLibraryModule.state.componentDraftColorType = '';
+        ProductLibraryModule.state.componentDraftSubGroup = '';
+        ProductLibraryModule.state.componentDraftColorCode = '';
         UI.renderCurrentPage();
     },
 
@@ -649,12 +677,8 @@ const ProductLibraryModule = {
 
     syncComponentDictionaryDrafts: () => {
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
         if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
             ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
-        }
-        if (!subGroups.includes(ProductLibraryModule.state.componentDraftSubGroup)) {
-            ProductLibraryModule.state.componentDraftSubGroup = subGroups[0] || '';
         }
     },
 
@@ -769,7 +793,9 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftCode = row.code || ProductLibraryModule.generateComponentCode(row.id);
         ProductLibraryModule.state.componentDraftName = row.name || '';
         ProductLibraryModule.state.componentDraftGroup = row.group || ProductLibraryModule.getPartGroups()[0] || '';
-        ProductLibraryModule.state.componentDraftSubGroup = row.subGroup || ProductLibraryModule.getPartSubGroups()[0] || '';
+        ProductLibraryModule.state.componentDraftColorType = ProductLibraryModule.resolveComponentColorType(row);
+        ProductLibraryModule.state.componentDraftSubGroup = row.subGroup || '';
+        ProductLibraryModule.state.componentDraftColorCode = String(row.colorCode || '').trim().toUpperCase();
         ProductLibraryModule.state.componentDraftMasterCode = row.masterCode || '';
         ProductLibraryModule.state.componentDraftRoutes = Array.isArray(row.routes)
             ? row.routes.map(r => ({
@@ -1010,9 +1036,12 @@ const ProductLibraryModule = {
         if (!name) return alert('Urun adi zorunlu.');
 
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
         const group = groups.includes(String(s.componentDraftGroup || '')) ? String(s.componentDraftGroup || '') : (groups[0] || 'Genel');
-        const subGroup = subGroups.includes(String(s.componentDraftSubGroup || '')) ? String(s.componentDraftSubGroup || '') : (subGroups[0] || 'Genel');
+        const colorType = ProductLibraryModule.normalizeColorType(s.componentDraftColorType || '');
+        const subGroup = String(s.componentDraftSubGroup || '').trim();
+        const colorCode = String(s.componentDraftColorCode || '').trim().toUpperCase();
+        if (colorType && !subGroup) return alert('Renk seciniz.');
+        if (!colorType && subGroup) return alert('Kategori seciniz.');
 
         const code = String(
             s.componentDraftCode || ProductLibraryModule.generateComponentCode(s.componentEditingId || null)
@@ -1068,6 +1097,8 @@ const ProductLibraryModule = {
                 name,
                 group,
                 subGroup,
+                colorType,
+                colorCode,
                 masterCode,
                 routes,
                 attachments: files,
@@ -1081,6 +1112,8 @@ const ProductLibraryModule = {
                 name,
                 group,
                 subGroup,
+                colorType,
+                colorCode,
                 masterCode,
                 routes,
                 attachments: files,
@@ -1129,8 +1162,8 @@ const ProductLibraryModule = {
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.7rem;">
                         <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div></div>
-                        <div><div style="font-size:0.72rem; color:#64748b;">urun grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</div></div>
-                        <div><div style="font-size:0.72rem; color:#64748b;">urun alt grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">kategori</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">renk</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</div></div>
                         <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-weight:700; font-family:monospace; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</div></div>
                     </div>
                     <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kod</div><div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row?.masterCode || '-')}</div></div>
@@ -1206,7 +1239,23 @@ const ProductLibraryModule = {
         });
 
         const groups = ProductLibraryModule.getPartGroups();
-        const subGroups = ProductLibraryModule.getPartSubGroups();
+        const colorTypeOptions = ProductLibraryModule.getColorTypeOptions();
+        const activeComponentColorType = ProductLibraryModule.normalizeColorType(state.componentDraftColorType || '');
+        ProductLibraryModule.state.componentDraftColorType = activeComponentColorType;
+        const componentColorOptions = ProductLibraryModule.getMasterColorItemsWithFallback(activeComponentColorType);
+        if (state.componentDraftSubGroup) {
+            const exists = componentColorOptions.some(row =>
+                String(row.name || '').toLowerCase() === String(state.componentDraftSubGroup || '').toLowerCase()
+            );
+            if (!exists) {
+                componentColorOptions.unshift({
+                    id: '',
+                    type: activeComponentColorType,
+                    name: String(state.componentDraftSubGroup || ''),
+                    code: String(state.componentDraftColorCode || '').trim().toUpperCase()
+                });
+            }
+        }
         const files = Array.isArray(state.componentDraftFiles) ? state.componentDraftFiles : [];
         const routes = Array.isArray(state.componentDraftRoutes) ? state.componentDraftRoutes : [];
         const draftCode = String(state.componentDraftCode || ProductLibraryModule.generateComponentCode(state.componentEditingId || null));
@@ -1221,8 +1270,8 @@ const ProductLibraryModule = {
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:0.7rem; align-items:center;">
                         <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <input id="cmp_filter_group" value="${ProductLibraryModule.escapeHtml(filters.group || '')}" oninput="ProductLibraryModule.setComponentFilter('group', this.value, 'cmp_filter_group')" placeholder="urun grubu ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <input id="cmp_filter_sub" value="${ProductLibraryModule.escapeHtml(filters.subGroup || '')}" oninput="ProductLibraryModule.setComponentFilter('subGroup', this.value, 'cmp_filter_sub')" placeholder="urun alt grubu" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <input id="cmp_filter_group" value="${ProductLibraryModule.escapeHtml(filters.group || '')}" oninput="ProductLibraryModule.setComponentFilter('group', this.value, 'cmp_filter_group')" placeholder="kategori ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                        <input id="cmp_filter_sub" value="${ProductLibraryModule.escapeHtml(filters.subGroup || '')}" oninput="ProductLibraryModule.setComponentFilter('subGroup', this.value, 'cmp_filter_sub')" placeholder="renk ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <button class="btn-primary" onclick="ProductLibraryModule.openComponentForm()" style="height:42px; min-width:135px;">urun ekle +</button>
                     </div>
@@ -1233,8 +1282,8 @@ const ProductLibraryModule = {
                         <thead>
                             <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
                                 <th style="padding:0.55rem; text-align:left;">urun adi</th>
-                                <th style="padding:0.55rem; text-align:left;">urun grubu</th>
-                                <th style="padding:0.55rem; text-align:left;">urun alt grubu</th>
+                                <th style="padding:0.55rem; text-align:left;">kategori</th>
+                                <th style="padding:0.55rem; text-align:left;">renk</th>
                                 <th style="padding:0.55rem; text-align:left;">ID kod</th>
                                 <th style="padding:0.55rem; text-align:center;">goruntule</th>
                                 <th style="padding:0.55rem; text-align:center;">duzenle</th>
@@ -1273,18 +1322,31 @@ const ProductLibraryModule = {
                                 <input value="${ProductLibraryModule.escapeHtml(state.componentDraftName || '')}" oninput="ProductLibraryModule.state.componentDraftName=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div>
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun grubu</label>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kategori</label>
                                 <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openComponentDictionary('group')">+ YONET (EKLE-SIL)</div>
                                 <select onchange="ProductLibraryModule.state.componentDraftGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                                     ${groups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                                 </select>
                             </div>
                             <div>
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun alt grubu</label>
-                                <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openComponentDictionary('subGroup')">+ YONET (EKLE-SIL)</div>
-                                <select onchange="ProductLibraryModule.state.componentDraftSubGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                                    ${subGroups.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftSubGroup || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
-                                </select>
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; margin-bottom:0.2rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b;">kategori / renk</label>
+                                    <button type="button" onclick="ProductLibraryModule.openWorkspace('colors')" style="height:20px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.4rem; padding:0 0.4rem; font-size:0.64rem; font-weight:800; cursor:pointer; white-space:nowrap;">+yonet (ekle-sil)</button>
+                                </div>
+                                <div style="height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                        <select onchange="ProductLibraryModule.setComponentColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:#334155;">
+                                            <option value="">kategori sec</option>
+                                            ${colorTypeOptions.map(opt => `<option value="${opt.id}" ${state.componentDraftColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.label)}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                    <div style="background:${state.componentDraftColorType ? 'white' : '#f8fafc'};">
+                                        <select ${state.componentDraftColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setComponentColor(this.value, this.options[this.selectedIndex]?.dataset?.code || '')" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${state.componentDraftColorType ? '#111827' : '#94a3b8'};">
+                                            <option value="">renk sec</option>
+                                            ${componentColorOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" data-code="${ProductLibraryModule.escapeHtml(opt.code || '')}" ${String(state.componentDraftSubGroup || '') === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                             <div>
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ID kod</label>

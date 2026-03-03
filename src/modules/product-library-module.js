@@ -111,7 +111,11 @@ const ProductLibraryModule = {
             return;
         }
         if (view === 'assembly') {
-            ProductLibraryModule.renderAssemblyPage(container);
+            ProductLibraryModule.renderWorkspacePlaceholder(
+                container,
+                'Montaj Grubu Olusturma',
+                'Sayfa hazirlaniyor.'
+            );
             return;
         }
         if (view === 'colors') {

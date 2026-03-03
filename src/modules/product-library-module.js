@@ -1152,6 +1152,29 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
+    focusAssemblySource: (source = 'all') => {
+        const nextSource = ['all', 'master', 'component'].includes(String(source || '')) ? String(source || '') : 'all';
+        if (!ProductLibraryModule.state.assemblySourceFilters || typeof ProductLibraryModule.state.assemblySourceFilters !== 'object') {
+            ProductLibraryModule.state.assemblySourceFilters = { source: 'all', name: '', code: '' };
+        }
+        ProductLibraryModule.state.assemblySourceFilters.source = nextSource;
+        UI.renderCurrentPage();
+        setTimeout(() => {
+            const box = document.getElementById('asm_source_panel');
+            if (box && typeof box.scrollIntoView === 'function') {
+                box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }, 0);
+    },
+
+    clearAssemblyDraftItemsBySource: (source) => {
+        const target = String(source || '');
+        if (!['master', 'component'].includes(target)) return;
+        const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        ProductLibraryModule.state.assemblyDraftItems = list.filter(item => String(item?.source || '') !== target);
+        UI.renderCurrentPage();
+    },
+
     addAssemblyDraftItem: (source, refId) => {
         const all = ProductLibraryModule.getAssemblySourceRows();
         const row = all.find(item => String(item.source) === String(source || '') && String(item.refId) === String(refId || ''));
@@ -1333,6 +1356,14 @@ const ProductLibraryModule = {
         const draftCode = String(state.assemblyDraftCode || ProductLibraryModule.generateAssemblyCode(state.assemblyEditingId || null));
         const draftItems = Array.isArray(state.assemblyDraftItems) ? state.assemblyDraftItems : [];
         const draftCodes = new Set(draftItems.map(item => String(item?.code || '').trim().toUpperCase()).filter(Boolean));
+        const masterCodes = draftItems
+            .filter(item => String(item?.source || '') === 'master')
+            .map(item => String(item?.code || '').trim().toUpperCase())
+            .filter(Boolean);
+        const componentCodes = draftItems
+            .filter(item => String(item?.source || '') === 'component')
+            .map(item => String(item?.code || '').trim().toUpperCase())
+            .filter(Boolean);
 
         const sourceFilters = state.assemblySourceFilters || { source: 'all', name: '', code: '' };
         const qSrcSource = String(sourceFilters.source || 'all').trim().toLowerCase();
@@ -1415,39 +1446,59 @@ const ProductLibraryModule = {
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:1.25fr 1fr; gap:0.85rem;">
-                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
-                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem;">
-                                    <strong style="font-size:0.92rem;">Secilen Kalemler</strong>
-                                    <span style="font-size:0.8rem; color:#64748b;">Toplam: ${draftItems.length}</span>
+                        <div style="display:grid; grid-template-columns:1.65fr 0.95fr; gap:0.9rem;">
+                            <div>
+                                <div style="margin-bottom:0.65rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kodlari</label>
+                                    <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;">
+                                        <input readonly value="${ProductLibraryModule.escapeHtml(masterCodes.join(', '))}" placeholder="master secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;">
+                                        <button class="btn-sm" onclick="ProductLibraryModule.focusAssemblySource('master')" style="height:40px; min-width:110px;">goruntule</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.clearAssemblyDraftItemsBySource('master')" style="height:40px; min-width:80px;">sil</button>
+                                    </div>
                                 </div>
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <thead>
-                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
-                                            <th style="padding:0.45rem; text-align:left;">Kaynak</th>
-                                            <th style="padding:0.45rem; text-align:left;">Urun</th>
-                                            <th style="padding:0.45rem; text-align:left;">ID kod</th>
-                                            <th style="padding:0.45rem; text-align:center;">Adet</th>
-                                            <th style="padding:0.45rem; text-align:right;">Islem</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${draftItems.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : draftItems.map(item => `
-                                            <tr style="border-bottom:1px solid #f1f5f9;">
-                                                <td style="padding:0.45rem;">${item.source === 'master' ? 'Master' : 'Parca'}</td>
-                                                <td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
-                                                <td style="padding:0.45rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
-                                                <td style="padding:0.45rem; text-align:center;">
-                                                    <input type="number" min="1" step="1" value="${Number(item.qty || 1)}" onchange="ProductLibraryModule.setAssemblyDraftItemQty('${ProductLibraryModule.escapeHtml(item.code || '')}', this.value)" style="width:80px; height:34px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; text-align:center;">
-                                                </td>
-                                                <td style="padding:0.45rem; text-align:right;"><button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyDraftItem('${ProductLibraryModule.escapeHtml(item.code || '')}')">sil</button></td>
+
+                                <div style="margin-bottom:0.65rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">parca ve bilesen ID kodlari</label>
+                                    <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;">
+                                        <input readonly value="${ProductLibraryModule.escapeHtml(componentCodes.join(', '))}" placeholder="parca/bilesen secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;">
+                                        <button class="btn-sm" onclick="ProductLibraryModule.focusAssemblySource('component')" style="height:40px; min-width:110px;">goruntule</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.clearAssemblyDraftItemsBySource('component')" style="height:40px; min-width:80px;">sil</button>
+                                    </div>
+                                </div>
+
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem;">
+                                        <strong style="font-size:0.92rem;">Secilen Kalemler</strong>
+                                        <span style="font-size:0.8rem; color:#64748b;">Toplam: ${draftItems.length}</span>
+                                    </div>
+                                    <table style="width:100%; border-collapse:collapse;">
+                                        <thead>
+                                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                                <th style="padding:0.45rem; text-align:left;">Kaynak</th>
+                                                <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                                <th style="padding:0.45rem; text-align:left;">ID kod</th>
+                                                <th style="padding:0.45rem; text-align:center;">Adet</th>
+                                                <th style="padding:0.45rem; text-align:right;">Islem</th>
                                             </tr>
-                                        `).join('')}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            ${draftItems.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : draftItems.map(item => `
+                                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                                    <td style="padding:0.45rem;">${item.source === 'master' ? 'Master' : 'Parca'}</td>
+                                                    <td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
+                                                    <td style="padding:0.45rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
+                                                    <td style="padding:0.45rem; text-align:center;">
+                                                        <input type="number" min="1" step="1" value="${Number(item.qty || 1)}" onchange="ProductLibraryModule.setAssemblyDraftItemQty('${ProductLibraryModule.escapeHtml(item.code || '')}', this.value)" style="width:80px; height:34px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; text-align:center;">
+                                                    </td>
+                                                    <td style="padding:0.45rem; text-align:right;"><button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyDraftItem('${ProductLibraryModule.escapeHtml(item.code || '')}')">sil</button></td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
-                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
+                            <div id="asm_source_panel" style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
                                 <strong style="font-size:0.92rem;">Kalem Ekle</strong>
                                 <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0.45rem; margin:0.55rem 0 0.6rem;">
                                     <select id="asm_src_source" onchange="ProductLibraryModule.setAssemblySourceFilter('source', this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">

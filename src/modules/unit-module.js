@@ -38,7 +38,9 @@ const UnitModule = {
         pvdFormOpen: false,
         pvdEditingId: null,
         pvdProductName: '',
+        pvdColorType: '',
         pvdColor: '',
+        pvdColorCode: '',
         pvdNote: '',
         elxSearchName: '',
         elxSearchId: '',
@@ -279,7 +281,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = false;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdColorCode = '';
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },
@@ -2193,6 +2197,86 @@ const UnitModule = {
         }
         return candidate;
     },
+    getSharedColorTypeOptions: () => ([
+        { id: 'eloksal', label: 'Eloksal Renkleri' },
+        { id: 'pvd', label: 'Pvd krom kaplama' },
+        { id: 'boya', label: 'Elektrostatik boya' },
+        { id: 'pleksi', label: 'Pleksi renk' }
+    ]),
+    normalizeSharedColorType: (value) => {
+        const text = String(value || '').trim().toLowerCase();
+        if (!text) return '';
+        if (text.includes('eloks') || text.includes('aloks')) return 'eloksal';
+        if (text.includes('pvd')) return 'pvd';
+        if (text.includes('boya') || text.includes('elektrostatik') || text.includes('statik')) return 'boya';
+        if (text.includes('pleks')) return 'pleksi';
+        return '';
+    },
+    getColorCodePrefixForType: (type) => {
+        const normalized = UnitModule.normalizeSharedColorType(type);
+        if (normalized === 'eloksal') return 'ELO';
+        if (normalized === 'pvd') return 'PVD';
+        if (normalized === 'boya') return 'BOY';
+        if (normalized === 'pleksi') return 'PLX';
+        return '';
+    },
+    inferColorTypeFromCode: (code) => {
+        const raw = String(code || '').trim().toUpperCase();
+        if (raw.startsWith('CLR-ELO-')) return 'eloksal';
+        if (raw.startsWith('CLR-PVD-')) return 'pvd';
+        if (raw.startsWith('CLR-BOY-')) return 'boya';
+        if (raw.startsWith('CLR-PLX-')) return 'pleksi';
+        return '';
+    },
+    getSharedColorLibraryItems: (type) => {
+        const normalized = UnitModule.normalizeSharedColorType(type);
+        const list = Array.isArray(DB.data?.data?.colorLibrary) ? DB.data.data.colorLibrary : [];
+        if (!normalized) return [];
+        const rows = list
+            .filter(row => UnitModule.normalizeSharedColorType(row?.type) === normalized)
+            .map(row => ({
+                id: String(row?.id || ''),
+                name: String(row?.name || '').trim(),
+                code: String(row?.code || '').trim().toUpperCase(),
+                type: normalized
+            }))
+            .filter(row => row.name);
+
+        const uniq = new Map();
+        rows.forEach(row => {
+            const key = row.name.toLowerCase();
+            if (!uniq.has(key)) uniq.set(key, row);
+        });
+        return Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+    },
+    resolvePvdColorTypeForRow: (row) => {
+        const fromRow = UnitModule.normalizeSharedColorType(row?.colorType || '');
+        if (fromRow) return fromRow;
+        const fromCode = UnitModule.inferColorTypeFromCode(row?.colorCode || '');
+        if (fromCode) return fromCode;
+
+        const colorName = String(row?.color || '').trim().toLowerCase();
+        if (!colorName) return 'pvd';
+        const list = Array.isArray(DB.data?.data?.colorLibrary) ? DB.data.data.colorLibrary : [];
+        const matches = list.filter(item => String(item?.name || '').trim().toLowerCase() === colorName);
+        const types = Array.from(new Set(matches.map(item => UnitModule.normalizeSharedColorType(item?.type || '')).filter(Boolean)));
+        if (types.length === 1) return types[0];
+        return 'pvd';
+    },
+    setPvdColorType: (type) => {
+        UnitModule.state.pvdColorType = UnitModule.normalizeSharedColorType(type);
+        UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdColorCode = '';
+        UI.renderCurrentPage();
+    },
+    openSharedColorLibrary: () => {
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule) {
+            alert('Renk kutuphanesi modulu bulunamadi.');
+            return;
+        }
+        ProductLibraryModule.state.workspaceView = 'colors';
+        Router.navigate('products');
+    },
     renderPvdLibrary: (container, unitId) => {
         const unit = (DB.data.data.units || []).find(u => u.id === unitId);
         if (!Array.isArray(DB.data.data.pvdCards)) DB.data.data.pvdCards = [];
@@ -2218,7 +2302,32 @@ const UnitModule = {
             ? cards.find(x => x.id === UnitModule.state.pvdEditingId)
             : null;
         const draftCode = editing?.cardCode || UnitModule.generatePvdCardCode();
-        const colors = DB.data.data.unitColors[unitId] || [];
+        const typeOptions = UnitModule.getSharedColorTypeOptions();
+        const activeType = UnitModule.normalizeSharedColorType(UnitModule.state.pvdColorType);
+        UnitModule.state.pvdColorType = activeType;
+
+        const libraryColors = activeType ? UnitModule.getSharedColorLibraryItems(activeType) : [];
+        const fallbackPvdColors = (DB.data.data.unitColors[unitId] || []).map(name => ({
+            id: '',
+            name: String(name || '').trim(),
+            code: ''
+        })).filter(row => row.name);
+        const availableColors = libraryColors.length > 0 || activeType !== 'pvd'
+            ? libraryColors
+            : fallbackPvdColors;
+
+        if (UnitModule.state.pvdColor) {
+            const exists = availableColors.some(row =>
+                String(row.name || '').toLowerCase() === String(UnitModule.state.pvdColor || '').toLowerCase()
+            );
+            if (!exists) {
+                availableColors.unshift({
+                    id: '',
+                    name: String(UnitModule.state.pvdColor || ''),
+                    code: String(UnitModule.state.pvdColorCode || '').trim().toUpperCase()
+                });
+            }
+        }
 
         container.innerHTML = `
             <div style="max-width:1300px; margin:0 auto;">
@@ -2287,21 +2396,28 @@ const UnitModule = {
                         </div>
 
                         <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
-                            <div style="grid-column:span 5;">
+                            <div style="grid-column:span 4;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (opsiyonel)</label>
                                 <input id="pvd_product_name" value="${UnitModule.escapeHtml(UnitModule.state.pvdProductName || '')}" oninput="UnitModule.state.pvdProductName=this.value" placeholder="ornek: 40x40 boru tutacak" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 4;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem; display:flex; justify-content:space-between;">
-                                    renk
-                                    <button onclick="UnitModule.openColorModal('${unitId}')" type="button" style="color:#2563eb; font-size:0.68rem; font-weight:800; background:none; border:none; cursor:pointer;">+ YONET (EKLE-SIL)</button>
-                                </label>
-                                <select id="pvd_color" onchange="UnitModule.state.pvdColor=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
-                                    <option value="">Renk seciniz</option>
-                                    ${colors.map(c => `<option value="${UnitModule.escapeHtml(c)}" ${String(UnitModule.state.pvdColor || '') === String(c) ? 'selected' : ''}>${UnitModule.escapeHtml(c)}</option>`).join('')}
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">renk kategori *</label>
+                                <select id="pvd_color_type" onchange="UnitModule.setPvdColorType(this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                                    <option value="">Kategori sec</option>
+                                    ${typeOptions.map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${UnitModule.escapeHtml(opt.label)}</option>`).join('')}
                                 </select>
                             </div>
                             <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem; display:flex; justify-content:space-between;">
+                                    renk *
+                                    <button onclick="UnitModule.openSharedColorLibrary()" type="button" style="color:#2563eb; font-size:0.68rem; font-weight:800; background:none; border:none; cursor:pointer;">RENK KUTUPHANESI</button>
+                                </label>
+                                <select id="pvd_color" ${activeType ? '' : 'disabled'} onchange="UnitModule.state.pvdColor=this.value; UnitModule.state.pvdColorCode=this.options[this.selectedIndex]?.dataset?.code || '';" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700; background:${activeType ? 'white' : '#f8fafc'};">
+                                    <option value="">Renk seciniz</option>
+                                    ${availableColors.map(c => `<option data-code="${UnitModule.escapeHtml(c.code || '')}" value="${UnitModule.escapeHtml(c.name)}" ${String(UnitModule.state.pvdColor || '') === String(c.name) ? 'selected' : ''}>${UnitModule.escapeHtml(c.name)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="grid-column:span 2;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="pvd_card_id" disabled value="${UnitModule.escapeHtml(draftCode)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
                             </div>
@@ -2345,7 +2461,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = true;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdColorCode = '';
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },
@@ -2372,15 +2490,20 @@ const UnitModule = {
         UnitModule.state.pvdEditingId = id;
         UnitModule.state.pvdSelectedId = id;
         UnitModule.state.pvdProductName = row.productName || '';
+        UnitModule.state.pvdColorType = UnitModule.resolvePvdColorTypeForRow(row);
         UnitModule.state.pvdColor = row.color || '';
+        UnitModule.state.pvdColorCode = String(row.colorCode || '').trim().toUpperCase();
         UnitModule.state.pvdNote = row.note || '';
         UI.renderCurrentPage();
     },
     savePvdRow: async (unitId) => {
         const productName = String(UnitModule.state.pvdProductName || '').trim();
+        const colorType = UnitModule.normalizeSharedColorType(UnitModule.state.pvdColorType || '');
         const color = String(UnitModule.state.pvdColor || '').trim();
+        const colorCode = String(UnitModule.state.pvdColorCode || '').trim().toUpperCase();
         const note = String(UnitModule.state.pvdNote || '').trim();
 
+        if (!colorType) return alert('Renk kategorisi seciniz.');
         if (!color) return alert('Renk zorunlu.');
 
         if (!Array.isArray(DB.data.data.pvdCards)) DB.data.data.pvdCards = [];
@@ -2389,6 +2512,7 @@ const UnitModule = {
 
         const hasSameColor = all.some(row =>
             row.unitId === unitId
+            && UnitModule.normalizeSharedColorType(row.colorType || UnitModule.resolvePvdColorTypeForRow(row)) === colorType
             && String(row.color || '').toLowerCase() === color.toLowerCase()
             && row.id !== UnitModule.state.pvdEditingId
         );
@@ -2401,7 +2525,9 @@ const UnitModule = {
             const row = all.find(x => x.id === UnitModule.state.pvdEditingId);
             if (!row) return;
             row.productName = productName;
+            row.colorType = colorType;
             row.color = color;
+            row.colorCode = colorCode;
             row.note = note || '';
             row.updated_at = now;
             UnitModule.state.pvdSelectedId = row.id;
@@ -2412,7 +2538,9 @@ const UnitModule = {
                 unitId,
                 cardCode: UnitModule.generatePvdCardCode(),
                 productName,
+                colorType,
                 color,
+                colorCode,
                 note: note || '',
                 created_at: now,
                 updated_at: now
@@ -2438,7 +2566,9 @@ const UnitModule = {
         UnitModule.state.pvdFormOpen = !!keepOpen;
         UnitModule.state.pvdEditingId = null;
         UnitModule.state.pvdProductName = '';
+        UnitModule.state.pvdColorType = '';
         UnitModule.state.pvdColor = '';
+        UnitModule.state.pvdColorCode = '';
         UnitModule.state.pvdNote = '';
         UI.renderCurrentPage();
     },

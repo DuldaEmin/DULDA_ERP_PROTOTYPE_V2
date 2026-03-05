@@ -107,7 +107,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-05T14:42:17.693Z",
+    "updated_at": "2026-03-05T14:57:02.262Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -1066,7 +1066,44 @@
         "updated_at": "2026-03-02T11:01:28.981Z"
       }
     ],
-    "workOrders": [],
+    "workOrders": [
+      {
+        "id": "f30aa171-4623-4468-af41-85f77ab2259b",
+        "workOrderCode": "WO-000001",
+        "montageCardId": "a75854f9-1a55-4d84-9b9c-464b1efce4c3",
+        "montageCardCode": "MON-000001",
+        "productCode": "2008",
+        "productName": "40 lık dikme montajı",
+        "lotQty": 100,
+        "dueDate": "2026-03-08",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "d8a6192f-a048-4df7-9654-1b75497c5a4c",
+            "lineCode": "WO-000001-01",
+            "componentCode": "ALU0001",
+            "componentName": "ALU0001",
+            "multiplier": 1,
+            "targetQty": 100,
+            "routes": [
+              {
+                "id": "7be8d49a-92e0-4881-8796-c415c7973d5d",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "u2",
+        "created_at": "2026-03-05T14:57:02.261Z",
+        "updated_at": "2026-03-05T14:57:02.261Z"
+      }
+    ],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferTasks": [

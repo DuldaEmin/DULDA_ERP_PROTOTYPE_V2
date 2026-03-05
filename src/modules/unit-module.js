@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | montageLibrary | unitLibraryEmpty | depoTransfer
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | montageLibrary | unitLibraryEmpty | depoTransfer | unitDepot
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -189,12 +189,19 @@ const UnitModule = {
             UnitModule.renderUnitLibraryPlaceholder(container, activeUnitId);
         } else if (view === 'depoTransfer') {
             UnitModule.renderDepoTransfer(container);
+        } else if (view === 'unitDepot') {
+            UnitModule.renderUnitDepotPlaceholder(container, activeUnitId);
         }
 
         UnitModule.renderComponentRoutePickerPanel(container);
     },
 
     openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
+    openUnitDepot: (id) => {
+        UnitModule.state.activeUnitId = id || null;
+        UnitModule.state.view = 'unitDepot';
+        UI.renderCurrentPage();
+    },
     openDepoTransfer: () => {
         UnitModule.state.activeUnitId = 'u_dtm';
         UnitModule.state.view = 'depoTransfer';
@@ -655,9 +662,6 @@ const UnitModule = {
                     <button class="btn-sm" title="Birim duzenle" style="padding:0.35rem 0.45rem; display:flex; align-items:center; justify-content:center; color:#94a3b8; opacity:0.8; background:#f8fafc; border-color:#dbe3ee;" onclick="event.stopPropagation(); UnitModule.openUnitEditModal('${u.id}')">
                         <i data-lucide="pencil" width="14" height="14"></i>
                     </button>
-                    <button class="btn-sm" title="Birimi sil" style="padding:0.35rem 0.45rem; color:#f87171; opacity:0.8; background:#fffafb; border-color:#f3d4d8; display:flex; align-items:center; justify-content:center;" onclick="event.stopPropagation(); UnitModule.deleteUnit('${u.id}')">
-                        <i data-lucide="trash-2" width="14" height="14"></i>
-                    </button>
                 </div>
                 ` : ''}
                 <div style="width:3.25rem; height:3.25rem; border-radius:0.95rem; margin:0 auto 1rem; background:${palette.bg}; color:${palette.fg}; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.95rem; letter-spacing:0.04em; box-shadow:0 8px 16px -10px rgba(15,23,42,0.35); border:1px solid rgba(255,255,255,0.7)">${initials}</div>
@@ -688,6 +692,10 @@ const UnitModule = {
                      <h2 class="page-title">${unit.name}</h2>
                 </div>
                 <div class="apps-grid">
+                    <a href="#" onclick="UnitModule.openUnitDepot('${unitId}')" class="app-card">
+                        <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
+                        <div class="app-name">Birim Deposu</div>
+                    </a>
                     ${productLibraryCard}
                 </div>
             `;
@@ -706,11 +714,24 @@ const UnitModule = {
                     <div class="icon-box g-blue"><i data-lucide="users" width="40" height="40"></i></div>
                     <div class="app-name">Personel</div>
                 </a>
-                 <a href="#" onclick="UnitModule.openStock('${unitId}')" class="app-card">
-                    <div class="icon-box g-emerald"><i data-lucide="package" width="40" height="40"></i></div>
-                    <div class="app-name">Birim Sto&#287;u</div>
+                 <a href="#" onclick="UnitModule.openUnitDepot('${unitId}')" class="app-card">
+                    <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
+                    <div class="app-name">Birim Deposu</div>
                 </a>
                 ${productLibraryCard}
+            </div>
+        `;
+    },
+    renderUnitDepotPlaceholder: (container, unitId) => {
+        const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
+        const unitName = unit?.name || 'BIRIM';
+        container.innerHTML = `
+            <div class="page-header">
+                <h2 class="page-title">${unitName} - BIRIM DEPOSU</h2>
+            </div>
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; color:#64748b">
+                <h3 style="margin:0 0 0.6rem; color:#334155">Sayfa hazirlaniyor</h3>
+                <p style="margin:0">Birim deposu ekrani cok yakinda aktif olacak.</p>
             </div>
         `;
     },

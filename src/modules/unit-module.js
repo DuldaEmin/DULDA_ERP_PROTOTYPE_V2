@@ -690,7 +690,7 @@ const UnitModule = {
         const productLibraryCard = `
             <a href="#" onclick="UnitModule.openUnitLibrary('${unitId}')" class="app-card">
                 <div class="icon-box" style="background:linear-gradient(135deg,#bfdbfe,#7dd3fc); color:#1d4ed8"><i data-lucide="library" width="40" height="40"></i></div>
-                <div class="app-name">&#220;r&#252;n K&#252;t&#252;phanesi</div>
+                <div class="app-name">&#304;&#351;lem K&#252;t&#252;phanesi</div>
             </a>
         `;
         if (isExternalUnit) {
@@ -1614,7 +1614,7 @@ const UnitModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> Ekstruder Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> Ekstruder Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''}</div>
                         </div>
@@ -2028,7 +2028,7 @@ const UnitModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Islem envanteri</div>
                         </div>
@@ -2500,7 +2500,7 @@ const UnitModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Titanyum PVD renk envanteri</div>
                         </div>
@@ -2796,7 +2796,7 @@ const UnitModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Yuzey envanteri</div>
                         </div>
@@ -3135,7 +3135,7 @@ const UnitModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${unit?.name || ''} - Eloksal / Statik Boya envanteri</div>
                         </div>

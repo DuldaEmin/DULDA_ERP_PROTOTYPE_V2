@@ -50,7 +50,7 @@ const CncLibraryModule = {
                         </button>
                         <div>
                             <h2 class="page-title" style="margin:0; display:flex; gap:0.4rem; align-items:center;">
-                                <i data-lucide="library" color="#1d4ed8"></i> CNC Urun Kutuphanesi
+                                <i data-lucide="library" color="#1d4ed8"></i> CNC Islem Kutuphanesi
                             </h2>
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${CncLibraryModule.escape(unit?.name || '')}</div>
                         </div>

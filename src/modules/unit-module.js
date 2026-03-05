@@ -91,7 +91,15 @@ const UnitModule = {
         depoTaskDraftSourceId: '',
         depoTaskDraftTargetId: '',
         depoTaskDraftType: 'GONDER',
-        depoTaskDraftNote: ''
+        depoTaskDraftNote: '',
+        workOrderTab: 'BEKLEYEN',
+        workOrderSearch: '',
+        workOrderFormOpen: false,
+        workOrderDraftMontageId: '',
+        workOrderDraftLotQty: '100',
+        workOrderDraftDueDate: '',
+        workOrderDraftPriority: 'NORMAL',
+        workOrderDraftNote: ''
     },
 
     render: (container) => {
@@ -110,6 +118,9 @@ const UnitModule = {
         if (!DB.data.data.depoTransferTasks) DB.data.data.depoTransferTasks = [];
         if (!DB.data.data.depoTransferLogs) DB.data.data.depoTransferLogs = [];
         if (!DB.data.data.depoRoutes) DB.data.data.depoRoutes = [];
+        if (!DB.data.data.workOrders) DB.data.data.workOrders = [];
+        if (!DB.data.data.workOrderTransactions) DB.data.data.workOrderTransactions = [];
+        if (!DB.data.data.partComponentCards) DB.data.data.partComponentCards = [];
 
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
@@ -207,6 +218,9 @@ const UnitModule = {
     openWorkOrderPlanning: (id) => {
         UnitModule.state.activeUnitId = id || null;
         UnitModule.state.view = 'workOrderPlanning';
+        if (!UnitModule.state.workOrderTab) UnitModule.state.workOrderTab = 'BEKLEYEN';
+        if (!UnitModule.state.workOrderDraftLotQty) UnitModule.state.workOrderDraftLotQty = '100';
+        if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
         UI.renderCurrentPage();
     },
     openDepoTransfer: () => {
@@ -750,16 +764,450 @@ const UnitModule = {
             </div>
         `;
     },
+    setWorkOrderTab: (tab) => {
+        UnitModule.state.workOrderTab = String(tab || 'BEKLEYEN');
+        UI.renderCurrentPage();
+    },
+    setWorkOrderSearch: (value) => {
+        UnitModule.state.workOrderSearch = String(value || '');
+        UI.renderCurrentPage();
+    },
+    openWorkOrderCreateForm: () => {
+        const montageCards = Array.isArray(DB.data?.data?.montageCards) ? DB.data.data.montageCards : [];
+        if (montageCards.length === 0) {
+            alert('Montaj karti yok. Once Islem Kutuphanesi tarafinda montaj karti olusturun.');
+            return;
+        }
+        UnitModule.state.workOrderFormOpen = true;
+        if (!UnitModule.state.workOrderDraftMontageId && montageCards[0]?.id) {
+            UnitModule.state.workOrderDraftMontageId = String(montageCards[0].id);
+        }
+        if (!UnitModule.state.workOrderDraftLotQty) UnitModule.state.workOrderDraftLotQty = '100';
+        if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
+        if (!UnitModule.state.workOrderDraftDueDate) {
+            const d = new Date();
+            d.setDate(d.getDate() + 3);
+            UnitModule.state.workOrderDraftDueDate = d.toISOString().slice(0, 10);
+        }
+        UI.renderCurrentPage();
+    },
+    closeWorkOrderCreateForm: () => {
+        UnitModule.state.workOrderFormOpen = false;
+        UnitModule.state.workOrderDraftMontageId = '';
+        UnitModule.state.workOrderDraftLotQty = '100';
+        UnitModule.state.workOrderDraftDueDate = '';
+        UnitModule.state.workOrderDraftPriority = 'NORMAL';
+        UnitModule.state.workOrderDraftNote = '';
+        UI.renderCurrentPage();
+    },
+    getNextWorkOrderCode: () => {
+        if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
+        const max = (DB.data.data.workOrders || []).reduce((acc, row) => {
+            const code = String(row?.workOrderCode || '').trim().toUpperCase();
+            const m = code.match(/^WO-(\d{6})$/);
+            if (!m) return acc;
+            return Math.max(acc, Number(m[1]));
+        }, 0);
+        let n = max + 1;
+        let candidate = `WO-${String(n).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            n += 1;
+            candidate = `WO-${String(n).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    buildWorkOrderLinesFromMontage: (montageCard, lotQty, workOrderCode) => {
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const unitMap = {};
+        units.forEach(u => { unitMap[String(u.id)] = String(u.name || u.id); });
+        const componentCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        const counts = new Map();
+        const rawIds = Array.isArray(montageCard?.componentIds) ? montageCard.componentIds : [];
+        rawIds.forEach(raw => {
+            const key = String(raw || '').trim().toUpperCase();
+            if (!key) return;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        if (counts.size === 0) {
+            const fallback = String(montageCard?.productCode || montageCard?.cardCode || 'GENEL').trim().toUpperCase();
+            counts.set(fallback || 'GENEL', 1);
+        }
+        const entries = Array.from(counts.entries());
+        return entries.map(([componentCode, multiplier], idx) => {
+            const comp = componentCards.find(x => String(x?.code || '').trim().toUpperCase() === componentCode);
+            const routesRaw = Array.isArray(comp?.routes) ? comp.routes : [];
+            let routes = routesRaw
+                .map((r, rIdx) => {
+                    const stationId = String(r?.stationId || '').trim();
+                    if (!stationId) return null;
+                    return {
+                        id: crypto.randomUUID(),
+                        seq: rIdx + 1,
+                        stationId,
+                        stationName: unitMap[stationId] || stationId,
+                        processId: String(r?.processId || '').trim().toUpperCase()
+                    };
+                })
+                .filter(Boolean);
+            if (routes.length === 0) {
+                const fallbackStation = String(montageCard?.unitId || UnitModule.state.activeUnitId || 'u3');
+                routes = [{
+                    id: crypto.randomUUID(),
+                    seq: 1,
+                    stationId: fallbackStation,
+                    stationName: unitMap[fallbackStation] || fallbackStation,
+                    processId: ''
+                }];
+            }
+            return {
+                id: crypto.randomUUID(),
+                lineCode: `${workOrderCode}-${String(idx + 1).padStart(2, '0')}`,
+                componentCode,
+                componentName: String(comp?.name || componentCode),
+                multiplier: Number(multiplier || 1),
+                targetQty: Number(lotQty || 0) * Number(multiplier || 1),
+                routes,
+                plans: {}
+            };
+        });
+    },
+    createWorkOrder: async () => {
+        if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
+        const montageId = String(UnitModule.state.workOrderDraftMontageId || '').trim();
+        const lotQty = Number(UnitModule.state.workOrderDraftLotQty || 0);
+        const dueDate = String(UnitModule.state.workOrderDraftDueDate || '').trim();
+        const priorityRaw = String(UnitModule.state.workOrderDraftPriority || 'NORMAL').trim().toUpperCase();
+        const priority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(priorityRaw) ? priorityRaw : 'NORMAL';
+        const note = String(UnitModule.state.workOrderDraftNote || '').trim();
+        if (!montageId) return alert('Lutfen montaj karti seciniz.');
+        if (!Number.isFinite(lotQty) || lotQty <= 0) return alert('Lot miktari 0 dan buyuk olmali.');
+        const montage = (DB.data.data.montageCards || []).find(x => String(x?.id || '') === montageId);
+        if (!montage) return alert('Montaj karti bulunamadi.');
+        const workOrderCode = UnitModule.getNextWorkOrderCode();
+        const lines = UnitModule.buildWorkOrderLinesFromMontage(montage, lotQty, workOrderCode);
+        const now = new Date().toISOString();
+        DB.data.data.workOrders.push({
+            id: crypto.randomUUID(),
+            workOrderCode,
+            montageCardId: String(montage.id || ''),
+            montageCardCode: String(montage.cardCode || ''),
+            productCode: String(montage.productCode || ''),
+            productName: String(montage.productName || ''),
+            lotQty: Number(lotQty),
+            dueDate: dueDate || '',
+            priority,
+            note,
+            status: 'OPEN',
+            lines,
+            createdByUnitId: String(UnitModule.state.activeUnitId || ''),
+            created_at: now,
+            updated_at: now
+        });
+        await DB.save();
+        UnitModule.closeWorkOrderCreateForm();
+    },
+    getWorkTxnQty: (txns, workOrderId, lineId, stationId, type) => {
+        if (!Array.isArray(txns)) return 0;
+        const keyOrder = String(workOrderId || '');
+        const keyLine = String(lineId || '');
+        const keyStation = String(stationId || '');
+        const keyType = String(type || '').toUpperCase();
+        return txns.reduce((sum, t) => {
+            if (String(t?.workOrderId || '') !== keyOrder) return sum;
+            if (String(t?.lineId || '') !== keyLine) return sum;
+            if (String(t?.stationId || '') !== keyStation) return sum;
+            if (String(t?.type || '').toUpperCase() !== keyType) return sum;
+            return sum + Number(t?.qty || 0);
+        }, 0);
+    },
+    computeWorkLineUnitMetrics: (order, line, unitId, txns) => {
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        const idx = routes.findIndex(r => String(r?.stationId || '') === String(unitId || ''));
+        if (idx < 0) return null;
+        const route = routes[idx];
+        const prevTarget = idx === 0
+            ? Number(line?.targetQty || 0)
+            : UnitModule.getWorkTxnQty(txns, order?.id, line?.id, routes[idx - 1]?.stationId, 'COMPLETE');
+        const stepTarget = Math.max(0, Number(prevTarget || 0));
+        const taken = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'TAKE');
+        const completed = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'COMPLETE');
+        const availableQty = Math.max(0, stepTarget - taken);
+        const inProcessQty = Math.max(0, taken - completed);
+        const doneQty = Math.max(0, completed);
+        return {
+            routeSeq: idx + 1,
+            routeCount: routes.length,
+            stationId: String(route.stationId || ''),
+            stationName: String(route.stationName || route.stationId || '-'),
+            processId: String(route.processId || ''),
+            stepTarget,
+            availableQty,
+            inProcessQty,
+            doneQty,
+            isFinalStep: idx === routes.length - 1
+        };
+    },
+    getWorkOrderComputedStatus: (order, txns) => {
+        const lines = Array.isArray(order?.lines) ? order.lines : [];
+        if (lines.length === 0) return 'OPEN';
+        const allDone = lines.every(line => {
+            const routes = Array.isArray(line?.routes) ? line.routes : [];
+            const finalStation = routes.length > 0 ? routes[routes.length - 1].stationId : '';
+            if (!finalStation) return false;
+            const done = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, finalStation, 'COMPLETE');
+            return done >= Number(line?.targetQty || 0);
+        });
+        if (allDone) return 'DONE';
+        const hasTxn = (txns || []).some(t => String(t?.workOrderId || '') === String(order?.id || ''));
+        if (hasTxn) return 'IN_PROGRESS';
+        return 'OPEN';
+    },
+    addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '') => {
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        const cleanQty = Number(qty || 0);
+        if (!Number.isFinite(cleanQty) || cleanQty <= 0) return;
+        DB.data.data.workOrderTransactions.push({
+            id: crypto.randomUUID(),
+            workOrderId: String(workOrderId || ''),
+            lineId: String(lineId || ''),
+            stationId: String(stationId || ''),
+            type: String(type || '').toUpperCase(),
+            qty: cleanQty,
+            note: String(note || ''),
+            user: 'Demo User',
+            created_at: new Date().toISOString()
+        });
+        const order = (DB.data.data.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (order) order.updated_at = new Date().toISOString();
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    takeWorkOrderQty: async (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        if (!metrics || metrics.availableQty <= 0) return alert('Alinabilir miktar yok.');
+        const suggested = Math.max(1, Math.floor(metrics.availableQty));
+        const raw = prompt('Kac adet alinsin?', String(suggested));
+        if (raw === null) return;
+        const qty = Number(raw);
+        if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
+        if (qty > metrics.availableQty) return alert(`Maksimum alinabilir miktar: ${metrics.availableQty}`);
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon devir aldi');
+    },
+    completeWorkOrderQty: async (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        if (!metrics || metrics.inProcessQty <= 0) return alert('Islemde miktar yok.');
+        const suggested = Math.max(1, Math.floor(metrics.inProcessQty));
+        const raw = prompt('Bugun kac adet yapildi?', String(suggested));
+        if (raw === null) return;
+        const qty = Number(raw);
+        if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
+        if (qty > metrics.inProcessQty) return alert(`Maksimum girilebilir miktar: ${metrics.inProcessQty}`);
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'COMPLETE', qty, 'Istasyon tamamlandi');
+    },
+    openWorkOrderPlanModal: (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const plan = (line.plans && typeof line.plans === 'object')
+            ? (line.plans[String(stationId || '')] || {})
+            : {};
+        Modal.open('Planlama Satiri', `
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <div style="font-weight:700; color:#334155; font-size:0.92rem;">${UnitModule.escapeHtml(order.workOrderCode || '-')} / ${UnitModule.escapeHtml(line.lineCode || '-')}</div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem;">
+                    <div>
+                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Sira no</label>
+                        <input id="wo_plan_queue_order" type="number" min="0" value="${Number(plan.queueOrder || 0)}" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Hedef tarih</label>
+                        <input id="wo_plan_target_date" type="date" value="${UnitModule.escapeHtml(plan.targetDate || '')}" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Makine</label>
+                        <input id="wo_plan_machine" value="${UnitModule.escapeHtml(plan.machine || '')}" placeholder="or: CNC-1" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Personel</label>
+                        <input id="wo_plan_personnel" value="${UnitModule.escapeHtml(plan.personnel || '')}" placeholder="or: Ali" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Not</label>
+                    <textarea id="wo_plan_note" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(plan.note || '')}</textarea>
+                </div>
+                <button class="btn-primary" style="width:100%;" onclick="UnitModule.saveWorkOrderPlan('${String(workOrderId || '')}','${String(lineId || '')}','${String(stationId || '')}')">Kaydet</button>
+            </div>
+        `);
+    },
+    saveWorkOrderPlan: async (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        if (!line.plans || typeof line.plans !== 'object') line.plans = {};
+        const queueOrder = Number(document.getElementById('wo_plan_queue_order')?.value || 0);
+        const targetDate = String(document.getElementById('wo_plan_target_date')?.value || '').trim();
+        const machine = String(document.getElementById('wo_plan_machine')?.value || '').trim();
+        const personnel = String(document.getElementById('wo_plan_personnel')?.value || '').trim();
+        const note = String(document.getElementById('wo_plan_note')?.value || '').trim();
+        line.plans[String(stationId || '')] = {
+            queueOrder: Number.isFinite(queueOrder) ? queueOrder : 0,
+            targetDate,
+            machine,
+            personnel,
+            note,
+            updatedAt: new Date().toISOString()
+        };
+        order.updated_at = new Date().toISOString();
+        await DB.save();
+        Modal.close();
+        UI.renderCurrentPage();
+    },
     renderWorkOrderPlanningPlaceholder: (container, unitId) => {
         const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
-        const unitName = unit?.name || 'BIRIM';
+        if (!unit) {
+            container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
+            return;
+        }
+        const unitMap = {};
+        (DB.data.data.units || []).forEach(u => { unitMap[String(u.id)] = String(u.name || u.id); });
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const tab = String(UnitModule.state.workOrderTab || 'BEKLEYEN');
+        const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
+        const rows = [];
+
+        orders.forEach(order => {
+            const status = UnitModule.getWorkOrderComputedStatus(order, txns);
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            lines.forEach(line => {
+                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
+                if (!metrics) return;
+                const plan = (line.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
+                rows.push({ order, line, status, metrics, plan: plan && typeof plan === 'object' ? plan : null });
+            });
+        });
+
+        const priorityRank = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
+        const filtered = rows
+            .filter(r => {
+                if (!search) return true;
+                const hay = [
+                    r.order?.workOrderCode,
+                    r.order?.productCode,
+                    r.order?.productName,
+                    r.line?.lineCode,
+                    r.line?.componentCode,
+                    r.line?.componentName,
+                    r.metrics?.processId
+                ].join(' ').toLowerCase();
+                return hay.includes(search);
+            })
+            .sort((a, b) => {
+                const da = String(a.order?.dueDate || '9999-12-31');
+                const db = String(b.order?.dueDate || '9999-12-31');
+                if (da !== db) return da.localeCompare(db);
+                const pa = priorityRank[String(a.order?.priority || 'NORMAL').toUpperCase()] ?? 9;
+                const pb = priorityRank[String(b.order?.priority || 'NORMAL').toUpperCase()] ?? 9;
+                if (pa !== pb) return pa - pb;
+                return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
+            });
+        const visible = filtered.filter(r => {
+            if (tab === 'BEKLEYEN') return r.metrics.availableQty > 0;
+            if (tab === 'ISLEMDE') return r.metrics.inProcessQty > 0;
+            if (tab === 'TAMAMLANAN') return r.metrics.doneQty > 0;
+            return true;
+        });
+        const totalOrders = new Set(rows.map(r => String(r.order?.id || ''))).size;
+        const waitingQty = rows.reduce((sum, r) => sum + Number(r.metrics?.availableQty || 0), 0);
+        const inProcessQty = rows.reduce((sum, r) => sum + Number(r.metrics?.inProcessQty || 0), 0);
+        const doneQty = rows.reduce((sum, r) => sum + Number(r.metrics?.doneQty || 0), 0);
+        const montageCards = (DB.data.data.montageCards || []).slice().sort((a, b) => String(a?.productName || '').localeCompare(String(b?.productName || ''), 'tr'));
+        const renderTabBtn = (id, label) => `
+            <button onclick="UnitModule.setWorkOrderTab('${id}')" class="btn-sm" style="${tab === id ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">
+                ${label}
+            </button>
+        `;
+
         container.innerHTML = `
-            <div class="page-header">
-                <h2 class="page-title">${unitName} - IS EMRI PLANLAMA</h2>
-            </div>
-            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; color:#64748b">
-                <h3 style="margin:0 0 0.6rem; color:#334155">Sayfa hazirlaniyor</h3>
-                <p style="margin:0">Is emri planlama ekrani cok yakinda aktif olacak.</p>
+            <div style="max-width:1380px; margin:0 auto;">
+                <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                <i data-lucide="clipboard-list" color="#1d4ed8"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Is Emri Planlama
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b;">Lot bazli takip, kismi devir alma ve kismi tamamlama</div>
+                        </div>
+                    </div>
+                    <button class="btn-primary" onclick="UnitModule.openWorkOrderCreateForm()">Yeni Is Emri +</button>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Is emri</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${totalOrders}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Bekleyen adet</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${waitingQty}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Islemde adet</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${inProcessQty}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Bu istasyonda tamamlanan</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${doneQty}</div></div>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
+                    <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                        ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler')}
+                        ${renderTabBtn('ISLEMDE', 'Islemde')}
+                        ${renderTabBtn('TAMAMLANAN', 'Tamamlanan')}
+                        ${renderTabBtn('PLANLAMA', 'Planlama')}
+                    </div>
+                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                </div>
+
+                ${UnitModule.state.workOrderFormOpen ? `
+                    <div style="background:white; border:2px solid #111827; border-radius:1rem; padding:0.95rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.75rem;">
+                            <strong>Yeni Is Emri (Montajdan otomatik alt satir)</strong>
+                            <div style="display:flex; gap:0.45rem;"><button class="btn-sm" onclick="UnitModule.closeWorkOrderCreateForm()">Vazgec</button><button class="btn-primary" onclick="UnitModule.createWorkOrder()">Kaydet</button></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.65rem;">
+                            <div style="grid-column:span 5;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Montaj karti *</label><select onchange="UnitModule.state.workOrderDraftMontageId=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;"><option value="">seciniz</option>${montageCards.map(m => `<option value="${m.id}" ${String(UnitModule.state.workOrderDraftMontageId || '') === String(m.id) ? 'selected' : ''}>${UnitModule.escapeHtml(m.productCode || '-')} - ${UnitModule.escapeHtml(m.productName || '-')} (${UnitModule.escapeHtml(m.cardCode || '-')})</option>`).join('')}</select></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Lot miktari *</label><input type="number" min="1" value="${UnitModule.escapeHtml(String(UnitModule.state.workOrderDraftLotQty || '100'))}" oninput="UnitModule.state.workOrderDraftLotQty=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;"></div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Hedef tarih</label><input type="date" value="${UnitModule.escapeHtml(UnitModule.state.workOrderDraftDueDate || '')}" oninput="UnitModule.state.workOrderDraftDueDate=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Oncelik</label><select onchange="UnitModule.state.workOrderDraftPriority=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"><option value="LOW" ${String(UnitModule.state.workOrderDraftPriority || '') === 'LOW' ? 'selected' : ''}>DUSUK</option><option value="NORMAL" ${String(UnitModule.state.workOrderDraftPriority || 'NORMAL') === 'NORMAL' ? 'selected' : ''}>NORMAL</option><option value="HIGH" ${String(UnitModule.state.workOrderDraftPriority || '') === 'HIGH' ? 'selected' : ''}>YUKSEK</option><option value="URGENT" ${String(UnitModule.state.workOrderDraftPriority || '') === 'URGENT' ? 'selected' : ''}>ACIL</option></select></div>
+                            <div style="grid-column:1/-1;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea rows="3" oninput="UnitModule.state.workOrderDraftNote=this.value" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.workOrderDraftNote || '')}</textarea></div>
+                        </div>
+                    </div>
+                ` : ''}
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
+                            <tbody>
+                                ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map(r => {
+                                    const priority = String(r.order?.priority || 'NORMAL').toUpperCase();
+                                    const priorityStyle = priority === 'URGENT' ? 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;' : priority === 'HIGH' ? 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;' : priority === 'LOW' ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;' : 'background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;';
+                                    const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
+                                    const canTake = r.metrics.availableQty > 0;
+                                    const canComplete = r.metrics.inProcessQty > 0;
+                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(unitMap[r.metrics.stationId] || r.metrics.stationName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.metrics.processId || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -1259,6 +1707,7 @@ const UnitModule = {
         readMany('ibrahimPolishCards', DB.data?.data?.ibrahimPolishCards, ['cardCode']);
         readMany('eloksalCards', DB.data?.data?.eloksalCards, ['cardCode']);
         readMany('montageCards', DB.data?.data?.montageCards, ['cardCode', 'productCode']);
+        readMany('workOrders', DB.data?.data?.workOrders, ['workOrderCode']);
         readMany('depoTransferTasks', DB.data?.data?.depoTransferTasks, ['taskCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
         return bag;

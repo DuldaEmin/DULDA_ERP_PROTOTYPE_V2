@@ -1,7 +1,7 @@
 const UnitModule = {
     state: {
         activeUnitId: null,
-        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | montageLibrary | unitLibraryEmpty | depoTransfer | unitDepot
+        view: 'list', // view: list | dashboard | machines | stock | personnel | cncLibrary | sawCut | plexiLibrary | pvdLibrary | eloksalLibrary | polishLibrary | extruderLibrary | montageLibrary | unitLibraryEmpty | depoTransfer | unitDepot | workOrderPlanning
         stockTab: 'ROD',
         selectedCncCardId: null,
         cncSearchName: '',
@@ -191,6 +191,8 @@ const UnitModule = {
             UnitModule.renderDepoTransfer(container);
         } else if (view === 'unitDepot') {
             UnitModule.renderUnitDepotPlaceholder(container, activeUnitId);
+        } else if (view === 'workOrderPlanning') {
+            UnitModule.renderWorkOrderPlanningPlaceholder(container, activeUnitId);
         }
 
         UnitModule.renderComponentRoutePickerPanel(container);
@@ -200,6 +202,11 @@ const UnitModule = {
     openUnitDepot: (id) => {
         UnitModule.state.activeUnitId = id || null;
         UnitModule.state.view = 'unitDepot';
+        UI.renderCurrentPage();
+    },
+    openWorkOrderPlanning: (id) => {
+        UnitModule.state.activeUnitId = id || null;
+        UnitModule.state.view = 'workOrderPlanning';
         UI.renderCurrentPage();
     },
     openDepoTransfer: () => {
@@ -696,6 +703,10 @@ const UnitModule = {
                         <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
                         <div class="app-name">Birim Deposu</div>
                     </a>
+                    <a href="#" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
+                        <div class="icon-box g-blue"><i data-lucide="clipboard-list" width="40" height="40"></i></div>
+                        <div class="app-name">Is Emri Planlama</div>
+                    </a>
                     ${productLibraryCard}
                 </div>
             `;
@@ -718,6 +729,10 @@ const UnitModule = {
                     <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
                     <div class="app-name">Birim Deposu</div>
                 </a>
+                <a href="#" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
+                    <div class="icon-box g-blue"><i data-lucide="clipboard-list" width="40" height="40"></i></div>
+                    <div class="app-name">Is Emri Planlama</div>
+                </a>
                 ${productLibraryCard}
             </div>
         `;
@@ -732,6 +747,19 @@ const UnitModule = {
             <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; color:#64748b">
                 <h3 style="margin:0 0 0.6rem; color:#334155">Sayfa hazirlaniyor</h3>
                 <p style="margin:0">Birim deposu ekrani cok yakinda aktif olacak.</p>
+            </div>
+        `;
+    },
+    renderWorkOrderPlanningPlaceholder: (container, unitId) => {
+        const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
+        const unitName = unit?.name || 'BIRIM';
+        container.innerHTML = `
+            <div class="page-header">
+                <h2 class="page-title">${unitName} - IS EMRI PLANLAMA</h2>
+            </div>
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; color:#64748b">
+                <h3 style="margin:0 0 0.6rem; color:#334155">Sayfa hazirlaniyor</h3>
+                <p style="margin:0">Is emri planlama ekrani cok yakinda aktif olacak.</p>
             </div>
         `;
     },

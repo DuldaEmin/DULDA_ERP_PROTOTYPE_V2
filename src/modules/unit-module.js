@@ -162,12 +162,19 @@ const UnitModule = {
             DB.markDirty();
         }
 
-        if (!DB.data.data.machines || DB.data.data.machines.length === 0) {
-            DB.data.data.machines = [
-                { id: 'm1', unitId: 'u2', name: 'Ekstruder Hatti 1', status: 'ACTIVE' },
-                { id: 'm2', unitId: 'u2', name: 'Ekstruder Hatti 2', status: 'MAINTENANCE' },
-                { id: 'm3', unitId: 'u1', name: 'CNC Kesim 1', status: 'IDLE' }
-            ];
+        if (!Array.isArray(DB.data.data.machines)) DB.data.data.machines = [];
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!DB.data.meta.seedFlags || typeof DB.data.meta.seedFlags !== 'object') DB.data.meta.seedFlags = {};
+        if (!DB.data.meta.seedFlags.machinesSeededV1) {
+            if (DB.data.data.machines.length === 0) {
+                DB.data.data.machines = [
+                    { id: 'm1', unitId: 'u2', name: 'Ekstruder Hatti 1', status: 'ACTIVE' },
+                    { id: 'm2', unitId: 'u2', name: 'Ekstruder Hatti 2', status: 'MAINTENANCE' },
+                    { id: 'm3', unitId: 'u1', name: 'CNC Kesim 1', status: 'IDLE' }
+                ];
+            }
+            DB.data.meta.seedFlags.machinesSeededV1 = true;
+            DB.markDirty();
         }
 
         if (view === 'list') {

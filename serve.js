@@ -7,7 +7,7 @@ const portArg = Number(process.argv[2]);
 const port = Number.isFinite(portArg) && portArg > 0 ? portArg : 5500;
 const root = __dirname;
 const dataFile = path.join(root, "demo_state.json");
-const maxBodySize = 20 * 1024 * 1024;
+const maxBodySize = 200 * 1024 * 1024;
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
   Pragma: "no-cache",

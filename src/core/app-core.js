@@ -394,20 +394,21 @@ const DB = {
             }
         }
 
-        // Decide best source (prevents accidental empty overwrite)
+        // Decide best source:
+        // Prefer newest timestamp. Count-based preference can resurrect deleted rows.
         if (diskState && localState) {
             const diskCount = dataCount(diskState);
             const localCount = dataCount(localState);
             const diskTime = stateTime(diskState);
             const localTime = stateTime(localState);
 
-            if (localCount > diskCount) {
+            if (localTime > diskTime) {
                 loaded = localState;
                 DB.storageMode = "localStorage";
-            } else if (diskCount > localCount) {
+            } else if (diskTime > localTime) {
                 loaded = diskState;
                 DB.storageMode = "disk";
-            } else if (localTime > diskTime) {
+            } else if (localCount > diskCount) {
                 loaded = localState;
                 DB.storageMode = "localStorage";
             } else {

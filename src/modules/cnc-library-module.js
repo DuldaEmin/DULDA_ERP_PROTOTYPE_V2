@@ -41,7 +41,6 @@ const CncLibraryModule = {
             : null;
         const ops = CncLibraryModule.renumber(CncLibraryModule.state.draftOperations);
         const drawing = CncLibraryModule.state.draftDrawing;
-        const products = DB.data.data.products || [];
 
         container.innerHTML = `
             <div style="max-width:1300px; margin:0 auto;">
@@ -113,20 +112,13 @@ const CncLibraryModule = {
                         </div>
 
                         <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
-                            <div style="grid-column:span 5;">
+                            <div style="grid-column:span 8;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun ismi *</label>
                                 <input id="cnc_name" value="${CncLibraryModule.escape(editingCard?.productName || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 2;">
+                            <div style="grid-column:span 4;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="cnc_id" disabled value="${CncLibraryModule.escape(editingCard?.cncId || CncLibraryModule.state.draftId)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
-                            </div>
-                            <div style="grid-column:span 5;">
-                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">bagli urun ID/kod</label>
-                                <input id="cnc_linked" list="cnc_refs" value="${CncLibraryModule.escape(editingCard?.linkedProductRef || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                                <datalist id="cnc_refs">
-                                    ${products.map(p => `<option value="${CncLibraryModule.escape(p.code || p.id || '')}">${CncLibraryModule.escape(p.name || '')}</option>`).join('')}
-                                </datalist>
                             </div>
                         </div>
 
@@ -293,15 +285,14 @@ const CncLibraryModule = {
 
     saveCard: async (unitId) => {
         const name = document.getElementById('cnc_name')?.value.trim() || '';
-        const linked = document.getElementById('cnc_linked')?.value.trim() || '';
         const notes = document.getElementById('cnc_notes')?.value.trim() || '';
         const drawingFile = document.getElementById('cnc_drawing')?.files?.[0];
         const ops = CncLibraryModule.renumber(CncLibraryModule.state.draftOperations);
 
         if (!name) return alert('Urun ismi zorunlu.');
         if (ops.length === 0) return alert('En az bir operasyon ekleyin.');
-        if (ops.some(op => !op.name || !op.machineType || Number(op.durationSec || 0) <= 0 || (!String(op.gcodeText || '').trim() && !String(op.gcodeFileDataUrl || '').trim()))) {
-            return alert('Operasyon ad, makine, sure ve G kodu zorunlu.');
+        if (ops.some(op => !op.name || !op.machineType || Number(op.durationSec || 0) <= 0)) {
+            return alert('Operasyon ad, makine ve sure zorunlu.');
         }
 
         const all = DB.data.data.cncCards || [];
@@ -328,7 +319,6 @@ const CncLibraryModule = {
             unitId,
             productName: name,
             cncId,
-            linkedProductRef: linked,
             notes,
             operations: ops,
             technicalDrawing: drawing,
@@ -398,7 +388,7 @@ const CncLibraryModule = {
                 }
                 <input id="op_duration" type="number" min="1" placeholder="Operasyon suresi sn *" value="${Number(op?.durationSec || 0) || ''}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <input id="op_note" placeholder="Operasyon notu" value="${CncLibraryModule.escape(op?.note || '')}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
-                <textarea id="op_gcode_text" rows="6" placeholder="G kodu *" style="border:1px solid #cbd5e1; border-radius:0.5rem; padding:0.55rem; font-family:monospace; resize:vertical;">${CncLibraryModule.escape(op?.gcodeText || '')}</textarea>
+                <textarea id="op_gcode_text" rows="6" placeholder="G kodu (opsiyonel)" style="border:1px solid #cbd5e1; border-radius:0.5rem; padding:0.55rem; font-family:monospace; resize:vertical;">${CncLibraryModule.escape(op?.gcodeText || '')}</textarea>
                 <input id="op_gcode_file" type="file" accept=".txt,text/plain">
                 <div style="font-size:0.75rem; color:#64748b;">${CncLibraryModule.escape(op?.gcodeFileName || 'Yuklu dosya yok')}</div>
                 <button onclick="CncLibraryModule.saveOperation('${operationId}')" class="btn-primary" ${canSave ? '' : 'disabled'} style="${canSave ? '' : 'opacity:0.6; cursor:not-allowed;'}">Kaydet</button>
@@ -438,7 +428,6 @@ const CncLibraryModule = {
 
         const gcodeText = String(gText || '').trim() || String(fileText || '').trim() || String(existing?.gcodeText || '').trim();
         const gcodeFileDataUrl = fileDataUrl || existing?.gcodeFileDataUrl || '';
-        if (!gcodeText && !gcodeFileDataUrl) return alert('G kodu zorunlu.');
 
         const payload = {
             id: existing?.id || crypto.randomUUID(),

@@ -108,7 +108,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-06T14:16:44.056Z",
+    "updated_at": "2026-03-06T14:25:46.412Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -425,19 +425,13 @@
       {
         "id": "m3",
         "unitId": "u1",
-        "name": "CNC",
-        "status": "ACTIVE"
+        "name": "CNC Kesim 1",
+        "status": "IDLE"
       },
       {
         "id": "51e4279e-8110-4ce6-8bf5-86b3997954e3",
         "unitId": "u1",
-        "name": "İŞLEME MERKEZİ",
-        "status": "ACTIVE"
-      },
-      {
-        "id": "f8108b73-e450-4834-bd7b-e8a29eb9b5e8",
-        "unitId": "u1",
-        "name": "PUNTA MAKİNESİ ",
+        "name": "eski kafo o",
         "status": "ACTIVE"
       }
     ],

@@ -1,5 +1,6 @@
 const CncLibraryModule = {
     state: {
+        activeUnitId: null,
         searchName: '',
         searchId: '',
         selectedId: null,
@@ -16,6 +17,7 @@ const CncLibraryModule = {
 
     render: (container, unitId) => {
         CncLibraryModule.ensureData();
+        CncLibraryModule.state.activeUnitId = unitId || null;
         if (!CncLibraryModule.state.draftId) CncLibraryModule.state.draftId = CncLibraryModule.generateId();
 
         const unit = (DB.data.data.units || []).find(u => u.id === unitId);
@@ -352,22 +354,54 @@ const CncLibraryModule = {
         CncLibraryModule.cancelForm();
     },
 
+    getUnitMachineOptions: (unitId) => {
+        const uid = String(unitId || '').trim();
+        if (!uid) return [];
+        const rows = Array.isArray(DB.data?.data?.machines) ? DB.data.data.machines : [];
+        return rows
+            .filter(m => String(m?.unitId || '') === uid)
+            .map(m => {
+                const name = String(m?.name || '').trim();
+                const status = String(m?.status || '').trim().toUpperCase();
+                const statusLabel = status === 'ACTIVE'
+                    ? 'ACTIVE'
+                    : status === 'MAINTENANCE'
+                        ? 'MAINTENANCE'
+                        : status === 'IDLE'
+                            ? 'IDLE'
+                            : '';
+                return {
+                    value: name,
+                    label: statusLabel ? `${name} (${statusLabel})` : name
+                };
+            })
+            .filter(row => row.value)
+            .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'tr'));
+    },
+
     openOperationModal: (operationId = '') => {
         const op = operationId ? (CncLibraryModule.state.draftOperations || []).find(x => x.id === operationId) : null;
-        const machineOptions = ['CNC Torna', 'Isleme Merkezi'];
+        const unitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        const machineOptions = CncLibraryModule.getUnitMachineOptions(unitId);
+        const hasMachines = machineOptions.length > 0;
+        const canSave = hasMachines;
         Modal.open(op ? 'Operasyon duzenle' : 'Operasyon ekle', `
             <div style="display:flex; flex-direction:column; gap:0.65rem;">
                 <input id="op_name" placeholder="Operasyon ismi *" value="${CncLibraryModule.escape(op?.name || '')}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <select id="op_machine" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                     <option value="">Makine secin *</option>
-                    ${machineOptions.map(m => `<option value="${m}" ${op?.machineType === m ? 'selected' : ''}>${m}</option>`).join('')}
+                    ${machineOptions.map(m => `<option value="${CncLibraryModule.escape(m.value)}" ${String(op?.machineType || '') === String(m.value || '') ? 'selected' : ''}>${CncLibraryModule.escape(m.label)}</option>`).join('')}
                 </select>
+                ${hasMachines
+                    ? `<div style="font-size:0.75rem; color:#64748b;">Bu birimden ${machineOptions.length} makine listelendi.</div>`
+                    : `<div style="font-size:0.75rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:0.45rem; padding:0.35rem 0.45rem;">Bu birimde kayitli makine yok. Once birim > makineler bolumunden makine ekleyin.</div>`
+                }
                 <input id="op_duration" type="number" min="1" placeholder="Operasyon suresi sn *" value="${Number(op?.durationSec || 0) || ''}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <input id="op_note" placeholder="Operasyon notu" value="${CncLibraryModule.escape(op?.note || '')}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <textarea id="op_gcode_text" rows="6" placeholder="G kodu *" style="border:1px solid #cbd5e1; border-radius:0.5rem; padding:0.55rem; font-family:monospace; resize:vertical;">${CncLibraryModule.escape(op?.gcodeText || '')}</textarea>
                 <input id="op_gcode_file" type="file" accept=".txt,text/plain">
                 <div style="font-size:0.75rem; color:#64748b;">${CncLibraryModule.escape(op?.gcodeFileName || 'Yuklu dosya yok')}</div>
-                <button onclick="CncLibraryModule.saveOperation('${operationId}')" class="btn-primary">Kaydet</button>
+                <button onclick="CncLibraryModule.saveOperation('${operationId}')" class="btn-primary" ${canSave ? '' : 'disabled'} style="${canSave ? '' : 'opacity:0.6; cursor:not-allowed;'}">Kaydet</button>
             </div>
         `, { maxWidth: '620px' });
     },
@@ -384,6 +418,11 @@ const CncLibraryModule = {
 
         if (!name) return alert('Operasyon ismi zorunlu.');
         if (!machine) return alert('Makine secimi zorunlu.');
+        const unitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        const machineSet = new Set(CncLibraryModule.getUnitMachineOptions(unitId).map(x => String(x.value || '').trim()));
+        if (!machineSet.has(String(machine || '').trim())) {
+            return alert('Secilen makine bu birimin guncel makine listesinde yok. Lutfen listeden tekrar seciniz.');
+        }
         if (!Number.isFinite(duration) || duration <= 0) return alert('Sure 0 dan buyuk olmali.');
 
         let fileText = '';

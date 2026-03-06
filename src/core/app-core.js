@@ -290,6 +290,8 @@ const DB = {
     },
     saveTimeout: null,
     storageMode: "localStorage",
+    saveInProgress: false,
+    saveQueued: false,
 
     normalizeData: () => {
         if (!DB.data || typeof DB.data !== "object") {
@@ -439,11 +441,11 @@ const DB = {
         else console.log(`Data loaded from ${DB.storageMode}`);
     },
 
-    saveToDisk: async () => {
+    saveToDisk: async (state = DB.data) => {
         const resp = await fetch("/api/state", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ state: DB.data })
+            body: JSON.stringify({ state })
         });
         if (!resp.ok) throw new Error(`Disk save failed (${resp.status})`);
     },
@@ -452,26 +454,53 @@ const DB = {
         DB.data.meta.updated_at = new Date().toISOString();
         DB.normalizeData();
 
+        if (DB.saveInProgress) {
+            DB.saveQueued = true;
+            return;
+        }
+
+        DB.saveInProgress = true;
         try {
-            await DB.saveToDisk();
-            DB.storageMode = "disk";
-            // Keep local copy as backup.
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
+            do {
+                DB.saveQueued = false;
+                const snapshot = JSON.parse(JSON.stringify(DB.data));
+                try {
+                    await DB.saveToDisk(snapshot);
+                    DB.storageMode = "disk";
+                    // Keep local copy as backup.
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+                    UI.updateStatus("🟢 Dosyaya Otomatik Kayıt");
+                    console.log("Data saved to demo_state.json");
+                } catch (diskError) {
+                    try {
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+                        DB.storageMode = "localStorage";
+                        UI.updateStatus("🟡 Tarayıcı Kaydı (Yedek)");
+                        console.warn("Disk save failed, using localStorage backup.", diskError);
+                    } catch (e) {
+                        console.error("Save failed", e);
+                        alert("Kayıt başarısız. Lütfen tekrar deneyin.");
+                    }
+                }
+            } while (DB.saveQueued);
+        } finally {
+            DB.saveInProgress = false;
             UI.showSavingIndicator(false);
-            UI.updateStatus("🟢 Dosyaya Otomatik Kayıt");
-            console.log("Data saved to demo_state.json");
-        } catch (diskError) {
+        }
+    },
+
+    flushOnUnload: () => {
+        try {
+            DB.data.meta.updated_at = new Date().toISOString();
+            DB.normalizeData();
+            const payload = JSON.stringify({ state: DB.data });
             try {
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
-                DB.storageMode = "localStorage";
-                UI.showSavingIndicator(false);
-                UI.updateStatus("🟡 Tarayıcı Kaydı (Yedek)");
-                console.warn("Disk save failed, using localStorage backup.", diskError);
-            } catch (e) {
-                console.error("Save failed", e);
-                alert("Kayıt başarısız. Lütfen tekrar deneyin.");
+            } catch (_) { }
+            if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+                navigator.sendBeacon("/api/state", payload);
             }
-        }
+        } catch (_) { }
     },
 
     markDirty: () => {
@@ -482,6 +511,9 @@ const DB = {
         }, 1000); // 1-second debounce
     }
 };
+window.addEventListener("beforeunload", () => {
+    DB.flushOnUnload();
+});
 
 const IDB = {
     get: async (key) => {

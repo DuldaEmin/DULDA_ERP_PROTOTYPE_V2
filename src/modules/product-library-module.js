@@ -84,6 +84,9 @@ const ProductLibraryModule = {
         assemblyDraftName: '',
         assemblyDraftNote: '',
         assemblyDraftItems: [],
+        assemblyDraftRoutes: [],
+        assemblyDraftRouteStationId: '',
+        assemblyDraftFiles: [],
         masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
@@ -111,11 +114,7 @@ const ProductLibraryModule = {
             return;
         }
         if (view === 'assembly') {
-            ProductLibraryModule.renderWorkspacePlaceholder(
-                container,
-                'Montaj Grubu Olusturma',
-                'Sayfa hazirlaniyor.'
-            );
+            ProductLibraryModule.renderAssemblyPage(container);
             return;
         }
         if (view === 'colors') {
@@ -153,7 +152,7 @@ const ProductLibraryModule = {
                     </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('assembly'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-emerald"><i data-lucide="blocks" width="30" height="30"></i></div>
-                        <div class="app-name">Montaj Grubu Olusturma</div>
+                        <div class="app-name">Parca Grup Olusturma</div>
                     </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('components'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-orange"><i data-lucide="component" width="30" height="30"></i></div>

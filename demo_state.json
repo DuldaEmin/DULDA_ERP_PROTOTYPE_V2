@@ -101,14 +101,15 @@
         "baba pleksi",
         "dikme boru",
         "baba flanş",
-        "ay bağlantılar"
+        "ay bağlantılar",
+        "40lık dikme pleksileri"
       ],
       "partSubGroups": [
         "deneme",
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-06T14:25:46.412Z",
+    "updated_at": "2026-03-06T14:41:17.028Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -124,6 +125,9 @@
     },
     "personnelInitialized": {
       "u2": true
+    },
+    "seedFlags": {
+      "machinesSeededV1": true
     }
   },
   "data": {
@@ -425,13 +429,19 @@
       {
         "id": "m3",
         "unitId": "u1",
-        "name": "CNC Kesim 1",
-        "status": "IDLE"
+        "name": "CNC TORNA",
+        "status": "ACTIVE"
       },
       {
         "id": "51e4279e-8110-4ce6-8bf5-86b3997954e3",
         "unitId": "u1",
-        "name": "eski kafo o",
+        "name": "İŞLEME MERKEZİ",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "4beae4a4-e1ee-4e85-9016-1c04de2d1dff",
+        "unitId": "u1",
+        "name": "PUNTA MAKİNESİ ",
         "status": "ACTIVE"
       }
     ],
@@ -683,7 +693,53 @@
       ]
     },
     "requests": [],
-    "cncCards": [],
+    "cncCards": [
+      {
+        "id": "d0119166-8d3d-4aad-8834-a08d665a8b4f",
+        "unitId": "u1",
+        "productName": "Ø 50 DEKORLU DIKME",
+        "cncId": "CNC-000001",
+        "notes": "DENEME 123",
+        "operations": [
+          {
+            "id": "2f6bd179-d593-47f8-945e-56f28e8a0018",
+            "order": 1,
+            "name": "ÇİFT TARAFLI PUNTA BASMA",
+            "machineType": "PUNTA MAKİNESİ",
+            "durationSec": 90,
+            "note": "45 DERECE BIÇAKLA PUNTA BAS",
+            "gcodeText": "",
+            "gcodeFileName": "",
+            "gcodeFileDataUrl": ""
+          },
+          {
+            "id": "2b4cba1b-e37b-400d-b8dc-5ddc5e9aa102",
+            "order": 2,
+            "name": "1. operasyon",
+            "machineType": "CNC TORNA",
+            "durationSec": 50,
+            "note": "SAĞDAN SIFIR AL",
+            "gcodeText": "%\r\n:11 (SIFIR ALNINDA 1.OP.TAP)\r\nN1 M01\r\nN2 T0202\r\nN3 G97 S3000 M4\r\nN4 G0 X67. Z2.053 M8\r\nN5 (------------------------)\r\nN6 (TR-TURN-ON-SOLID1 - TURN)\r\nN7 (------------------------)\r\nN8  G97\r\nN9 G0 X67. Z2.053\r\nN10    X31.846\r\nN11 G1 X35.1 Z-6.081 F0.1\r\nN12    Z-30.01\r\nN13    X39.982 Z-29.991\r\nN14    X40. Z-30.\r\nN15    Z-42.28\r\nN16 G3 X38.003 Z-44.998 R4.2\r\nN17 G2 X39.835 Z-67.087 R16.297\r\nN18    X39.843 Z-67.091 R16.297\r\nN19 G3 X37.763 Z-84.291 R11.497\r\nN20 G1 X34.974 Z-85.381\r\nN21 G2 X34.26 Z-86.516 R1.8\r\nN22 G1 X46.582 Z-277.532\r\nN23 G3 X34.101 Z-295.485 R26.5\r\nN24    X34.094 Z-295.489 R26.5\r\nN25 G2 X34.321 Z-309.811 R11.\r\nN26 G3 X34.321 Z-342.589 R24.944\r\nN27    X34.31 Z-342.595 R24.944\r\nN28 G2 X34.099 Z-356.914 R11.\r\nN29 G3 X46.597 Z-374.6 R26.5\r\nN30 G1 X46.806 Z-374.845\r\nN31    X50.626 Z-374.028\r\nN32 G0 X67.\r\nN33    Z0.\r\nN34 G0 X250.\r\nN35 G0 Z720.\r\nN36 M30\r\n%",
+            "gcodeFileName": "DEKORLU DIKME 1.OP.txt",
+            "gcodeFileDataUrl": "data:text/plain;base64,JQ0KOjExIChTSUZJUiBBTE5JTkRBIDEuT1AuVEFQKQ0KTjEgTTAxDQpOMiBUMDIwMg0KTjMgRzk3IFMzMDAwIE00DQpONCBHMCBYNjcuIFoyLjA1MyBNOA0KTjUgKC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSkNCk42IChUUi1UVVJOLU9OLVNPTElEMSAtIFRVUk4pDQpONyAoLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKQ0KTjggIEc5Nw0KTjkgRzAgWDY3LiBaMi4wNTMNCk4xMCAgICBYMzEuODQ2DQpOMTEgRzEgWDM1LjEgWi02LjA4MSBGMC4xDQpOMTIgICAgWi0zMC4wMQ0KTjEzICAgIFgzOS45ODIgWi0yOS45OTENCk4xNCAgICBYNDAuIFotMzAuDQpOMTUgICAgWi00Mi4yOA0KTjE2IEczIFgzOC4wMDMgWi00NC45OTggUjQuMg0KTjE3IEcyIFgzOS44MzUgWi02Ny4wODcgUjE2LjI5Nw0KTjE4ICAgIFgzOS44NDMgWi02Ny4wOTEgUjE2LjI5Nw0KTjE5IEczIFgzNy43NjMgWi04NC4yOTEgUjExLjQ5Nw0KTjIwIEcxIFgzNC45NzQgWi04NS4zODENCk4yMSBHMiBYMzQuMjYgWi04Ni41MTYgUjEuOA0KTjIyIEcxIFg0Ni41ODIgWi0yNzcuNTMyDQpOMjMgRzMgWDM0LjEwMSBaLTI5NS40ODUgUjI2LjUNCk4yNCAgICBYMzQuMDk0IFotMjk1LjQ4OSBSMjYuNQ0KTjI1IEcyIFgzNC4zMjEgWi0zMDkuODExIFIxMS4NCk4yNiBHMyBYMzQuMzIxIFotMzQyLjU4OSBSMjQuOTQ0DQpOMjcgICAgWDM0LjMxIFotMzQyLjU5NSBSMjQuOTQ0DQpOMjggRzIgWDM0LjA5OSBaLTM1Ni45MTQgUjExLg0KTjI5IEczIFg0Ni41OTcgWi0zNzQuNiBSMjYuNQ0KTjMwIEcxIFg0Ni44MDYgWi0zNzQuODQ1DQpOMzEgICAgWDUwLjYyNiBaLTM3NC4wMjgNCk4zMiBHMCBYNjcuDQpOMzMgICAgWjAuDQpOMzQgRzAgWDI1MC4NCk4zNSBHMCBaNzIwLg0KTjM2IE0zMA0KJQ=="
+          },
+          {
+            "id": "9c43feca-39b2-4695-b3d1-4e2449658abc",
+            "order": 3,
+            "name": "2. TARAF İŞLEME",
+            "machineType": "CNC TORNA",
+            "durationSec": 60,
+            "note": "sıfır aynada samsungda yap",
+            "gcodeText": "%\r\n:11 (SIFIR ALNINDA.2.OP.TAP)\r\nN1 M01\r\nN2 T0202\r\nN3 G97 S3000 M4\r\nN4 G0 X67. Z2.053 M8\r\nN5 (------------------------)\r\nN6 (TR-TURN-ON-SOLID2 - TURN)\r\nN7 (------------------------)\r\nN8  G97\r\nN9 G0 X67. Z2.053\r\nN10    X31.846\r\nN11 G1 X35.1 Z-6.081 F0.1\r\nN12    Z-30.01\r\nN13    X39.982 Z-29.991\r\nN14    X40. Z-30.\r\nN15    Z-42.28\r\nN16 G3 X38.003 Z-44.998 R4.2\r\nN17 G2 X39.835 Z-67.087 R16.297\r\nN18    X39.843 Z-67.091 R16.297\r\nN19 G3 X37.763 Z-84.291 R11.497\r\nN20 G1 X34.974 Z-85.381\r\nN21 G2 X34.26 Z-86.516 R1.8\r\nN22 G1 X46.566 Z-277.266\r\nN23    X46.742 Z-277.44\r\nN24    X50.584 Z-276.467\r\nN25 G0 X67.\r\nN26    Z0.\r\nN27 G0 X250.\r\nN28 G0 Z720.\r\nN29 M30\r\n%",
+            "gcodeFileName": "DEKORLU DIKME 2.OP.txt",
+            "gcodeFileDataUrl": "data:text/plain;base64,JQ0KOjExIChTSUZJUiBBTE5JTkRBLjIuT1AuVEFQKQ0KTjEgTTAxDQpOMiBUMDIwMg0KTjMgRzk3IFMzMDAwIE00DQpONCBHMCBYNjcuIFoyLjA1MyBNOA0KTjUgKC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSkNCk42IChUUi1UVVJOLU9OLVNPTElEMiAtIFRVUk4pDQpONyAoLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tKQ0KTjggIEc5Nw0KTjkgRzAgWDY3LiBaMi4wNTMNCk4xMCAgICBYMzEuODQ2DQpOMTEgRzEgWDM1LjEgWi02LjA4MSBGMC4xDQpOMTIgICAgWi0zMC4wMQ0KTjEzICAgIFgzOS45ODIgWi0yOS45OTENCk4xNCAgICBYNDAuIFotMzAuDQpOMTUgICAgWi00Mi4yOA0KTjE2IEczIFgzOC4wMDMgWi00NC45OTggUjQuMg0KTjE3IEcyIFgzOS44MzUgWi02Ny4wODcgUjE2LjI5Nw0KTjE4ICAgIFgzOS44NDMgWi02Ny4wOTEgUjE2LjI5Nw0KTjE5IEczIFgzNy43NjMgWi04NC4yOTEgUjExLjQ5Nw0KTjIwIEcxIFgzNC45NzQgWi04NS4zODENCk4yMSBHMiBYMzQuMjYgWi04Ni41MTYgUjEuOA0KTjIyIEcxIFg0Ni41NjYgWi0yNzcuMjY2DQpOMjMgICAgWDQ2Ljc0MiBaLTI3Ny40NA0KTjI0ICAgIFg1MC41ODQgWi0yNzYuNDY3DQpOMjUgRzAgWDY3Lg0KTjI2ICAgIFowLg0KTjI3IEcwIFgyNTAuDQpOMjggRzAgWjcyMC4NCk4yOSBNMzANCiU="
+          }
+        ],
+        "technicalDrawing": null,
+        "createdAt": "2026-03-06T14:39:38.923Z",
+        "updatedAt": "2026-03-06T14:39:38.923Z"
+      }
+    ],
     "sawCutOrders": [
       {
         "id": "2dfcd758-03df-41c6-92e2-db314e56ced2",

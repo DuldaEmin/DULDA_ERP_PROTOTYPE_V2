@@ -302,6 +302,53 @@ const ProductLibraryModule = {
         };
     },
 
+    resolveStrictLibraryColorSelection: ({ colorType = '', colorCode = '', colorName = '' } = {}) => {
+        const linked = ProductLibraryModule.resolveLinkedColorInfo({ colorType, colorCode, colorName });
+        const inferredType = ProductLibraryModule.normalizeColorType(
+            linked.type || colorType || ProductLibraryModule.inferColorTypeFromCode(linked.code || colorCode)
+        );
+        if (!inferredType) {
+            return { id: '', type: '', name: '', code: '', found: false, options: [] };
+        }
+
+        const options = ProductLibraryModule.getColorLibraryItemsByType(inferredType);
+        if (options.length === 0) {
+            return { id: '', type: inferredType, name: '', code: '', found: false, options: [] };
+        }
+
+        const codeNorm = String(linked.code || colorCode || '').trim().toUpperCase();
+        const nameNorm = ProductLibraryModule.normalizeAsciiUpper(linked.name || colorName || '');
+
+        let match = null;
+        if (codeNorm) {
+            match = options.find(row => String(row?.code || '').trim().toUpperCase() === codeNorm) || null;
+        }
+        if (!match && nameNorm) {
+            match = options.find(row => ProductLibraryModule.normalizeAsciiUpper(row?.name || '') === nameNorm) || null;
+        }
+        if (!match && nameNorm) {
+            const candidates = options.filter(row => {
+                const rowNorm = ProductLibraryModule.normalizeAsciiUpper(row?.name || '');
+                if (!rowNorm) return false;
+                return rowNorm.startsWith(nameNorm) || nameNorm.startsWith(rowNorm);
+            });
+            if (candidates.length === 1) match = candidates[0];
+        }
+
+        if (!match) {
+            return { id: '', type: inferredType, name: '', code: '', found: false, options };
+        }
+
+        return {
+            id: String(match.id || ''),
+            type: inferredType,
+            name: String(match.name || '').trim(),
+            code: String(match.code || '').trim().toUpperCase(),
+            found: true,
+            options
+        };
+    },
+
     setColorType: (type) => {
         const meta = ProductLibraryModule.getColorTypeMeta(type);
         if (!meta) return;
@@ -400,6 +447,7 @@ const ProductLibraryModule = {
         const nextType = ProductLibraryModule.normalizeColorType(nextRow?.type || '');
         const nextName = String(nextRow?.name || '').trim();
         const nextCode = String(nextRow?.code || '').trim().toUpperCase();
+        const now = new Date().toISOString();
 
         const colorMatches = (colorType, colorName, colorCode) => {
             const typeOk = ProductLibraryModule.normalizeColorType(colorType || '') === oldType;
@@ -433,6 +481,7 @@ const ProductLibraryModule = {
             if (ProductLibraryModule.normalizeAsciiUpper(row.paintColor || '') === oldName) {
                 row.paintColor = nextName;
             }
+            row.updated_at = now;
         });
 
         const components = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
@@ -442,6 +491,7 @@ const ProductLibraryModule = {
             row.colorType = nextType;
             row.subGroup = nextName;
             row.colorCode = nextCode;
+            row.updated_at = now;
         });
     },
 
@@ -1233,11 +1283,22 @@ const ProductLibraryModule = {
 
         const groups = ProductLibraryModule.getPartGroups();
         const group = groups.includes(String(s.componentDraftGroup || '')) ? String(s.componentDraftGroup || '') : (groups[0] || 'Genel');
-        const colorType = ProductLibraryModule.normalizeColorType(s.componentDraftColorType || '');
-        const subGroup = String(s.componentDraftSubGroup || '').trim();
-        const colorCode = String(s.componentDraftColorCode || '').trim().toUpperCase();
+        let colorType = ProductLibraryModule.normalizeColorType(s.componentDraftColorType || '');
+        let subGroup = String(s.componentDraftSubGroup || '').trim();
+        let colorCode = String(s.componentDraftColorCode || '').trim().toUpperCase();
         if (colorType && !subGroup) return alert('Renk seciniz.');
         if (!colorType && subGroup) return alert('Kategori seciniz.');
+        if (colorType || subGroup || colorCode) {
+            const strictColor = ProductLibraryModule.resolveStrictLibraryColorSelection({
+                colorType,
+                colorCode,
+                colorName: subGroup
+            });
+            if (!strictColor.found) return alert('Secilen renk kutuphanede bulunamadi. Lutfen listeden gecerli renk seciniz.');
+            colorType = strictColor.type;
+            subGroup = strictColor.name;
+            colorCode = strictColor.code;
+        }
 
         const code = String(
             s.componentDraftCode || ProductLibraryModule.generateComponentCode(s.componentEditingId || null)
@@ -1426,26 +1487,19 @@ const ProductLibraryModule = {
         const allComponentRows = ProductLibraryModule.getComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
         const qColorType = ProductLibraryModule.normalizeColorType(filters.colorType || '');
-        const colorSearchOptions = ProductLibraryModule.getMasterColorItemsWithFallback(qColorType);
+        const colorSearchOptions = ProductLibraryModule.getColorLibraryItemsByType(qColorType);
         if (String(filters.group || '').trim() && !categorySearchOptions.includes(String(filters.group || '').trim())) {
             categorySearchOptions.unshift(String(filters.group || '').trim());
         }
-        if (String(filters.subGroup || '').trim()) {
+        if (qColorType && String(filters.subGroup || '').trim()) {
             const exists = colorSearchOptions.some(row =>
                 String(row.name || '').toLowerCase() === String(filters.subGroup || '').trim().toLowerCase()
             );
-            if (!exists) {
-                colorSearchOptions.unshift({
-                    id: '',
-                    type: qColorType,
-                    name: String(filters.subGroup || '').trim(),
-                    code: ''
-                });
-            }
+            if (!exists) ProductLibraryModule.state.componentFilters.subGroup = '';
         }
         const qName = String(filters.name || '').trim().toLowerCase();
         const qGroup = String(filters.group || '').trim().toLowerCase();
-        const qSub = String(filters.subGroup || '').trim().toLowerCase();
+        const qSub = String(ProductLibraryModule.state.componentFilters?.subGroup || '').trim().toLowerCase();
         const qCode = String(filters.code || '').trim().toLowerCase();
         const rows = allComponentRows.filter(row => {
             const nameOk = !qName || String(row?.name || '').toLowerCase().includes(qName);
@@ -1459,21 +1513,22 @@ const ProductLibraryModule = {
 
         const groups = ProductLibraryModule.getPartGroups();
         const colorTypeOptions = ProductLibraryModule.getColorTypeOptions();
-        const activeComponentColorType = ProductLibraryModule.normalizeColorType(state.componentDraftColorType || '');
+        const componentColorSelection = ProductLibraryModule.resolveStrictLibraryColorSelection({
+            colorType: state.componentDraftColorType || '',
+            colorCode: state.componentDraftColorCode || '',
+            colorName: state.componentDraftSubGroup || ''
+        });
+        const activeComponentColorType = ProductLibraryModule.normalizeColorType(
+            state.componentDraftColorType || componentColorSelection.type || ''
+        );
         ProductLibraryModule.state.componentDraftColorType = activeComponentColorType;
-        const componentColorOptions = ProductLibraryModule.getMasterColorItemsWithFallback(activeComponentColorType);
-        if (state.componentDraftSubGroup) {
-            const exists = componentColorOptions.some(row =>
-                String(row.name || '').toLowerCase() === String(state.componentDraftSubGroup || '').toLowerCase()
-            );
-            if (!exists) {
-                componentColorOptions.unshift({
-                    id: '',
-                    type: activeComponentColorType,
-                    name: String(state.componentDraftSubGroup || ''),
-                    code: String(state.componentDraftColorCode || '').trim().toUpperCase()
-                });
-            }
+        const componentColorOptions = ProductLibraryModule.getColorLibraryItemsByType(activeComponentColorType);
+        if (activeComponentColorType && componentColorSelection.found) {
+            ProductLibraryModule.state.componentDraftSubGroup = componentColorSelection.name;
+            ProductLibraryModule.state.componentDraftColorCode = componentColorSelection.code;
+        } else if (state.componentDraftSubGroup || state.componentDraftColorCode) {
+            ProductLibraryModule.state.componentDraftSubGroup = '';
+            ProductLibraryModule.state.componentDraftColorCode = '';
         }
         const files = Array.isArray(state.componentDraftFiles) ? state.componentDraftFiles : [];
         const routes = Array.isArray(state.componentDraftRoutes) ? state.componentDraftRoutes : [];
@@ -2883,21 +2938,23 @@ const ProductLibraryModule = {
 
         const draftCode = editingRecord?.code || ProductLibraryModule.generateMasterCode(state.masterDraftCategoryId);
         const colorTypeOptions = ProductLibraryModule.getColorTypeOptions();
-        const activeColorType = ProductLibraryModule.normalizeColorType(state.masterDraftColorType || '');
+        const masterColorSelection = ProductLibraryModule.resolveStrictLibraryColorSelection({
+            colorType: state.masterDraftColorType || '',
+            colorCode: state.masterDraftColorCode || '',
+            colorName: state.masterDraftColor || ''
+        });
+        const activeColorType = ProductLibraryModule.normalizeColorType(
+            state.masterDraftColorType || masterColorSelection.type || ''
+        );
         ProductLibraryModule.state.masterDraftColorType = activeColorType;
-        const colorOptions = ProductLibraryModule.getMasterColorItemsWithFallback(activeColorType);
-        if (state.masterDraftColor) {
-            const exists = colorOptions.some(row =>
-                String(row.name || '').toLowerCase() === String(state.masterDraftColor || '').toLowerCase()
-            );
-            if (!exists) {
-                colorOptions.unshift({
-                    id: '',
-                    type: activeColorType,
-                    name: String(state.masterDraftColor || ''),
-                    code: String(state.masterDraftColorCode || '').trim().toUpperCase()
-                });
-            }
+        const colorOptions = ProductLibraryModule.getColorLibraryItemsByType(activeColorType);
+
+        if (activeColorType && masterColorSelection.found) {
+            ProductLibraryModule.state.masterDraftColor = masterColorSelection.name;
+            ProductLibraryModule.state.masterDraftColorCode = masterColorSelection.code;
+        } else if (state.masterDraftColor || state.masterDraftColorCode) {
+            ProductLibraryModule.state.masterDraftColor = '';
+            ProductLibraryModule.state.masterDraftColorCode = '';
         }
 
         const qCategoryId = String(state.masterFilters.categoryId || '').trim();
@@ -3006,15 +3063,17 @@ const ProductLibraryModule = {
 
                     return groups.map((group) => {
                         const isOpen = !!expandedMap[group.key];
-                        const arrow = isOpen ? 'V' : '>';
+                        const arrowIcon = isOpen ? 'chevron-down' : 'chevron-right';
                         const rows = isOpen ? group.items.map(renderMasterRow).join('') : '';
                         return `
                             <tr>
-                                <td colspan="14" style="padding:0; border-top:2px solid #e2e8f0; background:#f8fafc;">
-                                    <button type="button" onclick='ProductLibraryModule.toggleMasterCategorySection(${JSON.stringify(group.key)})' style="width:100%; border:none; background:transparent; padding:0.68rem 0.8rem; display:flex; align-items:center; gap:0.55rem; cursor:pointer; text-align:left;">
-                                        <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border:1px solid #cbd5e1; border-radius:999px; font-size:0.72rem; color:#334155; background:white;">${arrow}</span>
-                                        <span style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(group.name)}</span>
-                                        <span style="font-size:0.82rem; color:#64748b;">(${group.items.length})</span>
+                                <td colspan="14" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
+                                    <button type="button" onclick='ProductLibraryModule.toggleMasterCategorySection(${JSON.stringify(group.key)})' style="width:calc(100% - 0.7rem); margin:0.3rem 0.35rem; border:1px solid #cbd5e1; border-radius:0.62rem; background:${isOpen ? '#eef2ff' : 'white'}; padding:0.65rem 0.8rem; display:flex; align-items:center; gap:0.6rem; cursor:pointer; text-align:left;">
+                                        <span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #0f172a; border-radius:999px; color:#0f172a; background:white;">
+                                            <i data-lucide="${arrowIcon}" width="16" height="16"></i>
+                                        </span>
+                                        <span style="font-weight:800; color:#334155; font-size:1rem;">${ProductLibraryModule.escapeHtml(group.name)}</span>
+                                        <span style="font-size:0.86rem; color:#64748b; font-weight:700;">(${group.items.length})</span>
                                     </button>
                                 </td>
                             </tr>
@@ -3574,14 +3633,25 @@ const ProductLibraryModule = {
         const brand = String(s.masterDraftBrand || '').trim();
         const pack = String(s.masterDraftPack || '').trim();
         const length = String(s.masterDraftLength || '').trim();
-        const colorType = ProductLibraryModule.normalizeColorType(s.masterDraftColorType || '');
-        const color = String(s.masterDraftColor || '').trim();
-        const colorCode = String(s.masterDraftColorCode || '').trim().toUpperCase();
+        let colorType = ProductLibraryModule.normalizeColorType(s.masterDraftColorType || '');
+        let color = String(s.masterDraftColor || '').trim();
+        let colorCode = String(s.masterDraftColorCode || '').trim().toUpperCase();
         const note = String(s.masterDraftNote || '').trim();
         const now = new Date().toISOString();
 
         if (color && !colorType) return alert('Renk kategorisi seciniz.');
         if (colorType && !color) return alert('Renk seciniz.');
+        if (colorType || color || colorCode) {
+            const strictColor = ProductLibraryModule.resolveStrictLibraryColorSelection({
+                colorType,
+                colorCode,
+                colorName: color
+            });
+            if (!strictColor.found) return alert('Secilen renk kutuphanede bulunamadi. Lutfen listeden gecerli renk seciniz.');
+            colorType = strictColor.type;
+            color = strictColor.name;
+            colorCode = strictColor.code;
+        }
 
         const supplierLinks = Array.isArray(s.masterDraftSupplierLinks)
             ? s.masterDraftSupplierLinks.map(link => ({

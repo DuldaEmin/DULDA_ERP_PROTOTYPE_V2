@@ -34,6 +34,7 @@ const ProductLibraryModule = {
         editingProductId: null,
         isFormVisible: false, // New State
         masterFilters: { categoryId: '', name: '', length: '', color: '', code: '' },
+        masterCategoryExpanded: {},
         masterFormOpen: false,
         masterEditingId: null,
         masterSelectedId: null,
@@ -49,6 +50,7 @@ const ProductLibraryModule = {
         masterDraftColorCode: '',
         masterDraftSupplierIds: [],
         masterDraftSupplierLinks: [],
+        masterDraftSupplierSearch: '',
         masterDraftSupplierCode: '',
         masterDraftNote: '',
         masterDraftAttachment: null,
@@ -2948,46 +2950,78 @@ const ProductLibraryModule = {
             return byNewest(a, b);
         });
 
-        let currentCategory = '';
+        const expandedMap = (state.masterCategoryExpanded && typeof state.masterCategoryExpanded === 'object')
+            ? state.masterCategoryExpanded
+            : {};
+        const renderMasterRow = (p) => {
+            const suppliersText = (p.supplierLinks || []).length > 0
+                ? p.supplierLinks
+                    .map(link => {
+                        const label = String(link?.supplierName || '').trim();
+                        const code = String(link?.supplierCode || '').trim();
+                        return code ? `${label} ${code}` : label;
+                    })
+                    .filter(Boolean)
+                    .join(', ')
+                : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
+            const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
+            const selectedStyle = selectedId === p.id ? 'background:#ffe4e6;' : '';
+            return `
+                <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
+                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
+                    <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td>
+                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.unit || '-')}</td>
+                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml((p.unitAmount ? `${p.unitAmount} ${p.unitAmountType || ''}` : '-').trim())}</td>
+                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.length || '-')}</td>
+                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.color || '-')}</td>
+                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.brand || '-')}</td>
+                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.pack || '-')}</td>
+                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
+                    <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
+                </tr>
+            `;
+        };
+
         const rowsHtml = sorted.length === 0
             ? `<tr><td colspan="14" style="text-align:center; padding:1.3rem; color:#94a3b8;">Kayit bulunamadi.</td></tr>`
-            : sorted.map(p => {
-                const categoryHeader = (!qCategoryId && p.categoryName !== currentCategory)
-                    ? `<tr><td colspan="14" style="padding:0.55rem 0.7rem; background:#f8fafc; color:#334155; font-weight:800; border-top:1px solid #e2e8f0;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td></tr>`
-                    : '';
-                currentCategory = p.categoryName;
-                const suppliersText = (p.supplierLinks || []).length > 0
-                    ? p.supplierLinks
-                        .map(link => {
-                            const label = String(link?.supplierName || '').trim();
-                            const code = String(link?.supplierCode || '').trim();
-                            return code ? `${label} ${code}` : label;
-                        })
-                        .filter(Boolean)
-                        .join(', ')
-                    : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
-                const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
-                const selectedStyle = selectedId === p.id ? 'background:#ffe4e6;' : '';
-                return `
-                    ${categoryHeader}
-                    <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
-                        <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
-                        <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td>
-                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.unit || '-')}</td>
-                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml((p.unitAmount ? `${p.unitAmount} ${p.unitAmountType || ''}` : '-').trim())}</td>
-                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.length || '-')}</td>
-                        <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.color || '-')}</td>
-                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.brand || '-')}</td>
-                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.pack || '-')}</td>
-                        <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
-                        <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
-                    </tr>
-                `;
-            }).join('');
+            : qCategoryId
+                ? sorted.map(renderMasterRow).join('')
+                : (() => {
+                    const groups = [];
+                    const indexByKey = new Map();
+                    sorted.forEach((row) => {
+                        const rawName = String(row.categoryName || 'Diger').trim() || 'Diger';
+                        const key = String(row.categoryId || ProductLibraryModule.normalizeAsciiUpper(rawName) || 'DIGER');
+                        if (!indexByKey.has(key)) {
+                            indexByKey.set(key, groups.length);
+                            groups.push({ key, name: rawName, items: [row] });
+                            return;
+                        }
+                        groups[indexByKey.get(key)].items.push(row);
+                    });
+
+                    return groups.map((group) => {
+                        const isOpen = !!expandedMap[group.key];
+                        const arrow = isOpen ? 'V' : '>';
+                        const rows = isOpen ? group.items.map(renderMasterRow).join('') : '';
+                        return `
+                            <tr>
+                                <td colspan="14" style="padding:0; border-top:2px solid #e2e8f0; background:#f8fafc;">
+                                    <button type="button" onclick='ProductLibraryModule.toggleMasterCategorySection(${JSON.stringify(group.key)})' style="width:100%; border:none; background:transparent; padding:0.68rem 0.8rem; display:flex; align-items:center; gap:0.55rem; cursor:pointer; text-align:left;">
+                                        <span style="display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; border:1px solid #cbd5e1; border-radius:999px; font-size:0.72rem; color:#334155; background:white;">${arrow}</span>
+                                        <span style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(group.name)}</span>
+                                        <span style="font-size:0.82rem; color:#64748b;">(${group.items.length})</span>
+                                    </button>
+                                </td>
+                            </tr>
+                            ${rows}
+                        `;
+                    }).join('');
+                })();
 
         container.innerHTML = `
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
@@ -3041,6 +3075,11 @@ const ProductLibraryModule = {
 
     renderMasterFormHtml: ({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
         const state = ProductLibraryModule.state;
+        const supplierSearch = String(state.masterDraftSupplierSearch || '');
+        const supplierSearchNorm = ProductLibraryModule.normalizeAsciiUpper(supplierSearch);
+        const filteredSuppliers = !supplierSearchNorm
+            ? suppliers
+            : suppliers.filter(s => ProductLibraryModule.normalizeAsciiUpper(s.name || '').includes(supplierSearchNorm));
         return `
             <div style="background:white; border:2px solid #0f172a; border-radius:1.25rem; padding:1.2rem 1.2rem 1.45rem; font-size:1.06rem;">
                 <div style="font-weight:800; color:#1e293b; margin-bottom:0.95rem; font-size:1.62rem;">Kutuphaneye urun ekle</div>
@@ -3106,9 +3145,16 @@ const ProductLibraryModule = {
 
                 <div style="display:grid; grid-template-columns: 340px 210px 1fr 1fr; gap:0.75rem; align-items:start; margin-bottom:0.75rem;">
                     <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci ara</label>
+                        <input id="master_supplier_search" value="${ProductLibraryModule.escapeHtml(supplierSearch)}" oninput="ProductLibraryModule.setMasterSupplierSearch(this.value)" placeholder="tedarikci ara" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; margin-bottom:0.4rem;">
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikciler sec</label>
                         <select id="master_supplier_select" multiple onchange="ProductLibraryModule.setMasterSupplierSelection(this)" style="width:100%; min-height:110px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.4rem;">
-                            ${suppliers.length === 0 ? `<option value="">Kayitli tedarikci yok</option>` : suppliers.map(s => `<option value="${s.id}" ${state.masterDraftSupplierIds.includes(s.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(s.name)}</option>`).join('')}
+                            ${suppliers.length === 0
+                                ? `<option value="">Kayitli tedarikci yok</option>`
+                                : filteredSuppliers.length === 0
+                                    ? `<option value="">Eslesen tedarikci yok</option>`
+                                    : filteredSuppliers.map(s => `<option value="${s.id}" ${state.masterDraftSupplierIds.includes(s.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(s.name)}</option>`).join('')
+                            }
                         </select>
                     </div>
                     <div>
@@ -3172,6 +3218,39 @@ const ProductLibraryModule = {
         }
     },
 
+    toggleMasterCategorySection: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        if (!key) return;
+        const current = (ProductLibraryModule.state.masterCategoryExpanded && typeof ProductLibraryModule.state.masterCategoryExpanded === 'object')
+            ? ProductLibraryModule.state.masterCategoryExpanded
+            : {};
+        ProductLibraryModule.state.masterCategoryExpanded = {
+            ...current,
+            [key]: !current[key]
+        };
+        UI.renderCurrentPage();
+    },
+
+    setMasterSupplierSearch: (value) => {
+        const active = document.activeElement;
+        const restore = active?.id === 'master_supplier_search';
+        const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
+        const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
+
+        ProductLibraryModule.state.masterDraftSupplierSearch = value || '';
+        UI.renderCurrentPage();
+
+        if (restore) {
+            const next = document.getElementById('master_supplier_search');
+            if (next) {
+                next.focus();
+                if (start !== null && end !== null) {
+                    try { next.setSelectionRange(start, end); } catch (_) { }
+                }
+            }
+        }
+    },
+
     setMasterDraft: (key, value) => {
         if (key === 'categoryId') ProductLibraryModule.state.masterDraftCategoryId = value || '';
         if (key === 'name') ProductLibraryModule.state.masterDraftName = value || '';
@@ -3205,6 +3284,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.masterDraftColorCode = '';
         ProductLibraryModule.state.masterDraftSupplierIds = [];
         ProductLibraryModule.state.masterDraftSupplierLinks = [];
+        ProductLibraryModule.state.masterDraftSupplierSearch = '';
         ProductLibraryModule.state.masterDraftSupplierCode = '';
         ProductLibraryModule.state.masterDraftNote = '';
         ProductLibraryModule.state.masterDraftAttachment = null;
@@ -3220,9 +3300,17 @@ const ProductLibraryModule = {
     },
 
     setMasterSupplierSelection: (el) => {
-        ProductLibraryModule.state.masterDraftSupplierIds = Array.from(el?.selectedOptions || [])
+        const visibleIds = Array.from(el?.options || [])
+            .map(opt => String(opt?.value || '').trim())
+            .filter(Boolean);
+        const selectedVisibleIds = Array.from(el?.selectedOptions || [])
             .map(opt => String(opt.value || '').trim())
             .filter(Boolean);
+        const previous = Array.isArray(ProductLibraryModule.state.masterDraftSupplierIds)
+            ? ProductLibraryModule.state.masterDraftSupplierIds
+            : [];
+        const hiddenPreserved = previous.filter(id => !visibleIds.includes(id));
+        ProductLibraryModule.state.masterDraftSupplierIds = Array.from(new Set([...hiddenPreserved, ...selectedVisibleIds]));
         UI.renderCurrentPage();
     },
 
@@ -3233,10 +3321,6 @@ const ProductLibraryModule = {
         const code = String(ProductLibraryModule.state.masterDraftSupplierCode || '').trim();
         if (supplierIds.length === 0) {
             alert('Lutfen tedarikci seciniz.');
-            return;
-        }
-        if (!code) {
-            alert('Lutfen tedarikci kodu giriniz.');
             return;
         }
 
@@ -3250,10 +3334,11 @@ const ProductLibraryModule = {
             const found = supplierOptions.find(s => s.id === id);
             if (!found) return;
             const idx = next.findIndex(x => (x?.supplierId || '') === id);
+            const priorCode = idx >= 0 ? String(next[idx]?.supplierCode || '').trim() : '';
             const row = {
                 supplierId: found.id,
                 supplierName: found.name,
-                supplierCode: code
+                supplierCode: code || priorCode
             };
             if (idx >= 0) next[idx] = row;
             else next.push(row);
@@ -3416,6 +3501,7 @@ const ProductLibraryModule = {
             });
         }
         ProductLibraryModule.state.masterDraftSupplierLinks = draftLinks;
+        ProductLibraryModule.state.masterDraftSupplierSearch = '';
         ProductLibraryModule.state.masterDraftSupplierCode = '';
         ProductLibraryModule.state.masterDraftNote = record.note || '';
         ProductLibraryModule.state.masterDraftAttachment = record.attachment?.data ? record.attachment : null;

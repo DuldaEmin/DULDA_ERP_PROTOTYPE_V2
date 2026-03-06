@@ -436,15 +436,19 @@ const UnitModule = {
         if (!picker || typeof picker !== 'object') return null;
         const routeId = String(picker.routeId || '').trim();
         const stationId = String(picker.stationId || '').trim();
+        const routeSource = String(picker.routeSource || 'component').trim() || 'component';
         if (!routeId || !stationId) return null;
-        return { routeId, stationId };
+        return { routeId, stationId, routeSource };
     },
     getPickerExistingProcessCodeForStation: (stationId) => {
         const picker = UnitModule.getActiveComponentRoutePicker();
         if (!picker) return '';
         if (String(picker.stationId || '') !== String(stationId || '')) return '';
         const moduleRef = typeof ProductLibraryModule !== 'undefined' ? ProductLibraryModule : null;
-        const routes = Array.isArray(moduleRef?.state?.componentDraftRoutes) ? moduleRef.state.componentDraftRoutes : [];
+        const routeSource = String(picker.routeSource || 'component');
+        const routes = routeSource === 'assembly'
+            ? (Array.isArray(moduleRef?.state?.assemblyDraftRoutes) ? moduleRef.state.assemblyDraftRoutes : [])
+            : (Array.isArray(moduleRef?.state?.componentDraftRoutes) ? moduleRef.state.componentDraftRoutes : []);
         const row = routes.find(x => String(x?.id || '') === String(picker.routeId || ''));
         return String(row?.processId || '').trim().toUpperCase();
     },

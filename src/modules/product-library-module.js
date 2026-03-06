@@ -252,13 +252,65 @@ const ProductLibraryModule = {
         });
     },
 
+    resolveLinkedColorInfo: ({ colorType = '', colorCode = '', colorName = '' } = {}) => {
+        const typeNorm = ProductLibraryModule.normalizeColorType(colorType || '');
+        const codeNorm = String(colorCode || '').trim().toUpperCase();
+        const nameNorm = ProductLibraryModule.normalizeAsciiUpper(colorName || '');
+        const items = ProductLibraryModule.getColorLibraryItems();
+
+        let found = null;
+        if (codeNorm) {
+            found = items.find(item => {
+                const codeOk = String(item?.code || '').trim().toUpperCase() === codeNorm;
+                if (!codeOk) return false;
+                if (!typeNorm) return true;
+                return ProductLibraryModule.normalizeColorType(item?.type || '') === typeNorm;
+            }) || null;
+        }
+        if (!found && typeNorm && nameNorm) {
+            found = items.find(item =>
+                ProductLibraryModule.normalizeColorType(item?.type || '') === typeNorm &&
+                ProductLibraryModule.normalizeAsciiUpper(item?.name || '') === nameNorm
+            ) || null;
+        }
+        if (!found && typeNorm && nameNorm) {
+            const candidates = items.filter(item => {
+                if (ProductLibraryModule.normalizeColorType(item?.type || '') !== typeNorm) return false;
+                const itemNameNorm = ProductLibraryModule.normalizeAsciiUpper(item?.name || '');
+                if (!itemNameNorm) return false;
+                return itemNameNorm.startsWith(nameNorm) || nameNorm.startsWith(itemNameNorm);
+            });
+            if (candidates.length === 1) found = candidates[0];
+        }
+
+        if (!found) {
+            return {
+                id: '',
+                type: typeNorm,
+                code: codeNorm,
+                name: String(colorName || '').trim()
+            };
+        }
+
+        return {
+            id: String(found.id || ''),
+            type: ProductLibraryModule.normalizeColorType(found.type || '') || typeNorm,
+            code: String(found.code || '').trim().toUpperCase() || codeNorm,
+            name: String(found.name || '').trim() || String(colorName || '').trim()
+        };
+    },
+
     setColorType: (type) => {
         const meta = ProductLibraryModule.getColorTypeMeta(type);
         if (!meta) return;
+        const hasEditing = !!String(ProductLibraryModule.state.colorEditingId || '').trim();
         ProductLibraryModule.state.colorActiveType = meta.id;
-        ProductLibraryModule.state.colorEditingId = null;
-        ProductLibraryModule.state.colorDraftName = '';
-        ProductLibraryModule.state.colorDraftNote = '';
+        // Keep edit mode active while switching category, so "guncelle" never degrades into "yeni kayit".
+        if (!hasEditing) {
+            ProductLibraryModule.state.colorEditingId = null;
+            ProductLibraryModule.state.colorDraftName = '';
+            ProductLibraryModule.state.colorDraftNote = '';
+        }
         UI.renderCurrentPage();
     },
 
@@ -339,6 +391,58 @@ const ProductLibraryModule = {
         return candidate;
     },
 
+    applyColorLibraryChangeToLinkedRecords: (oldRow, nextRow) => {
+        const oldType = ProductLibraryModule.normalizeColorType(oldRow?.type || '');
+        const oldName = ProductLibraryModule.normalizeAsciiUpper(oldRow?.name || '');
+        const oldCode = String(oldRow?.code || '').trim().toUpperCase();
+        const nextType = ProductLibraryModule.normalizeColorType(nextRow?.type || '');
+        const nextName = String(nextRow?.name || '').trim();
+        const nextCode = String(nextRow?.code || '').trim().toUpperCase();
+
+        const colorMatches = (colorType, colorName, colorCode) => {
+            const typeOk = ProductLibraryModule.normalizeColorType(colorType || '') === oldType;
+            const nameOk = ProductLibraryModule.normalizeAsciiUpper(colorName || '') === oldName;
+            const codeOk = String(colorCode || '').trim().toUpperCase() === oldCode;
+            const legacyNameOnlyMatch = nameOk &&
+                !String(colorCode || '').trim() &&
+                !ProductLibraryModule.normalizeColorType(colorType || '');
+            if (oldCode) return codeOk || (typeOk && nameOk) || legacyNameOnlyMatch;
+            return (typeOk && nameOk) || legacyNameOnlyMatch;
+        };
+
+        const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        products.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const specs = (row.specs && typeof row.specs === 'object') ? row.specs : {};
+            const specMatch = colorMatches(specs.colorType, specs.color, specs.colorCode);
+            const rootMatch = colorMatches(row.colorType, row.color, row.colorCode);
+            if (!specMatch && !rootMatch) return;
+
+            if (!row.specs || typeof row.specs !== 'object') row.specs = {};
+            row.specs.colorType = nextType;
+            row.specs.color = nextName;
+            row.specs.colorCode = nextCode;
+            row.colorType = nextType;
+            row.color = nextName;
+            row.colorCode = nextCode;
+            if (ProductLibraryModule.normalizeAsciiUpper(row.anodizedColor || '') === oldName) {
+                row.anodizedColor = nextName;
+            }
+            if (ProductLibraryModule.normalizeAsciiUpper(row.paintColor || '') === oldName) {
+                row.paintColor = nextName;
+            }
+        });
+
+        const components = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        components.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            if (!colorMatches(row.colorType, row.subGroup, row.colorCode)) return;
+            row.colorType = nextType;
+            row.subGroup = nextName;
+            row.colorCode = nextCode;
+        });
+    },
+
     saveColorLibraryItem: async () => {
         ProductLibraryModule.ensureColorLibraryDefaults();
         const state = ProductLibraryModule.state;
@@ -376,7 +480,7 @@ const ProductLibraryModule = {
                 return;
             }
             const old = list[idx];
-            list[idx] = {
+            const updated = {
                 ...old,
                 type: activeType,
                 name,
@@ -384,6 +488,8 @@ const ProductLibraryModule = {
                 code: String(old.code || '').trim().toUpperCase() || ProductLibraryModule.generateColorCode(activeType, old.id),
                 updated_at: now
             };
+            list[idx] = updated;
+            ProductLibraryModule.applyColorLibraryChangeToLinkedRecords(old, updated);
             ProductLibraryModule.state.colorSelectedId = old.id;
         } else {
             const id = crypto.randomUUID();
@@ -812,6 +918,19 @@ const ProductLibraryModule = {
     getComponentCards: () => {
         return (DB.data.data.partComponentCards || [])
             .filter(row => !row?.archived_at)
+            .map((row) => {
+                const resolved = ProductLibraryModule.resolveLinkedColorInfo({
+                    colorType: row?.colorType || '',
+                    colorCode: row?.colorCode || '',
+                    colorName: row?.subGroup || ''
+                });
+                return {
+                    ...row,
+                    colorType: resolved.type || String(row?.colorType || '').trim(),
+                    colorCode: resolved.code || String(row?.colorCode || '').trim().toUpperCase(),
+                    subGroup: resolved.name || String(row?.subGroup || '').trim()
+                };
+            })
             .slice()
             .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
     },
@@ -2691,6 +2810,11 @@ const ProductLibraryModule = {
         return (DB.data.data.products || []).map((raw, index) => {
             const category = ProductLibraryModule.resolveCategoryForProduct(raw);
             const specs = (raw?.specs && typeof raw.specs === 'object') ? raw.specs : {};
+            const resolvedColor = ProductLibraryModule.resolveLinkedColorInfo({
+                colorType: specs?.colorType || raw?.colorType || '',
+                colorCode: specs?.colorCode || raw?.colorCode || '',
+                colorName: specs?.color || raw?.color || raw?.anodizedColor || raw?.paintColor || ''
+            });
             const supplierLinks = ProductLibraryModule.extractSupplierLinks(raw);
             const suppliers = supplierLinks.length > 0
                 ? supplierLinks.map(link => ({ id: link.supplierId, name: link.supplierName }))
@@ -2712,9 +2836,9 @@ const ProductLibraryModule = {
                 brand: String(specs?.brandModel || specs?.brand || raw?.brandModel || '').trim(),
                 pack: String(specs?.packageInfo || specs?.packaging || raw?.packageInfo || '').trim(),
                 length: String(specs?.lengthMm ?? specs?.length ?? raw?.length ?? '').trim(),
-                colorType: String(specs?.colorType || raw?.colorType || '').trim(),
-                color: String(specs?.color || raw?.color || raw?.anodizedColor || raw?.paintColor || '').trim(),
-                colorCode: String(specs?.colorCode || raw?.colorCode || '').trim().toUpperCase(),
+                colorType: String(resolvedColor.type || '').trim(),
+                color: String(resolvedColor.name || '').trim(),
+                colorCode: String(resolvedColor.code || '').trim().toUpperCase(),
                 suppliers,
                 supplierLinks,
                 supplierCode: String(specs?.supplierProductCode || raw?.supplierProductCode || '').trim(),

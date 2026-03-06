@@ -107,7 +107,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-06T10:31:52.638Z",
+    "updated_at": "2026-03-06T10:32:42.599Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -132,7 +132,7 @@
         "categoryId": "cat3",
         "category": "Hırdavat & Vida",
         "type": "MASTER",
-        "name": "6x 8 havşa başlı imbus cıvata paslanmaz",
+        "name": "6x8 havşa başlı imbus cıvata paslanmaz",
         "code": "HIR0001",
         "unitAmount": "",
         "unitAmountType": "adet",
@@ -164,7 +164,7 @@
           "note": ""
         },
         "created_at": "2026-03-06T10:31:52.637Z",
-        "updated_at": "2026-03-06T10:31:52.637Z"
+        "updated_at": "2026-03-06T10:32:42.598Z"
       }
     ],
     "customers": [],

@@ -87,6 +87,7 @@ const ProductLibraryModule = {
         assemblyDraftRoutes: [],
         assemblyDraftRouteStationId: '',
         assemblyDraftFiles: [],
+        componentPickerSource: '',
         masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
@@ -128,11 +129,13 @@ const ProductLibraryModule = {
         const nextView = String(view || 'menu');
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
+        if (nextView !== 'components') ProductLibraryModule.state.componentPickerSource = '';
         UI.renderCurrentPage();
     },
 
     goWorkspaceMenu: () => {
         ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         UI.renderCurrentPage();
     },
@@ -628,6 +631,7 @@ const ProductLibraryModule = {
 
     openComponentForm: () => {
         ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.componentFormOpen = true;
         ProductLibraryModule.state.componentEditingId = null;
         ProductLibraryModule.state.componentRoutePicker = null;
@@ -648,6 +652,7 @@ const ProductLibraryModule = {
 
     resetComponentDraft: (close = true) => {
         ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.componentDraftCode = '';
         ProductLibraryModule.state.componentDraftName = '';
@@ -667,9 +672,49 @@ const ProductLibraryModule = {
 
     openMasterPickerForComponent: () => {
         ProductLibraryModule.state.masterPickerSource = 'component';
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.masterFormOpen = false;
         ProductLibraryModule.state.masterEditingId = null;
         ProductLibraryModule.state.workspaceView = 'master';
+        UI.renderCurrentPage();
+    },
+
+    openMasterPickerForAssembly: () => {
+        ProductLibraryModule.state.masterPickerSource = 'assembly-master';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.masterFormOpen = false;
+        ProductLibraryModule.state.masterEditingId = null;
+        ProductLibraryModule.state.workspaceView = 'master';
+        UI.renderCurrentPage();
+    },
+
+    openComponentPickerForAssembly: () => {
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = 'assembly-component';
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = false;
+        ProductLibraryModule.state.workspaceView = 'components';
+        UI.renderCurrentPage();
+    },
+
+    selectComponentForAssembly: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row) return;
+        const added = ProductLibraryModule.addAssemblyDraftItem('component', row.id);
+        if (!added) return;
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'assembly';
+        ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyViewingId = null;
+        UI.renderCurrentPage();
+    },
+
+    cancelComponentPicker: () => {
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'assembly';
+        ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyViewingId = null;
         UI.renderCurrentPage();
     },
 
@@ -799,6 +844,7 @@ const ProductLibraryModule = {
         const row = ProductLibraryModule.getComponentCardById(id);
         if (!row) return;
         ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.componentFormOpen = true;
         ProductLibraryModule.state.componentEditingId = row.id;
@@ -1254,6 +1300,7 @@ const ProductLibraryModule = {
         units.forEach(u => { unitMap[u.id] = u.name; });
 
         const state = ProductLibraryModule.state;
+        const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
@@ -1313,6 +1360,12 @@ const ProductLibraryModule = {
 
         container.innerHTML = `
             <div style="max-width:1220px; margin:0 auto;">
+                ${isAssemblyComponentPicker ? `
+                    <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="font-weight:700;">Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelComponentPicker()">parca grup formuna don</button>
+                    </div>
+                ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                     <h2 class="page-title" style="margin:0;">Parca ve Bilesen</h2>
                     <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
@@ -1343,8 +1396,8 @@ const ProductLibraryModule = {
                             </div>
                         </div>
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <button class="btn-primary" onclick="ProductLibraryModule.openComponentForm()" style="height:42px; min-width:135px;">urun ekle +</button>
-                        <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" style="height:42px; min-width:160px;">parca grup ekle +</button>
+                        <button class="btn-primary" onclick="${isAssemblyComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()'}" style="height:42px; min-width:135px;">${isAssemblyComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
+                        <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" ${isAssemblyComponentPicker ? 'disabled' : ''} style="height:42px; min-width:160px; ${isAssemblyComponentPicker ? 'opacity:0.5; cursor:not-allowed;' : ''}">parca grup ekle +</button>
                     </div>
                 </div>
 
@@ -1370,14 +1423,18 @@ const ProductLibraryModule = {
                                     <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
-                                    <td style="padding:0.55rem; text-align:center;"><input type="checkbox" disabled></td>
+                                    <td style="padding:0.55rem; text-align:center;">
+                                        ${isAssemblyComponentPicker
+                                            ? `<button class="btn-sm" onclick="ProductLibraryModule.selectComponentForAssembly('${row.id}')">ekle</button>`
+                                            : '<input type="checkbox" disabled>'}
+                                    </td>
                                 </tr>
                             `).join('')}
                         </tbody>
                     </table>
                 </div>
 
-                ${state.componentFormOpen ? `
+                ${state.componentFormOpen && !isAssemblyComponentPicker ? `
                     <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">Parca ve Bilesen olustur</h3>
@@ -1587,6 +1644,8 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.assemblyFormOpen = true;
         ProductLibraryModule.state.assemblyEditingId = null;
         ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.assemblyDraftCode = ProductLibraryModule.generateAssemblyCode();
         ProductLibraryModule.state.assemblyDraftName = '';
         ProductLibraryModule.state.assemblyDraftNote = '';
@@ -1601,6 +1660,8 @@ const ProductLibraryModule = {
     resetAssemblyDraft: (close = true) => {
         ProductLibraryModule.state.assemblyEditingId = null;
         ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.assemblyDraftCode = ProductLibraryModule.generateAssemblyCode();
         ProductLibraryModule.state.assemblyDraftName = '';
         ProductLibraryModule.state.assemblyDraftNote = '';
@@ -1621,6 +1682,8 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.assemblyEditingId = row.id;
         ProductLibraryModule.state.assemblySelectedId = row.id;
         ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.assemblyDraftCode = String(row.code || ProductLibraryModule.generateAssemblyCode(row.id));
         ProductLibraryModule.state.assemblyDraftName = String(row.name || '');
         ProductLibraryModule.state.assemblyDraftNote = String(row.note || '');
@@ -1711,11 +1774,11 @@ const ProductLibraryModule = {
     addAssemblyDraftItem: (source, refId) => {
         const all = ProductLibraryModule.getAssemblySourceRows();
         const row = all.find(item => String(item.source) === String(source || '') && String(item.refId) === String(refId || ''));
-        if (!row) return;
+        if (!row) return false;
         const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
         if (list.some(item => String(item?.code || '') === row.code)) {
             alert('Bu kod zaten parca grup listesinde var.');
-            return;
+            return false;
         }
         list.push({
             id: crypto.randomUUID(),
@@ -1727,6 +1790,7 @@ const ProductLibraryModule = {
         });
         ProductLibraryModule.state.assemblyDraftItems = list;
         UI.renderCurrentPage();
+        return true;
     },
 
     setAssemblyRouteStation: (value) => {
@@ -2091,7 +2155,6 @@ const ProductLibraryModule = {
         const showForm = !!state.assemblyFormOpen;
         const draftCode = String(state.assemblyDraftCode || ProductLibraryModule.generateAssemblyCode(state.assemblyEditingId || null));
         const draftItems = Array.isArray(state.assemblyDraftItems) ? state.assemblyDraftItems : [];
-        const draftCodes = new Set(draftItems.map(item => String(item?.code || '').trim().toUpperCase()).filter(Boolean));
         const masterCodes = draftItems
             .filter(item => String(item?.source || '') === 'master')
             .map(item => String(item?.code || '').trim().toUpperCase())
@@ -2100,17 +2163,6 @@ const ProductLibraryModule = {
             .filter(item => String(item?.source || '') === 'component')
             .map(item => String(item?.code || '').trim().toUpperCase())
             .filter(Boolean);
-
-        const sourceFilters = state.assemblySourceFilters || { source: 'all', name: '', code: '' };
-        const qSrcSource = String(sourceFilters.source || 'all').trim().toLowerCase();
-        const qSrcName = String(sourceFilters.name || '').trim().toLowerCase();
-        const qSrcCode = String(sourceFilters.code || '').trim().toLowerCase();
-        const sourceRows = ProductLibraryModule.getAssemblySourceRows().filter(row => {
-            const sourceOk = qSrcSource === 'all' || String(row.source || '') === qSrcSource;
-            const nameOk = !qSrcName || String(row.name || '').toLowerCase().includes(qSrcName);
-            const codeOk = !qSrcCode || String(row.code || '').toLowerCase().includes(qSrcCode);
-            return sourceOk && nameOk && codeOk;
-        });
         const units = (DB.data.data.units || []).slice();
         const unitMap = {};
         units.forEach(u => { unitMap[u.id] = u.name; });
@@ -2187,13 +2239,13 @@ const ProductLibraryModule = {
                             </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:1.65fr 0.95fr; gap:0.9rem;">
+                        <div style="display:grid; grid-template-columns:1fr; gap:0.9rem;">
                             <div>
                                 <div style="margin-bottom:0.65rem;">
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kodlari</label>
                                     <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;">
                                         <input readonly value="${ProductLibraryModule.escapeHtml(masterCodes.join(', '))}" placeholder="master secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;">
-                                        <button class="btn-sm" onclick="ProductLibraryModule.focusAssemblySource('master')" style="height:40px; min-width:110px;">goruntule</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.openMasterPickerForAssembly()" style="height:40px; min-width:110px;">goruntule</button>
                                         <button class="btn-sm" onclick="ProductLibraryModule.clearAssemblyDraftItemsBySource('master')" style="height:40px; min-width:80px;">sil</button>
                                     </div>
                                 </div>
@@ -2202,7 +2254,7 @@ const ProductLibraryModule = {
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">parca ve bilesen ID kodlari</label>
                                     <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;">
                                         <input readonly value="${ProductLibraryModule.escapeHtml(componentCodes.join(', '))}" placeholder="parca/bilesen secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;">
-                                        <button class="btn-sm" onclick="ProductLibraryModule.focusAssemblySource('component')" style="height:40px; min-width:110px;">goruntule</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.openComponentPickerForAssembly()" style="height:40px; min-width:110px;">goruntule</button>
                                         <button class="btn-sm" onclick="ProductLibraryModule.clearAssemblyDraftItemsBySource('component')" style="height:40px; min-width:80px;">sil</button>
                                     </div>
                                 </div>
@@ -2275,43 +2327,6 @@ const ProductLibraryModule = {
                                         `).join('')}
                                     </div>
                                     ${files.length > 0 ? '<button class="btn-sm" style="margin-top:0.5rem;" onclick="ProductLibraryModule.clearAssemblyDraftFiles()">tumunu kaldir</button>' : ''}
-                                </div>
-                            </div>
-
-                            <div id="asm_source_panel" style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem;">
-                                <strong style="font-size:0.92rem;">Kalem Ekle</strong>
-                                <div style="display:grid; grid-template-columns:130px 1fr 1fr; gap:0.45rem; margin:0.55rem 0 0.6rem;">
-                                    <select id="asm_src_source" onchange="ProductLibraryModule.setAssemblySourceFilter('source', this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
-                                        <option value="all" ${qSrcSource === 'all' ? 'selected' : ''}>tum kaynaklar</option>
-                                        <option value="master" ${qSrcSource === 'master' ? 'selected' : ''}>master</option>
-                                        <option value="component" ${qSrcSource === 'component' ? 'selected' : ''}>parca/bilesen</option>
-                                    </select>
-                                    <input id="asm_src_name" value="${ProductLibraryModule.escapeHtml(sourceFilters.name || '')}" oninput="ProductLibraryModule.setAssemblySourceFilter('name', this.value, 'asm_src_name')" placeholder="urun adi ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
-                                    <input id="asm_src_code" value="${ProductLibraryModule.escapeHtml(sourceFilters.code || '')}" oninput="ProductLibraryModule.setAssemblySourceFilter('code', this.value, 'asm_src_code')" placeholder="ID kod ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.55rem;">
-                                </div>
-                                <div style="max-height:440px; overflow:auto;">
-                                    <table style="width:100%; border-collapse:collapse;">
-                                        <thead>
-                                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                                <th style="padding:0.42rem; text-align:left;">Kaynak</th>
-                                                <th style="padding:0.42rem; text-align:left;">Urun</th>
-                                                <th style="padding:0.42rem; text-align:left;">ID kod</th>
-                                                <th style="padding:0.42rem; text-align:right;">Ekle</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${sourceRows.length === 0 ? '<tr><td colspan="4" style="padding:0.8rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>' : sourceRows.map(row => `
-                                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                                    <td style="padding:0.42rem;">${row.source === 'master' ? 'Master' : 'Parca'}</td>
-                                                    <td style="padding:0.42rem;"><div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div><div style="font-size:0.76rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.group || '-')}</div></td>
-                                                    <td style="padding:0.42rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row.code || '-')}</td>
-                                                    <td style="padding:0.42rem; text-align:right;">
-                                                        <button class="btn-sm" onclick="ProductLibraryModule.addAssemblyDraftItem('${row.source}', '${row.refId}')" ${draftCodes.has(row.code) ? 'disabled' : ''} style="${draftCodes.has(row.code) ? 'opacity:0.45; cursor:not-allowed;' : ''}">${draftCodes.has(row.code) ? 'ekli' : 'ekle'}</button>
-                                                    </td>
-                                                </tr>
-                                            `).join('')}
-                                        </tbody>
-                                    </table>
                                 </div>
                             </div>
                         </div>
@@ -2725,6 +2740,8 @@ const ProductLibraryModule = {
         const showForm = state.masterFormOpen || !!state.masterEditingId;
         const selectedId = state.masterSelectedId;
         const isComponentPicker = state.masterPickerSource === 'component';
+        const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
+        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker;
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -2842,7 +2859,7 @@ const ProductLibraryModule = {
                         <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
-                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isComponentPicker ? 'ekle' : 'sec'}</button></td>
+                        <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>
                         <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
                     </tr>
                 `;
@@ -2850,10 +2867,10 @@ const ProductLibraryModule = {
 
         container.innerHTML = `
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
-                ${isComponentPicker ? `
+                ${isMasterPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">parca formuna don</button>
+                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.'}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : 'parca formuna don'}</button>
                     </div>
                 ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
@@ -2866,9 +2883,9 @@ const ProductLibraryModule = {
                         <input id="master_filter_length" value="${ProductLibraryModule.escapeHtml(state.masterFilters.length || '')}" oninput="ProductLibraryModule.setMasterFilter('length', this.value)" placeholder="boy ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
                         <input id="master_filter_color" value="${ProductLibraryModule.escapeHtml(state.masterFilters.color || '')}" oninput="ProductLibraryModule.setMasterFilter('color', this.value)" placeholder="renk ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
                         <input id="master_filter_code" value="${ProductLibraryModule.escapeHtml(state.masterFilters.code || '')}" oninput="ProductLibraryModule.setMasterFilter('code', this.value)" placeholder="ID kod ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
-                        <button class="btn-primary" onclick="ProductLibraryModule.toggleMasterForm()" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${showForm ? 'vazgec' : 'urun ekle +'}</button>
+                        <button class="btn-primary" onclick="${isMasterPicker ? 'ProductLibraryModule.cancelMasterPicker()' : 'ProductLibraryModule.toggleMasterForm()'}" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${isMasterPicker ? 'vazgec' : (showForm ? 'vazgec' : 'urun ekle +')}</button>
                     </div>
-                    ${showForm ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
+                    ${showForm && !isMasterPicker ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
                     <div class="card-table" style="margin-top:0.85rem;">
                         <table>
                             <thead>
@@ -3204,14 +3221,30 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.state.componentFormOpen = true;
             ProductLibraryModule.state.masterPickerSource = '';
+        } else if (ProductLibraryModule.state.masterPickerSource === 'assembly-master') {
+            const added = ProductLibraryModule.addAssemblyDraftItem('master', record.id);
+            if (!added) return;
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'assembly';
+            ProductLibraryModule.state.assemblyFormOpen = true;
+            ProductLibraryModule.state.assemblyViewingId = null;
         }
         UI.renderCurrentPage();
     },
 
     cancelMasterPicker: () => {
+        const src = String(ProductLibraryModule.state.masterPickerSource || '');
         ProductLibraryModule.state.masterPickerSource = '';
-        ProductLibraryModule.state.workspaceView = 'components';
-        ProductLibraryModule.state.componentFormOpen = true;
+        ProductLibraryModule.state.componentPickerSource = '';
+        if (src === 'assembly-master') {
+            ProductLibraryModule.state.workspaceView = 'assembly';
+            ProductLibraryModule.state.assemblyFormOpen = true;
+            ProductLibraryModule.state.assemblyViewingId = null;
+        } else {
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.state.componentFormOpen = true;
+        }
         UI.renderCurrentPage();
     },
 

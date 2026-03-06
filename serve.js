@@ -56,10 +56,26 @@ async function loadState() {
   }
 }
 
+function getStateTimestamp(state) {
+  const ts = state?.meta?.updated_at || state?.meta?.created_at || "";
+  const ms = Date.parse(ts);
+  return Number.isFinite(ms) ? ms : 0;
+}
+
 async function saveState(state) {
+  const current = await loadState();
+  const incomingTs = getStateTimestamp(state);
+  const currentTs = getStateTimestamp(current);
+
+  // Prevent older payloads from overwriting newer state.
+  if (current && incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
+    return { written: false, stale: true };
+  }
+
   const tmp = `${dataFile}.tmp`;
   await fsp.writeFile(tmp, JSON.stringify(state, null, 2), "utf8");
   await fsp.rename(tmp, dataFile);
+  return { written: true, stale: false };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -83,8 +99,8 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { ok: false, error: "invalid_state" });
       }
 
-      await saveState(state);
-      return sendJson(res, 200, { ok: true });
+      const result = await saveState(state);
+      return sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: "state_write_failed" });
     }

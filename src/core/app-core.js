@@ -342,31 +342,6 @@ const DB = {
         let localState = null;
         let loaded = null;
 
-        const dataCount = (state) => {
-            if (!state || typeof state !== "object") return 0;
-            const d = state.data || {};
-            const keys = [
-                "products",
-                "customers",
-                "orders",
-                "stock_movements",
-                "inventory",
-                "aluminumProfiles",
-                "cncCards",
-                "plexiPolishCards",
-                "extruderLibraryCards",
-                "montageCards",
-                "depoTransferTasks",
-                "suppliers",
-                "productCategories",
-                "personnel"
-            ];
-            return keys.reduce((sum, key) => {
-                const arr = d[key];
-                return sum + (Array.isArray(arr) ? arr.length : 0);
-            }, 0);
-        };
-
         const stateTime = (state) => {
             const ts = state?.meta?.updated_at || state?.meta?.created_at || "";
             const ms = Date.parse(ts);
@@ -397,20 +372,12 @@ const DB = {
         }
 
         // Decide best source:
-        // Prefer newest timestamp. Count-based preference can resurrect deleted rows.
+        // Prefer newest timestamp. On ties, prefer disk to avoid resurrecting stale local rows.
         if (diskState && localState) {
-            const diskCount = dataCount(diskState);
-            const localCount = dataCount(localState);
             const diskTime = stateTime(diskState);
             const localTime = stateTime(localState);
 
             if (localTime > diskTime) {
-                loaded = localState;
-                DB.storageMode = "localStorage";
-            } else if (diskTime > localTime) {
-                loaded = diskState;
-                DB.storageMode = "disk";
-            } else if (localCount > diskCount) {
                 loaded = localState;
                 DB.storageMode = "localStorage";
             } else {
@@ -513,6 +480,12 @@ const DB = {
 };
 window.addEventListener("beforeunload", () => {
     DB.flushOnUnload();
+});
+window.addEventListener("pagehide", () => {
+    DB.flushOnUnload();
+});
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") DB.flushOnUnload();
 });
 
 const IDB = {

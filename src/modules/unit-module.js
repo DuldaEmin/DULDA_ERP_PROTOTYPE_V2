@@ -118,6 +118,7 @@ const UnitModule = {
         if (!DB.data.data.depoTransferTasks) DB.data.data.depoTransferTasks = [];
         if (!DB.data.data.depoTransferLogs) DB.data.data.depoTransferLogs = [];
         if (!DB.data.data.depoRoutes) DB.data.data.depoRoutes = [];
+        if (!DB.data.data.freeExternalVendorJobs) DB.data.data.freeExternalVendorJobs = [];
         if (!DB.data.data.workOrders) DB.data.data.workOrders = [];
         if (!DB.data.data.workOrderTransactions) DB.data.data.workOrderTransactions = [];
         if (!DB.data.data.partComponentCards) DB.data.data.partComponentCards = [];
@@ -705,13 +706,181 @@ const UnitModule = {
             </div>
         `;
         };
+        const freeExternalCard = `
+            <div class="app-card" style="padding:1.25rem; position:relative; display:flex; flex-direction:column; gap:0.85rem; justify-content:center;">
+                <div onclick="UnitModule.openFreeExternalVendorModal()" style="cursor:pointer;">
+                    <div style="width:3.25rem; height:3.25rem; border-radius:0.95rem; margin:0 auto 1rem; background:#ecfeff; color:#155e75; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.92rem; letter-spacing:0.04em; box-shadow:0 8px 16px -10px rgba(15,23,42,0.35); border:1px solid rgba(255,255,255,0.7)">SD</div>
+                    <div style="font-weight:700; color:#334155; font-size:0.9rem; margin-bottom:0.35rem;">SERBEST DIS TEDARIKCI</div>
+                    <div style="font-size:0.76rem; color:#64748b; line-height:1.4;">Kayitli olmayan fason veya tek seferlik tedarikci icin is ac.</div>
+                </div>
+                <button class="btn-sm" onclick="event.stopPropagation(); UnitModule.openNewSupplierFromUnit()" style="align-self:center; border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Tedarikci Ekle</button>
+            </div>
+        `;
         container.innerHTML = `
             <div class="page-header"><h2 class="page-title">Birimler</h2></div>
             <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">&#304;&ccedil; Birimler</h3>
             <div class="apps-grid" style="margin-bottom:3rem;">${internals.map(u => renderCard(u)).join('')}</div>
             <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">D&#305;&#351; Birimler</h3>
-            <div class="apps-grid">${externals.map(u => renderCard(u)).join('')}</div>
+            <div class="apps-grid">${externals.map(u => renderCard(u)).join('')}${freeExternalCard}</div>
         `;
+    },
+    getNextFreeExternalVendorJobCode: () => {
+        if (!Array.isArray(DB.data?.data?.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
+        const max = (DB.data.data.freeExternalVendorJobs || []).reduce((acc, row) => {
+            const code = String(row?.jobCode || '').trim().toUpperCase();
+            const m = code.match(/^SDT-(\d{6})$/);
+            if (!m) return acc;
+            return Math.max(acc, Number(m[1]));
+        }, 0);
+        let next = max + 1;
+        let candidate = `SDT-${String(next).padStart(6, '0')}`;
+        while (UnitModule.isGlobalCodeTaken(candidate)) {
+            next += 1;
+            candidate = `SDT-${String(next).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+    openNewSupplierFromUnit: () => {
+        if (typeof PurchasingModule !== 'undefined' && PurchasingModule && typeof PurchasingModule.openSupplierModal === 'function') {
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+            PurchasingModule.openSupplierModal(null);
+            return;
+        }
+        alert('Tedarikci modulu bulunamadi.');
+    },
+    openFreeExternalVendorModal: () => {
+        if (!Array.isArray(DB.data?.data?.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
+        if (!Array.isArray(DB.data?.data?.suppliers)) DB.data.data.suppliers = [];
+        const supplierOptions = (DB.data.data.suppliers || [])
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const jobs = (DB.data.data.freeExternalVendorJobs || [])
+            .slice()
+            .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+        const draftCode = UnitModule.getNextFreeExternalVendorJobCode();
+        Modal.open('Serbest Dis Tedarikci', `
+            <div style="display:flex; flex-direction:column; gap:0.9rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                    <div style="font-size:0.84rem; color:#64748b;">Kayitli olmayan fason veya tek seferlik tedarikci icin depo cikis isi olustur.</div>
+                    <button class="btn-sm" onclick="UnitModule.openNewSupplierFromUnit()" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Tedarikci Ekle</button>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.7rem;">
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kayitli tedarikci (opsiyonel)</label>
+                        <select id="free_ext_supplier_id" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            <option value="">manuel firma yaz</option>
+                            ${supplierOptions.map(s => `<option value="${UnitModule.escapeHtml(String(s.id || ''))}" data-name="${UnitModule.escapeHtml(String(s.name || ''))}">${UnitModule.escapeHtml(String(s.name || ''))}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Is / fis kodu</label>
+                        <input id="free_ext_job_code" value="${UnitModule.escapeHtml(draftCode)}" readonly style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Firma adi *</label>
+                        <input id="free_ext_supplier_name" placeholder="or: Yildiz Ahsap Kaplama" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili / telefon</label>
+                        <input id="free_ext_contact" placeholder="opsiyonel" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Urun kodu *</label>
+                        <input id="free_ext_product_code" placeholder="PRC-000001" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Urun adi *</label>
+                        <input id="free_ext_product_name" placeholder="urun adi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Giden adet *</label>
+                        <input id="free_ext_qty" type="number" min="1" step="1" placeholder="0" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:700;">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Birim / evrak no</label>
+                        <input id="free_ext_doc_no" placeholder="fis no / irsaliye" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
+                    <textarea id="free_ext_note" rows="3" placeholder="is aciklamasi, kaplama tipi, teslim notu" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.6rem; resize:vertical;"></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem;">
+                    <button class="btn-sm" onclick="Modal.close()">Vazgec</button>
+                    <button class="btn-primary" onclick="UnitModule.saveFreeExternalVendorJob()">Kaydet</button>
+                </div>
+                <div style="border-top:1px solid #e2e8f0; padding-top:0.9rem;">
+                    <div style="font-weight:700; color:#334155; margin-bottom:0.55rem;">Kayitli serbest dis tedarikci isleri</div>
+                    <div class="card-table" style="max-height:260px; overflow:auto;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.5rem; text-align:left;">Kod</th>
+                                    <th style="padding:0.5rem; text-align:left;">Firma</th>
+                                    <th style="padding:0.5rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.5rem; text-align:center;">Adet</th>
+                                    <th style="padding:0.5rem; text-align:left;">Tarih</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${jobs.length === 0 ? '<tr><td colspan="5" style="padding:0.85rem; text-align:center; color:#94a3b8;">Henuz kayit yok.</td></tr>' : jobs.map(job => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.5rem; font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(job.jobCode || '-')}</td>
+                                        <td style="padding:0.5rem; color:#334155; font-weight:600;">${UnitModule.escapeHtml(job.supplierName || '-')}</td>
+                                        <td style="padding:0.5rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(job.productName || '-')}</div><div style="font-size:0.73rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(job.productCode || '-')}</div></td>
+                                        <td style="padding:0.5rem; text-align:center; font-weight:700; color:#334155;">${Number(job.qty || 0)}</td>
+                                        <td style="padding:0.5rem; color:#64748b;">${UnitModule.escapeHtml(String(job.created_at || '').slice(0, 10) || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `, { maxWidth: '980px' });
+        const supplierSelect = document.getElementById('free_ext_supplier_id');
+        if (supplierSelect) {
+            supplierSelect.onchange = () => {
+                const selected = supplierOptions.find(x => String(x.id || '') === String(supplierSelect.value || ''));
+                const nameInput = document.getElementById('free_ext_supplier_name');
+                if (nameInput && selected) nameInput.value = String(selected.name || '');
+            };
+        }
+    },
+    saveFreeExternalVendorJob: async () => {
+        if (!Array.isArray(DB.data?.data?.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
+        const supplierId = String(document.getElementById('free_ext_supplier_id')?.value || '').trim();
+        const supplierName = String(document.getElementById('free_ext_supplier_name')?.value || '').trim();
+        const contact = String(document.getElementById('free_ext_contact')?.value || '').trim();
+        const productCode = String(document.getElementById('free_ext_product_code')?.value || '').trim().toUpperCase();
+        const productName = String(document.getElementById('free_ext_product_name')?.value || '').trim();
+        const qty = Math.floor(Number(document.getElementById('free_ext_qty')?.value || 0));
+        const docNo = String(document.getElementById('free_ext_doc_no')?.value || '').trim();
+        const note = String(document.getElementById('free_ext_note')?.value || '').trim();
+        const jobCode = String(document.getElementById('free_ext_job_code')?.value || UnitModule.getNextFreeExternalVendorJobCode()).trim().toUpperCase();
+        if (!supplierName) return alert('Firma adi zorunlu.');
+        if (!productCode) return alert('Urun kodu zorunlu.');
+        if (!productName) return alert('Urun adi zorunlu.');
+        if (!Number.isFinite(qty) || qty <= 0) return alert('Giden adet 1 veya daha buyuk olmali.');
+        if (UnitModule.isGlobalCodeTaken(jobCode)) return alert('Bu is/fis kodu baska bir kayitta kullaniliyor.');
+        const now = new Date().toISOString();
+        DB.data.data.freeExternalVendorJobs.push({
+            id: crypto.randomUUID(),
+            jobCode,
+            supplierId,
+            supplierName,
+            contact,
+            productCode,
+            productName,
+            qty,
+            docNo,
+            note,
+            status: 'ACIK',
+            created_at: now,
+            updated_at: now
+        });
+        await DB.save();
+        UnitModule.openFreeExternalVendorModal();
     },
     renderUnitDashboard: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);
@@ -1724,6 +1893,7 @@ const UnitModule = {
         readMany('montageCards', DB.data?.data?.montageCards, ['cardCode', 'productCode']);
         readMany('workOrders', DB.data?.data?.workOrders, ['workOrderCode']);
         readMany('depoTransferTasks', DB.data?.data?.depoTransferTasks, ['taskCode']);
+        readMany('freeExternalVendorJobs', DB.data?.data?.freeExternalVendorJobs, ['jobCode']);
         readMany('aluminumProfiles', DB.data?.data?.aluminumProfiles, ['code']);
         return bag;
     },

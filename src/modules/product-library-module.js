@@ -1063,6 +1063,53 @@ const ProductLibraryModule = {
     getComponentCardById: (id) => {
         return ProductLibraryModule.getComponentCards().find(row => String(row.id) === String(id)) || null;
     },
+    normalizeSupplierRouteStationId: (supplierId) => `supplier:${String(supplierId || '').trim()}`,
+    isSupplierRouteStationId: (stationId) => String(stationId || '').trim().toLowerCase().startsWith('supplier:'),
+    isFasonSupplierTag: (tag) => {
+        const value = ProductLibraryModule.normalizeAsciiUpper(String(tag || ''));
+        return value === 'FASON' || value === 'SERBEST DIS TEDARIKCI' || value === 'DIS TEDARIKCI';
+    },
+    getFasonRouteSuppliers: () => {
+        return (Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [])
+            .filter(row => Array.isArray(row?.tags) && row.tags.some(tag => ProductLibraryModule.isFasonSupplierTag(tag)))
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+    getRouteStationOptions: () => {
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const suppliers = ProductLibraryModule.getFasonRouteSuppliers();
+        return [
+            ...units.map(u => ({
+                id: String(u?.id || '').trim(),
+                name: String(u?.name || '').trim(),
+                source: 'unit'
+            })),
+            ...suppliers.map(s => ({
+                id: ProductLibraryModule.normalizeSupplierRouteStationId(s?.id || ''),
+                name: String(s?.name || '').trim(),
+                source: 'supplier',
+                supplierId: String(s?.id || '').trim()
+            }))
+        ].filter(row => row.id && row.name);
+    },
+    getRouteStationMap: () => {
+        const map = {};
+        ProductLibraryModule.getRouteStationOptions().forEach(row => {
+            map[String(row.id || '')] = String(row.name || row.id || '');
+        });
+        return map;
+    },
+    isValidRouteStationId: (stationId) => {
+        const key = String(stationId || '').trim();
+        if (!key) return false;
+        return ProductLibraryModule.getRouteStationOptions().some(row => String(row.id || '') === key);
+    },
+    getRouteProcessDisplayValue: (routeRow) => {
+        if (ProductLibraryModule.isSupplierRouteStationId(routeRow?.stationId || '')) {
+            return 'FASON';
+        }
+        return String(routeRow?.processId || '').trim().toUpperCase();
+    },
 
     generateComponentCode: (exclude = null) => {
         const all = DB.data.data.partComponentCards || [];
@@ -1153,6 +1200,11 @@ const ProductLibraryModule = {
 
         const stationId = String(row.stationId || '').trim();
         if (!stationId) return alert('Lutfen once istasyon seciniz.');
+        if (ProductLibraryModule.isSupplierRouteStationId(stationId)) {
+            row.processId = 'FASON';
+            UI.renderCurrentPage();
+            return;
+        }
 
         ProductLibraryModule.state.componentRoutePicker = {
             routeId: String(routeId),
@@ -1242,7 +1294,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentDraftRoutes.push({
             id: crypto.randomUUID(),
             stationId,
-            processId: ''
+            processId: ProductLibraryModule.isSupplierRouteStationId(stationId) ? 'FASON' : ''
         });
         ProductLibraryModule.state.componentDraftRouteStationId = '';
         UI.renderCurrentPage();
@@ -1407,17 +1459,15 @@ const ProductLibraryModule = {
         const masterCode = String(s.componentDraftMasterCode || '').trim().toUpperCase();
         if (!masterCode) return alert('Master urun kutuphanesi hammadde ID kod zorunlu.');
 
-        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
-        const unitIds = new Set(units.map(u => String(u?.id || '')));
         const routesRaw = Array.isArray(s.componentDraftRoutes) ? s.componentDraftRoutes : [];
         const routes = routesRaw
             .map(r => ({
                 id: String(r?.id || crypto.randomUUID()),
                 stationId: String(r?.stationId || '').trim(),
-                processId: String(r?.processId || '').trim().toUpperCase()
+                processId: ProductLibraryModule.getRouteProcessDisplayValue(r)
             }))
             .filter(r => r.stationId);
-        const invalidStation = routes.find(r => !unitIds.has(r.stationId));
+        const invalidStation = routes.find(r => !ProductLibraryModule.isValidRouteStationId(r.stationId));
         if (invalidStation) return alert('Rota satirinda gecersiz istasyon secimi var.');
 
         const files = (Array.isArray(s.componentDraftFiles) ? s.componentDraftFiles : [])
@@ -1504,9 +1554,7 @@ const ProductLibraryModule = {
     },
 
     renderComponentView: (container, row) => {
-        const units = (DB.data.data.units || []).slice();
-        const unitMap = {};
-        units.forEach(u => { unitMap[u.id] = u.name; });
+        const unitMap = ProductLibraryModule.getRouteStationMap();
         const routes = Array.isArray(row?.routes) ? row.routes : [];
         const files = Array.isArray(row?.attachments) ? row.attachments : [];
 
@@ -1542,7 +1590,7 @@ const ProductLibraryModule = {
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:0.5rem;">${idx + 1}</td>
                                     <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</td>
-                                    <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(r.processId || '-')}</td>
+                                    <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '-')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1577,9 +1625,8 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.componentViewingId = null;
         }
 
-        const units = (DB.data.data.units || []).slice();
-        const unitMap = {};
-        units.forEach(u => { unitMap[u.id] = u.name; });
+        const routeStations = ProductLibraryModule.getRouteStationOptions();
+        const unitMap = ProductLibraryModule.getRouteStationMap();
 
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
@@ -1776,8 +1823,8 @@ const ProductLibraryModule = {
                                     ${routes.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Henuz rota istasyonu eklenmedi.</div>' : routes.map((r, idx) => `
                                         <div style="display:grid; grid-template-columns:1.2fr 1fr auto auto; gap:0.45rem; align-items:center;">
                                             <div style="font-weight:600; color:#334155;">${idx + 1}. istasyon ${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</div>
-                                            <input readonly value="${ProductLibraryModule.escapeHtml(r.processId || '')}" placeholder="islem secilmedi" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace; background:#f8fafc;">
-                                            <button class="btn-sm" onclick="ProductLibraryModule.editComponentRouteRow('${r.id}')">${String(r.processId || '').trim() ? 'duzenle' : 'goruntule'}</button>
+                                            <input readonly value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '')}" placeholder="islem secilmedi" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace; background:#f8fafc;">
+                                            <button class="btn-sm" onclick="${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'return false;' : `ProductLibraryModule.editComponentRouteRow('${r.id}')`}" ${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'disabled style="opacity:0.55; cursor:not-allowed;"' : ''}>${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'fason' : (String(r.processId || '').trim() ? 'duzenle' : 'goruntule')}</button>
                                             <button class="btn-sm" onclick="ProductLibraryModule.removeComponentRouteRow('${r.id}')">sil</button>
                                         </div>
                                     `).join('')}
@@ -1785,7 +1832,7 @@ const ProductLibraryModule = {
                                 <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem; margin-top:0.7rem; max-width:430px;">
                                     <select onchange="ProductLibraryModule.setComponentRouteStation(this.value)" style="height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem;">
                                         <option value="">istasyon sec</option>
-                                        ${units.map(u => `<option value="${u.id}" ${String(state.componentDraftRouteStationId || '') === String(u.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(u.name)}</option>`).join('')}
+                                        ${routeStations.map(u => `<option value="${u.id}" ${String(state.componentDraftRouteStationId || '') === String(u.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(u.name)}</option>`).join('')}
                                     </select>
                                     <button class="btn-primary" onclick="ProductLibraryModule.addComponentRouteRow()">rota istasyonu ekle +</button>
                                 </div>
@@ -2083,6 +2130,11 @@ const ProductLibraryModule = {
 
         const stationId = String(row.stationId || '').trim();
         if (!stationId) return alert('Lutfen once istasyon seciniz.');
+        if (ProductLibraryModule.isSupplierRouteStationId(stationId)) {
+            row.processId = 'FASON';
+            UI.renderCurrentPage();
+            return;
+        }
 
         ProductLibraryModule.state.componentRoutePicker = {
             routeId: String(routeId),
@@ -2112,7 +2164,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.assemblyDraftRoutes.push({
             id: crypto.randomUUID(),
             stationId,
-            processId: ''
+            processId: ProductLibraryModule.isSupplierRouteStationId(stationId) ? 'FASON' : ''
         });
         ProductLibraryModule.state.assemblyDraftRouteStationId = '';
         UI.renderCurrentPage();
@@ -2244,19 +2296,17 @@ const ProductLibraryModule = {
             seenCodes.add(item.code);
         }
 
-        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
-        const unitIds = new Set(units.map(u => String(u?.id || '')));
         const routesRaw = Array.isArray(s.assemblyDraftRoutes) ? s.assemblyDraftRoutes : [];
         const routes = routesRaw
             .map(r => ({
                 id: String(r?.id || crypto.randomUUID()),
                 stationId: String(r?.stationId || '').trim(),
-                processId: String(r?.processId || '').trim().toUpperCase()
+                processId: ProductLibraryModule.getRouteProcessDisplayValue(r)
             }))
             .filter(r => r.stationId);
-        const invalidStation = routes.find(r => !unitIds.has(r.stationId));
+        const invalidStation = routes.find(r => !ProductLibraryModule.isValidRouteStationId(r.stationId));
         if (invalidStation) return alert('Rota satirinda gecersiz istasyon secimi var.');
-        if (routes.some(r => !r.processId)) return alert('Her rota istasyonu icin islem ID secmek zorunlu.');
+        if (routes.some(r => !ProductLibraryModule.isSupplierRouteStationId(r.stationId) && !r.processId)) return alert('Her rota istasyonu icin islem ID secmek zorunlu.');
 
         const files = (Array.isArray(s.assemblyDraftFiles) ? s.assemblyDraftFiles : [])
             .map(file => ({
@@ -2329,8 +2379,7 @@ const ProductLibraryModule = {
     renderAssemblyView: (container, row) => {
         const items = Array.isArray(row?.items) ? row.items : [];
         const units = (DB.data.data.units || []).slice();
-        const unitMap = {};
-        units.forEach(u => { unitMap[u.id] = u.name; });
+        const unitMap = ProductLibraryModule.getRouteStationMap();
         const routes = Array.isArray(row?.routes) ? row.routes : [];
         const files = Array.isArray(row?.attachments) ? row.attachments : [];
         container.innerHTML = `
@@ -2386,7 +2435,7 @@ const ProductLibraryModule = {
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:0.5rem;">${idx + 1}</td>
                                     <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</td>
-                                    <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(r.processId || '-')}</td>
+                                    <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '-')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2442,9 +2491,8 @@ const ProductLibraryModule = {
             .filter(item => String(item?.source || '') === 'component')
             .map(item => String(item?.code || '').trim().toUpperCase())
             .filter(Boolean);
-        const units = (DB.data.data.units || []).slice();
-        const unitMap = {};
-        units.forEach(u => { unitMap[u.id] = u.name; });
+        const routeStations = ProductLibraryModule.getRouteStationOptions();
+        const unitMap = ProductLibraryModule.getRouteStationMap();
         const routes = Array.isArray(state.assemblyDraftRoutes) ? state.assemblyDraftRoutes : [];
         const files = Array.isArray(state.assemblyDraftFiles) ? state.assemblyDraftFiles : [];
 
@@ -2575,8 +2623,8 @@ const ProductLibraryModule = {
                                         ${routes.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Henuz rota istasyonu eklenmedi.</div>' : routes.map((r, idx) => `
                                             <div style="display:grid; grid-template-columns:1.2fr 1fr auto auto; gap:0.45rem; align-items:center;">
                                                 <div style="font-weight:600; color:#334155;">${idx + 1}. istasyon ${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</div>
-                                                <input readonly value="${ProductLibraryModule.escapeHtml(r.processId || '')}" placeholder="islem secilmedi" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace; background:#f8fafc;">
-                                                <button class="btn-sm" onclick="ProductLibraryModule.openAssemblyRouteProcessPicker('${r.id}')">${String(r.processId || '').trim() ? 'duzenle' : 'goruntule'}</button>
+                                                <input readonly value="${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '')}" placeholder="islem secilmedi" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-family:monospace; background:#f8fafc;">
+                                                <button class="btn-sm" onclick="${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'return false;' : `ProductLibraryModule.openAssemblyRouteProcessPicker('${r.id}')`}" ${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'disabled style="opacity:0.55; cursor:not-allowed;"' : ''}>${ProductLibraryModule.isSupplierRouteStationId(r.stationId) ? 'fason' : (String(r.processId || '').trim() ? 'duzenle' : 'goruntule')}</button>
                                                 <button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyRouteRow('${r.id}')">sil</button>
                                             </div>
                                         `).join('')}
@@ -2584,7 +2632,7 @@ const ProductLibraryModule = {
                                     <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem; margin-top:0.7rem; max-width:430px;">
                                         <select onchange="ProductLibraryModule.setAssemblyRouteStation(this.value)" style="height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem;">
                                             <option value="">istasyon sec</option>
-                                            ${units.map(u => `<option value="${u.id}" ${String(state.assemblyDraftRouteStationId || '') === String(u.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(u.name)}</option>`).join('')}
+                                            ${routeStations.map(u => `<option value="${u.id}" ${String(state.assemblyDraftRouteStationId || '') === String(u.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(u.name)}</option>`).join('')}
                                         </select>
                                         <button class="btn-primary" onclick="ProductLibraryModule.addAssemblyRouteRow()">rota istasyonu ekle +</button>
                                     </div>

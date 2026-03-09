@@ -1084,15 +1084,19 @@ const ProductLibraryModule = {
         return candidate;
     },
 
-    startEditComponentCard: (id) => {
-        const row = ProductLibraryModule.getComponentCardById(id);
-        if (!row) return;
+    loadComponentDraftFromRow: (row, options = {}) => {
+        if (!row || typeof row !== 'object') return;
+        const hasEditingId = Object.prototype.hasOwnProperty.call(options, 'editingId');
+        const nextEditingId = hasEditingId ? options.editingId : row.id;
+        const nextCode = Object.prototype.hasOwnProperty.call(options, 'code')
+            ? options.code
+            : (row.code || ProductLibraryModule.generateComponentCode(nextEditingId || row.id));
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.componentRoutePicker = null;
-        ProductLibraryModule.state.componentFormOpen = true;
-        ProductLibraryModule.state.componentEditingId = row.id;
-        ProductLibraryModule.state.componentDraftCode = row.code || ProductLibraryModule.generateComponentCode(row.id);
+        ProductLibraryModule.state.componentFormOpen = options.formOpen === false ? false : true;
+        ProductLibraryModule.state.componentEditingId = nextEditingId || null;
+        ProductLibraryModule.state.componentDraftCode = nextCode;
         ProductLibraryModule.state.componentDraftName = row.name || '';
         ProductLibraryModule.state.componentDraftGroup = row.group || ProductLibraryModule.getPartGroups()[0] || '';
         ProductLibraryModule.state.componentDraftColorType = ProductLibraryModule.resolveComponentColorType(row);
@@ -1118,6 +1122,12 @@ const ProductLibraryModule = {
                 }))
                 .filter(file => file.data)
             : [];
+    },
+
+    startEditComponentCard: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row) return;
+        ProductLibraryModule.loadComponentDraftFromRow(row);
         UI.renderCurrentPage();
     },
 
@@ -1347,9 +1357,10 @@ const ProductLibraryModule = {
         ProductLibraryModule.openPreviewModal(file);
     },
 
-    saveComponentCard: async () => {
+    saveComponentCard: async (saveAsNew = false) => {
         const s = ProductLibraryModule.state;
         const all = DB.data?.data?.partComponentCards || [];
+        const shouldSaveAsNew = Boolean(saveAsNew);
 
         const name = String(s.componentDraftName || '').trim();
         if (!name) return alert('Urun adi zorunlu.');
@@ -1373,13 +1384,16 @@ const ProductLibraryModule = {
             colorCode = strictColor.code;
         }
 
+        const targetEditingId = shouldSaveAsNew ? null : s.componentEditingId;
         const code = String(
-            s.componentDraftCode || ProductLibraryModule.generateComponentCode(s.componentEditingId || null)
+            shouldSaveAsNew
+                ? ProductLibraryModule.generateComponentCode()
+                : (s.componentDraftCode || ProductLibraryModule.generateComponentCode(targetEditingId || null))
         ).trim().toUpperCase();
         if (!/^PRC-\d{6}$/.test(code)) return alert('ID kod formati gecersiz. Beklenen: PRC-000001');
 
-        const exclude = s.componentEditingId
-            ? { collection: 'partComponentCards', id: s.componentEditingId, field: 'code' }
+        const exclude = targetEditingId
+            ? { collection: 'partComponentCards', id: targetEditingId, field: 'code' }
             : null;
         if (ProductLibraryModule.isGlobalCodeTaken(code, exclude)) {
             return alert('Bu ID kod baska bir kayitta kullaniliyor.');
@@ -1412,9 +1426,10 @@ const ProductLibraryModule = {
 
         const note = String(s.componentDraftNote || '').trim();
         const now = new Date().toISOString();
+        let savedRow = null;
 
-        if (s.componentEditingId) {
-            const idx = all.findIndex(x => String(x?.id || '') === String(s.componentEditingId));
+        if (targetEditingId) {
+            const idx = all.findIndex(x => String(x?.id || '') === String(targetEditingId));
             if (idx === -1) {
                 ProductLibraryModule.resetComponentDraft(true);
                 UI.renderCurrentPage();
@@ -1435,8 +1450,9 @@ const ProductLibraryModule = {
                 note,
                 updated_at: now
             };
+            savedRow = all[idx];
         } else {
-            all.push({
+            savedRow = {
                 id: crypto.randomUUID(),
                 code,
                 name,
@@ -1450,10 +1466,16 @@ const ProductLibraryModule = {
                 note,
                 created_at: now,
                 updated_at: now
-            });
+            };
+            all.push(savedRow);
         }
 
         await DB.save();
+        if (shouldSaveAsNew && savedRow) {
+            ProductLibraryModule.loadComponentDraftFromRow(savedRow);
+            UI.renderCurrentPage();
+            return;
+        }
         ProductLibraryModule.resetComponentDraft(true);
     },
 
@@ -1689,6 +1711,7 @@ const ProductLibraryModule = {
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">Parca ve Bilesen olustur</h3>
                             <div style="display:flex; gap:0.5rem;">
                                 ${state.componentEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteComponentCard('${state.componentEditingId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
+                                ${state.componentEditingId ? '<button class="btn-sm" onclick="ProductLibraryModule.saveComponentCard(true)" style="border-color:#bfdbfe; background:#eff6ff; color:#1d4ed8;">Farkli Kaydet</button>' : ''}
                                 <button class="btn-sm" onclick="ProductLibraryModule.resetComponentDraft(true)">Vazgec</button>
                                 <button class="btn-primary" onclick="ProductLibraryModule.saveComponentCard()">Kaydet</button>
                             </div>

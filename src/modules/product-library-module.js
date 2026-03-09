@@ -1362,6 +1362,11 @@ const ProductLibraryModule = {
         const all = DB.data?.data?.partComponentCards || [];
         const shouldSaveAsNew = Boolean(saveAsNew);
 
+        if (shouldSaveAsNew) {
+            const confirmClone = confirm('Farkli kaydet yeni bir parca olusturur. Mevcut kart korunur, fakat form yeni karta gececek. Devam edilsin mi?');
+            if (!confirmClone) return;
+        }
+
         const name = String(s.componentDraftName || '').trim();
         if (!name) return alert('Urun adi zorunlu.');
 
@@ -1709,11 +1714,13 @@ const ProductLibraryModule = {
                     <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">Parca ve Bilesen olustur</h3>
-                            <div style="display:flex; gap:0.5rem;">
+                            <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
                                 ${state.componentEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteComponentCard('${state.componentEditingId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
-                                ${state.componentEditingId ? '<button class="btn-sm" onclick="ProductLibraryModule.saveComponentCard(true)" style="border-color:#bfdbfe; background:#eff6ff; color:#1d4ed8;">Farkli Kaydet</button>' : ''}
-                                <button class="btn-sm" onclick="ProductLibraryModule.resetComponentDraft(true)">Vazgec</button>
-                                <button class="btn-primary" onclick="ProductLibraryModule.saveComponentCard()">Kaydet</button>
+                                ${state.componentEditingId ? '<div style="display:flex; align-items:center; gap:0.5rem; padding-left:0.75rem; margin-left:0.15rem; border-left:1px solid #cbd5e1;"><button class="btn-sm" onclick="ProductLibraryModule.saveComponentCard(true)" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8; font-weight:800;">Farkli Kaydet</button><span style="font-size:0.72rem; color:#64748b;">yeni renk / varyant karti ac</span></div>' : ''}
+                                <div style="display:flex; gap:0.5rem; align-items:center;">
+                                    <button class="btn-sm" onclick="ProductLibraryModule.resetComponentDraft(true)">Vazgec</button>
+                                    <button class="btn-primary" onclick="ProductLibraryModule.saveComponentCard()">Kaydet</button>
+                                </div>
                             </div>
                         </div>
                         <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.75rem; align-items:end; margin-bottom:0.85rem;">

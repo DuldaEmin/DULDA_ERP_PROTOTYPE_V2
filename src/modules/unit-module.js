@@ -228,7 +228,8 @@ const UnitModule = {
         } else if (view === 'workOrderPlanning') {
             UnitModule.renderWorkOrderPlanningPlaceholder(container, activeUnitId);
         } else if (view === 'freeExternalVendors') {
-            UnitModule.renderFreeExternalVendorPage(container);
+            UnitModule.state.view = 'list';
+            UnitModule.renderList(container);
         }
 
         UnitModule.renderComponentRoutePickerPanel(container);
@@ -719,22 +720,13 @@ const UnitModule = {
             </div>
         `;
         };
-        const freeExternalCard = `
-            <div class="app-card" style="padding:1.25rem; position:relative; display:flex; flex-direction:column; gap:0.85rem; justify-content:center;">
-                <div onclick="UnitModule.openFreeExternalVendorPage()" style="cursor:pointer;">
-                    <div style="width:3.25rem; height:3.25rem; border-radius:0.95rem; margin:0 auto 1rem; background:#ecfeff; color:#155e75; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.92rem; letter-spacing:0.04em; box-shadow:0 8px 16px -10px rgba(15,23,42,0.35); border:1px solid rgba(255,255,255,0.7)">SD</div>
-                    <div style="font-weight:700; color:#334155; font-size:0.9rem; margin-bottom:0.35rem;">SERBEST DIS TEDARIKCI</div>
-                    <div style="font-size:0.76rem; color:#64748b; line-height:1.4;">Kayitli olmayan fason veya tek seferlik tedarikci icin is ac.</div>
-                </div>
-                <button class="btn-sm" onclick="event.stopPropagation(); UnitModule.openNewSupplierFromUnit()" style="align-self:center; border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Tedarikci Ekle</button>
-            </div>
-        `;
         container.innerHTML = `
             <div class="page-header"><h2 class="page-title">Birimler</h2></div>
             <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">&#304;&ccedil; Birimler</h3>
             <div class="apps-grid" style="margin-bottom:3rem;">${internals.map(u => renderCard(u)).join('')}</div>
             <h3 style="margin:1.5rem 0; color:#334155; padding-left:0.5rem">D&#305;&#351; Birimler</h3>
-            <div class="apps-grid">${externals.map(u => renderCard(u)).join('')}${freeExternalCard}</div>
+            <div class="apps-grid">${externals.map(u => renderCard(u)).join('')}</div>
+            ${UnitModule.renderFreeExternalVendorPanel()}
         `;
     },
     getNextFreeExternalVendorJobCode: () => {
@@ -767,16 +759,27 @@ const UnitModule = {
             .slice()
             .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
     },
-    openFreeExternalVendorPage: () => {
+    scrollToFreeExternalVendorPanel: () => {
+        setTimeout(() => {
+            const panel = document.getElementById('free-external-vendors-panel');
+            if (panel && typeof panel.scrollIntoView === 'function') {
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 30);
+    },
+    openFreeExternalVendorSection: (openForm = false) => {
         UnitModule.state.activeUnitId = null;
-        UnitModule.state.view = 'freeExternalVendors';
-        UnitModule.state.freeVendorFormOpen = false;
-        UnitModule.state.freeVendorEditingId = null;
+        UnitModule.state.view = 'list';
+        UnitModule.state.freeVendorFormOpen = !!openForm;
+        if (!openForm) UnitModule.state.freeVendorEditingId = null;
         UI.renderCurrentPage();
+        UnitModule.scrollToFreeExternalVendorPanel();
+    },
+    openFreeExternalVendorPage: () => {
+        UnitModule.openFreeExternalVendorSection(false);
     },
     openNewSupplierFromUnit: () => {
-        UnitModule.openFreeExternalVendorPage();
-        UnitModule.openFreeExternalVendorCreateForm();
+        UnitModule.openFreeExternalVendorSection(true);
     },
     openFreeExternalVendorCreateForm: (supplierId = null) => {
         const row = supplierId ? (DB.data.data.suppliers || []).find(x => String(x?.id || '') === String(supplierId || '')) : null;
@@ -790,6 +793,7 @@ const UnitModule = {
         UnitModule.state.freeVendorDraftCity = String(row?.contact?.city || '');
         UnitModule.state.freeVendorDraftNotes = String(row?.notes || '');
         UI.renderCurrentPage();
+        UnitModule.scrollToFreeExternalVendorPanel();
     },
     resetFreeExternalVendorForm: () => {
         UnitModule.state.freeVendorFormOpen = false;
@@ -802,6 +806,7 @@ const UnitModule = {
         UnitModule.state.freeVendorDraftCity = '';
         UnitModule.state.freeVendorDraftNotes = '';
         UI.renderCurrentPage();
+        UnitModule.scrollToFreeExternalVendorPanel();
     },
     saveFreeExternalVendorSupplier: async () => {
         if (!Array.isArray(DB.data?.data?.suppliers)) DB.data.data.suppliers = [];
@@ -836,6 +841,134 @@ const UnitModule = {
         }
         await DB.save();
         UnitModule.resetFreeExternalVendorForm();
+    },
+    deleteFreeExternalVendorSupplier: async () => {
+        if (!Array.isArray(DB.data?.data?.suppliers)) DB.data.data.suppliers = [];
+        if (!Array.isArray(DB.data?.data?.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
+        const supplierId = String(UnitModule.state.freeVendorEditingId || '').trim();
+        if (!supplierId) return;
+        const supplier = (DB.data.data.suppliers || []).find(s => String(s?.id || '') === supplierId);
+        if (!supplier) {
+            UnitModule.resetFreeExternalVendorForm();
+            return;
+        }
+        const relatedJobs = (DB.data.data.freeExternalVendorJobs || []).filter(job =>
+            String(job?.supplierId || '') === supplierId
+            || (!job?.supplierId && String(job?.supplierName || '') === String(supplier?.name || ''))
+        );
+        const hasJobs = relatedJobs.length > 0;
+        const message = hasJobs
+            ? `${supplier.name} silinsin mi?\n\nBu islem ${relatedJobs.length} gonderim kaydini da silecek.`
+            : `${supplier.name} silinsin mi?`;
+        if (!confirm(message)) return;
+        DB.data.data.suppliers = (DB.data.data.suppliers || []).filter(s => String(s?.id || '') !== supplierId);
+        if (hasJobs) {
+            const jobIds = new Set(relatedJobs.map(job => String(job?.id || '')));
+            DB.data.data.freeExternalVendorJobs = (DB.data.data.freeExternalVendorJobs || []).filter(job => !jobIds.has(String(job?.id || '')));
+        }
+        await DB.save();
+        UnitModule.resetFreeExternalVendorForm();
+    },
+    renderFreeExternalVendorPanel: () => {
+        const suppliers = UnitModule.getFasonSuppliers();
+        const search = String(UnitModule.state.freeVendorSearch || '').trim().toLocaleLowerCase('tr-TR');
+        const jobs = Array.isArray(DB.data.data.freeExternalVendorJobs) ? DB.data.data.freeExternalVendorJobs : [];
+        const rows = suppliers.filter(s => {
+            if (!search) return true;
+            return String(s?.name || '').toLocaleLowerCase('tr-TR').includes(search)
+                || String(s?.contact?.person || '').toLocaleLowerCase('tr-TR').includes(search)
+                || String(s?.contact?.phone || '').toLocaleLowerCase('tr-TR').includes(search);
+        });
+        const getJobsForSupplier = (supplier) => jobs.filter(job =>
+            String(job?.supplierId || '') === String(supplier?.id || '')
+            || (!job?.supplierId && String(job?.supplierName || '') === String(supplier?.name || ''))
+        );
+        return `
+            <div id="free-external-vendors-panel" style="margin-top:2.5rem; background:rgba(255,255,255,0.56); border:1px solid #fecaca; border-radius:1.75rem; padding:1.2rem;">
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1.15rem; padding:1rem;">
+                    <div style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center; gap:0.9rem; flex-wrap:wrap;">
+                        <div>
+                            <h3 style="margin:0; font-size:1.15rem; color:#0f172a;">Serbest Dis Tedarikci / Fasoncular</h3>
+                            <div style="font-size:0.84rem; color:#64748b; margin-top:0.2rem;">Kayitli fasonculari burada listele, yeni tedarikci ekle ve urun gonder.</div>
+                        </div>
+                        <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.85rem; font-weight:700; color:#0f172a;">Fasoncu: ${suppliers.length}</div>
+                            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.85rem; font-weight:700; color:#0f172a;">Gonderim: ${jobs.length}</div>
+                        </div>
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:1rem; display:flex; justify-content:space-between; gap:0.7rem; align-items:center; flex-wrap:wrap;">
+                        <input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorSearch || '')}" oninput="UnitModule.state.freeVendorSearch=this.value; UI.renderCurrentPage();" placeholder="firma adi / yetkili / telefon ara" style="min-width:320px; flex:1; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.58rem 0.7rem; font-weight:600;">
+                        <button class="btn-primary" onclick="UnitModule.openFreeExternalVendorCreateForm()" style="min-width:220px;">Yeni Tedarikci / Fason Ekle</button>
+                    </div>
+                    ${UnitModule.state.freeVendorFormOpen ? `
+                        <div style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.8rem;">
+                                <strong>${UnitModule.state.freeVendorEditingId ? 'Fasoncu Duzenle' : 'Yeni Tedarikci / Fason Ekle'}</strong>
+                                <div style="display:flex; gap:0.45rem;">
+                                    ${UnitModule.state.freeVendorEditingId ? '<button class="btn-sm" onclick="UnitModule.deleteFreeExternalVendorSupplier()" style="border-color:#fecaca; color:#b91c1c; background:#fff1f2;">Sil</button>' : ''}
+                                    <button class="btn-sm" onclick="UnitModule.resetFreeExternalVendorForm()">Vazgec</button>
+                                    <button class="btn-primary" onclick="UnitModule.saveFreeExternalVendorSupplier()">Kaydet</button>
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.65rem;">
+                                <div style="grid-column:span 4;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Firma adi *</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftName || '')}" oninput="UnitModule.state.freeVendorDraftName=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftPerson || '')}" oninput="UnitModule.state.freeVendorDraftPerson=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Telefon</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftPhone || '')}" oninput="UnitModule.state.freeVendorDraftPhone=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">E-posta</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftEmail || '')}" oninput="UnitModule.state.freeVendorDraftEmail=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:span 8;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftAddress || '')}" oninput="UnitModule.state.freeVendorDraftAddress=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:span 4;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sehir / ilce</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftCity || '')}" oninput="UnitModule.state.freeVendorDraftCity=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
+                                <div style="grid-column:1/-1;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea rows="3" oninput="UnitModule.state.freeVendorDraftNotes=this.value" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftNotes || '')}</textarea></div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                        <th style="padding:0.6rem; text-align:left;">Firma adi</th>
+                                        <th style="padding:0.6rem; text-align:left;">Iletisim</th>
+                                        <th style="padding:0.6rem; text-align:left;">Gonderilen urunler</th>
+                                        <th style="padding:0.6rem; text-align:right;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.length === 0 ? '<tr><td colspan="4" style="padding:1rem; text-align:center; color:#94a3b8;">Kayitli fasoncu yok.</td></tr>' : rows.map(supplier => {
+            const vendorJobs = getJobsForSupplier(supplier);
+            const lastJob = vendorJobs[0] || null;
+            const summary = vendorJobs.length === 0
+                ? 'Henuz urun gonderilmedi.'
+                : `${vendorJobs.length} kayit var${lastJob ? ` - son: ${String(lastJob.productName || lastJob.productCode || '-')}` : ''}`;
+            return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.6rem;">
+                                                <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(supplier.name || '-')}</div>
+                                                <div style="font-size:0.73rem; color:#64748b;">${UnitModule.escapeHtml(supplier.contact?.city || '')}</div>
+                                            </td>
+                                            <td style="padding:0.6rem; color:#475569;">
+                                                <div>${UnitModule.escapeHtml(supplier.contact?.person || '-')}</div>
+                                                <div style="font-size:0.73rem; color:#64748b;">${UnitModule.escapeHtml(supplier.contact?.phone || '-')}</div>
+                                            </td>
+                                            <td style="padding:0.6rem; color:#475569;">
+                                                <div style="font-weight:600; color:#334155;">${UnitModule.escapeHtml(summary)}</div>
+                                                <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorJobsModal('${supplier.id}')" style="margin-top:0.35rem;">goruntule</button>
+                                            </td>
+                                            <td style="padding:0.6rem; text-align:right;">
+                                                <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                    <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorJobModal('${supplier.id}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">urun gonder</button>
+                                                    <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorCreateForm('${supplier.id}')">duzenle</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     },
     openFreeExternalVendorJobModal: (supplierId = null) => {
         const supplier = supplierId ? UnitModule.getFasonSuppliers().find(x => String(x?.id || '') === String(supplierId || '')) : null;
@@ -955,107 +1088,8 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     renderFreeExternalVendorPage: (container) => {
-        const suppliers = UnitModule.getFasonSuppliers();
-        const search = String(UnitModule.state.freeVendorSearch || '').trim().toLocaleLowerCase('tr-TR');
-        const jobs = Array.isArray(DB.data.data.freeExternalVendorJobs) ? DB.data.data.freeExternalVendorJobs : [];
-        const rows = suppliers.filter(s => {
-            if (!search) return true;
-            return String(s?.name || '').toLocaleLowerCase('tr-TR').includes(search)
-                || String(s?.contact?.person || '').toLocaleLowerCase('tr-TR').includes(search)
-                || String(s?.contact?.phone || '').toLocaleLowerCase('tr-TR').includes(search);
-        });
-        const getJobsForSupplier = (supplier) => jobs.filter(job =>
-            String(job?.supplierId || '') === String(supplier?.id || '')
-            || (!job?.supplierId && String(job?.supplierName || '') === String(supplier?.name || ''))
-        );
-        container.innerHTML = `
-            <div style="max-width:1260px; margin:0 auto;">
-                <div style="margin-bottom:1.1rem; display:flex; justify-content:space-between; align-items:center; gap:0.9rem; flex-wrap:wrap;">
-                    <div style="display:flex; align-items:center; gap:0.8rem;">
-                        <button onclick="UnitModule.state.view='list'; UI.renderCurrentPage();" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.5rem; cursor:pointer;">
-                            <i data-lucide="arrow-left" width="18" height="18"></i>
-                        </button>
-                        <div>
-                            <h2 class="page-title" style="margin:0;">Serbest Dis Tedarikci</h2>
-                            <div style="font-size:0.84rem; color:#64748b;">Fason firmalarini listele, firma ekle ve urun gonder.</div>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.85rem; font-weight:700; color:#0f172a;">Fasoncu: ${suppliers.length}</div>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.85rem; font-weight:700; color:#0f172a;">Gonderim: ${jobs.length}</div>
-                    </div>
-                </div>
-                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:1rem; display:flex; justify-content:space-between; gap:0.7rem; align-items:center; flex-wrap:wrap;">
-                    <input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorSearch || '')}" oninput="UnitModule.state.freeVendorSearch=this.value; UI.renderCurrentPage();" placeholder="firma adi / yetkili / telefon ara" style="min-width:320px; flex:1; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.58rem 0.7rem; font-weight:600;">
-                    <button class="btn-primary" onclick="UnitModule.openFreeExternalVendorCreateForm()" style="min-width:220px;">Yeni Tedarikci / Fason Ekle</button>
-                </div>
-                ${UnitModule.state.freeVendorFormOpen ? `
-                    <div style="background:white; border:2px solid #111827; border-radius:1rem; padding:1rem; margin-bottom:1rem; box-shadow:0 8px 18px rgba(15,23,42,0.08);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.8rem;">
-                            <strong>${UnitModule.state.freeVendorEditingId ? 'Fasoncu Duzenle' : 'Yeni Tedarikci / Fason Ekle'}</strong>
-                            <div style="display:flex; gap:0.45rem;">
-                                <button class="btn-sm" onclick="UnitModule.resetFreeExternalVendorForm()">Vazgec</button>
-                                <button class="btn-primary" onclick="UnitModule.saveFreeExternalVendorSupplier()">Kaydet</button>
-                            </div>
-                        </div>
-                        <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.65rem;">
-                            <div style="grid-column:span 4;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Firma adi *</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftName || '')}" oninput="UnitModule.state.freeVendorDraftName=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftPerson || '')}" oninput="UnitModule.state.freeVendorDraftPerson=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Telefon</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftPhone || '')}" oninput="UnitModule.state.freeVendorDraftPhone=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">E-posta</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftEmail || '')}" oninput="UnitModule.state.freeVendorDraftEmail=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:span 8;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftAddress || '')}" oninput="UnitModule.state.freeVendorDraftAddress=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:span 4;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sehir / ilce</label><input value="${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftCity || '')}" oninput="UnitModule.state.freeVendorDraftCity=this.value" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;"></div>
-                            <div style="grid-column:1/-1;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea rows="3" oninput="UnitModule.state.freeVendorDraftNotes=this.value" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(UnitModule.state.freeVendorDraftNotes || '')}</textarea></div>
-                        </div>
-                    </div>
-                ` : ''}
-                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
-                    <div class="card-table">
-                        <table style="width:100%; border-collapse:collapse;">
-                            <thead>
-                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
-                                    <th style="padding:0.6rem; text-align:left;">Firma adi</th>
-                                    <th style="padding:0.6rem; text-align:left;">Iletisim</th>
-                                    <th style="padding:0.6rem; text-align:left;">Gonderilen urunler</th>
-                                    <th style="padding:0.6rem; text-align:right;">Islem</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${rows.length === 0 ? '<tr><td colspan="4" style="padding:1rem; text-align:center; color:#94a3b8;">Kayitli fasoncu yok.</td></tr>' : rows.map(supplier => {
-            const vendorJobs = getJobsForSupplier(supplier);
-            const lastJob = vendorJobs[0] || null;
-            const summary = vendorJobs.length === 0
-                ? 'Henuz urun gonderilmedi.'
-                : `${vendorJobs.length} kayit var${lastJob ? ` - son: ${String(lastJob.productName || lastJob.productCode || '-')}` : ''}`;
-            return `
-                                    <tr style="border-bottom:1px solid #f1f5f9;">
-                                        <td style="padding:0.6rem;">
-                                            <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(supplier.name || '-')}</div>
-                                            <div style="font-size:0.73rem; color:#64748b;">${UnitModule.escapeHtml(supplier.contact?.city || '')}</div>
-                                        </td>
-                                        <td style="padding:0.6rem; color:#475569;">
-                                            <div>${UnitModule.escapeHtml(supplier.contact?.person || '-')}</div>
-                                            <div style="font-size:0.73rem; color:#64748b;">${UnitModule.escapeHtml(supplier.contact?.phone || '-')}</div>
-                                        </td>
-                                        <td style="padding:0.6rem; color:#475569;">
-                                            <div style="font-weight:600; color:#334155;">${UnitModule.escapeHtml(summary)}</div>
-                                            <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorJobsModal('${supplier.id}')" style="margin-top:0.35rem;">goruntule</button>
-                                        </td>
-                                        <td style="padding:0.6rem; text-align:right;">
-                                            <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorJobModal('${supplier.id}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">urun gonder</button>
-                                                <button class="btn-sm" onclick="UnitModule.openFreeExternalVendorCreateForm('${supplier.id}')">duzenle</button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                `;
-        }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        `;
+        UnitModule.state.view = 'list';
+        UnitModule.renderList(container);
     },
     renderUnitDashboard: (container, unitId) => {
         const unit = DB.data.data.units.find(u => u.id === unitId);

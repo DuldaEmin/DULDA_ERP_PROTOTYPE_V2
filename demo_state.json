@@ -109,7 +109,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-09T12:31:34.216Z",
+    "updated_at": "2026-03-09T15:02:53.681Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -127,7 +127,8 @@
       "u2": true
     },
     "seedFlags": {
-      "machinesSeededV1": true
+      "machinesSeededV1": true,
+      "stockDepotsSeededV1": true
     }
   },
   "data": {
@@ -1366,6 +1367,60 @@
         "updated_at": "2026-03-06T15:07:04.039Z"
       }
     ],
-    "freeExternalVendorJobs": []
+    "freeExternalVendorJobs": [],
+    "stockDepots": [
+      {
+        "id": "depot_granul",
+        "name": "GRANUL DEPO",
+        "note": "Hammadde ve granul icin ayrilan depo",
+        "isActive": true,
+        "created_at": "2026-03-09T15:02:52.667Z"
+      },
+      {
+        "id": "depot_profil",
+        "name": "PROFIL DEPO",
+        "note": "Profil ve uzun malzemeler icin depo",
+        "isActive": true,
+        "created_at": "2026-03-09T15:02:52.667Z"
+      }
+    ],
+    "stockDepotLocations": [
+      {
+        "id": "0129ea74-e94d-4bb2-bd64-f1c382d7cbed",
+        "depotId": "main",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": ""
+      },
+      {
+        "id": "fc048a63-5f9a-4cb7-97c8-0442bee99287",
+        "depotId": "main",
+        "rafCode": "R01",
+        "cellCode": "A2",
+        "note": ""
+      },
+      {
+        "id": "1184af18-027e-4c95-b3af-9ebeda1c3c83",
+        "depotId": "main",
+        "rafCode": "R02",
+        "cellCode": "A1",
+        "note": ""
+      },
+      {
+        "id": "cdead463-aa06-4263-9162-ce112963df2d",
+        "depotId": "depot_granul",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": ""
+      },
+      {
+        "id": "650985ef-a475-4f31-98ec-6c142de26b05",
+        "depotId": "depot_profil",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": ""
+      }
+    ],
+    "stockDepotItems": []
   }
 }

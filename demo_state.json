@@ -109,7 +109,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-09T11:45:30.808Z",
+    "updated_at": "2026-03-09T12:12:07.408Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -651,6 +651,77 @@
           "address": "",
           "city": "",
           "country": ""
+        }
+      },
+      {
+        "id": "047a6f5a-0198-40b4-b58e-e886eee2bcf2",
+        "name": "deneme",
+        "entityType": "company",
+        "tags": [],
+        "notes": "cvxzvcxbcx",
+        "contact": {
+          "person": "sdfdsaf",
+          "phone": "",
+          "email": "",
+          "web": "",
+          "tax": "",
+          "address": "czx<c",
+          "city": "cxz",
+          "country": ""
+        }
+      },
+      {
+        "id": "7da0793b-890f-4f83-82ff-c3f42d064404",
+        "name": "iba kimya",
+        "entityType": "company",
+        "tags": [],
+        "notes": "",
+        "contact": {
+          "person": "irfan çırpan",
+          "phone": "05322058678",
+          "email": "duldamerdiven@gmail.com",
+          "web": "",
+          "tax": "",
+          "address": "bvcbvcvvbvcb",
+          "city": "",
+          "country": ""
+        }
+      },
+      {
+        "id": "35fecaf1-c5ac-4854-932a-76ef4d473ce7",
+        "name": "Akpa Alüminyum",
+        "entityType": "company",
+        "tags": [],
+        "notes": "nbngbn",
+        "contact": {
+          "person": "irfan çırpan",
+          "phone": "5322058678",
+          "email": "duldamerdiven@gmail.com",
+          "web": "",
+          "tax": "",
+          "address": "bvcbvcvvbvcb",
+          "city": "",
+          "country": ""
+        }
+      },
+      {
+        "id": "cbecd827-3d04-4c60-bdb2-01bd7ae21729",
+        "name": "iba kimya",
+        "entityType": "company",
+        "tags": [
+          "Fason",
+          "Serbest Dis Tedarikci"
+        ],
+        "notes": "deneme",
+        "contact": {
+          "person": "ahmet",
+          "phone": "fdagsdfg",
+          "email": "sfdgsdgf",
+          "web": "",
+          "tax": "",
+          "address": "fsgsdg",
+          "city": "gsd",
+          "country": "Turkiye"
         }
       }
     ],
@@ -1294,6 +1365,7 @@
         "created_at": "2026-03-06T15:07:04.039Z",
         "updated_at": "2026-03-06T15:07:04.039Z"
       }
-    ]
+    ],
+    "freeExternalVendorJobs": []
   }
 }

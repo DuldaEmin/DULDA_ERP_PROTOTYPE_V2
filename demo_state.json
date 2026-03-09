@@ -99,8 +99,6 @@
       "partGroups": [
         "Genel",
         "baba pleksi",
-        "dikme boru",
-        "baba flanş",
         "ay bağlantılar",
         "40lık dikme pleksileri"
       ],
@@ -109,7 +107,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-06T15:41:04.222Z",
+    "updated_at": "2026-03-06T15:50:14.468Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",

@@ -916,8 +916,9 @@ const ProductLibraryModule = {
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:350px; overflow:auto;">
                     ${items.map((item, idx) => `
-                        <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                        <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
                             <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.renameComponentDictionaryOption('${meta.kind}', ${idx})">duzenle</button>
                             <button class="btn-sm" onclick="ProductLibraryModule.removeComponentDictionaryOption('${meta.kind}', ${idx})">sil</button>
                         </div>
                     `).join('')}
@@ -942,6 +943,78 @@ const ProductLibraryModule = {
 
         list.push(val);
         DB.data.meta.options[meta.key] = Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)));
+        ProductLibraryModule.syncComponentDictionaryDrafts();
+        await DB.save();
+        ProductLibraryModule.openComponentDictionary(meta.kind);
+        UI.renderCurrentPage();
+    },
+
+    renameComponentDictionaryOption: async (kind, index) => {
+        const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
+        if (!Array.isArray(DB.data.meta.options?.[meta.key])) return;
+        const list = DB.data.meta.options[meta.key];
+        const idx = Number(index);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+
+        const oldValue = String(list[idx] || '').trim();
+        if (!oldValue) return;
+
+        const nextRaw = prompt('Yeni deger:', oldValue);
+        if (nextRaw === null) return;
+
+        const nextValue = String(nextRaw || '').trim();
+        if (!nextValue) return alert('Deger bos olamaz.');
+
+        const oldNorm = ProductLibraryModule.normalizeAsciiUpper(oldValue);
+        const nextNorm = ProductLibraryModule.normalizeAsciiUpper(nextValue);
+        if (!nextNorm) return alert('Deger gecersiz.');
+        if (oldNorm === nextNorm) {
+            list[idx] = nextValue;
+            DB.data.meta.options[meta.key] = Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)));
+            ProductLibraryModule.syncComponentDictionaryDrafts();
+            await DB.save();
+            ProductLibraryModule.openComponentDictionary(meta.kind);
+            UI.renderCurrentPage();
+            return;
+        }
+
+        const exists = list.some((x, i) => {
+            if (i === idx) return false;
+            return ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === nextNorm;
+        });
+        if (exists) return alert('Bu deger zaten var.');
+
+        list[idx] = nextValue;
+        DB.data.meta.options[meta.key] = Array.from(new Set(list.map(x => String(x || '').trim()).filter(Boolean)));
+
+        if (meta.key === 'partGroups') {
+            const rows = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+            rows.forEach((row) => {
+                if (!row || typeof row !== 'object') return;
+                const rowGroup = String(row.group || '').trim();
+                if (ProductLibraryModule.normalizeAsciiUpper(rowGroup) === oldNorm) {
+                    row.group = nextValue;
+                }
+            });
+            const draftGroup = String(ProductLibraryModule.state.componentDraftGroup || '').trim();
+            if (ProductLibraryModule.normalizeAsciiUpper(draftGroup) === oldNorm) {
+                ProductLibraryModule.state.componentDraftGroup = nextValue;
+            }
+        } else if (meta.key === 'partSubGroups') {
+            const rows = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+            rows.forEach((row) => {
+                if (!row || typeof row !== 'object') return;
+                const rowSubGroup = String(row.subGroup || '').trim();
+                if (ProductLibraryModule.normalizeAsciiUpper(rowSubGroup) === oldNorm) {
+                    row.subGroup = nextValue;
+                }
+            });
+            const draftSub = String(ProductLibraryModule.state.componentDraftSubGroup || '').trim();
+            if (ProductLibraryModule.normalizeAsciiUpper(draftSub) === oldNorm) {
+                ProductLibraryModule.state.componentDraftSubGroup = nextValue;
+            }
+        }
+
         ProductLibraryModule.syncComponentDictionaryDrafts();
         await DB.save();
         ProductLibraryModule.openComponentDictionary(meta.kind);

@@ -576,3 +576,148 @@ const StockModule = {
             </div>
         `;
     },
+
+    renderLayout: () => {
+        const node = StockModule.getSelectedNode();
+        const mainDepot = StockModule.getMainDepot();
+        const customDepots = StockModule.getCustomDepots();
+        const unitMeta = StockModule.getUnitRowsMeta();
+        const transferMeta = unitMeta.filter((row) => row.kind === 'transfer');
+        const unitDepots = unitMeta.filter((row) => row.kind === 'unit');
+        const externalDepots = StockModule.getExternalRowsMeta();
+        const rows = StockModule.getFilteredRows();
+        const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
+        const unitSummary = node.kind === 'unit' ? StockModule.getUnitSummary(node.id) : null;
+        const transferCount = (DB.data.data.depoTransferTasks || []).length;
+        const externalCount = (DB.data.data.freeExternalVendorJobs || []).length;
+        const panelTab = String(StockModule.state.panelTab || 'stocks');
+
+        const topButton = (id, label) => `
+            <button onclick="StockModule.setTopTab('${id}')" style="height:40px; border:1px solid ${StockModule.state.topTab === id ? '#0f172a' : '#cbd5e1'}; background:${StockModule.state.topTab === id ? '#0f172a' : 'white'}; color:${StockModule.state.topTab === id ? 'white' : '#111827'}; border-radius:0.75rem; padding:0 1rem; font-weight:700; cursor:pointer;">
+                ${label}
+            </button>
+        `;
+
+        const panelButton = (id, label, disabled = false) => `
+            <button ${disabled ? 'disabled' : `onclick="StockModule.setPanelTab('${id}')"`} style="height:34px; border:1px solid ${panelTab === id ? '#0f172a' : '#cbd5e1'}; background:${panelTab === id ? '#0f172a' : 'white'}; color:${panelTab === id ? 'white' : '#334155'}; border-radius:0.65rem; padding:0 0.85rem; font-weight:700; cursor:${disabled ? 'not-allowed' : 'pointer'}; opacity:${disabled ? '0.45' : '1'};">
+                ${label}
+            </button>
+        `;
+
+        let summaryHtml = '';
+        if (node.kind === 'managed' && managedSummary) {
+            summaryHtml = `
+                <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0.75rem; margin-top:0.95rem;">
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam urun</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${managedSummary.itemCount}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam miktar</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${managedSummary.totalQty}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Hucre sayisi</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${managedSummary.locationCount}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Dolu hucre</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${managedSummary.occupiedCount}</div></div>
+                </div>
+            `;
+        } else if (node.kind === 'unit' && unitSummary) {
+            summaryHtml = `
+                <div style="display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:0.75rem; margin-top:0.95rem;">
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Bekleyen</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${unitSummary.waiting}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Islemde</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${unitSummary.inProcess}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Hazir</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${unitSummary.ready}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Sadece goruntule</div></div>
+                </div>
+            `;
+        } else if (node.kind === 'transfer') {
+            summaryHtml = `
+                <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.75rem; margin-top:0.95rem;">
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Transfer kaydi</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${transferCount}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Secim</div><div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Depo Transfer</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Ilk sayfada kalir</div></div>
+                </div>
+            `;
+        } else if (node.kind === 'external') {
+            summaryHtml = `
+                <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.75rem; margin-top:0.95rem;">
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Fason kaydi</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${externalCount}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Secilen alan</div><div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${StockModule.escapeHtml(node.name || '-')}</div></div>
+                    <div class="card" style="padding:0.9rem 1rem;"><div style="font-size:0.72rem; color:#64748b;">Tip</div><div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Fason / dis birim</div></div>
+                </div>
+            `;
+        }
+
+        let bodyHtml = '';
+        if (node.kind === 'managed' && panelTab === 'locations') {
+            bodyHtml = StockModule.renderLocationsTable(node);
+        } else if (node.kind === 'managed' && panelTab === 'movements') {
+            bodyHtml = `
+                <div class="card" style="margin-top:0.75rem; padding:1.1rem; border:1px dashed #cbd5e1; color:#64748b;">
+                    Hareketler alani iskelet olarak hazir. Altini bir sonraki adimda dolduracagiz.
+                </div>
+            `;
+        } else {
+            bodyHtml = StockModule.renderRowsTable(rows);
+        }
+
+        return `
+            <section class="page-shell" style="display:flex; flex-direction:column; gap:1rem;">
+                <div class="card" style="padding:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+                        <div>
+                            <h2 style="margin:0; font-size:2rem; line-height:1; color:#0f172a;">depo & stok</h2>
+                            <div style="margin-top:0.45rem; color:#64748b;">Tum depolarin listelendigi merkezi stok ekrani</div>
+                        </div>
+                        <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
+                            ${topButton('all', 'tum depolar')}
+                            ${topButton('transfer', 'depo transfer')}
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top:1rem; padding:1rem 1.1rem; background:linear-gradient(135deg, rgba(241,245,249,0.95), rgba(255,255,255,0.95));">
+                        <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:1.05rem; font-weight:800; color:#0f172a; text-transform:uppercase;">${StockModule.escapeHtml(node.name || '-')}</div>
+                                <div style="margin-top:0.3rem; color:#64748b;">${StockModule.escapeHtml(node.note || '')}</div>
+                            </div>
+                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                                ${node.kind === 'managed' ? panelButton('stocks', 'stoklar') : ''}
+                                ${node.kind === 'managed' ? panelButton('locations', 'raf / hucreler', !node.allowLocations) : ''}
+                                ${node.kind === 'managed' ? panelButton('movements', 'hareketler') : ''}
+                                ${node.kind === 'managed' ? `<button class="btn-primary" onclick="StockModule.openLocationCreateModal('${StockModule.escapeHtml(node.id || '')}')" style="height:34px;">hucre ekle +</button>` : ''}
+                                ${node.kind === 'managed' && node.id !== 'main' ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')" style="height:34px;">duzenle</button>` : ''}
+                            </div>
+                        </div>
+                        ${summaryHtml}
+                    </div>
+                </div>
+
+                <div class="card" style="padding:1rem; display:grid; grid-template-columns:240px minmax(0, 1fr); gap:1rem; align-items:start;">
+                    <aside style="border-right:1px solid #e2e8f0; padding-right:1rem;">
+                        ${StockModule.renderSidebarSection('Ana depo', [mainDepot])}
+                        ${StockModule.renderSidebarSection('Kullanici depolari', customDepots, { canEdit: true })}
+                        <div style="margin-bottom:0.95rem;">
+                            <button onclick="StockModule.openDepotCreateModal()" style="width:100%; height:36px; border:1px solid #0f172a; background:white; color:#0f172a; border-radius:0.7rem; font-weight:800; cursor:pointer;">
+                                depo ekle +
+                            </button>
+                        </div>
+                        ${StockModule.renderSidebarSection('Depo transfer', transferMeta)}
+                        ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots)}
+                        ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+                    </aside>
+
+                    <div style="min-width:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap;">
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a; text-transform:uppercase;">
+                                ${StockModule.escapeHtml(node.name || '-')} / stok listesi
+                            </div>
+                            ${node.kind === 'transfer' ? `<div style="font-size:0.82rem; color:#64748b;">Transfer operasyonu ilk sayfada da korunuyor.</div>` : ''}
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.75rem; margin-top:0.9rem;">
+                            <input value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.8rem;">
+                            <input value="${StockModule.escapeHtml(StockModule.state.searchCategory)}" oninput="StockModule.setSearch('category', this.value)" placeholder="kategori ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.8rem;">
+                            <input value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.8rem;">
+                        </div>
+
+                        ${bodyHtml}
+                    </div>
+                </div>
+            </section>
+        `;
+    }
+};

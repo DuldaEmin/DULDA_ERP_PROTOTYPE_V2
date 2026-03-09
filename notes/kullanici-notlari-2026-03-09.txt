@@ -1,0 +1,657 @@
+KOD SISTEMI - NIHAI NOTLAR
+
+1) Ana kimlik (is emri kimligi)
+- Format: IS-YYMMDD-XXXX
+- Ornek: IS-260224-0041
+- Bir kez uretilir, degismez.
+- Iptal olan kimlik tekrar kullanilmaz.
+
+2) Gorunen urun kodu
+- Musterinin bildigi urun kodu ayni kalir.
+- Sistem arkada ek bir ic kimlik tutar.
+
+3) Ayni is emrinde birden fazla parca
+- Tek ana kimlik + adet kullanilir.
+
+4) Farkli musteride ayni urun
+- Farkli musterilerin ayni urunu AYRI is emri olarak kalir.
+- Operasyonda ayni urunler parti olarak birlestirilebilir.
+- Parti olusturma otomatik degil, bolum sorumlusu MANUEL yapar.
+- Parti sonrasi miktar ve fire dagitimi is emirlerine sorumlu tarafindan MANUEL verilir.
+
+5) Birim adim kodlari
+- EKS, CNC, PLS, MNT, DPO, TST
+
+6) Birim/atolye lakabi
+- Zorunlu degil.
+- Ic birimler ve fason birimler kendi isim/lakap verebilir.
+
+7) Kod duzenleme yetkisi
+- Birim Admin + Super Admin
+- Rol atamalarinda acikca belirtilecek.
+
+8) Fason (dis birim) alanlari
+- Ilk etapta fis/irsaliye no tutulacak.
+- Ileride aldim-verdim-bekleyen gibi ek protokoller eklenecek.
+
+9) Kod yazim kurali
+- Kodlarda Turkce karakter kullanilmaz (or: FUM).
+
+10) Kutuphane baglantisi
+- Her birimin urun kutuphanesi olabilir.
+- Islem adiminda ilgili birim kutuphanesindeki urune baglanir.
+- Birim bazli islem kodlari bu baglantiya gore kullanilir.
+
+
+
+
+
+
+madde için kod sistemini kilitlemek adına kısa sorular:
+
+Testere için ayrı kart kodu olsun mu?
+A) Evet: TST-000001 (önerim)
+B) Hayır, sadece seçilen malzeme kodu kullanılsın;  bunun yanına kesilecek boy yazılırsa mesla 650 ne işe yarar bilmiyorum ama 
+bence sadece kesilecek boyun mm yazsın aynı kod ile yürüsün yoksa şişer 
+
+Üst listede hangi kod görünsün?
+A) İkisi birlikte: Malzeme Kodu + Testere Kart Kodu (önerim)
+B) Sadece malzeme kodu
+
+A 
+
+Aynı malzeme, farklı boy girilirse ne olsun?
+A) Ayrı satır/aır kod
+B) Aynı satırda miktar artışı 
+A   mutlaka girecek aynı malzemenin farklı boyu olacaktır. ayrı satırda ayrı kod olsun 
+
+Degisiklikleri Kaydet yapılınca kod ne yapsın?
+A) Kod aynı kalsın (önerim)
+B) Yeni kod üretsin
+ A 
+
+Silme yerine arşiv (pasif) yapalım mı?
+A) Evet, arşiv olsun (önerim)
+B) Tam silinsin
+çöplüğe döner  silinsin. 
+
+Kodda Türkçe karakter hiç olmasın mı?
+A) Evet, olmasın (önerim)
+B) Olabilir
+ bu program için genel bir kural kod yazılırken türkçe kararktet kullanma ( kurallara yaz) 
+
+Kod üretme yetkisi kimde olsun?
+A) Birim Admin + Süper Admin
+B) Sadece Süper Admin
+A ikiside 
+
+Testere satırında “atölye içi isim/lakap” alanı da olsun mu?
+A) Evet
+B) Hayır
+zorunlu olmamakla beraber olsun. iyi olur .
+
+
+
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+Kayıt limiti 30 olsun mu? (31. kayıtta “limit doldu” uyarısı verelim mi?)   
+gerek yok istendiği kadar ekleyebilsin. 
+
+Alanlar şu şekilde doğru mu?
+İşlem adı (zorunlu metin) zorunlu olmasın 
+Ateşle polisaj (checkbox) tıkladığında yeşile dönsün yani seçildiği belli olsun    bir daha tıklarsa pasif olasun satıra eklenmesin eğer seçiliyse eklensin. 
+Fırça ile polisaj (checkbox)tıkladığında yeşile dönsün yani seçildiği belli olsun    bir daha tıklarsa pasif olasun satıra eklenmesin eğer seçiliyse eklensin. 
+Fırın süresi (dk) (sayı) evet sayı olsun
+Not (opsiyonel) 
+Ateşle ve Fırça aynı anda seçilebilir olsun mu? (senin örneğine göre evet) evet ikisinide yapabilsin
+Fırın süresi zorunlu mu, opsiyonel mi? opsiyonel olsun 
+ID formatı nasıl olsun?
+Önerim: PLX-000001 (otomatik)PLX başlığını kullanmasan diyorum çünkü karışır PLSJ olabilir. 
+Liste aksiyonları:
+düzenle ve seç olsun  evet olsun. 
+sil butonu da olsun mu olmasın mı? olsun ama sadece admin silebilsin 
+Bunlara kısa cevap ver, ardından modülü direkt oluşturayım.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Eski Testere formundaki malzeme seçimi (ekstrüder/alüminyum) bölümünü tamamen kaldırıyor muyuz?tamamen kaldır 
+Yeni formda sadece şu alanlar mı olacak: işlemin adı, ölçü (mm), pah kırma ekle +, not, işlem ID (otomatik)?evet aynen oyle 
+pah kırma ekle + nasıl çalışsın:
+tek checkbox gibi var/yok var yok olarak eklenecek 
+yoksa çoklu değer listesi (örn. 0.5, 1.0 mm)
+işlem ID formatı ne olsun? (örn. TST-000001)  evet 
+Liste tablosunda hangi kolonlar kalsın? (öneri: işlem adı, ölçü, pah, ID, düzenle, seç, sil) aynnen oyle olsun 
+Mevcut kayıtlar (sawCutOrders) yeni yapıya otomatik dönüştürülsün mü, yoksa eski kayıtları olduğu gibi bırakıp yeni kayıtları yeni formatta mı tutalım? yok komple sil 
+
+
+
+
+
+
+
+
+Mockup akışı net: MONTAJ > Ürün Kütüphanesi > Ürün Ekle > Kart oluştur > bileşen ekle.
+
+Eklemeyi önerdiğim kritik şeyler:
+
+Durum alanı: Taslak / Aktif / Arşiv (yanlış kartların canlıya düşmesini engeller).
+cevap; ilk etapta eksikte olsa  aktif olsun ileride zorunluluklar getiririz. 
+
+Revizyon alanı: Rev no + güncelleme notu (aynı ürün kodunda değişiklik takibi).
+cevap;revizyon yapıldığında kayıt tutmasın şimgilik gerek yok. ID hiç bir zaman değişmesin. sil dediğinde pasif olsun 
+
+Bileşen satırında sadece bileşen ID değil: ad, adet, birim, tolerans/not. 
+cevap; hayır sadece ıd olacak burası o birimin ürettiğin hizmet parça kütüphanesidir. yarın rota verdiğimizde o 
+birimde ne işlem yapacağını gösteren yerdir. adet sipariş ile ilgilidir. mesela 2008 bağdat dikme bu işlem yapılacak 55 adet 
+adet kısmını siparişte gireceğiz .
+Bileşen eklemede ID arama + dropdown öneri (elle yazım hatasını azaltır).
+cevap; ıd ler çoğalacağı için pek birşey ifade etmeyecek kullanıcı gidip ilgili sayfadan ID kopyalayıp ilgili kutuya ekleyecek. karışıklık olmaz. 
+
+Dosya alanlarında doğrulama: uzantı, max boyut, zorunlu/zorunlu değil.
+cevap; pdf eklenecek ve jpg eklenecek cep telefonuyla çekilen resim boyutu kadar kabul etsin adam 100 mb resim dosyada ekleyemesin tabi: 
+
+Tabloya oluşturan, güncelleme tarihi, revizyon sütunları.
+cevap; şimdilik gerek yok. ileride lazım olursa o özelliği ekleriz. 
+
+Toplu seçim ile arşivle/sil/dışa aktar aksiyonları.
+cevap; sana bırakıyorum.   
+Kart açınca sağ panelde önizleme (PDF/jpg küçük preview).
+cevap;  tabi yarın montajda kullanıcı gidip notları okuyacak ve resimlerede bakacak. o özelliği görüntüle kısmına ekleyelim. 
+Sorularım:
+
+kart ID formatı kesin mi? (CNC-000005 gibi) Montaj için ayrı prefix ister misin (MON-000001)?
+cevap; kesinlikle prefix olsun. MON-000001 gibi çünkü bunun siparişle alakası yok bu işlem kullanıcının yapacağı işi tanımlayan işlemdir. rota verirken o atolyede yapacağı işlemin kimliğidir. 
+
+Bir üründe aynı bileşen birden fazla kez geçebilir mi? Geçerse sistem adetleri birleştirsin mi?
+cevap; evet bazı ürünler birden fazla kullanılır adet. 
+
+“Kaydet” sonrası akış ne olsun: form açık kalsın mı, temizlenip yeni karta mı geçsin, listeye mi dönsün?
+cevap; kaydet ve düzenleye bastığında listeye dönsün. 
+Silme gerçekten fiziksel silme mi, yoksa arşiv mantığı mı istiyorsun?
+cevap; bunu bilmiyorum bir ürün bağlarız sildiğinde  saçmalar. sana bırakıyorum süper admin in silme yetkisi olsun sadece. 
+Teknik resimler versiyonlu mu olacak, yoksa her kartta tek dosya mı tutulacak?
+vevap; Kartın IDsi aynı kalacak.
+Ekleme/silme/düzenleme kartın içinde yapılacak.
+Dosya (PDF/JPG) değişse de yeni kart açılmayacak, aynı kart güncellenecek.
+İstersen bir sonraki adımda bunu doğrudan ekrana ve veri modeline uygulayayım.
+
+
+
+
+
+
+
+
+Taslak çok iyi, akış net ve alışkanlık kazandıracak şekilde kurulmuş. Sorun yok, sadece netleştirmemiz gereken kritik noktalar var:
+
+ID kod otomatik mi üretilecek, kullanıcı yazabilecek mi? (önerim: otomatik + readonly)
+cevap;  tabi otomotik benzersiz kod veriyorsun bunu anayasaya yazmamışmıydık.  her ürüne kod veriyorsun sen kod veriyorsun 
+
+ürün grubu ve ürün alt grubu serbest yazı mı, yoksa sözlükten (ekle-sil) mi seçilecek?
+cevap;  sözlükten seçilecek 
+master ürün kütüphanesi hammadde ID kod tek mi olacak, birden fazla hammadde bağlanabilecek mi?
+cevap;  düşündüm tek galiba 
+Rota istasyonlarında sıra sabit mi (1,2,3...) yoksa sürükle-bırak/sıra değiştir olacak mı?
+cevap;  1. 2. 3.  ..... olarak gitsin bu aynı zamanda sipariş verildiğinde istasyonlar arasında devir teslim sıralamasıda olacak 
+
+Her istasyon için işlem ID zorunlu mu, boş geçilebilir mi?
+cevap; tabiki eğer istasyon seçilmiş ise  o istasyonun kütüphanesinden bir ID bağlamak zorunda yoksa o istasyona gitti ama işlem belirtmemişsin 
+anlamsız olur . ıd zorunlu . 
+Aynı istasyon rota içinde ikinci kez seçilebilsin mi, engelleyelim mi? 
+cevap;  evet seçilebilsin. 
+Dosya alanı tek dosya mı, birden çok dosya mı? (pdf+jpg birlikte?)
+cevap; birden çok dosya hem pdf hemde resim yüklenebilmeli 
+Dosya güncellemede eski dosya saklanacak mı, üstüne mi yazılacak?
+cevap;  eskisi silinecek yenisi ile güncellenecek .
+
+Listede görüntüle tıklayınca modal mı açalım, ayrı sayfa mı?
+cevap;  ayrı sayfa görünüleme olsun 
+seç kutusu toplu sil/toplu aktarım için mi kullanılacak, yoksa şimdilik pasif mi?
+cevap;  şimdilik pasif. 
+Vazgeç basınca form temizlenip kapanacak mı?
+evet temizlenip kapanacak eğer düzenlemek için açılmışsa vazgeç dediğinde eski haliyle sayfa kapanacak . 
+Bu kartlarda durum alanı olacak mı: Taslak / Aktif / Arşiv? 
+anlamadım ama kaydet dediğinde listeye eklenecek bilmiyorum istersen soruyu tekrar sor cevaplıyayım. 
+Bu 12 cevabı netleştirirsen sayfayı hatasız standarda bağlarız.
+
+
+
+
+
+
+Anladım: Montaj grubu oluşturma ekranında, hem Master Ürün Kütüphanesinden hem Parça ve Bileşenden birden fazla kalem seçip tek bir montaj grubu oluşturacağız.
+
+Netleştirmem gereken 5 şey var:
+
+Aynı montaj grubunda iki kaynaktan da seçim olacak mı?
+(Master + Parça/Bileşen karışık liste)
+cevap;  evet her ikisinden çoklu alımda yapabilecek 
+
+
+Her seçilen kalem için adet zorunlu mu?
+(örn. PRC-000001 x2, HAM-000123 x4)
+cevap;  evet adette girilsin 
+
+Aynı kod ikinci kez seçilirse ne olsun?
+(tek satırda adedi artırsın mı, ayrı satır mı açılsın?)
+cevap;adet gireceği için aynı koddan 2 tane girilmesin 
+
+Kaydettiğimiz montaj grubu için kod formatı ne olsun?
+(örn. MNT-000001 gibi otomatik)
+cevap; tabiki otomotik olacak MNT iyi diğer kodlarla çakışmasında 
+
+Görüntüle ekranı read-only mi olacak?
+(operator sadece görsün, düzenleme butonu olmasın mı)
+davranışlar parça bileşen gibi olsun . o silme düzenleme yetkilerini sonrada ekleriz .
+
+NOT; ürün ekleme sayfasını biraz genişlet kutular sütunlar biraz simetrik olsun. 
+
+Bu 5 cevabı ver, doğrudan ekranı buna göre uygulayayım.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------
+Bu lokasyonların hangilerinde “resmi stok” tutulacak, hangileri sadece “bekletme/ara alan” olacak?
+cevap ; şimdi iyi bir soru diyelimki 100 adet 2008 dikme pleksi siparişi geldi . ekstrüder onu çubuk olarak tutuyor olabilir. anladınmı pmma granul var ama 2008 dikme 
+pleksisi yok . bence her birime bir depoda yapalım. rotada önce o birimin atolyenin deposuna düşsün orada beklesin anladınmı rota çizerken rotada testere cnc  ibrahim polisaj depo var ise mesela cnc de bekletebilelim. yarı mamul 
+yada oluşmamış mamul mü deriz. ama yarın stoğa baktığımızda onu orda görelim. yada sipariş geldikten sonra cnc den sonraki rotasını girebilelim. 
+bu konuyu detaylı şekilde konuşalı.
+
+Zorunlu hareket tipleri hangileri olsun? (Giriş, Transfer, Çıkış, Hurda, İade)
+burayı sana bırakıyorum. 
+
+Testere’de kesilen ürünlerde stok birimi ne olacak? (boy/mt, adet, ikisi birden?)
+cevap ; testerede mm olacak girerkende mm girsin çıkarkende mm çıksın 
+
+
+Ekstrüzyonun yaptığı satın alma/depo talebi depoya otomatik iş düşsün mü, yoksa manuel giriş mi olsun?
+eğer gelen malın kabulunu soruyorsan kabulu depocular yapıyor. 
+
+CNC’den polisaj/kaplamaya giden ürünler “iç transfer” mi, “dış fason” mu izlenecek?
+cevap; prensip olarak dışarıya veya fasona giden her ürün depo üserinden gider ve gelir. iç birimler direk dışarıya mal gönderemez ve alamaz bunu anayasaya yaz
+
+Sevkiyat alanına alınan mal “rezerv” sayılıp başka işe kullanılamasın mı?
+cevap. eğer siparişe istinaden yapılmışsa rezerv olarak ayıralım. 
+
+Eksi stok tamamen engellensin mi, yoksa sadece uyarı verip devam edilsin mi?
+cevap; eksi stok sadece uyarı versin. devam edilsin. 
+
+İlk sürümde zorunlu alanlar bunlar mı: ürün, miktar, kaynak/hedef lokasyon, işlem notu? 
+şimdilik hiçbirşey zorunlu olmasın zamanla zorunlu yaparız. diye düşünyorum. çünkü personel programı kullanamazsa sevmez. 
+belki uyarı koyabilirsin nereye gidiyor. eğer çok gerekli ise. 
+
+Kimler hareket girecek? (sadece depo sorumlusu mu, birim şefleri de girecek mi?)
+personel atarken yetki rol sayfası olsun mesela depo da mal kabul iade ama şu rolu yapamaz diye tikle belirlenen rol tablosu vardı onu yapalım. 
+
+Minimum stok uyarısı hangi lokasyonlarda lazım? (özellikle Ana Depo + Ekstrüzyon gibi)
+iyi bir konu ekstrğderde lazım olacak o minumum 130 adet 120 lik 3 mm boru yap diyeceğiz eğer 120 nin altına düşerse 
+satır kırmızıya dönsün.  aynı şekilde ana depoda da parça unsur yada bitmiş ürün stok belirlememiz lazım. yani 2008 bağdat dikme 
+en az yüz adet elimizde bulunsun diyelim. yada 100 lük baba flanşı 200 adet alimizde bulunsun diye hedef stok verelim. 
+
+Günlük kullanımda en kritik ekran hangisi: anlık stok listesi mi, son hareketler mi? 
+bilmiyorum :) aldım verdim demek daha önemli 
+Bunları netleştirelim, ardından sana doğrudan “en yalın Depo V1 akışı”nı çıkarayım.
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------
+Dosyanın en altındaki depo cevaplarını okudum. Anladığım kararlar:
+
+Barkod/QR yok (V1’de olmayacak).
+Her birim kendi depo/ara stok mantığında izlenebilsin istiyorsun (yarı mamul dahil).
+cevap : her birimin kendi deposu olsun eğer rotada depoda beklet yokta sonradan gideceği rota varsa ordan 
+
+Testere birimi mm ile stok giriş/çıkış yapacak.
+Dışarı/fason hareketleri doğrudan birimden değil, depo üzerinden gidip gelecek.
+Sevkiyata alınan ürün siparişe bağlıysa rezerv olacak.
+Eksi stok engellenmeyecek, sadece uyarı verilecek.
+V1’de zorunlu alanları minimum tutmak istiyorsun (kullanıcıyı yormamak için).
+Minimum stok uyarısı özellikle Ekstrüzyon ve Ana Depo için gerekli.
+Günlükte “aldım-verdim” hareket kaydı kritik.
+V1’i kilitlemek için sadece şu 5 şeyi netleştirelim:
+
+Lokasyonları final yazıyorum, onaylıyor musun?
+Ana Depo, Testere, Ekstrüzyon, CNC, Polisaj, Montaj, Sevkiyat, PMMA Granül
+Hareket tiplerini V1’de şu 5’le başlatalım mı?
+Giriş, İç Transfer, Çıkış/Sevkiyat, Dış Fasona Gönderim, Dış Fasondan Geri Geliş
+“Hiçbir alan zorunlu olmasın” yerine, en azından ürün + miktar zorunlu yapalım mı? (aksi halde boş kayıt riski var)
+Rezerv kuralını şöyle sabitleyelim mi?
+Hedef lokasyon = Sevkiyat ve sipariş no varsa ürün rezerv sayılır.
+Yetki/rol ekranını V1’de basit tutup sadece 2 rol açalım mı?
+Depo Operatörü (giriş/transfer/çıkış) ve Birim Şefi (sadece talep/izleme)
+Bunları onaylarsan hemen “yalın depo V1” akışını net şema halinde çıkaracağım.
+
+
+
+
+
+---------------------------------------------------------------------------------------------------
+
+Bunu bozmadan, sade bir V1 kurgusu önerim:
+
+Her atölyede tek ekran: Bekleyen İşler, İşlemde, Tamamlanan.
+cevap; bekleyen işlemler , bu bölümde kendinden önceki istasyonda tamamı hazır yada bir kısmı hazır olan ürünleri görecek (  mesela 100 adet ay bağlantının elli adeti hazır olabilir oraya tıkladığında 
+al bütonu olsun aldım dediğinde önceki istasyondan düşsün ) bazı birimlere özellikle cnc bölümünde gerekli planla ekranı olavak o lot a personel makina atayacak. o gün kaç adet yaparsa personel 
+okadarını yaptım diyecek. yada standart bir ekran yapalım planlama sekmesi yapalım tıkladığında boş sayfa gelsin duruma göre planlama ekranı tasarlıyalım. 
+
+Bir iş emri adım adım ilerler, her adımda sadece ilgili birim işlem yapar.
+cevap evet
+Dış fason giriş-çıkışı sadece Depo Transfer adımları üzerinden geçer.  
+cevap evetç 
+Planlama tarafı ilk etapta sıra numarası + hedef tarih kadar basit kalır.
+evet 
+Netleştirmem gereken sorular (sayfa tasarımından önce):
+
+İş emri tek parça bazlı mı olacak, yoksa lot/toplu (örn. 100 adet) mı?
+cevap : lot olacak 100 adet dikme siparişi var ise 100 adet ay bağlantı olacak ama testere diyelim 30 adet kesti o gün o zaman testereden 30 adet düşecek cnc nin envanterinde görünecek ) 
+
+Bir iş emri içinde aynı rotada adım atlama kesin yasak mı?
+cevap ; kesinlikle yasak 
+
+Bir adım kısmi tamamlanabilir mi? (örn. 100’ün 40’ı CNC’den çıktı)
+cevap; evet yukarıda da olur dedim kısmi olarak çıktı olsun. 
+
+Hatalı ürün/işlemde adım geri alma olacak mı? 
+yok olmasın ona bir uyarı koyacağız sıfırdan iş emri açacak 
+
+Depo Transfer adımları rota içinde zorunlu bir istasyon mu?
+cevap ; değil iç istasyonlar arasında belirtilen istasyona gider ama kural şu dışarı gidecek ürün mutlaka depo transfer istasyonundan geçer iç birim dışarıya 
+mal gönderemez sadece rotada belirtilen sonraki istasyona devreder zaten mesela 100 adetin 20 si bitti dediğinde bir sonraki istasyon için alınmayı bekleyen malzemeler havuzuna düşecek .
+
+Dış fasona çıkan ürünler için zorunlu alanlar neler? (firma, çıkış tarihi, dönüş tarihi, not)
+şimdilik iç birim gibi görelim  ama bu konuyu konuşalım sonra çünkü o protokulu yaparsak iş karmaşıklaşır. önce basit sonra geliştireceğiz. 
+
+Her adımda hangi kullanıcı işlemi kapatabilir? (operatör, şef, depo)
+onları rol atarken soracağız . mesela cnc bölümünde ali ne yapabilir diye rol yetki paneli olsun.programı geliştirirken çok iyi ayrıntılı bir rol yetki paneli  tasarlamalıyız. 
+
+Planlama önceliği neye göre sıralansın? (teslim tarihi, müşteri önceliği, manuel sıra)
+tarihe göre ama listedeki bir satırda istendiğinde öncelikli olarak belirlensin. 
+
+Her atölye yalnızca kendi kuyruğunu mu görsün, yoksa tüm rota görünür mü?
+eğer rotada kendisi varsa önceki istasyonda ona gelecek işleri görsün hatta bunu bir büton altına alalım. çünkü şöyle birşey var planlama yaparken bir siparişte 50 adet yapılacak ürün var kalıp 
+veya ayar yapar bakarki yeni bir sipariş var 30 adet daha o zaman hiç ayar bozmadan yapar.  en büyük sorunlardan biri bunu görmemek hatta ileride şöyle bir özellik getireceğim planlama yaparken 
+aynı ürünü birleştir dediğimde o ürün kartından aynı olanları birleştirip üretecek ayar bozmadan
+Ana Depo/Sevkiyat adımı iş emrinin kapanış şartı mı olacak?
+şimdi geryerden parçalar ana depoda toplanır ordanda montaj bölümüne gider bu kısmı çok düşünmedim ama sanırım  ana depoda toplayıp ordan gider. 
+
+İş emri no formatı ne olsun? (örn. WO-000001)
+sana bırakıyorum. 
+V1’de rapor olarak sadece şunlar yeterli mi: geciken işler, atölye yoğunluğu, fasonda bekleyenler?
+100 adet yarıklı tapa dinamik bir satır olsun çünkü zamanda gireceğiz mesela opratör atadık işlem kartında süre vereceğiz kaç adet üretttiğinide görmek istiyorum. 
+
+Bu 12 cevabı netleştirirsek, bir sonraki adımda ekran wireframe’ini (butonlar, kolonlar, akış) doğrudan çıkarırım.
+
+
+
+
+
+
+
+
+------------------------------------------------------------------------------------------------
+
+
+Çok net anlattın, fikir doğru. Uygulamadan önce sadece şu noktaları netleştirelim:
+
+Parça grubu sadece mevcut parçalardan seçim ile mi oluşacak (yeni parça üretmeden)?
+cevap; parça gurubu hem master ürün kütüphanesinden alacak hem Parca ve Bilesen kütüphaneden oluşturulmuş parça alınacak 
+ve yine Parca ve Bilesen gibi bir rota verilip genelde toplama rotası verilip bileşik parça verilecek örnek resim vereceğim
+
+Aynı parçanın birden fazla eklenmesi, satır çoğaltma yerine adet alanı olarak mı tutulacak?
+adet girelim var sayılan 1 adet olsun ama isterse kullanıcı manuel olarakta yazabilsin. 
+
+Grup kaydedilince, sonradan kullanımda ürüne ne eklensin:
+sadece parça listesi mi
+yoksa rota istasyonları, not, dosya da gelsin mi?
+o artık mustakil bir parça olsun. ayrı kodu ayrı kimlik kartı olan parça olsun. görüntüle dediğinde 
+bileşenleri rotası görünsün. fazla bir ropta olmayacak montaj bölümüne bir işlem kodu açacağım bu ürünleri topla diye
+
+“Parça grup ekle+” butonunda kullanıcı:
+kayıtlı grubu seçip tek tık eklesin mi
+yoksa önce önizleme/edit ekranı açılsın mı?
+Grup için düzenle/sil/pasife al yönetimi gerekiyor mu?
+bunu sana bırakıyorum. 
+Grup bazlı kodlama nasıl olsun: ayrı bir GRP-00001 kodu üretelim mi? 
+evet grp kodu üret. 
+Bunları netleştirirsek direkt sağlam bir akış ve veri modeliyle kodlamaya geçerim.
+
+
+
+---------------------------------------------------------------------------------------------------------------
+
+
+
+
+ANA DEPO VE DEPOLAR KARAR NOTU
+
+1. GENEL HEDEF
+Bu sistemi neden kurmak istiyorum?
+Cevap: 1. ana dapo kapalı bir alan raf dizinleri var ve hücreler var her hücreye bir kod vermişiz 1A- 1B diye istersen onu farklı şekilde de adreslendirebiliriz yani ana depoya giren ürün kayıt edileceği zaman ana depo içindeki 
+hücreyide belirtelim . bu depo kapalı ve genelde bitmiş parçalar oluyor burda 
+kaplaması yapılmış ürüne dönüştürülecek ürünler mesela mafsal tüm işlemleri bitmiş hani dikme resmi vermiştimya teknik resimde patlatılmış. o parçaların bitmiş hali. 2008 dikme pleksisi 14R rafonmda (hücresinde) koyuyor
+sipariş geldiğinde görecek gidip ordan alıp montaja verecek. ada depo da bitmiş unsurlar oluyor. birde ana depo kendine depo alanı oluştura bilsin mesela sevkiyata gidecek ürünler diye bir alan / depo oluştursun oraya koysun. yada 
+müşteriye sevk edilecek ürün alanı diye bir depo oluştursun hatta oluştururken not yazsın depo adı ; sevkiyata gidecek ürünler  lokasyon bölge merdivenin yanındaki alan gibi not yazabilsin. 
+bu depo stok alanının temel amacı fabrikada ne varsa ürün hammadde sevk edilecek ürün fasondaki ürünler herşeyi bu bütonun altında görmek istiyorum o sayfaya gittiğimde herşeyi görmeliyim. 
+
+Bu sistem en cok kimin isini kolaylastiracak?
+Cevap: bu sistem depo satış planlama herkezin işini kolaylaştırmayı hedefliyorum 
+
+Benim icin en onemli 3 hedef nedir?
+Cevap:
+1.hangi ürünün nerede olduğunu bilmek. 
+
+2. sipariş geldiğinde envantere bakarak sağlıklı termin vermek. 
+
+3. ürün kayıp kaçaklarını engelleme 
+
+2. ANA DEPO
+Ana depo sadece bitmis urun mu tutacak?
+Cevap: genelde bitmiş unsur parça tutuluyor ama cıvata silikon naylon gibi küçük ürünleride ana depoda tutuyoruz. ama bütyük mesela aluminyum profil yada pmma granül 
+başka yerde tutulur yukarıda belirttiğim gibi bu ekranda yeni depolarda oluşturabilelim mesela aluminyum boru deposu testere bölümü.yada granul deposu  parantez içinde idari bina yanı desin. 
+
+
+Ana depo yari mamul de tutacak mi?
+Cevap: yarı mamul den kastın nedir daha işlemi tamamlanmamış mesela eloksali yapılmamış parça ise evet mesela ama genelde unsur parça&bileşen sayfasında 
+yaptığım ürünler olacak yani bir dikmenin yada bir babanın montaja hazır parçaları olacak 
+
+Ana depoya gelen urun ne zaman "stok" sayilacak?
+Cevap: 1.si ana depoda hali hazırda bir sürü ürün var bunları programı test ettikten sonra kayıt altına alıp ekleyeceğiz. zaten ürün iş emri oluşturduğunda 
+stoğamı yoksa siparişemi yapılacağı belirtecektik. iş emri oluşturduğumuzda stok deriz ve depocu onu alıp ilgili yere koyar. 
+
+Ana depoda siparise rezerve urun tutulacak mi?
+Cevap: tüm ürünler depoya gider sonra ne yapılacaksa yapılır. ürün sipariştir depoya gider sonrasında montaj iş emri vardı dolayısıyla rezervedir. stoğa yapılacaktır alır deposunda 
+yada oluşturduğu depolardan bir yere yerleştirir  
+
+3. BIRIM / ATOLYE DEPOLARI
+Her birim kendi deposuna sahip olacak mi?
+Cevap: evet olacak onun kararını vermiş ve yapıyı ona göre düzenlemiştik bak görürsün 
+Birim deposunda hangi urunler durabilir?
+Cevap:
+
+Bir birim deposunda urun durumlari ne olacak?
+Cevap:
+Ornek: bekleyen / islemde / hazir / rezerve  o işlemi eklemiştik zaten 4 seçenekte olacak. 
+
+Bir birimde islem bitince urun otomatik mi sonraki rotaya gececek, yoksa butonla mi gidecek?
+Cevap: sonraki rotaya uyarı gidecek ürün hazır diye hatta mesela 100 adet yapılacak üründen 30 adet i yapıldı dediğinde 30 adet için uyarı gidecek .alabilirsin diye .
+
+4. URUN HAREKETI
+Bir urun onceki istasyondan sonraki istasyona nasil gececek?
+Cevap: 100 adet ürün planlaması yapıldı 40 adet i yapıldı dediğinde sonraki istasyona haber verecek aynı zamanda verdim aldım protokolunun verdim 
+ayağıdır . aldım dediğinde onun deposundan düşüp sonrakinin deposuna düşecek 
+
+Asagidaki akislardan hangisi dogru?
+Cevap:
+A) Gonder -> Karsi taraf teslim alir
+B) Tamamla -> Otomatik diger istasyona duser
+C) Ikisi birlikte ama secenekli
+D) Baska;  sipariş kodu lot mu diyordun 100 adet mafsal  30 adet hazır sonraki birim aldım dediğinde öncekinden düşer sonrakine eklenir kalan 70 
+
+Birimler arasi transfer fis mantigi olacak mi?
+Cevap: tabiki hayır program bildirecek. testere 100 adet mafsal kesildi hazır cnc nin ekranında ürün hazır al  diye uyarı gidecek . 
+
+5. SIPARIS VE STOK
+Is emri acarken bu kayit secilecek mi?
+Cevap:
+A) Siparis icin uretim
+B) Stok icin uretim
+C) Ikisi de; ikiside olacak fazladan seçenek olabilirmi ? bunu konuşalım 
+
+Siparis icin uretilen urun baska sipariste kullanilabilir mi?
+Cevap: planlamacı yetkili isterse evet .
+
+Stok icin uretilen urun sonradan siparise baglanabilir mi?
+Cevap: tabiki hangi aşamada olursa olsun iş emri oluştururken zaten yarım mamul yada var diyecek ordan alayımmı diyecek. 
+
+Siparis geldiginde sistem once nereyi kontrol etsin?
+Cevap:
+1. nihayi bitmiş ürün stok alanı 
+2. parça bileşen e bakacak 
+3.enson atolye birim depolarına varsa yada eksikse ordan alıacak eksiğine yeni iş emri açılacak 
+
+6. YARI MAMUL
+Yari mamul stok sayilacak mi?
+Cevap:tabi envanterde göreceğiz.
+
+Yari mamul satis icin gorunecek mi, yoksa sadece ic kullanim icin mi?
+Cevap: tabiki iç kullanım diye birşey yok diyelim mafsal testerede kesilmiş testere deposunda var stok olarak duruyorsa iş emri çıkartırken bu ürün tesrere 
+deposunda var alayımmı diye soracak . 
+
+Yari mamul ana depoda tutulabilir mi?
+Cevap: ana depoda genelde tutulmaz ama dediğim gibi hücreler oluşturacağız depocu adres girecek bu ürün burada diye .yinede eklene bilsin. 
+
+Yari mamul siparise baglaninca ne olmali?
+Cevap:siparişe bağlanacaksa kalan rota ve işlem devam edecek mesela mafsal cnc de yarı mamul olarak var. sanki normal iş emri gibi depo transfer merkezinde 
+polisaj a gönder diye uyarı gidecek. 
+
+7. FASON / DIS TEDARIKCI
+Fasona giden urun bir depo hareketi gibi mi izlenecek?
+Cevap:tabi onun deposuna baktığımda elindeki malzemeleri görebilmeliyim. 
+
+Fasona giden urun sistemde hangi durumda olacak?
+Cevap: normal nerede devam eden iş emri gibi görünecek . planlamacı yapılıyor gibi görecek eğer termin vemiş ise zamanı gelince uyarı verecek bu malzeme teslim edilmedi diye 
+
+
+Fasondan gelen urun hangi depoya dusecek?
+Cevap: depo transfer e düşecek çünkü bazen bir fasoından gelen başka bir fasona daha gidebilir. depo transfere iş kodu veririz. eloksale gönder. yada ana depoya al. gibi 
+
+Fason adimi rota icinde normal istasyon gibi mi sayilsin?
+Cevap: evet bence oyle olsun 
+
+8. EKRANLAR
+Satisci sadece ana depoyu mu gorsun?
+Cevap:tüm depoları görsün  bilmiyorum ihtiyaca göre belirleriz 
+
+Uretim sorumlusu tum birim depolarini gorebilsin mi?
+Cevap: evet görebilsin. 
+
+Depo kullanicisi hangi islemleri yapabilsin?
+Cevap: ona yaetki veririz zamanı gelince önce depoyu eksiksiz oluşturalım. sonra rol yetki atarız 
+
+Ana depo ekraninda en ustte hangi 5 bilgi olsun?
+Cevap:
+1.
+2.
+3.
+4.
+5. bilmiyorum düşünmedim. 
+
+9. KRITIK KURALLAR
+Asla olmasin dedigin seyler neler?
+Cevap: zamanla belirleriz amma depo stok bölümünde her ürün mal görünmeli asla dışarıda birşey kalmamalı 
+
+Sistemin zorunlu olarak yapmasini istedigin kurallar neler?
+Cevap:sonra rol yetki atarız
+
+Yanlis stok dusmesini engellemek icin hangi onaylar olmali?
+Cevap:sonra rol yetki atarız
+
+10. ORNEK SENARYO
+Asagidaki gibi kendi ornek akisini yaz:
+Cevap:
+
+Urun: bunu konuşmuştuk eper hatırlamıyorsan söyle yazayım. 
+Rota:
+Nerede bekliyor:
+Siparis geldi:
+Sistem ne yapmali:
+Kullanici ne secmeli:
+Sonuc ne olmali:
+
+11. OZET
+Bu sistemin tek cumlelik mantigi nedir?
+Cevap: basit olmalı adım adım gitmeliyiz. 
+
+Benim istedigim son hali kisaca anlat:
+Cevap:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

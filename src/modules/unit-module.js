@@ -131,7 +131,7 @@ const UnitModule = {
                 { id: 'u4', name: 'PAKETLEME', type: 'internal' },
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
-                { id: 'u_dtm', name: 'DEPO TRANSFER MERKEZI', type: 'internal' },
+                { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
                 { id: 'u8', name: 'AKPA ALUMINYUM A.S.', type: 'external' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
@@ -141,9 +141,13 @@ const UnitModule = {
         }
 
 
-        // System unit: keep Depo Transfer Merkezi in internal units.
-        if (!(DB.data.data.units || []).some(u => u.id === 'u_dtm')) {
-            DB.data.data.units.push({ id: 'u_dtm', name: 'DEPO TRANSFER MERKEZI', type: 'internal' });
+        // System unit: keep Ana Depo in internal units.
+        const mainDepotUnit = (DB.data.data.units || []).find(u => u.id === 'u_dtm');
+        if (!mainDepotUnit) {
+            DB.data.data.units.push({ id: 'u_dtm', name: 'ANA DEPO', type: 'internal' });
+            DB.markDirty();
+        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'ANA DEPO') {
+            mainDepotUnit.name = 'ANA DEPO';
             DB.markDirty();
         }
         // Punta atolyesi artik kullanilmiyor; eski kayitlardan da temizle.
@@ -1253,8 +1257,8 @@ const UnitModule = {
                         <i data-lucide="arrow-left" width="18" height="18"></i>
                     </button>
                     <div>
-                        <h2 class="page-title" style="margin:0;">Depo Transfer Merkezi</h2>
-                        <div style="font-size:0.85rem; color:#64748b;">Depocular icin rota yonetim ekrani</div>
+                        <h2 class="page-title" style="margin:0;">Ana Depo</h2>
+                        <div style="font-size:0.85rem; color:#64748b;">Ana depo operasyon ve rota yonetim ekrani</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">

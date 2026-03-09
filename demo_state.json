@@ -109,7 +109,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-09T16:03:31.093Z",
+    "updated_at": "2026-03-09T16:05:01.922Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -1420,6 +1420,14 @@
         "rafCode": "R01",
         "cellCode": "A1",
         "note": ""
+      },
+      {
+        "id": "cc40cc1b-91cb-4389-8e4e-f1830fd1020a",
+        "depotId": "main",
+        "rafCode": "G",
+        "cellCode": "13",
+        "note": "gdsgf",
+        "created_at": "2026-03-09T16:05:01.922Z"
       }
     ],
     "stockDepotItems": []

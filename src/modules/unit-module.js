@@ -1144,16 +1144,195 @@ const UnitModule = {
             </div>
         `;
     },
+    isSupplierRouteStationId: (stationId) => String(stationId || '').trim().toLowerCase().startsWith('supplier:'),
+    getRouteStationName: (stationId) => {
+        const key = String(stationId || '').trim();
+        if (!key) return '-';
+        const unit = (DB.data?.data?.units || []).find(u => String(u?.id || '') === key);
+        if (unit?.name) return String(unit.name);
+        if (UnitModule.isSupplierRouteStationId(key)) {
+            const supplierId = key.split(':').slice(1).join(':');
+            const supplier = (DB.data?.data?.suppliers || []).find(s => String(s?.id || '') === supplierId);
+            if (supplier?.name) return String(supplier.name);
+        }
+        return key;
+    },
+    getNextRouteInfo: (line, stationId) => {
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        const idx = routes.findIndex(r => String(r?.stationId || '') === String(stationId || ''));
+        if (idx < 0 || idx >= routes.length - 1) return null;
+        const next = routes[idx + 1];
+        if (!next) return null;
+        return {
+            stationId: String(next.stationId || ''),
+            stationName: UnitModule.getRouteStationName(next.stationId || ''),
+            processId: String(next.processId || '').trim().toUpperCase()
+        };
+    },
+    getUnitWorkRows: (unitId) => {
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const rows = [];
+        orders.forEach(order => {
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            lines.forEach(line => {
+                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
+                if (!metrics) return;
+                rows.push({
+                    order,
+                    line,
+                    metrics,
+                    nextRoute: UnitModule.getNextRouteInfo(line, unitId)
+                });
+            });
+        });
+        return rows.sort((a, b) => {
+            const da = String(a.order?.dueDate || '9999-12-31');
+            const db = String(b.order?.dueDate || '9999-12-31');
+            if (da !== db) return da.localeCompare(db);
+            return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
+        });
+    },
     renderUnitDepotPlaceholder: (container, unitId) => {
         const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
-        const unitName = unit?.name || 'BIRIM';
+        if (!unit) {
+            container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
+            return;
+        }
+        const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
+        const rows = UnitModule.getUnitWorkRows(unitId).filter(row => {
+            if (!search) return true;
+            const hay = [
+                row.order?.workOrderCode,
+                row.order?.productCode,
+                row.order?.productName,
+                row.line?.lineCode,
+                row.line?.componentCode,
+                row.line?.componentName,
+                row.metrics?.processId,
+                row.nextRoute?.stationName
+            ].join(' ').toLowerCase();
+            return hay.includes(search);
+        });
+        const waitingRows = rows.filter(row => Number(row.metrics?.availableQty || 0) > 0 || Number(row.metrics?.inProcessQty || 0) > 0);
+        const nextRows = rows.filter(row => Number(row.metrics?.doneQty || 0) > 0);
+        const waitingQty = rows.reduce((sum, row) => sum + Number(row.metrics?.availableQty || 0), 0);
+        const inProcessQty = rows.reduce((sum, row) => sum + Number(row.metrics?.inProcessQty || 0), 0);
+        const readyQty = rows.reduce((sum, row) => sum + Number(row.metrics?.doneQty || 0), 0);
+        const renderRouteLabel = (row) => `
+            <div style="font-size:0.82rem; color:#334155; font-weight:700;">${row.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(row.metrics.stationId || '') || '-')}</div>
+            <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.metrics.processId || '-')}</div>
+        `;
         container.innerHTML = `
-            <div class="page-header">
-                <h2 class="page-title">${unitName} - BIRIM DEPOSU</h2>
-            </div>
-            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; color:#64748b">
-                <h3 style="margin:0 0 0.6rem; color:#334155">Sayfa hazirlaniyor</h3>
-                <p style="margin:0">Birim deposu ekrani cok yakinda aktif olacak.</p>
+            <div style="max-width:1380px; margin:0 auto;">
+                <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                <i data-lucide="warehouse" color="#059669"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Birim Deposu
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri gor, isleme al ve tamamlananlari sonraki rotaya hazir tut.</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                        <button class="btn-sm" onclick="UnitModule.openWorkOrderPlanning('${unitId}')">is emri planlama</button>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Bekleyen adet</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${waitingQty}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Islemde adet</div><div style="font-size:1.15rem; font-weight:800; color:#b45309;">${inProcessQty}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Sonraki rotaya hazir</div><div style="font-size:1.15rem; font-weight:800; color:#047857;">${readyQty}</div></div>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
+                    <div style="font-size:0.83rem; color:#64748b;">Bu ekranda urun once <strong>Bekleyen</strong>e duser, sonra <strong>Isleme Al</strong>, sonra <strong>Tamamla</strong> ile sonraki rotaya hazir olur.</div>
+                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya rota ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.95rem; margin-bottom:1rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Bekleyen Urunler</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Onceki istasyondan gelen veya bu istasyonda islemde olan urunler.</div>
+                        </div>
+                    </div>
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.55rem; text-align:left;">Is emri</th>
+                                    <th style="padding:0.55rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.55rem; text-align:left;">Bilesen</th>
+                                    <th style="padding:0.55rem; text-align:left;">Bu rota adimi</th>
+                                    <th style="padding:0.55rem; text-align:center;">Bekleyen</th>
+                                    <th style="padding:0.55rem; text-align:center;">Islemde</th>
+                                    <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${waitingRows.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Bekleyen veya islemde kayit yok.</td></tr>` : waitingRows.map(row => {
+            const canTake = Number(row.metrics?.availableQty || 0) > 0;
+            const canComplete = Number(row.metrics?.inProcessQty || 0) > 0;
+            return `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.order?.productCode || '-')}</div></td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.line?.componentCode || '-')}</div></td>
+                                        <td style="padding:0.55rem;">${renderRouteLabel(row)}</td>
+                                        <td style="padding:0.55rem; text-align:center; font-weight:800; color:#0f172a;">${Number(row.metrics?.availableQty || 0)}</td>
+                                        <td style="padding:0.55rem; text-align:center; font-weight:800; color:#b45309;">${Number(row.metrics?.inProcessQty || 0)}</td>
+                                        <td style="padding:0.55rem; text-align:right;">
+                                            <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                <button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
+                                                <button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamla</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+        }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.95rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Sonraki Rotaya Verilecekler</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Bu istasyonda tamamlanan ve sonraki adima hazir olan urunler.</div>
+                        </div>
+                    </div>
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.55rem; text-align:left;">Is emri</th>
+                                    <th style="padding:0.55rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.55rem; text-align:left;">Bilesen</th>
+                                    <th style="padding:0.55rem; text-align:center;">Hazir adet</th>
+                                    <th style="padding:0.55rem; text-align:left;">Sonraki rota</th>
+                                    <th style="padding:0.55rem; text-align:left;">Not</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${nextRows.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Sonraki rotaya hazir kayit yok.</td></tr>` : nextRows.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.order?.productCode || '-')}</div></td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.line?.componentCode || '-')}</div></td>
+                                        <td style="padding:0.55rem; text-align:center; font-weight:800; color:#047857;">${Number(row.metrics?.doneQty || 0)}</td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.nextRoute?.stationName || 'ROTA SONU')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.nextRoute?.processId || (row.nextRoute ? '-' : 'son adim'))}</div></td>
+                                        <td style="padding:0.55rem; color:#475569;">${row.nextRoute ? 'Bu adet sonraki istasyonda bekleyen olarak gorunur.' : 'Son adim tamamlandi; sevk veya ana depo akisina hazir.'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         `;
     },
@@ -1210,9 +1389,6 @@ const UnitModule = {
         return candidate;
     },
     buildWorkOrderLinesFromMontage: (montageCard, lotQty, workOrderCode) => {
-        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
-        const unitMap = {};
-        units.forEach(u => { unitMap[String(u.id)] = String(u.name || u.id); });
         const componentCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
         const counts = new Map();
         const rawIds = Array.isArray(montageCard?.componentIds) ? montageCard.componentIds : [];
@@ -1237,7 +1413,7 @@ const UnitModule = {
                         id: crypto.randomUUID(),
                         seq: rIdx + 1,
                         stationId,
-                        stationName: unitMap[stationId] || stationId,
+                        stationName: UnitModule.getRouteStationName(stationId),
                         processId: String(r?.processId || '').trim().toUpperCase()
                     };
                 })
@@ -1248,7 +1424,7 @@ const UnitModule = {
                     id: crypto.randomUUID(),
                     seq: 1,
                     stationId: fallbackStation,
-                    stationName: unitMap[fallbackStation] || fallbackStation,
+                    stationName: UnitModule.getRouteStationName(fallbackStation),
                     processId: ''
                 }];
             }
@@ -1474,8 +1650,6 @@ const UnitModule = {
             container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
             return;
         }
-        const unitMap = {};
-        (DB.data.data.units || []).forEach(u => { unitMap[String(u.id)] = String(u.name || u.id); });
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
         const tab = String(UnitModule.state.workOrderTab || 'BEKLEYEN');
@@ -1595,7 +1769,7 @@ const UnitModule = {
                                     const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
                                     const canTake = r.metrics.availableQty > 0;
                                     const canComplete = r.metrics.inProcessQty > 0;
-                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(unitMap[r.metrics.stationId] || r.metrics.stationName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.metrics.processId || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
+                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.metrics.processId || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
                                 }).join('')}
                             </tbody>
                         </table>

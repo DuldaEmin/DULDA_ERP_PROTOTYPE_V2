@@ -1,79 +1,24 @@
 const StockModule = {
     state: {
         topTab: 'all',
-        selectedKey: 'managed:main',
+        selectedKey: 'all',
         searchName: '',
-        searchCategory: '',
         searchCode: '',
         depotDraftName: '',
         depotDraftNote: '',
         locationDraftRaf: '',
         locationDraftCell: '',
-        locationDraftNote: ''
+        locationDraftNote: '',
+        depotDraftLocations: [],
+        depotEditingId: null
     },
 
-    ensureData: () => {
-        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
-        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
-        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
-        if (!DB.data.meta.seedFlags || typeof DB.data.meta.seedFlags !== 'object') DB.data.meta.seedFlags = {};
-        if (!Array.isArray(DB.data.data.stockDepots)) DB.data.data.stockDepots = [];
-        if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
-        if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
-        if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
-        if (!Array.isArray(DB.data.data.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
-        if (!Array.isArray(DB.data.data.suppliers)) DB.data.data.suppliers = [];
-
-        let changed = false;
-        if (!DB.data.meta.seedFlags.stockDepotsSeededV3) {
-            if (DB.data.data.stockDepots.length === 0) {
-                DB.data.data.stockDepots = [
-                    {
-                        id: 'depot_granul',
-                        name: 'GRANUL DEPO',
-                        note: 'Hammadde ve granul icin ayrilan fiziksel alan',
-                        isActive: true,
-                        created_at: new Date().toISOString()
-                    },
-                    {
-                        id: 'depot_profil',
-                        name: 'PROFIL DEPO',
-                        note: 'Profil ve uzun malzemeler icin ayrilan fiziksel alan',
-                        isActive: true,
-                        created_at: new Date().toISOString()
-                    }
-                ];
-                changed = true;
-            }
-            if (DB.data.data.stockDepotLocations.length === 0) {
-                DB.data.data.stockDepotLocations = [
-                    { id: crypto.randomUUID(), depotId: 'main', rafCode: 'R01', cellCode: 'A1', note: 'Giris tarafi ilk raf', created_at: new Date().toISOString() },
-                    { id: crypto.randomUUID(), depotId: 'main', rafCode: 'R01', cellCode: 'A2', note: '', created_at: new Date().toISOString() },
-                    { id: crypto.randomUUID(), depotId: 'main', rafCode: 'R02', cellCode: 'A1', note: '', created_at: new Date().toISOString() },
-                    { id: crypto.randomUUID(), depotId: 'depot_granul', rafCode: 'R01', cellCode: 'A1', note: '', created_at: new Date().toISOString() },
-                    { id: crypto.randomUUID(), depotId: 'depot_profil', rafCode: 'R01', cellCode: 'A1', note: '', created_at: new Date().toISOString() }
-                ];
-                changed = true;
-            }
-            DB.data.meta.seedFlags.stockDepotsSeededV3 = true;
-            changed = true;
-        }
-
-        (DB.data.data.stockDepots || []).forEach((row) => {
-            if (!row.created_at) {
-                row.created_at = new Date().toISOString();
-                changed = true;
-            }
-        });
-        (DB.data.data.stockDepotLocations || []).forEach((row) => {
-            if (!row.created_at) {
-                row.created_at = new Date().toISOString();
-                changed = true;
-            }
-        });
-
-        if (changed) DB.markDirty();
-    },
+    managedDepotSeed: [
+        { id: 'depot_transfer', name: 'TRANSFER DEPO', note: 'Atolyeler arasinda bekleyen ve yonlendirilecek urunler burada gorunur.' },
+        { id: 'depot_granul', name: 'GRANUL DEPO', note: 'Hammadde ve granul icin ayrilan fiziksel alan.' },
+        { id: 'depot_profil', name: 'PROFIL DEPO', note: 'Profil ve uzun malzemeler icin ayrilan fiziksel alan.' },
+        { id: 'depot_mafsal', name: 'MAFSAL DEPO', note: 'Mafsal ve benzeri yarimamul / bitmis unsur alanlari.' }
+    ],
 
     escapeHtml: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -91,131 +36,109 @@ const StockModule = {
         if (window.lucide) window.lucide.createIcons();
     },
 
+    ensureData: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!DB.data.meta.seedFlags || typeof DB.data.meta.seedFlags !== 'object') DB.data.meta.seedFlags = {};
+        if (!Array.isArray(DB.data.data.stockDepots)) DB.data.data.stockDepots = [];
+        if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
+        if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
+
+        let changed = false;
+        const now = new Date().toISOString();
+
+        StockModule.managedDepotSeed.forEach((seed) => {
+            const row = (DB.data.data.stockDepots || []).find((item) => String(item?.id || '') === String(seed.id));
+            if (!row) {
+                DB.data.data.stockDepots.push({
+                    id: seed.id,
+                    name: seed.name,
+                    note: seed.note,
+                    isActive: true,
+                    created_at: now
+                });
+                changed = true;
+                return;
+            }
+            if (!row.name) {
+                row.name = seed.name;
+                changed = true;
+            }
+            if (!row.note) {
+                row.note = seed.note;
+                changed = true;
+            }
+            if (row.isActive === false) {
+                row.isActive = true;
+                changed = true;
+            }
+            if (!row.created_at) {
+                row.created_at = now;
+                changed = true;
+            }
+        });
+
+        if (!DB.data.meta.seedFlags.stockDepotsSeededV4) {
+            [
+                { depotId: 'main', rafCode: 'R01', cellCode: 'A1', note: 'Ana depo giris rafi' },
+                { depotId: 'main', rafCode: 'R01', cellCode: 'A2', note: '' },
+                { depotId: 'main', rafCode: 'R02', cellCode: 'A1', note: '' },
+                { depotId: 'depot_granul', rafCode: 'R01', cellCode: 'A1', note: '' },
+                { depotId: 'depot_profil', rafCode: 'R01', cellCode: 'A1', note: '' }
+            ].forEach((seed) => {
+                const exists = (DB.data.data.stockDepotLocations || []).some((row) =>
+                    String(row?.depotId || '') === seed.depotId
+                    && String(row?.rafCode || '').trim().toUpperCase() === seed.rafCode
+                    && String(row?.cellCode || '').trim().toUpperCase() === seed.cellCode
+                );
+                if (exists) return;
+                DB.data.data.stockDepotLocations.push({
+                    id: crypto.randomUUID(),
+                    depotId: seed.depotId,
+                    rafCode: seed.rafCode,
+                    cellCode: seed.cellCode,
+                    note: seed.note,
+                    created_at: now
+                });
+                changed = true;
+            });
+            DB.data.meta.seedFlags.stockDepotsSeededV4 = true;
+            changed = true;
+        }
+
+        (DB.data.data.stockDepots || []).forEach((row) => {
+            if (!row.created_at) {
+                row.created_at = now;
+                changed = true;
+            }
+        });
+        (DB.data.data.stockDepotLocations || []).forEach((row) => {
+            if (!row.created_at) {
+                row.created_at = now;
+                changed = true;
+            }
+        });
+
+        if (changed) DB.markDirty();
+    },
+
     getMainDepot: () => ({
         id: 'main',
         key: 'managed:main',
-        name: 'Ana depo',
-        note: 'Merkez fiziksel depo adresleri burada tutulur.',
+        name: 'ANA DEPO',
+        note: 'Kapali ana depo. Fiziksel raf ve hucre tanimlari burada tutulur.',
         kind: 'managed',
         editable: false,
         allowLocations: true
     }),
 
-    getCustomDepots: () => {
-        return (DB.data.data.stockDepots || [])
-            .filter((row) => row?.isActive !== false)
-            .slice()
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'))
-            .map((row) => ({
-                ...row,
-                key: `managed:${String(row?.id || '')}`,
-                kind: 'managed',
-                editable: true,
-                allowLocations: true
-            }));
-    },
-
-    getUnitRowsMeta: () => {
-        return (DB.data?.data?.units || [])
-            .filter((row) => String(row?.type || '') === 'internal')
-            .slice()
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'))
-            .map((row) => ({
-                ...row,
-                key: String(row?.id || '') === 'u_dtm' ? 'transfer:u_dtm' : `unit:${String(row?.id || '')}`,
-                kind: String(row?.id || '') === 'u_dtm' ? 'transfer' : 'unit',
-                editable: false,
-                allowLocations: false
-            }));
-    },
-
-    getExternalRowsMeta: () => {
-        const unitRows = (DB.data?.data?.units || [])
-            .filter((row) => String(row?.type || '') === 'external')
-            .slice()
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'))
-            .map((row) => ({
-                ...row,
-                key: `external:${String(row?.id || '')}`,
-                kind: 'external',
-                editable: false,
-                allowLocations: false
-            }));
-        return [
-            ...unitRows,
-            {
-                id: 'free_external',
-                key: 'external:free',
-                name: 'serbest dis fason',
-                note: 'Kayitli olmayan veya tek seferlik dis birim referansi',
-                kind: 'external',
-                editable: false,
-                allowLocations: false
-            }
-        ];
-    },
-
-    getSelectedNode: () => {
-        const key = String(StockModule.state.selectedKey || 'managed:main');
-        if (key === 'managed:main') return StockModule.getMainDepot();
-        if (key.startsWith('managed:')) {
-            const depotId = key.split(':').slice(1).join(':');
-            return StockModule.getCustomDepots().find((row) => String(row?.id || '') === depotId) || StockModule.getMainDepot();
-        }
-        if (key === 'transfer:u_dtm') {
-            const unit = (DB.data?.data?.units || []).find((row) => String(row?.id || '') === 'u_dtm');
-            return {
-                id: 'u_dtm',
-                key,
-                name: unit?.name || 'Depo Transfer',
-                note: 'Burasi fiziksel adres degil; transfer akislarinda referans olarak gorunur.',
-                kind: 'transfer',
-                editable: false,
-                allowLocations: false
-            };
-        }
-        if (key.startsWith('unit:')) {
-            const unitId = key.split(':').slice(1).join(':');
-            const unit = (DB.data?.data?.units || []).find((row) => String(row?.id || '') === unitId);
-            if (unit) {
-                return {
-                    ...unit,
-                    key,
-                    name: unit.name,
-                    note: 'Atolye alani; fiziksel operasyon burada degil, sadece referans bilgisi tutulur.',
-                    kind: 'unit',
-                    editable: false,
-                    allowLocations: false
-                };
-            }
-        }
-        if (key === 'external:free') {
-            return {
-                id: 'free_external',
-                key,
-                name: 'serbest dis fason',
-                note: 'Kayitli olmayan veya tek seferlik dis birim referansi',
-                kind: 'external',
-                editable: false,
-                allowLocations: false
-            };
-        }
-        if (key.startsWith('external:')) {
-            const unitId = key.split(':').slice(1).join(':');
-            const unit = (DB.data?.data?.units || []).find((row) => String(row?.id || '') === unitId);
-            if (unit) {
-                return {
-                    ...unit,
-                    key,
-                    name: unit.name,
-                    note: 'Dis birim veya fason nokta; burada sadece yonlendirme amacli listelenir.',
-                    kind: 'external',
-                    editable: false,
-                    allowLocations: false
-                };
-            }
-        }
-        return StockModule.getMainDepot();
+    getLocationCode: (location) => {
+        const rafCode = String(location?.rafCode || '').trim().toUpperCase();
+        const cellCode = String(location?.cellCode || '').trim().toUpperCase();
+        if (rafCode && cellCode) return `${rafCode}-${cellCode}`;
+        if (rafCode) return rafCode;
+        return cellCode || '-';
     },
 
     getDepotLocations: (depotId) => {
@@ -229,71 +152,196 @@ const StockModule = {
             });
     },
 
-    getLocationCode: (location) => {
-        const rafCode = String(location?.rafCode || '').trim().toUpperCase();
-        const cellCode = String(location?.cellCode || '').trim().toUpperCase();
-        if (rafCode && cellCode) return `${rafCode}-${cellCode}`;
-        if (rafCode) return rafCode;
-        return cellCode || '-';
+    getCustomDepots: () => {
+        const order = ['depot_transfer', 'depot_granul', 'depot_profil', 'depot_mafsal'];
+        const rows = (DB.data.data.stockDepots || [])
+            .filter((row) => row?.isActive !== false)
+            .map((row) => ({
+                ...row,
+                key: `managed:${String(row?.id || '')}`,
+                kind: 'managed',
+                editable: true,
+                allowLocations: true
+            }));
+        return rows.sort((a, b) => {
+            const aIndex = order.indexOf(String(a?.id || ''));
+            const bIndex = order.indexOf(String(b?.id || ''));
+            if (aIndex !== -1 || bIndex !== -1) {
+                return (aIndex === -1 ? 999 : aIndex) - (bIndex === -1 ? 999 : bIndex);
+            }
+            return String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+        });
+    },
+
+    getUnitRowsMeta: () => {
+        const formatName = (name) => {
+            const upper = String(name || '').trim().toUpperCase();
+            if (upper.includes('EKSTRUDER')) return 'EKSTRUDER DEPO';
+            if (upper.includes('TESTERE')) return 'TESTERE DEPO';
+            if (upper.includes('PLEKSI')) return 'PLEKSI POLISAJ DEPO';
+            if (upper.includes('CNC')) return 'CNC DEPO';
+            if (upper.includes('MONTAJ')) return 'MONTAJ DEPO';
+            return upper;
+        };
+        const rows = (DB.data?.data?.units || [])
+            .filter((row) => String(row?.type || '') === 'internal')
+            .filter((row) => String(row?.id || '') !== 'u_dtm')
+            .map((row) => ({
+                ...row,
+                key: `unit:${String(row?.id || '')}`,
+                name: formatName(row?.name || ''),
+                note: 'Bu alan fiziksel raf / hucre tanimi almaz. Sadece izleme icin gorunur.',
+                kind: 'unit',
+                editable: false,
+                allowLocations: false
+            }));
+        const ordered = ['EKSTRUDER', 'TESTERE', 'PLEKSI', 'CNC', 'MONTAJ'];
+        return rows.sort((a, b) => {
+            const aKey = ordered.findIndex((item) => String(a?.name || '').includes(item));
+            const bKey = ordered.findIndex((item) => String(b?.name || '').includes(item));
+            return (aKey === -1 ? 999 : aKey) - (bKey === -1 ? 999 : bKey);
+        });
+    },
+
+    getExternalRowsMeta: () => {
+        const rows = (DB.data?.data?.units || [])
+            .filter((row) => String(row?.type || '') === 'external')
+            .map((row) => ({
+                ...row,
+                key: `external:${String(row?.id || '')}`,
+                name: String(row?.name || '').trim().toUpperCase(),
+                note: 'Dis birim veya fason nokta. Burada sadece izleme amacli gorunur.',
+                kind: 'external',
+                editable: false,
+                allowLocations: false
+            }))
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        rows.push({
+            id: 'free_external',
+            key: 'external:free',
+            name: 'SERBEST DIS FASON',
+            note: 'Kayitli olmayan dis birim referansi.',
+            kind: 'external',
+            editable: false,
+            allowLocations: false
+        });
+        return rows;
+    },
+
+    getSelectedNode: () => {
+        const key = String(StockModule.state.selectedKey || 'all');
+        if (key === 'all') {
+            return { id: 'all', key: 'all', name: 'TUM DEPOLAR', note: 'Depo secilmediginde arama tum depolarda calisir.', kind: 'all', editable: false, allowLocations: false };
+        }
+        const nodes = [
+            StockModule.getMainDepot(),
+            ...StockModule.getCustomDepots(),
+            ...StockModule.getUnitRowsMeta(),
+            ...StockModule.getExternalRowsMeta()
+        ];
+        return nodes.find((row) => String(row?.key || '') === key) || StockModule.getMainDepot();
+    },
+
+    getOverviewSummary: () => {
+        const managedIds = new Set(['main', ...StockModule.getCustomDepots().map((row) => String(row?.id || ''))]);
+        return {
+            managedCount: managedIds.size,
+            locationCount: (DB.data.data.stockDepotLocations || []).filter((row) => managedIds.has(String(row?.depotId || ''))).length,
+            unitCount: StockModule.getUnitRowsMeta().length,
+            externalCount: StockModule.getExternalRowsMeta().length
+        };
     },
 
     getManagedSummary: (depotId) => {
         const locations = StockModule.getDepotLocations(depotId);
-        const rafCount = new Set(locations.map((row) => String(row?.rafCode || '').trim().toUpperCase()).filter(Boolean)).size;
-        const notedCount = locations.filter((row) => String(row?.note || '').trim()).length;
         return {
-            locationCount: locations.length,
-            rafCount,
-            notedCount
+            rafCount: new Set(locations.map((row) => String(row?.rafCode || '').trim().toUpperCase()).filter(Boolean)).size,
+            locationCount: locations.length
         };
     },
 
-    getOverviewSummary: () => {
-        const customDepots = StockModule.getCustomDepots();
-        const managedIds = new Set(['main', ...customDepots.map((row) => String(row?.id || ''))]);
-        const managedCount = managedIds.size;
-        const locationCount = (DB.data.data.stockDepotLocations || []).filter((row) => managedIds.has(String(row?.depotId || ''))).length;
-        const unitCount = StockModule.getUnitRowsMeta().filter((row) => row.kind === 'unit').length;
-        const externalCount = StockModule.getExternalRowsMeta().length;
-        return { managedCount, locationCount, unitCount, externalCount };
+    resolveInventoryNode: (raw) => {
+        const nodeId = String(raw?.depotId || raw?.nodeId || raw?.unitId || raw?.stationId || '');
+        const nodeKey = String(raw?.nodeKey || raw?.depotKey || raw?.key || '');
+        const nodes = [
+            StockModule.getMainDepot(),
+            ...StockModule.getCustomDepots(),
+            ...StockModule.getUnitRowsMeta(),
+            ...StockModule.getExternalRowsMeta()
+        ];
+        return nodes.find((row) => String(row?.key || '') === nodeKey || String(row?.id || '') === nodeId) || null;
     },
 
-    getFilteredLocations: (node) => {
-        const qName = StockModule.normalize(StockModule.state.searchName);
-        const qCategory = StockModule.normalize(StockModule.state.searchCategory);
-        const qCode = StockModule.normalize(StockModule.state.searchCode);
-        return StockModule.getDepotLocations(node.id).filter((row) => {
-            const code = StockModule.normalize(StockModule.getLocationCode(row));
-            const depotName = StockModule.normalize(node?.name || '');
-            const note = StockModule.normalize(row?.note || '');
-            const rafCode = StockModule.normalize(row?.rafCode || '');
-            const cellCode = StockModule.normalize(row?.cellCode || '');
-            const nameOk = !qName || depotName.includes(qName) || note.includes(qName);
-            const categoryOk = !qCategory || rafCode.includes(qCategory) || cellCode.includes(qCategory) || note.includes(qCategory);
-            const codeOk = !qCode || code.includes(qCode);
-            return nameOk && categoryOk && codeOk;
+    getInventoryRows: () => {
+        const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        const locationMap = new Map((DB.data.data.stockDepotLocations || []).map((row) => [String(row?.id || ''), row]));
+        return (DB.data.data.stockDepotItems || []).map((raw) => {
+            const product = products.find((row) => String(row?.id || '') === String(raw?.productId || '')) || null;
+            const node = StockModule.resolveInventoryNode(raw);
+            const location = locationMap.get(String(raw?.locationId || '')) || null;
+            const quantity = raw?.quantity ?? raw?.qty ?? raw?.amount ?? '';
+            return {
+                id: String(raw?.id || product?.id || ''),
+                name: String(raw?.productName || raw?.name || product?.name || '').trim(),
+                code: String(raw?.productCode || raw?.code || product?.code || '').trim(),
+                quantity,
+                unit: String(raw?.unit || product?.unit || product?.specs?.unit || '').trim(),
+                status: String(raw?.status || '').trim(),
+                note: String(raw?.note || '').trim(),
+                locationCode: raw?.locationCode
+                    ? String(raw.locationCode)
+                    : location
+                        ? StockModule.getLocationCode(location)
+                        : [raw?.rafCode, raw?.cellCode].filter(Boolean).join('-'),
+                depotNode: node,
+                depotName: node?.name || String(raw?.depotName || '-')
+            };
         });
     },
 
-    setTopTab: (tabId) => {
-        StockModule.state.topTab = String(tabId || 'all');
-        if (StockModule.state.topTab === 'transfer') {
-            StockModule.state.selectedKey = 'transfer:u_dtm';
-        } else if (String(StockModule.state.selectedKey || '') === 'transfer:u_dtm') {
-            StockModule.state.selectedKey = 'managed:main';
+    getFilteredInventoryRows: (node) => {
+        const qName = StockModule.normalize(StockModule.state.searchName);
+        const qCode = StockModule.normalize(StockModule.state.searchCode);
+        const targetKey = String(node?.key || 'all');
+        return StockModule.getInventoryRows().filter((row) => {
+            if (targetKey !== 'all' && String(row?.depotNode?.key || '') !== targetKey) return false;
+            const hayName = [row?.name, row?.depotName, row?.note].map(StockModule.normalize).join(' ');
+            const hayCode = [row?.code, row?.locationCode].map(StockModule.normalize).join(' ');
+            return (!qName || hayName.includes(qName)) && (!qCode || hayCode.includes(qCode));
+        });
+    },
+
+    getInventoryGroups: (node) => {
+        const rows = StockModule.getFilteredInventoryRows(node);
+        if (String(node?.key || '') !== 'all') {
+            return [{ key: String(node?.key || 'single'), title: String(node?.name || '-'), rows }];
         }
+        const map = new Map();
+        rows.forEach((row) => {
+            const key = String(row?.depotNode?.key || 'unknown');
+            const title = String(row?.depotNode?.name || row?.depotName || 'Bilinmeyen depo');
+            if (!map.has(key)) map.set(key, { key, title, rows: [] });
+            map.get(key).rows.push(row);
+        });
+        return Array.from(map.values()).sort((a, b) => String(a?.title || '').localeCompare(String(b?.title || ''), 'tr'));
+    },
+
+    setTopTab: (tabId) => {
+        const nextTab = String(tabId || 'all');
+        StockModule.state.topTab = nextTab;
+        StockModule.state.selectedKey = nextTab === 'transfer' ? 'managed:depot_transfer' : 'all';
         UI.renderCurrentPage();
     },
 
     selectNode: (key) => {
-        StockModule.state.selectedKey = String(key || 'managed:main');
-        StockModule.state.topTab = StockModule.state.selectedKey === 'transfer:u_dtm' ? 'transfer' : 'all';
+        const nextKey = String(key || 'all');
+        StockModule.state.selectedKey = nextKey;
+        StockModule.state.topTab = nextKey === 'managed:depot_transfer' ? 'transfer' : 'all';
         UI.renderCurrentPage();
     },
 
     setSearch: (field, value) => {
         if (field === 'name') StockModule.state.searchName = String(value || '');
-        if (field === 'category') StockModule.state.searchCategory = String(value || '');
         if (field === 'code') StockModule.state.searchCode = String(value || '');
         UI.renderCurrentPage();
     },
@@ -306,164 +354,217 @@ const StockModule = {
         if (field === 'locNote') StockModule.state.locationDraftNote = String(value || '');
     },
 
+    resetDepotDraft: () => {
+        StockModule.state.depotDraftName = '';
+        StockModule.state.depotDraftNote = '';
+        StockModule.state.locationDraftRaf = '';
+        StockModule.state.locationDraftCell = '';
+        StockModule.state.locationDraftNote = '';
+        StockModule.state.depotDraftLocations = [];
+        StockModule.state.depotEditingId = null;
+    },
+
+    makeDepotId: (name) => {
+        const slug = String(name || '')
+            .trim()
+            .toLocaleLowerCase('tr-TR')
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '')
+            || 'depo';
+        let candidate = `depot_${slug}`;
+        let index = 2;
+        const used = new Set((DB.data.data.stockDepots || []).map((row) => String(row?.id || '')));
+        while (used.has(candidate)) {
+            candidate = `depot_${slug}_${index}`;
+            index += 1;
+        }
+        return candidate;
+    },
+
+    openDepotCreateModal: () => {
+        StockModule.resetDepotDraft();
+        StockModule.renderDepotModal();
+    },
+
     openDepotEditModal: (depotId) => {
         const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === String(depotId || ''));
         if (!depot) return;
-        Modal.open('Depo Duzenle', `
-            <div style="display:flex; flex-direction:column; gap:0.75rem;">
-                <div>
-                    <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Depo adi</label>
-                    <input id="stock_depot_edit_name" value="${StockModule.escapeHtml(depot.name || '')}" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+        StockModule.resetDepotDraft();
+        StockModule.state.depotEditingId = String(depot.id || '');
+        StockModule.state.depotDraftName = String(depot.name || '');
+        StockModule.state.depotDraftNote = String(depot.note || '');
+        StockModule.state.depotDraftLocations = StockModule.getDepotLocations(depot.id).map((row) => ({
+            id: String(row?.id || ''),
+            rafCode: String(row?.rafCode || '').trim().toUpperCase(),
+            cellCode: String(row?.cellCode || '').trim().toUpperCase(),
+            note: String(row?.note || '')
+        }));
+        StockModule.renderDepotModal();
+    },
+
+    addDraftLocation: () => {
+        const rafCode = String(StockModule.state.locationDraftRaf || '').trim().toUpperCase();
+        const cellCode = String(StockModule.state.locationDraftCell || '').trim().toUpperCase();
+        const note = String(StockModule.state.locationDraftNote || '').trim();
+        if (!rafCode || !cellCode) return alert('Raf ve hucre kodu giriniz.');
+        const exists = (StockModule.state.depotDraftLocations || []).some((row) =>
+            String(row?.rafCode || '').trim().toUpperCase() === rafCode
+            && String(row?.cellCode || '').trim().toUpperCase() === cellCode
+        );
+        if (exists) return alert('Bu raf / hucre zaten listede var.');
+        StockModule.state.depotDraftLocations.push({ id: '', rafCode, cellCode, note });
+        StockModule.state.locationDraftRaf = '';
+        StockModule.state.locationDraftCell = '';
+        StockModule.state.locationDraftNote = '';
+        StockModule.renderDepotModal();
+    },
+
+    removeDraftLocation: (index) => {
+        StockModule.state.depotDraftLocations = (StockModule.state.depotDraftLocations || []).filter((_row, idx) => idx !== Number(index));
+        StockModule.renderDepotModal();
+    },
+
+    renderDepotDraftRows: () => {
+        const rows = StockModule.state.depotDraftLocations || [];
+        if (rows.length === 0) {
+            return `<tr><td colspan="5" class="stock-empty">Henuz hucre eklenmedi. Istersen bos depo olarak da kaydedebilirsin.</td></tr>`;
+        }
+        return rows.map((row, index) => `
+            <tr>
+                <td>${StockModule.escapeHtml(row.rafCode || '-')}</td>
+                <td>${StockModule.escapeHtml(row.cellCode || '-')}</td>
+                <td>${StockModule.escapeHtml(row.note || '-')}</td>
+                <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</td>
+                <td style="text-align:right;"><button class="btn-sm" onclick="StockModule.removeDraftLocation(${index})">sil</button></td>
+            </tr>
+        `).join('');
+    },
+
+    renderDepotModal: () => {
+        const editing = !!String(StockModule.state.depotEditingId || '');
+        Modal.open(editing ? 'Depo Duzenle' : 'Depo Olustur', `
+            <div class="stock-modal-form">
+                <div class="stock-modal-title">${editing ? 'Secili depoyu duzenle' : 'Yeni depo tanimi'}</div>
+                <div class="stock-modal-note">Depo adi ve notu gir. Istersen ayni pencerede raf / hucre de ekleyebilirsin.</div>
+
+                <div class="stock-modal-grid">
+                    <div>
+                        <label class="stock-modal-label">Depo adi</label>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: SEVKIYATA GIDECEK URUNLER">
+                    </div>
+                    <div>
+                        <label class="stock-modal-label">Not</label>
+                        <textarea class="stock-textarea" oninput="StockModule.setDraftField('depotNote', this.value)" placeholder="or: Merdiven yani alan">${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
+                    </div>
                 </div>
-                <div>
-                    <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Aciklama / not</label>
-                    <textarea id="stock_depot_edit_note" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${StockModule.escapeHtml(depot.note || '')}</textarea>
+
+                <div class="stock-modal-divider"></div>
+                <div class="stock-modal-subtitle">Hucre ekle</div>
+
+                <div class="stock-modal-row">
+                    <div>
+                        <label class="stock-modal-label">Raf</label>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftRaf)}" oninput="StockModule.setDraftField('locRaf', this.value)" placeholder="or: R01">
+                    </div>
+                    <div>
+                        <label class="stock-modal-label">Hucre</label>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftCell)}" oninput="StockModule.setDraftField('locCell', this.value)" placeholder="or: A1">
+                    </div>
+                    <div>
+                        <label class="stock-modal-label">Hucre notu</label>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftNote)}" oninput="StockModule.setDraftField('locNote', this.value)" placeholder="opsiyonel">
+                    </div>
+                    <div class="stock-modal-action">
+                        <button class="btn-primary" onclick="StockModule.addDraftLocation()">hucre ekle +</button>
+                    </div>
                 </div>
-                <div style="display:flex; justify-content:space-between; gap:0.5rem;">
-                    <button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(depot.id || '')}')">Sil</button>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button class="btn-sm" onclick="Modal.close()">Vazgec</button>
-                        <button class="btn-primary" onclick="StockModule.saveDepotEdit('${StockModule.escapeHtml(depot.id || '')}')">Kaydet</button>
+
+                <div class="stock-table-card" style="margin-top:0.9rem;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">Raf</th>
+                                <th style="text-align:left;">Hucre</th>
+                                <th style="text-align:left;">Not</th>
+                                <th style="text-align:left;">Kod</th>
+                                <th style="text-align:right;">Islem</th>
+                            </tr>
+                        </thead>
+                        <tbody>${StockModule.renderDepotDraftRows()}</tbody>
+                    </table>
+                </div>
+
+                <div class="stock-modal-footer">
+                    ${editing ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
+                    <div style="display:flex; gap:0.55rem;">
+                        <button class="btn-sm" onclick="StockModule.resetDepotDraft(); Modal.close()">Vazgec</button>
+                        <button class="btn-primary" onclick="StockModule.saveDepotModal()">${editing ? 'Kaydet' : 'Depoyu kaydet'}</button>
                     </div>
                 </div>
             </div>
-        `);
+        `, { maxWidth: '960px' });
     },
 
-    saveDepotEdit: async (depotId) => {
-        const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === String(depotId || ''));
-        if (!depot) return;
-        const name = String(document.getElementById('stock_depot_edit_name')?.value || '').trim();
-        const note = String(document.getElementById('stock_depot_edit_note')?.value || '').trim();
+    saveDepotModal: async () => {
+        const name = String(StockModule.state.depotDraftName || '').trim().toUpperCase();
+        const note = String(StockModule.state.depotDraftNote || '').trim();
+        const editingId = String(StockModule.state.depotEditingId || '');
         if (!name) return alert('Depo adi zorunlu.');
-        depot.name = name.toUpperCase();
-        depot.note = note;
+
+        const duplicateName = (DB.data.data.stockDepots || []).some((row) =>
+            String(row?.id || '') !== editingId
+            && String(row?.name || '').trim().toUpperCase() === name
+            && row?.isActive !== false
+        );
+        if (duplicateName) return alert('Bu isimde bir depo zaten var.');
+
+        let depotId = editingId;
+        const now = new Date().toISOString();
+        if (editingId) {
+            const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === editingId);
+            if (!depot) return;
+            depot.name = name;
+            depot.note = note;
+            depot.isActive = true;
+        } else {
+            depotId = StockModule.makeDepotId(name);
+            DB.data.data.stockDepots.push({ id: depotId, name, note, isActive: true, created_at: now });
+        }
+
+        const nextLocations = (StockModule.state.depotDraftLocations || []).map((row) => ({
+            id: String(row?.id || '').trim() || crypto.randomUUID(),
+            depotId,
+            rafCode: String(row?.rafCode || '').trim().toUpperCase(),
+            cellCode: String(row?.cellCode || '').trim().toUpperCase(),
+            note: String(row?.note || '').trim(),
+            created_at: now
+        }));
+
+        DB.data.data.stockDepotLocations = (DB.data.data.stockDepotLocations || [])
+            .filter((row) => String(row?.depotId || '') !== depotId)
+            .concat(nextLocations);
+
+        StockModule.state.selectedKey = `managed:${depotId}`;
+        StockModule.state.topTab = depotId === 'depot_transfer' ? 'transfer' : 'all';
         await DB.save();
+        StockModule.resetDepotDraft();
         Modal.close();
         UI.renderCurrentPage();
     },
 
     deleteDepot: async (depotId) => {
-        const hasLocations = (DB.data.data.stockDepotLocations || []).some((row) => String(row?.depotId || '') === String(depotId || ''));
-        if (hasLocations) {
-            alert('Bu depoda kayitli hucreler var. Once hucreleri silin.');
-            return;
-        }
         const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === String(depotId || ''));
         if (!depot) return;
         if (!confirm('Bu depoyu listeden kaldirmak istiyor musunuz?')) return;
         depot.isActive = false;
+        DB.data.data.stockDepotLocations = (DB.data.data.stockDepotLocations || []).filter((row) => String(row?.depotId || '') !== String(depotId || ''));
         if (String(StockModule.state.selectedKey || '') === `managed:${String(depotId || '')}`) {
-            StockModule.state.selectedKey = 'managed:main';
+            StockModule.state.selectedKey = 'all';
+            StockModule.state.topTab = 'all';
         }
         await DB.save();
+        StockModule.resetDepotDraft();
         Modal.close();
-        UI.renderCurrentPage();
-    },
-
-    saveDepotInline: async () => {
-        const name = String(StockModule.state.depotDraftName || '').trim();
-        const note = String(StockModule.state.depotDraftNote || '').trim();
-        if (!name) return alert('Depo adi zorunlu.');
-        const newId = crypto.randomUUID();
-        DB.data.data.stockDepots.push({
-            id: newId,
-            name: name.toUpperCase(),
-            note,
-            isActive: true,
-            created_at: new Date().toISOString()
-        });
-        StockModule.state.depotDraftName = '';
-        StockModule.state.depotDraftNote = '';
-        StockModule.state.selectedKey = `managed:${newId}`;
-        StockModule.state.topTab = 'all';
-        await DB.save();
-        UI.renderCurrentPage();
-    },
-
-    openLocationEditModal: (locationId) => {
-        const location = (DB.data.data.stockDepotLocations || []).find((row) => String(row?.id || '') === String(locationId || ''));
-        if (!location) return;
-        Modal.open('Hucre Duzenle', `
-            <div style="display:flex; flex-direction:column; gap:0.75rem;">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Raf kodu</label>
-                        <input id="stock_loc_edit_raf" value="${StockModule.escapeHtml(location.rafCode || '')}" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Hucre kodu</label>
-                        <input id="stock_loc_edit_cell" value="${StockModule.escapeHtml(location.cellCode || '')}" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                    </div>
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
-                    <textarea id="stock_loc_edit_note" rows="3" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${StockModule.escapeHtml(location.note || '')}</textarea>
-                </div>
-                <div style="display:flex; justify-content:space-between; gap:0.5rem;">
-                    <button class="btn-sm" onclick="StockModule.deleteLocation('${StockModule.escapeHtml(location.id || '')}')">Sil</button>
-                    <div style="display:flex; gap:0.5rem;">
-                        <button class="btn-sm" onclick="Modal.close()">Vazgec</button>
-                        <button class="btn-primary" onclick="StockModule.saveLocationEdit('${StockModule.escapeHtml(location.id || '')}')">Kaydet</button>
-                    </div>
-                </div>
-            </div>
-        `);
-    },
-
-    saveLocationEdit: async (locationId) => {
-        const location = (DB.data.data.stockDepotLocations || []).find((row) => String(row?.id || '') === String(locationId || ''));
-        if (!location) return;
-        const rafCode = String(document.getElementById('stock_loc_edit_raf')?.value || '').trim().toUpperCase();
-        const cellCode = String(document.getElementById('stock_loc_edit_cell')?.value || '').trim().toUpperCase();
-        const note = String(document.getElementById('stock_loc_edit_note')?.value || '').trim();
-        if (!rafCode || !cellCode) return alert('Raf ve hucre kodu zorunlu.');
-        const exists = (DB.data.data.stockDepotLocations || []).some((row) =>
-            String(row?.id || '') !== String(locationId || '')
-            && String(row?.depotId || '') === String(location?.depotId || '')
-            && String(row?.rafCode || '').trim().toUpperCase() === rafCode
-            && String(row?.cellCode || '').trim().toUpperCase() === cellCode
-        );
-        if (exists) return alert('Bu raf / hucre zaten var.');
-        location.rafCode = rafCode;
-        location.cellCode = cellCode;
-        location.note = note;
-        await DB.save();
-        Modal.close();
-        UI.renderCurrentPage();
-    },
-
-    deleteLocation: async (locationId) => {
-        if (!confirm('Bu hucre kaydini silmek istiyor musunuz?')) return;
-        DB.data.data.stockDepotLocations = (DB.data.data.stockDepotLocations || []).filter((row) => String(row?.id || '') !== String(locationId || ''));
-        await DB.save();
-        Modal.close();
-        UI.renderCurrentPage();
-    },
-
-    saveLocationInline: async (depotId) => {
-        const rafCode = String(StockModule.state.locationDraftRaf || '').trim().toUpperCase();
-        const cellCode = String(StockModule.state.locationDraftCell || '').trim().toUpperCase();
-        const note = String(StockModule.state.locationDraftNote || '').trim();
-        if (!rafCode || !cellCode) return alert('Raf ve hucre kodu zorunlu.');
-        const exists = (DB.data.data.stockDepotLocations || []).some((row) =>
-            String(row?.depotId || '') === String(depotId || '')
-            && String(row?.rafCode || '').trim().toUpperCase() === rafCode
-            && String(row?.cellCode || '').trim().toUpperCase() === cellCode
-        );
-        if (exists) return alert('Bu raf / hucre zaten var.');
-        DB.data.data.stockDepotLocations.push({
-            id: crypto.randomUUID(),
-            depotId: String(depotId || ''),
-            rafCode,
-            cellCode,
-            note,
-            created_at: new Date().toISOString()
-        });
-        StockModule.state.locationDraftRaf = '';
-        StockModule.state.locationDraftCell = '';
-        StockModule.state.locationDraftNote = '';
-        await DB.save();
         UI.renderCurrentPage();
     },
 
@@ -478,9 +579,7 @@ const StockModule = {
             const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
             return `
                             <div class="stock-side-row${canEdit ? ' with-edit' : ''}">
-                                <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">
-                                    ${StockModule.escapeHtml(item.name || '-')}
-                                </button>
+                                <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button>
                                 ${canEdit ? `<button class="stock-side-edit" onclick="event.stopPropagation(); StockModule.openDepotEditModal('${StockModule.escapeHtml(item.id || '')}')">duzenle</button>` : ''}
                             </div>
                         `;
@@ -490,122 +589,74 @@ const StockModule = {
         `;
     },
 
-    renderLocationsTable: (node) => {
-        const rows = StockModule.getFilteredLocations(node);
-        return `
-            <div class="stock-table-card">
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="text-align:left;">Konum kodu</th>
-                            <th style="text-align:left;">Raf</th>
-                            <th style="text-align:left;">Hucre</th>
-                            <th style="text-align:left;">Not</th>
-                            <th style="text-align:left;">Olusturma</th>
-                            <th style="text-align:right;">Islem</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows.length === 0 ? `<tr><td colspan="6" class="stock-empty">Secili depoda gosterilecek konum yok.</td></tr>` : rows.map((row) => `
+    renderInventoryGroups: (node) => {
+        const groups = StockModule.getInventoryGroups(node);
+        if (groups.length === 0 || groups.every((group) => group.rows.length === 0)) {
+            return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
+        }
+        return groups.map((group) => `
+            <div class="stock-group-card">
+                ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
+                <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'};">
+                    <table>
+                        <thead>
                             <tr>
-                                <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</td>
-                                <td style="font-weight:700;">${StockModule.escapeHtml(row.rafCode || '-')}</td>
-                                <td style="font-weight:700;">${StockModule.escapeHtml(row.cellCode || '-')}</td>
-                                <td style="color:#64748b;">${StockModule.escapeHtml(row.note || '-')}</td>
-                                <td style="color:#64748b;">${StockModule.escapeHtml(String(row.created_at || '').slice(0, 10) || '-')}</td>
-                                <td style="text-align:right;">
-                                    <button class="btn-sm" onclick="StockModule.openLocationEditModal('${StockModule.escapeHtml(row.id || '')}')">duzenle</button>
-                                </td>
+                                <th style="text-align:left;">Urun adi</th>
+                                <th style="text-align:left;">ID kodu</th>
+                                <th style="text-align:left;">Detay</th>
                             </tr>
+                        </thead>
+                        <tbody>
+                            ${group.rows.map((row) => {
+            const detail = [];
+            if (row.locationCode) detail.push(`Konum: ${row.locationCode}`);
+            if (row.quantity !== '' && row.quantity !== null && row.quantity !== undefined) detail.push(`Miktar: ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`);
+            if (row.status) detail.push(`Durum: ${row.status}`);
+            return `
+                                    <tr>
+                                        <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
+                                        <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
+                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' • ') || 'Detay daha sonra zenginlestirilecek.')}</td>
+                                    </tr>
+                                `;
+        }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `).join('');
+    },
+
+    renderLocationsCard: (node) => {
+        if (node.kind !== 'managed') return '';
+        const locations = StockModule.getDepotLocations(node.id);
+        return `
+            <div class="stock-location-card">
+                <div class="stock-location-head">
+                    <div class="stock-location-title">tanimli konumlar</div>
+                    ${node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">hucreleri duzenle</button>` : ''}
+                </div>
+                ${locations.length === 0 ? `<div class="stock-location-empty">Bu depoda henuz raf / hucre tanimi yok.</div>` : `
+                    <div class="stock-location-list">
+                        ${locations.map((row) => `
+                            <div class="stock-location-chip">
+                                <div class="stock-location-chip-code">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</div>
+                                <div class="stock-location-chip-note">${StockModule.escapeHtml(row.note || 'not yok')}</div>
+                            </div>
                         `).join('')}
-                    </tbody>
-                </table>
+                    </div>
+                `}
             </div>
         `;
     },
 
-    renderReferenceCard: (node) => {
-        const typeLabel = node.kind === 'transfer'
-            ? 'Transfer referansi'
-            : node.kind === 'unit'
-                ? 'Atolye referansi'
-                : 'Dis birim referansi';
+    renderReferenceNotice: (node) => {
+        if (node.kind !== 'unit' && node.kind !== 'external' && node.kind !== 'all') return '';
         return `
             <div class="stock-ref-card">
-                <div class="stock-ref-label">${typeLabel}</div>
+                <div class="stock-ref-label">${node.kind === 'all' ? 'Tum depo gorunumu' : node.kind === 'unit' ? 'Atolye gozlemi' : 'Dis birim gozlemi'}</div>
                 <div class="stock-ref-title">${StockModule.escapeHtml(node.name || '-')}</div>
-                <div class="stock-ref-text">
-                    Bu alan bu sayfada fiziksel hucre veya stok hareketi yonetmez. Sadece diger modullerde secilebilecek bir adres / hedef bilgisi olarak listelenir.
-                </div>
-                <div class="stock-ref-callout">
-                    Islem mantigi baska sayfalarda kalir. Buradaki ekran fiziksel yerlesim ve yonlendirme bilgisini netlestirmek icin kullanilir.
-                </div>
-            </div>
-        `;
-    },
-
-    renderDepotCreateCard: () => {
-        return `
-            <div class="card" style="padding:1rem 1.05rem;">
-                <div style="font-size:1rem; font-weight:800; color:#0f172a;">depo olustur</div>
-                <div style="margin-top:0.3rem; color:#64748b;">Yeni bir fiziksel alan tanimla. Sistem ici id arka planda olusur, kullanici sadece adi gorur.</div>
-                <div style="display:flex; flex-direction:column; gap:0.75rem; margin-top:0.95rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Depo adi</label>
-                        <input value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: Mafsal depo" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.75rem;">
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
-                        <textarea oninput="StockModule.setDraftField('depotNote', this.value)" rows="4" placeholder="or: Acik alan, giris kapisi saga bakiyor" style="width:100%; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0.7rem; resize:vertical;">${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
-                    </div>
-                    <div style="display:flex; justify-content:flex-end;">
-                        <button class="btn-primary" onclick="StockModule.saveDepotInline()">Kaydet</button>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
-
-    renderLocationCreateCard: (node) => {
-        if (node.kind !== 'managed') {
-            return `
-                <div class="card" style="padding:1rem 1.05rem;">
-                    <div style="font-size:1rem; font-weight:800; color:#0f172a;">konum olustur</div>
-                    <div style="margin-top:0.45rem; color:#64748b; line-height:1.55;">
-                        Secili alan fiziksel hucre tanimi almiyor. Yeni hucre eklemek icin soldan yonetilebilir bir depo sec.
-                    </div>
-                </div>
-            `;
-        }
-        const previewCode = StockModule.getLocationCode({
-            rafCode: StockModule.state.locationDraftRaf,
-            cellCode: StockModule.state.locationDraftCell
-        });
-        return `
-            <div class="card" style="padding:1rem 1.05rem;">
-                <div style="font-size:1rem; font-weight:800; color:#0f172a;">${StockModule.escapeHtml(node.name || '-')} / hucre olustur</div>
-                <div style="margin-top:0.3rem; color:#64748b;">Burada olusan kod sadece bu depo icindeki fiziksel adresi anlatir. Global bir birim kodu mantigi kurulmaz.</div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.95rem;">
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Raf</label>
-                        <input value="${StockModule.escapeHtml(StockModule.state.locationDraftRaf)}" oninput="StockModule.setDraftField('locRaf', this.value)" placeholder="or: R01" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.75rem;">
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Hucre</label>
-                        <input value="${StockModule.escapeHtml(StockModule.state.locationDraftCell)}" oninput="StockModule.setDraftField('locCell', this.value)" placeholder="or: A1" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.75rem;">
-                    </div>
-                </div>
-                <div style="margin-top:0.75rem;">
-                    <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.2rem;">Hucre notu</label>
-                    <input value="${StockModule.escapeHtml(StockModule.state.locationDraftNote)}" oninput="StockModule.setDraftField('locNote', this.value)" placeholder="or: Uzun profil icin ayrildi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0 0.75rem;">
-                </div>
-                <div style="margin-top:0.85rem; padding:0.8rem 0.9rem; border-radius:0.75rem; background:#f8fafc; border:1px dashed #cbd5e1;">
-                    <div style="font-size:0.72rem; color:#64748b; text-transform:uppercase; font-weight:800;">Onizleme kod</div>
-                    <div style="margin-top:0.3rem; font-family:monospace; font-size:1rem; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(previewCode)}</div>
-                </div>
-                <div style="display:flex; justify-content:flex-end; margin-top:0.85rem;">
-                    <button class="btn-primary" onclick="StockModule.saveLocationInline('${StockModule.escapeHtml(node.id || '')}')">Hucre ekle +</button>
-                </div>
+                <div class="stock-ref-text">Bu ekran bu alanlarda stok hareketi yapmaz. Sadece urunlerin nerede oldugunu ve hangi depoda gorundugunu izlemek icin kullanilir.</div>
             </div>
         `;
     },
@@ -614,63 +665,29 @@ const StockModule = {
         const node = StockModule.getSelectedNode();
         const mainDepot = StockModule.getMainDepot();
         const customDepots = StockModule.getCustomDepots();
-        const unitMeta = StockModule.getUnitRowsMeta();
-        const transferMeta = unitMeta.filter((row) => row.kind === 'transfer');
-        const unitDepots = unitMeta.filter((row) => row.kind === 'unit');
+        const unitDepots = StockModule.getUnitRowsMeta();
         const externalDepots = StockModule.getExternalRowsMeta();
-        const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
         const overview = StockModule.getOverviewSummary();
+        const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
 
-        const topButton = (id, label) => `
-            <button onclick="StockModule.setTopTab('${id}')" class="stock-tab${StockModule.state.topTab === id ? ' active' : ''}">
-                ${label}
-            </button>
+        const topButton = (id, label) => `<button onclick="StockModule.setTopTab('${id}')" class="stock-tab${StockModule.state.topTab === id ? ' active' : ''}">${label}</button>`;
+        const customDepotSection = `
+            ${StockModule.renderSidebarSection('Kullanici depolari', customDepots, { canEdit: true })}
+            <div class="stock-side-row"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add">depo ekle +</button></div>
         `;
-
-        const headerSummary = `
-            <div class="stock-metrics">
-                <div class="stock-metric"><div class="stock-metric-label">Tanimli depo</div><div class="stock-metric-value">${overview.managedCount}</div></div>
-                <div class="stock-metric"><div class="stock-metric-label">Toplam konum</div><div class="stock-metric-value">${overview.locationCount}</div></div>
-                <div class="stock-metric"><div class="stock-metric-label">Atolye referansi</div><div class="stock-metric-value">${overview.unitCount}</div></div>
-                <div class="stock-metric"><div class="stock-metric-label">Dis birim</div><div class="stock-metric-value">${overview.externalCount}</div></div>
-            </div>
-        `;
-
-        const nodeSummary = node.kind === 'managed' && managedSummary
-            ? `
-                <div class="stock-banner-meta">
-                    <div class="stock-banner-meta-item">
-                        <div class="stock-banner-meta-label">Secili depo</div>
-                        <div class="stock-banner-meta-value">${StockModule.escapeHtml(node.name || '-')}</div>
-                    </div>
-                    <div class="stock-banner-meta-item">
-                        <div class="stock-banner-meta-label">Raf sayisi</div>
-                        <div class="stock-banner-meta-value">${managedSummary.rafCount}</div>
-                    </div>
-                    <div class="stock-banner-meta-item">
-                        <div class="stock-banner-meta-label">Hucre sayisi</div>
-                        <div class="stock-banner-meta-value">${managedSummary.locationCount}</div>
-                    </div>
-                </div>
-            `
-            : '';
-
         const sidebarHtml = StockModule.state.topTab === 'transfer'
             ? `
-                ${StockModule.renderSidebarSection('Depo transfer', transferMeta)}
-                <div class="stock-side-hint">
-                    Bu sekme artik stok hareket ekrani degil. Transfer alani sadece yonlendirme referansi olarak gorunur.
-                </div>
+                ${StockModule.renderSidebarSection('Transfer depo', customDepots.filter((row) => String(row?.id || '') === 'depot_transfer'), { canEdit: true })}
+                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+                <div class="stock-side-hint">Depo transfer alaninda bekleyen urunler daha sonra sonraki rotaya veya dis birime yonlendirilebilir.</div>
             `
             : `
+                <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
                 ${StockModule.renderSidebarSection('Ana depo', [mainDepot])}
-                ${StockModule.renderSidebarSection('Kullanici depolari', customDepots, { canEdit: true })}
+                ${customDepotSection}
                 ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots)}
                 ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
             `;
-
-        const tableTitle = node.kind === 'managed' ? `${StockModule.escapeHtml(node.name || '-')} / konum listesi` : `${StockModule.escapeHtml(node.name || '-')} / referans alani`;
-        const bodyHtml = node.kind === 'managed' ? StockModule.renderLocationsTable(node) : StockModule.renderReferenceCard(node);
 
         return `
             <section class="stock-shell">
@@ -678,48 +695,59 @@ const StockModule = {
                     <div class="stock-hero-header">
                         <div>
                             <h2 class="stock-title">depo & stok</h2>
-                            <div class="stock-desc">Bu ekran artik stok giris-cikis islemi yapmaz. Fiziksel depo, raf ve hucre adreslerini tanimlamak; sonradan baska modullerde bu adresleri referans gostermek icin kullanilir.</div>
+                            <div class="stock-desc">Bu ekran depo adreslerini insa etmek ve fabrikadaki urunlerin hangi depoda gorundugunu izlemek icin kullanilir. Mal kabul, sevk, teslim alma ve transfer modulleri hedef lokasyonu buradan secer.</div>
                         </div>
                         <div class="stock-tabs">
                             ${topButton('all', 'tum depolar')}
                             ${topButton('transfer', 'depo transfer')}
                         </div>
                     </div>
-                    ${headerSummary}
+
+                    <div class="stock-metrics">
+                        <div class="stock-metric"><div class="stock-metric-label">Tanimli depo</div><div class="stock-metric-value">${overview.managedCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Toplam konum</div><div class="stock-metric-value">${overview.locationCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Atolye depolari</div><div class="stock-metric-value">${overview.unitCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Dis birim</div><div class="stock-metric-value">${overview.externalCount}</div></div>
+                    </div>
+
                     <div class="stock-note-banner">
                         <div style="display:flex; justify-content:space-between; gap:0.8rem; align-items:flex-start; flex-wrap:wrap;">
                             <div>
                                 <div class="stock-banner-title">${StockModule.escapeHtml(node.name || '-')}</div>
                                 <div class="stock-banner-note">${StockModule.escapeHtml(node.note || '')}</div>
                             </div>
-                            ${node.kind === 'managed' && node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')" style="height:34px;">duzenle</button>` : ''}
+                            <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                                ${node.kind === 'managed' && node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">duzenle</button>` : ''}
+                                ${StockModule.state.topTab !== 'transfer' ? `<button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>` : ''}
+                            </div>
                         </div>
-                        ${nodeSummary}
+                        ${node.kind === 'managed' && managedSummary ? `
+                            <div class="stock-banner-meta">
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Secili depo</div><div class="stock-banner-meta-value">${StockModule.escapeHtml(node.name || '-')}</div></div>
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Raf sayisi</div><div class="stock-banner-meta-value">${managedSummary.rafCount}</div></div>
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Hucre sayisi</div><div class="stock-banner-meta-value">${managedSummary.locationCount}</div></div>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
 
                 <div class="stock-workspace">
-                    <aside class="stock-sidebar">
-                        ${sidebarHtml}
-                    </aside>
+                    <aside class="stock-sidebar">${sidebarHtml}</aside>
 
                     <div class="stock-content">
                         <div class="stock-section-head">
-                            <div class="stock-section-title">
-                                ${tableTitle}
-                            </div>
-                            <div class="stock-section-helper">
-                                ${node.kind === 'managed' ? 'Arama bu deponun icindeki fiziksel konumlarda calisir.' : 'Bu alan sadece secim / yonlendirme icin gorunur.'}
-                            </div>
+                            <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
+                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir.' : 'Arama secili deponun icinde urun adi ve ID koduna gore calisir.'}</div>
                         </div>
 
-                        <div class="stock-search-grid">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="depo adi veya not ile ara">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCategory)}" oninput="StockModule.setSearch('category', this.value)" placeholder="raf / hucre / not ile ara">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="konum kodu ile ara">
+                        <div class="stock-search-grid stock-search-grid-2">
+                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
+                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
                         </div>
 
-                        ${bodyHtml}
+                        ${StockModule.renderInventoryGroups(node)}
+                        ${StockModule.renderLocationsCard(node)}
+                        ${StockModule.renderReferenceNotice(node)}
                     </div>
                 </div>
             </section>

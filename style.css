@@ -1159,6 +1159,13 @@ tr:hover {
     color: #0f172a;
 }
 
+.personnel-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
 .personnel-modal-note {
     margin-top: 0.4rem;
     color: #64748b;

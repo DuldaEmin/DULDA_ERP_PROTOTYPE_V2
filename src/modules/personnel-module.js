@@ -679,6 +679,12 @@ const PersonnelModule = {
         `).join('');
     },
 
+    resetPermissionSelections: () => {
+        document.querySelectorAll('.personnel-perm-list input[type="checkbox"]').forEach((input) => {
+            input.checked = false;
+        });
+    },
+
     openPermissionModal: (personId) => {
         const person = (DB.data?.data?.personnel || []).find((row) => String(row?.id || '') === String(personId || ''));
         if (!person) return;
@@ -691,7 +697,10 @@ const PersonnelModule = {
 
                 <div class="personnel-perm-grid">
                     <div class="personnel-modal-card">
-                        <div class="personnel-modal-title">Yetki yonetimi</div>
+                        <div class="personnel-section-head">
+                            <div class="personnel-modal-title">Yetki yonetimi</div>
+                            <button class="btn-sm" type="button" onclick="PersonnelModule.resetPermissionSelections()">Sifirla</button>
+                        </div>
                         <div class="personnel-perm-list">${PersonnelModule.renderPermissionCards(person)}</div>
                     </div>
 

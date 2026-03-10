@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-10T14:17:25.592Z",
+    "updated_at": "2026-03-10T14:31:55.691Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -667,6 +667,137 @@
             "delete": false,
             "approve": false
           }
+        }
+      },
+      {
+        "id": "345921d9-defb-4bc1-bd12-391b40a11d1b",
+        "personCode": "PER-000006",
+        "fullName": "ALI VELI",
+        "title": "ortacı",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "operator",
+        "username": "aliveli",
+        "password": "1234",
+        "isAccountActive": true,
+        "assignedUnitIds": [
+          "u3"
+        ],
+        "unitId": "u3",
+        "modulePermissions": {
+          "planlama": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u4": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T14:21:14.145Z",
+        "permissions": {
+          "production": false,
+          "waste": false,
+          "admin": false
         }
       }
     ],

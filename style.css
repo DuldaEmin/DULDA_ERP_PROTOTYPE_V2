@@ -1274,6 +1274,35 @@ tr:hover {
     margin-top: 0.7rem;
 }
 
+.personnel-perm-unit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 0.8rem;
+}
+
+.personnel-perm-unit-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.9rem;
+    background: #f8fafc;
+}
+
+.personnel-perm-unit-name {
+    min-width: 180px;
+    font-weight: 700;
+    color: #334155;
+}
+
+.personnel-perm-unit-row .personnel-perm-row {
+    margin-top: 0;
+}
+
 .personnel-perm-check {
     display: inline-flex;
     align-items: center;
@@ -1330,6 +1359,10 @@ tr:hover {
     .personnel-form-grid,
     .personnel-unit-grid {
         grid-template-columns: 1fr;
+    }
+
+    .personnel-perm-unit-row {
+        align-items: flex-start;
     }
 
     .stock-hub {

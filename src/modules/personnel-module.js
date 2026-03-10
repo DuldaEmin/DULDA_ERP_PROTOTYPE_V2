@@ -26,6 +26,16 @@ const PersonnelModule = {
         { id: 'settings', label: 'Ayarlar', icon: 'settings' }
     ],
 
+    permissionUnitSeed: [
+        { id: 'u1', name: 'CNC ATOLYESI' },
+        { id: 'u2', name: 'EKSTRUDER ATOLYESI' },
+        { id: 'u3', name: 'MONTAJ' },
+        { id: 'u4', name: 'PAKETLEME' },
+        { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI' },
+        { id: 'u7', name: 'TESTERE ATOLYESI' },
+        { id: 'u_dtm', name: 'ANA DEPO' }
+    ],
+
     escapeHtml: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -49,6 +59,25 @@ const PersonnelModule = {
     getInternalUnits: () => (DB.data?.data?.units || [])
         .filter((row) => String(row?.type || '') === 'internal')
         .filter((row) => String(row?.id || '') !== 'u_dtm'),
+
+    getPermissionUnits: () => {
+        const merged = new Map();
+        PersonnelModule.permissionUnitSeed.forEach((unit) => {
+            merged.set(String(unit.id || ''), { ...unit, type: 'internal' });
+        });
+        (DB.data?.data?.units || [])
+            .filter((row) => String(row?.type || '') === 'internal')
+            .forEach((row) => {
+                const unitId = String(row?.id || '').trim();
+                if (!unitId) return;
+                merged.set(unitId, {
+                    id: unitId,
+                    name: String(row?.name || merged.get(unitId)?.name || '-').trim(),
+                    type: 'internal'
+                });
+            });
+        return Array.from(merged.values());
+    },
 
     getAssignedUnitIds: (person) => {
         if (Array.isArray(person?.assignedUnitIds) && person.assignedUnitIds.length > 0) {
@@ -78,23 +107,96 @@ const PersonnelModule = {
         return acc;
     }, {}),
 
+    normalizePermissionSet: (value) => PersonnelModule.permissionOps.reduce((acc, op) => {
+        acc[op] = !!value?.[op];
+        return acc;
+    }, {}),
+
+    buildDefaultModulePermissions: () => PersonnelModule.moduleDefs.reduce((acc, mod) => {
+        acc[mod.id] = PersonnelModule.getEmptyPermissionSet();
+        return acc;
+    }, {}),
+
+    buildDefaultUnitPermissions: () => PersonnelModule.getPermissionUnits().reduce((acc, unit) => {
+        const unitId = String(unit?.id || '').trim();
+        if (unitId) acc[unitId] = PersonnelModule.getEmptyPermissionSet();
+        return acc;
+    }, {}),
+
     buildPermissionsFromRole: (rolePreset) => {
         const role = String(rolePreset || 'operator');
-        const permissions = {};
-        PersonnelModule.moduleDefs.forEach((mod) => {
-            if (role === 'tam_yetkili') {
+        const permissions = PersonnelModule.buildDefaultModulePermissions();
+        if (role === 'tam_yetkili') {
+            PersonnelModule.moduleDefs.forEach((mod) => {
                 permissions[mod.id] = PersonnelModule.getFullPermissionSet();
-                return;
-            }
-            const next = PersonnelModule.getEmptyPermissionSet();
-            next.view = ['planlama', 'stock', 'units', 'products'].includes(mod.id);
-            if (mod.id === 'units') {
-                next.create = true;
-                next.edit = true;
-            }
-            permissions[mod.id] = next;
-        });
+            });
+        }
         return permissions;
+    },
+
+    buildUnitPermissionsFromRole: (rolePreset) => {
+        const role = String(rolePreset || 'operator');
+        const permissions = PersonnelModule.buildDefaultUnitPermissions();
+        if (role === 'tam_yetkili') {
+            Object.keys(permissions).forEach((unitId) => {
+                permissions[unitId] = PersonnelModule.getFullPermissionSet();
+            });
+        }
+        return permissions;
+    },
+
+    hasAnyPermission: (value) => PersonnelModule.permissionOps.some((op) => !!value?.[op]),
+
+    normalizeModulePermissions: (value) => {
+        const normalized = PersonnelModule.buildDefaultModulePermissions();
+        PersonnelModule.moduleDefs.forEach((mod) => {
+            normalized[mod.id] = PersonnelModule.normalizePermissionSet(value?.[mod.id]);
+        });
+        return normalized;
+    },
+
+    normalizeUnitPermissions: (value) => {
+        const normalized = PersonnelModule.buildDefaultUnitPermissions();
+        PersonnelModule.getPermissionUnits().forEach((unit) => {
+            const unitId = String(unit?.id || '').trim();
+            if (!unitId) return;
+            normalized[unitId] = PersonnelModule.normalizePermissionSet(value?.[unitId]);
+        });
+        return normalized;
+    },
+
+    cloneUnitPermissionSet: (permissionSet) => {
+        const normalized = PersonnelModule.normalizePermissionSet(permissionSet);
+        const next = PersonnelModule.buildDefaultUnitPermissions();
+        Object.keys(next).forEach((unitId) => {
+            next[unitId] = { ...normalized };
+        });
+        return next;
+    },
+
+    aggregateUnitPermissions: (value) => {
+        const aggregated = PersonnelModule.getEmptyPermissionSet();
+        const unitPermissions = PersonnelModule.normalizeUnitPermissions(value);
+        Object.values(unitPermissions).forEach((permissionSet) => {
+            PersonnelModule.permissionOps.forEach((op) => {
+                if (permissionSet?.[op]) aggregated[op] = true;
+            });
+        });
+        return aggregated;
+    },
+
+    getUnitPermissionsForPerson: (person) => {
+        if (person?.unitPermissions && typeof person.unitPermissions === 'object' && !Array.isArray(person.unitPermissions)) {
+            return PersonnelModule.normalizeUnitPermissions(person.unitPermissions);
+        }
+        const legacyUnitPermissions = PersonnelModule.normalizePermissionSet(person?.modulePermissions?.units);
+        if (PersonnelModule.hasAnyPermission(legacyUnitPermissions)) {
+            return PersonnelModule.cloneUnitPermissionSet(legacyUnitPermissions);
+        }
+        if (String(person?.rolePreset || '') === 'tam_yetkili') {
+            return PersonnelModule.buildUnitPermissionsFromRole('tam_yetkili');
+        }
+        return PersonnelModule.buildDefaultUnitPermissions();
     },
 
     getLegacyPermissions: (person) => {
@@ -198,6 +300,21 @@ const PersonnelModule = {
                 person.modulePermissions = PersonnelModule.buildPermissionsFromRole(person.rolePreset);
                 changed = true;
             }
+            const normalizedModulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
+            if (JSON.stringify(normalizedModulePermissions) !== JSON.stringify(person.modulePermissions)) {
+                person.modulePermissions = normalizedModulePermissions;
+                changed = true;
+            }
+            const nextUnitPermissions = PersonnelModule.getUnitPermissionsForPerson(person);
+            if (JSON.stringify(nextUnitPermissions) !== JSON.stringify(person.unitPermissions || {})) {
+                person.unitPermissions = nextUnitPermissions;
+                changed = true;
+            }
+            const aggregatedUnitPermissions = PersonnelModule.aggregateUnitPermissions(person.unitPermissions);
+            if (JSON.stringify(person.modulePermissions.units) !== JSON.stringify(aggregatedUnitPermissions)) {
+                person.modulePermissions.units = aggregatedUnitPermissions;
+                changed = true;
+            }
             if (!person.created_at) {
                 person.created_at = now;
                 changed = true;
@@ -230,8 +347,10 @@ const PersonnelModule = {
                     password: '',
                     isAccountActive: true,
                     modulePermissions: PersonnelModule.buildPermissionsFromRole(sample.rolePreset),
+                    unitPermissions: PersonnelModule.buildUnitPermissionsFromRole(sample.rolePreset),
                     created_at: now
                 };
+                next.modulePermissions.units = PersonnelModule.aggregateUnitPermissions(next.unitPermissions);
                 PersonnelModule.syncLegacyPermissions(next);
                 rows.push(next);
                 changed = true;
@@ -488,9 +607,9 @@ const PersonnelModule = {
             person.isAccountActive = isAccountActive;
             person.assignedUnitIds = assignedUnitIds;
             person.unitId = primaryUnitId;
-            if (String(person.rolePreset || '') !== rolePreset || !person.modulePermissions) {
-                person.modulePermissions = PersonnelModule.buildPermissionsFromRole(rolePreset);
-            }
+            person.modulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
+            person.unitPermissions = PersonnelModule.getUnitPermissionsForPerson(person);
+            person.modulePermissions.units = PersonnelModule.aggregateUnitPermissions(person.unitPermissions);
             PersonnelModule.syncLegacyPermissions(person);
         } else {
             const next = {
@@ -506,9 +625,11 @@ const PersonnelModule = {
                 isAccountActive,
                 assignedUnitIds,
                 unitId: primaryUnitId,
-                modulePermissions: PersonnelModule.buildPermissionsFromRole(rolePreset),
+                modulePermissions: PersonnelModule.buildDefaultModulePermissions(),
+                unitPermissions: PersonnelModule.buildDefaultUnitPermissions(),
                 created_at: new Date().toISOString()
             };
+            next.modulePermissions.units = PersonnelModule.aggregateUnitPermissions(next.unitPermissions);
             PersonnelModule.syncLegacyPermissions(next);
             rows.push(next);
         }
@@ -519,20 +640,41 @@ const PersonnelModule = {
     },
 
     renderPermissionCards: (person) => {
-        const permissions = person?.modulePermissions || PersonnelModule.buildPermissionsFromRole(person?.rolePreset || 'operator');
+        const permissions = PersonnelModule.normalizeModulePermissions(person?.modulePermissions);
+        const unitPermissions = PersonnelModule.getUnitPermissionsForPerson(person);
         return PersonnelModule.moduleDefs.map((mod) => `
             <div class="personnel-perm-card">
                 <div class="personnel-perm-card-head">
                     <div class="personnel-perm-card-title"><i data-lucide="${mod.icon}" width="16" height="16"></i> ${PersonnelModule.escapeHtml(mod.label)}</div>
                 </div>
-                <div class="personnel-perm-row">
-                    ${PersonnelModule.permissionOps.map((op) => `
-                        <label class="personnel-perm-check">
-                            <input id="perm_${mod.id}_${op}" type="checkbox" ${permissions?.[mod.id]?.[op] ? 'checked' : ''}>
-                            <span>${PersonnelModule.escapeHtml(PersonnelModule.permissionLabels[op] || op)}</span>
-                        </label>
-                    `).join('')}
-                </div>
+                ${mod.id === 'units'
+                    ? `<div class="personnel-perm-unit-list">
+                        ${PersonnelModule.getPermissionUnits().map((unit) => {
+                            const unitId = String(unit?.id || '').trim();
+                            const unitPerms = unitPermissions?.[unitId] || PersonnelModule.getEmptyPermissionSet();
+                            return `
+                                <div class="personnel-perm-unit-row">
+                                    <div class="personnel-perm-unit-name">${PersonnelModule.escapeHtml(unit?.name || '-')}</div>
+                                    <div class="personnel-perm-row">
+                                        ${PersonnelModule.permissionOps.map((op) => `
+                                            <label class="personnel-perm-check">
+                                                <input id="perm_unit_${PersonnelModule.escapeHtml(unitId)}_${op}" type="checkbox" ${unitPerms?.[op] ? 'checked' : ''}>
+                                                <span>${PersonnelModule.escapeHtml(PersonnelModule.permissionLabels[op] || op)}</span>
+                                            </label>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>`
+                    : `<div class="personnel-perm-row">
+                        ${PersonnelModule.permissionOps.map((op) => `
+                            <label class="personnel-perm-check">
+                                <input id="perm_${mod.id}_${op}" type="checkbox" ${permissions?.[mod.id]?.[op] ? 'checked' : ''}>
+                                <span>${PersonnelModule.escapeHtml(PersonnelModule.permissionLabels[op] || op)}</span>
+                            </label>
+                        `).join('')}
+                    </div>`}
             </div>
         `).join('');
     },
@@ -615,13 +757,25 @@ const PersonnelModule = {
         person.username = username;
         person.rolePreset = rolePreset;
         person.isAccountActive = isAccountActive;
+        person.modulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
+        person.unitPermissions = PersonnelModule.buildDefaultUnitPermissions();
 
         PersonnelModule.moduleDefs.forEach((mod) => {
+            if (mod.id === 'units') return;
             if (!person.modulePermissions[mod.id]) person.modulePermissions[mod.id] = PersonnelModule.getEmptyPermissionSet();
             PersonnelModule.permissionOps.forEach((op) => {
                 person.modulePermissions[mod.id][op] = !!document.getElementById(`perm_${mod.id}_${op}`)?.checked;
             });
         });
+        PersonnelModule.getPermissionUnits().forEach((unit) => {
+            const unitId = String(unit?.id || '').trim();
+            if (!unitId) return;
+            if (!person.unitPermissions[unitId]) person.unitPermissions[unitId] = PersonnelModule.getEmptyPermissionSet();
+            PersonnelModule.permissionOps.forEach((op) => {
+                person.unitPermissions[unitId][op] = !!document.getElementById(`perm_unit_${unitId}_${op}`)?.checked;
+            });
+        });
+        person.modulePermissions.units = PersonnelModule.aggregateUnitPermissions(person.unitPermissions);
 
         if (password) person.password = password;
         if (!person.title) person.title = rolePreset === 'tam_yetkili' ? 'Bolum Yetkilisi' : 'Operator';

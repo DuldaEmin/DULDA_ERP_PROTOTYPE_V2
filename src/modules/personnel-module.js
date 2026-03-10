@@ -566,15 +566,10 @@ const PersonnelModule = {
                 </div>
 
                 <div class="personnel-modal-card">
-                    <div class="personnel-modal-title">Birim / atolye atamalari</div>
-                    <div class="personnel-modal-note">Personeli birden fazla birime atayabilirsin. Sectigin personel ilgili birimlerin personel listesinde gorunur.</div>
-                    <div class="personnel-unit-grid">${PersonnelModule.renderUnitCheckboxes(person)}</div>
-                </div>
-
-                <div class="personnel-modal-card">
-                    <div class="personnel-modal-title">Ek gorev alanlari</div>
-                    <div class="personnel-modal-note">Depo ile ilgili personelleri ayrica depo & stok personel listesinde gostermek icin bu alani isaretle.</div>
+                    <div class="personnel-modal-title">Gorev / alan atamalari</div>
+                    <div class="personnel-modal-note">Personeli birden fazla gorev alanina atayabilirsin. Sectigin atolyeler ilgili personel listesinde, depo & stok secimi ise depo personel ekraninda gorunur.</div>
                     <div class="personnel-unit-grid">
+                        ${PersonnelModule.renderUnitCheckboxes(person)}
                         <label class="personnel-unit-chip">
                             <input type="checkbox" id="person_stock_staff" ${person?.isStockPersonnel ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
                             <span>depo & stok</span>

@@ -2,11 +2,31 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-10T16:02:10.943Z",
+    "updated_at": "2026-03-10T16:16:12.607Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
       "machinesSeededV1": true
+    },
+    "options": {
+      "masterUnits": [
+        "adet",
+        "kg",
+        "mt",
+        "koli"
+      ],
+      "masterColors": [
+        "Siyah",
+        "Beyaz",
+        "Antrasit",
+        "Fume"
+      ],
+      "partGroups": [
+        "Genel"
+      ],
+      "partSubGroups": [
+        "Genel"
+      ]
     }
   },
   "data": {
@@ -979,7 +999,38 @@
     "outsourceTransfers": [],
     "depoTransferLogs": [],
     "depoRoutes": [],
-    "productCategories": [],
+    "productCategories": [
+      {
+        "id": "cat1",
+        "name": "Alüminyum profil",
+        "icon": "🏗️",
+        "prefix": "ALM"
+      },
+      {
+        "id": "cat3",
+        "name": "Hırdavat & Vida",
+        "icon": "🔩",
+        "prefix": "VID"
+      },
+      {
+        "id": "cat_ext",
+        "name": "Ekstrüder pleksi",
+        "icon": "🏭",
+        "prefix": "AKS"
+      },
+      {
+        "id": "cat_box",
+        "name": "Koli",
+        "icon": "[ ]",
+        "prefix": "KLI"
+      },
+      {
+        "id": "cat_sarf",
+        "name": "Sarf & Genel Malzeme",
+        "icon": "SG",
+        "prefix": "SRF"
+      }
+    ],
     "stockDepots": [
       {
         "id": "depot_transfer",
@@ -1054,6 +1105,17 @@
     ],
     "stockDepotItems": [],
     "freeExternalVendorJobs": [],
-    "partComponentCards": []
+    "partComponentCards": [],
+    "colorLibrary": [],
+    "partWorkOrders": [],
+    "assemblyGroups": [],
+    "unitColors": {
+      "u2": [
+        "Seffaf",
+        "Beyaz",
+        "Siyah",
+        "Antrasit"
+      ]
+    }
   }
 }

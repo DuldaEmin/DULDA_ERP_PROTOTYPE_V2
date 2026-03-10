@@ -639,6 +639,7 @@ const UI = {
         else if (page === 'stock') { pageTitle.innerText = 'STOK YÖNETİMİ'; StockModule.render(container); }
         else if (page === 'purchasing') { pageTitle.innerText = 'SATIN ALMA'; PurchasingModule.render(container); }
         else if (page === 'units') { pageTitle.innerText = 'BİRİM YÖNETİMİ'; UnitModule.render(container); }
+        else if (page === 'personnel') { pageTitle.innerText = 'PERSONEL'; PersonnelModule.render(container); }
         else if (page === 'products') {
             const workspaceView = String(ProductLibraryModule.state.workspaceView || 'menu');
             pageTitle.innerText = workspaceView === 'master'

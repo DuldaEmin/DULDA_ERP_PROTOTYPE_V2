@@ -2063,20 +2063,20 @@ const UnitModule = {
         // Ensure Personnel Data Exists
         if (!DB.data.data.personnel) DB.data.data.personnel = [];
 
-        // Default Data Check
-        let personnel = DB.data.data.personnel.filter(p => p.unitId === unitId && p.isActive);
-        if (personnel.length === 0 && !DB.data.meta.personnelInitialized?.[unitId]) {
-            // Seed defaults ONLY ONCE
-            const defaults = [
-                { id: crypto.randomUUID(), unitId, fullName: 'Ahmet Yilmaz', permissions: { production: true, waste: true, admin: true }, isActive: true },
-                { id: crypto.randomUUID(), unitId, fullName: 'Mehmet Demir', permissions: { production: true, waste: false, admin: false }, isActive: true },
-            ];
-            DB.data.data.personnel.push(...defaults);
-            if (!DB.data.meta.personnelInitialized) DB.data.meta.personnelInitialized = {};
-            DB.data.meta.personnelInitialized[unitId] = true;
-            personnel = defaults;
-            // DB.save(); // Don't auto-save just for view
-        }
+        const getAssignedUnitIds = (person) => {
+            if (Array.isArray(person?.assignedUnitIds) && person.assignedUnitIds.length > 0) return person.assignedUnitIds.map(id => String(id || ''));
+            if (person?.unitId) return [String(person.unitId)];
+            return [];
+        };
+        const getLegacyPermissions = (person) => {
+            if (person?.permissions) return person.permissions;
+            return {
+                production: !!(person?.modulePermissions?.units?.create || person?.modulePermissions?.units?.edit || person?.modulePermissions?.units?.approve),
+                waste: !!person?.modulePermissions?.stock?.approve,
+                admin: String(person?.rolePreset || '') === 'tam_yetkili'
+            };
+        };
+        const personnel = DB.data.data.personnel.filter(p => p.isActive !== false && getAssignedUnitIds(p).includes(String(unitId || '')));
 
         container.innerHTML = `
             <div style="margin-bottom:2rem; display:flex; justify-content:space-between; align-items:center">
@@ -2106,15 +2106,15 @@ const UnitModule = {
                             <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; align-items:center; gap:0.75rem font-weight:600; color:#334155">
-                                        <div style="width:2.5rem; height:2.5rem; background:#f1f5f9; border-radius:99px; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:700; margin-right:0.75rem">${p.fullName.charAt(0)}</div>
+                                        <div style="width:2.5rem; height:2.5rem; background:#f1f5f9; border-radius:99px; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:700; margin-right:0.75rem">${String(p.fullName || '?').charAt(0)}</div>
                                         ${p.fullName}
                                     </div>
                                 </td>
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
-                                        ${p.permissions.admin ? '<span style="background:#faf5ff; color:#9333ea; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="shield" width="12"></i> Admin</span>' : ''}
-                                        ${p.permissions.production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Uretim</span>' : ''}
-                                        ${p.permissions.waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
+                                        ${getLegacyPermissions(p).admin ? '<span style="background:#faf5ff; color:#9333ea; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="shield" width="12"></i> Admin</span>' : ''}
+                                        ${getLegacyPermissions(p).production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Uretim</span>' : ''}
+                                        ${getLegacyPermissions(p).waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
                                     </div>
                                 </td>
                                 <td style="padding:1.5rem; text-align:right">

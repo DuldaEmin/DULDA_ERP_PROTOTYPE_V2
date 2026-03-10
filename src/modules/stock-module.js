@@ -1,6 +1,6 @@
 const StockModule = {
     state: {
-        topTab: 'all',
+        workspaceView: 'hub',
         selectedKey: 'all',
         searchName: '',
         searchCode: '',
@@ -173,6 +173,32 @@ const StockModule = {
         });
     },
 
+    getUserDepots: () => StockModule.getCustomDepots()
+        .filter((row) => String(row?.id || '') !== 'depot_transfer'),
+
+    getTransferDepotMeta: () => {
+        const transferDepot = StockModule.getCustomDepots()
+            .find((row) => String(row?.id || '') === 'depot_transfer');
+        if (transferDepot) return transferDepot;
+        return {
+            id: 'depot_transfer',
+            key: 'managed:depot_transfer',
+            name: 'TRANSFER DEPO',
+            note: 'Atolyeler arasinda bekleyen ve yonlendirilecek urunler burada gorunur.',
+            kind: 'managed',
+            editable: true,
+            allowLocations: true
+        };
+    },
+
+    getWorkshopDepots: () => [
+        StockModule.getTransferDepotMeta(),
+        ...StockModule.getUnitRowsMeta()
+    ],
+
+    isSeedDepot: (depotId) => StockModule.managedDepotSeed
+        .some((seed) => String(seed?.id || '') === String(depotId || '')),
+
     getUnitRowsMeta: () => {
         const formatName = (name) => {
             const upper = String(name || '').trim().toUpperCase();
@@ -326,17 +352,24 @@ const StockModule = {
         return Array.from(map.values()).sort((a, b) => String(a?.title || '').localeCompare(String(b?.title || ''), 'tr'));
     },
 
-    setTopTab: (tabId) => {
-        const nextTab = String(tabId || 'all');
-        StockModule.state.topTab = nextTab;
-        StockModule.state.selectedKey = nextTab === 'transfer' ? 'managed:depot_transfer' : 'all';
+    openWorkspace: (viewId) => {
+        const nextView = String(viewId || 'hub');
+        StockModule.state.workspaceView = nextView;
+        if (nextView === 'depots' && String(StockModule.state.selectedKey || '') === 'managed:depot_transfer') {
+            StockModule.state.selectedKey = 'all';
+        }
+        if (nextView === 'transfer') {
+            StockModule.state.selectedKey = 'managed:depot_transfer';
+        }
         UI.renderCurrentPage();
     },
 
     selectNode: (key) => {
         const nextKey = String(key || 'all');
         StockModule.state.selectedKey = nextKey;
-        StockModule.state.topTab = nextKey === 'managed:depot_transfer' ? 'transfer' : 'all';
+        if (String(StockModule.state.workspaceView || '') === 'hub') {
+            StockModule.state.workspaceView = 'depots';
+        }
         UI.renderCurrentPage();
     },
 
@@ -446,6 +479,7 @@ const StockModule = {
     renderDepotModal: () => {
         const editing = !!String(StockModule.state.depotEditingId || '');
         const editingMain = String(StockModule.state.depotEditingId || '') === 'main';
+        const editingSeed = StockModule.isSeedDepot(StockModule.state.depotEditingId || '');
         Modal.open(editing ? 'Depo Duzenle' : 'Depo Olustur', `
             <div class="stock-modal-form">
                 <div class="stock-modal-title">${editing ? 'Secili depoyu duzenle' : 'Yeni depo tanimi'}</div>
@@ -499,7 +533,7 @@ const StockModule = {
                 </div>
 
                 <div class="stock-modal-footer">
-                    ${editing && !editingMain ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
+                    ${editing && !editingMain && !editingSeed ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
                     <div style="display:flex; gap:0.55rem;">
                         <button class="btn-sm" onclick="StockModule.resetDepotDraft(); Modal.close()">Vazgec</button>
                         <button class="btn-primary" onclick="StockModule.saveDepotModal()">${editing ? 'Kaydet' : 'Depoyu kaydet'}</button>
@@ -552,7 +586,7 @@ const StockModule = {
             .concat(nextLocations);
 
         StockModule.state.selectedKey = `managed:${depotId}`;
-        StockModule.state.topTab = depotId === 'depot_transfer' ? 'transfer' : 'all';
+        StockModule.state.workspaceView = depotId === 'depot_transfer' ? 'transfer' : 'depots';
         await DB.save();
         StockModule.resetDepotDraft();
         Modal.close();
@@ -562,12 +596,13 @@ const StockModule = {
     deleteDepot: async (depotId) => {
         const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === String(depotId || ''));
         if (!depot) return;
+        if (StockModule.isSeedDepot(depotId)) return alert('Sistem depolari silinemez.');
         if (!confirm('Bu depoyu listeden kaldirmak istiyor musunuz?')) return;
         depot.isActive = false;
         DB.data.data.stockDepotLocations = (DB.data.data.stockDepotLocations || []).filter((row) => String(row?.depotId || '') !== String(depotId || ''));
         if (String(StockModule.state.selectedKey || '') === `managed:${String(depotId || '')}`) {
             StockModule.state.selectedKey = 'all';
-            StockModule.state.topTab = 'all';
+            StockModule.state.workspaceView = 'depots';
         }
         await DB.save();
         StockModule.resetDepotDraft();
@@ -576,7 +611,6 @@ const StockModule = {
     },
 
     renderSidebarSection: (title, items, options = {}) => {
-        const canEdit = !!options.canEdit;
         if (items.length === 0) return '';
         return `
             <div class="stock-side-group">
@@ -584,6 +618,7 @@ const StockModule = {
                 <div class="stock-side-list">
                     ${items.map((item) => {
             const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
+            const canEdit = options.allowEdit !== false && item?.editable === true;
             return `
                             <div class="stock-side-row${canEdit ? ' with-edit' : ''}">
                                 <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button>
@@ -623,7 +658,7 @@ const StockModule = {
                                     <tr>
                                         <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
                                         <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
-                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' • ') || 'Detay daha sonra zenginlestirilecek.')}</td>
+                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' / ') || 'Detay daha sonra zenginlestirilecek.')}</td>
                                     </tr>
                                 `;
         }).join('')}

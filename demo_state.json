@@ -2,10 +2,11 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-10T14:02:02.312Z",
+    "updated_at": "2026-03-10T14:03:31.371Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
-      "personnelModuleSeedV1": true
+      "personnelModuleSeedV1": true,
+      "machinesSeededV1": true
     }
   },
   "data": {
@@ -473,7 +474,26 @@
         "type": "external"
       }
     ],
-    "machines": [],
+    "machines": [
+      {
+        "id": "m1",
+        "unitId": "u2",
+        "name": "Ekstruder Hatti 1",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "m2",
+        "unitId": "u2",
+        "name": "Ekstruder Hatti 2",
+        "status": "MAINTENANCE"
+      },
+      {
+        "id": "m3",
+        "unitId": "u1",
+        "name": "CNC Kesim 1",
+        "status": "IDLE"
+      }
+    ],
     "inventory": [],
     "aluminumProfiles": [],
     "cncCards": [],
@@ -564,6 +584,8 @@
         "created_at": "2026-03-10T12:37:17.688Z"
       }
     ],
-    "stockDepotItems": []
+    "stockDepotItems": [],
+    "freeExternalVendorJobs": [],
+    "partComponentCards": []
   }
 }

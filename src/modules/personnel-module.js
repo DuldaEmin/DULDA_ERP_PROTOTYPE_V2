@@ -30,7 +30,6 @@ const PersonnelModule = {
         { id: 'u1', name: 'CNC ATOLYESI' },
         { id: 'u2', name: 'EKSTRUDER ATOLYESI' },
         { id: 'u3', name: 'MONTAJ' },
-        { id: 'u4', name: 'PAKETLEME' },
         { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI' },
         { id: 'u7', name: 'TESTERE ATOLYESI' },
         { id: 'u_dtm', name: 'ANA DEPO' }

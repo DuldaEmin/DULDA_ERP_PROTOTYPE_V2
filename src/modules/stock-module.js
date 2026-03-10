@@ -55,7 +55,6 @@ const StockModule = {
                 { id: 'u1', name: 'CNC ATOLYESI', type: 'internal' },
                 { id: 'u2', name: 'EKSTRUDER ATOLYESI', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
-                { id: 'u4', name: 'PAKETLEME', type: 'internal' },
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
                 { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
@@ -73,6 +72,14 @@ const StockModule = {
             changed = true;
         } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'ANA DEPO') {
             mainDepotUnit.name = 'ANA DEPO';
+            changed = true;
+        }
+
+        const packageIds = (DB.data.data.units || [])
+            .filter((row) => String(row?.id || '') === 'u4' || String(row?.name || '').toUpperCase().includes('PAKETLEME'))
+            .map((row) => row.id);
+        if (packageIds.length > 0) {
+            DB.data.data.units = (DB.data.data.units || []).filter((row) => !packageIds.includes(row.id));
             changed = true;
         }
 

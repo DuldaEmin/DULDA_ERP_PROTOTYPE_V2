@@ -251,7 +251,6 @@ const UnitModule = {
                 { id: 'u1', name: 'CNC ATÖLYESİ', type: 'internal' },
                 { id: 'u2', name: 'EKSTRÜDER ATÖLYESİ', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
-                { id: 'u4', name: 'PAKETLEME', type: 'internal' },
                 { id: 'u5', name: 'PLEKSİ POLİSAJ ATÖLYESİ', type: 'internal' },
                 { id: 'u6', name: 'PUNTA ATÖLYESİ', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATÖLYESİ', type: 'internal' },
@@ -2437,7 +2436,6 @@ const StockModule = {
             { id: 'TESTERE', label: 'TESTERE' },
             { id: 'PLEKSİ', label: 'PLEKSİ POLİSAJ' },
             { id: 'PUNTA', label: 'PUNTA' },
-            { id: 'PAKETLEME', label: 'PAKETLEME' },
         ];
 
         // Ensure Data Exists
@@ -2645,7 +2643,6 @@ const StockModule = {
             { id: 'TESTERE', label: 'TESTERE' },
             { id: 'PLEKSİ', label: 'PLEKSİ POLİSAJ' },
             { id: 'PUNTA', label: 'PUNTA' },
-            { id: 'PAKETLEME', label: 'PAKETLEME' },
         ];
         const products = DB.data.data.products;
 

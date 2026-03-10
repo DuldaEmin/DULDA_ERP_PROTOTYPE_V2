@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-10T14:33:34.019Z",
+    "updated_at": "2026-03-10T14:39:38.204Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -109,13 +109,6 @@
             "approve": true
           },
           "u3": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": true,
-            "approve": true
-          },
-          "u4": {
             "view": true,
             "create": true,
             "edit": true,
@@ -246,13 +239,6 @@
             "delete": false,
             "approve": false
           },
-          "u4": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": false,
-            "approve": false
-          },
           "u5": {
             "view": true,
             "create": true,
@@ -371,13 +357,6 @@
             "approve": true
           },
           "u3": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": true,
-            "approve": true
-          },
-          "u4": {
             "view": true,
             "create": true,
             "edit": true,
@@ -508,13 +487,6 @@
             "delete": false,
             "approve": false
           },
-          "u4": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": false,
-            "approve": false
-          },
           "u5": {
             "view": true,
             "create": true,
@@ -639,13 +611,6 @@
             "delete": false,
             "approve": false
           },
-          "u4": {
-            "view": true,
-            "create": true,
-            "edit": true,
-            "delete": false,
-            "approve": false
-          },
           "u5": {
             "view": true,
             "create": true,
@@ -764,13 +729,6 @@
             "delete": false,
             "approve": false
           },
-          "u4": {
-            "view": false,
-            "create": false,
-            "edit": false,
-            "delete": false,
-            "approve": false
-          },
           "u5": {
             "view": false,
             "create": false,
@@ -817,11 +775,6 @@
       {
         "id": "u3",
         "name": "MONTAJ",
-        "type": "internal"
-      },
-      {
-        "id": "u4",
-        "name": "PAKETLEME",
         "type": "internal"
       },
       {

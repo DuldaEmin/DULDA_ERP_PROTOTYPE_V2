@@ -140,7 +140,6 @@ const UnitModule = {
                 { id: 'u1', name: 'CNC ATOLYESI', type: 'internal' },
                 { id: 'u2', name: 'EKSTRUDER ATOLYESI', type: 'internal' },
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
-                { id: 'u4', name: 'PAKETLEME', type: 'internal' },
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
                 { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
@@ -190,6 +189,39 @@ const UnitModule = {
                 ];
             }
             DB.data.meta.seedFlags.machinesSeededV1 = true;
+            DB.markDirty();
+        }
+
+        // Paketleme birimi kaldirildi; eski kayitlardan da temizle.
+        const packageIds = (DB.data.data.units || [])
+            .filter(u => String(u?.id || '') === 'u4' || String(u?.name || '').toUpperCase().includes('PAKETLEME'))
+            .map(u => u.id);
+        if (packageIds.length > 0) {
+            DB.data.data.units = (DB.data.data.units || []).filter(u => !packageIds.includes(u.id));
+            if (Array.isArray(DB.data.data.machines)) {
+                DB.data.data.machines = DB.data.data.machines.filter(m => !packageIds.includes(m.unitId));
+            }
+            if (Array.isArray(DB.data.data.personnel)) {
+                DB.data.data.personnel = DB.data.data.personnel.map((person) => {
+                    if (!person || typeof person !== 'object') return person;
+                    const assignedUnitIds = Array.isArray(person.assignedUnitIds)
+                        ? person.assignedUnitIds.filter((unitId) => !packageIds.includes(unitId))
+                        : [];
+                    const unitPermissions = person.unitPermissions && typeof person.unitPermissions === 'object'
+                        ? Object.fromEntries(Object.entries(person.unitPermissions).filter(([unitId]) => !packageIds.includes(unitId)))
+                        : person.unitPermissions;
+                    return {
+                        ...person,
+                        assignedUnitIds,
+                        unitId: packageIds.includes(person.unitId) ? (assignedUnitIds[0] || '') : person.unitId,
+                        unitPermissions
+                    };
+                });
+            }
+            if (UnitModule.state.activeUnitId && packageIds.includes(UnitModule.state.activeUnitId)) {
+                UnitModule.state.activeUnitId = null;
+                UnitModule.state.view = 'list';
+            }
             DB.markDirty();
         }
 
@@ -674,7 +706,6 @@ const UnitModule = {
             u1: { bg: '#dbeafe', fg: '#1d4ed8' },
             u2: { bg: '#dcfce7', fg: '#15803d' },
             u3: { bg: '#ede9fe', fg: '#6d28d9' },
-            u4: { bg: '#fee2e2', fg: '#b91c1c' },
             u5: { bg: '#fce7f3', fg: '#be185d' },
             u7: { bg: '#fef3c7', fg: '#b45309' },
             u_dtm: { bg: '#dbeafe', fg: '#1e40af' },

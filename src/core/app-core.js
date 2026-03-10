@@ -3,6 +3,7 @@
  * Synced with ASIL Design System
  */
 const STORAGE_KEY = "DULDA_ERP_STATE";
+const CONFLICT_DRAFT_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT";
 
 const MojibakeFix = {
     markerRegex: /[ÃÂâÄÅÆƒ‚�]/,
@@ -292,6 +293,10 @@ const DB = {
     storageMode: "localStorage",
     saveInProgress: false,
     saveQueued: false,
+    baseRevision: 0,
+    clientSessionId: (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+        ? globalThis.crypto.randomUUID()
+        : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
 
     normalizeData: () => {
         if (!DB.data || typeof DB.data !== "object") {
@@ -300,6 +305,7 @@ const DB = {
 
         if (!DB.data.meta || typeof DB.data.meta !== "object") DB.data.meta = {};
         if (!DB.data.meta.created_at) DB.data.meta.created_at = new Date().toISOString();
+        if (!Number.isInteger(DB.data.meta.revision) || DB.data.meta.revision < 0) DB.data.meta.revision = 0;
 
         if (!DB.data.data || typeof DB.data.data !== "object") DB.data.data = {};
         const d = DB.data.data;
@@ -347,6 +353,10 @@ const DB = {
             const ms = Date.parse(ts);
             return Number.isFinite(ms) ? ms : 0;
         };
+        const stateRevision = (state) => {
+            const revision = Number(state?.meta?.revision);
+            return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+        };
 
         // Disk file
         try {
@@ -372,12 +382,20 @@ const DB = {
         }
 
         // Decide best source:
-        // Prefer newest timestamp. On ties, prefer disk to avoid resurrecting stale local rows.
+        // Prefer higher revision. On ties, prefer newest timestamp. On full ties, prefer disk.
         if (diskState && localState) {
+            const diskRevision = stateRevision(diskState);
+            const localRevision = stateRevision(localState);
             const diskTime = stateTime(diskState);
             const localTime = stateTime(localState);
 
-            if (localTime > diskTime) {
+            if (localRevision > diskRevision) {
+                loaded = localState;
+                DB.storageMode = "localStorage";
+            } else if (diskRevision > localRevision) {
+                loaded = diskState;
+                DB.storageMode = "disk";
+            } else if (localTime > diskTime) {
                 loaded = localState;
                 DB.storageMode = "localStorage";
             } else {
@@ -394,6 +412,7 @@ const DB = {
 
         if (loaded) DB.data = loaded;
         DB.normalizeData();
+        DB.baseRevision = Number(DB.data?.meta?.revision || 0);
         const repairedMojibake = MojibakeFix.sanitizeObjectStrings(DB.data);
         if (repairedMojibake) {
             console.warn("Mojibake metinler bulundu ve otomatik duzeltildi.");
@@ -412,9 +431,25 @@ const DB = {
         const resp = await fetch("/api/state", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ state })
+            body: JSON.stringify({
+                state,
+                baseRevision: DB.baseRevision,
+                sessionId: DB.clientSessionId
+            })
         });
-        if (!resp.ok) throw new Error(`Disk save failed (${resp.status})`);
+        let payload = null;
+        try {
+            payload = await resp.json();
+        } catch (_e) {
+            payload = null;
+        }
+        if (!resp.ok || !payload?.ok) {
+            const error = new Error(payload?.error || `Disk save failed (${resp.status})`);
+            error.code = payload?.error || "disk_save_failed";
+            error.payload = payload || {};
+            throw error;
+        }
+        return payload;
     },
 
     save: async () => {
@@ -432,21 +467,35 @@ const DB = {
                 DB.saveQueued = false;
                 const snapshot = JSON.parse(JSON.stringify(DB.data));
                 try {
-                    await DB.saveToDisk(snapshot);
+                    const result = await DB.saveToDisk(snapshot);
+                    const nextRevision = Number(result?.revision);
+                    if (Number.isInteger(nextRevision) && nextRevision >= 0) {
+                        DB.baseRevision = nextRevision;
+                        DB.data.meta.revision = nextRevision;
+                    }
                     DB.storageMode = "disk";
-                    // Keep local copy as backup.
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+                    // Keep local copy as backup mirror of the accepted disk state.
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
+                    localStorage.removeItem(CONFLICT_DRAFT_KEY);
                     UI.updateStatus("🟢 Dosyaya Otomatik Kayıt");
                     console.log("Data saved to demo_state.json");
                 } catch (diskError) {
-                    try {
-                        localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
-                        DB.storageMode = "localStorage";
-                        UI.updateStatus("🟡 Tarayıcı Kaydı (Yedek)");
-                        console.warn("Disk save failed, using localStorage backup.", diskError);
-                    } catch (e) {
-                        console.error("Save failed", e);
-                        alert("Kayıt başarısız. Lütfen tekrar deneyin.");
+                    if (diskError?.code === "save_conflict") {
+                        try {
+                            localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
+                        } catch (_) { }
+                        UI.updateStatus("🟠 Kayit cakismasi - veri korunuyor");
+                        console.warn("Save conflict prevented.", diskError?.payload || diskError);
+                        alert("Kayit cakismasi algilandi. Bu sekmedeki veri diskteki daha yeni kaydin ustune yazilmadi. Lutfen sayfayi yenileyin.");
+                    } else {
+                        try {
+                            localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
+                            UI.updateStatus("🟡 Gecici yedek alindi");
+                            console.warn("Disk save failed, stored local recovery draft.", diskError);
+                        } catch (e) {
+                            console.error("Save failed", e);
+                            alert("Kayıt başarısız. Lütfen tekrar deneyin.");
+                        }
                     }
                 }
             } while (DB.saveQueued);
@@ -457,17 +506,7 @@ const DB = {
     },
 
     flushOnUnload: () => {
-        try {
-            DB.data.meta.updated_at = new Date().toISOString();
-            DB.normalizeData();
-            const payload = JSON.stringify({ state: DB.data });
-            try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
-            } catch (_) { }
-            if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-                navigator.sendBeacon("/api/state", payload);
-            }
-        } catch (_) { }
+        // Disabled by constitution: tab close / page hide must not overwrite disk state.
     },
 
     markDirty: () => {
@@ -478,15 +517,6 @@ const DB = {
         }, 1000); // 1-second debounce
     }
 };
-window.addEventListener("beforeunload", () => {
-    DB.flushOnUnload();
-});
-window.addEventListener("pagehide", () => {
-    DB.flushOnUnload();
-});
-document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") DB.flushOnUnload();
-});
 
 const IDB = {
     get: async (key) => {

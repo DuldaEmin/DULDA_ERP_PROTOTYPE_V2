@@ -7,6 +7,7 @@ const portArg = Number(process.argv[2]);
 const port = Number.isFinite(portArg) && portArg > 0 ? portArg : 5500;
 const root = __dirname;
 const dataFile = path.join(root, "demo_state.json");
+const historyDir = path.join(root, ".state-history");
 const maxBodySize = 200 * 1024 * 1024;
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -62,20 +63,53 @@ function getStateTimestamp(state) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-async function saveState(state) {
+function getStateRevision(state) {
+  const revision = Number(state?.meta?.revision);
+  return Number.isInteger(revision) && revision >= 0 ? revision : 0;
+}
+
+async function ensureHistoryDir() {
+  await fsp.mkdir(historyDir, { recursive: true });
+}
+
+async function writeHistorySnapshot(state, label) {
+  if (!state || typeof state !== "object") return;
+  await ensureHistoryDir();
+  const revision = getStateRevision(state);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const safeLabel = String(label || "snapshot").replace(/[^a-zA-Z0-9_-]+/g, "_");
+  const fileName = `${stamp}_r${String(revision).padStart(6, "0")}_${safeLabel}.json`;
+  await fsp.writeFile(path.join(historyDir, fileName), JSON.stringify(state, null, 2), "utf8");
+}
+
+async function saveState(state, options = {}) {
   const current = await loadState();
+  const baseRevision = Number(options?.baseRevision);
   const incomingTs = getStateTimestamp(state);
   const currentTs = getStateTimestamp(current);
+  const currentRevision = getStateRevision(current);
 
-  // Prevent older payloads from overwriting newer state.
-  if (current && incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
-    return { written: false, stale: true };
+  if (current && Number.isInteger(baseRevision) && baseRevision !== currentRevision) {
+    return { written: false, stale: true, conflict: true, currentRevision };
   }
 
+  // Prevent older payloads from overwriting newer state when revision is not provided.
+  if (current && (!Number.isInteger(baseRevision)) && incomingTs > 0 && currentTs > 0 && incomingTs < currentTs) {
+    return { written: false, stale: true, conflict: true, currentRevision };
+  }
+
+  const nextRevision = currentRevision + 1;
+  if (!state.meta || typeof state.meta !== "object") state.meta = {};
+  state.meta.revision = nextRevision;
+
+  if (current) {
+    await writeHistorySnapshot(current, "before-save");
+  }
   const tmp = `${dataFile}.tmp`;
   await fsp.writeFile(tmp, JSON.stringify(state, null, 2), "utf8");
   await fsp.rename(tmp, dataFile);
-  return { written: true, stale: false };
+  await writeHistorySnapshot(state, "after-save");
+  return { written: true, stale: false, conflict: false, revision: nextRevision };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -95,11 +129,15 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       const payload = JSON.parse(body || "{}");
       const state = payload?.state || payload;
+      const baseRevision = payload?.baseRevision;
       if (!state || typeof state !== "object") {
         return sendJson(res, 400, { ok: false, error: "invalid_state" });
       }
 
-      const result = await saveState(state);
+      const result = await saveState(state, { baseRevision });
+      if (result?.conflict) {
+        return sendJson(res, 409, { ok: false, error: "save_conflict", ...result });
+      }
       return sendJson(res, 200, { ok: true, ...result });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: "state_write_failed" });

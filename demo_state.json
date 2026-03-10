@@ -109,7 +109,7 @@
         "sarı eloksal"
       ]
     },
-    "updated_at": "2026-03-09T18:03:44.578Z",
+    "updated_at": "2026-03-09T18:11:57.666Z",
     "aluOptions": {
       "anodized": [
         "Naturel Mat",
@@ -1401,56 +1401,7 @@
         "created_at": "2026-03-09T18:02:17.827Z"
       }
     ],
-    "stockDepotLocations": [
-      {
-        "id": "0129ea74-e94d-4bb2-bd64-f1c382d7cbed",
-        "depotId": "main",
-        "rafCode": "R01",
-        "cellCode": "A1",
-        "note": "",
-        "created_at": "2026-03-09T16:51:11.590Z"
-      },
-      {
-        "id": "fc048a63-5f9a-4cb7-97c8-0442bee99287",
-        "depotId": "main",
-        "rafCode": "R01",
-        "cellCode": "A2",
-        "note": "",
-        "created_at": "2026-03-09T16:51:11.590Z"
-      },
-      {
-        "id": "1184af18-027e-4c95-b3af-9ebeda1c3c83",
-        "depotId": "main",
-        "rafCode": "R02",
-        "cellCode": "A1",
-        "note": "",
-        "created_at": "2026-03-09T16:51:11.590Z"
-      },
-      {
-        "id": "cdead463-aa06-4263-9162-ce112963df2d",
-        "depotId": "depot_granul",
-        "rafCode": "R01",
-        "cellCode": "A1",
-        "note": "",
-        "created_at": "2026-03-09T16:51:11.590Z"
-      },
-      {
-        "id": "650985ef-a475-4f31-98ec-6c142de26b05",
-        "depotId": "depot_profil",
-        "rafCode": "R01",
-        "cellCode": "A1",
-        "note": "",
-        "created_at": "2026-03-09T16:51:11.590Z"
-      },
-      {
-        "id": "cc40cc1b-91cb-4389-8e4e-f1830fd1020a",
-        "depotId": "main",
-        "rafCode": "G",
-        "cellCode": "13",
-        "note": "gdsgf",
-        "created_at": "2026-03-09T16:05:01.922Z"
-      }
-    ],
+    "stockDepotLocations": [],
     "stockDepotItems": []
   }
 }

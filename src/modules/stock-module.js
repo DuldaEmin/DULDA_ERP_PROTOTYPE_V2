@@ -129,7 +129,7 @@ const StockModule = {
         name: 'ANA DEPO',
         note: 'Kapali ana depo. Fiziksel raf ve hucre tanimlari burada tutulur.',
         kind: 'managed',
-        editable: false,
+        editable: true,
         allowLocations: true
     }),
 
@@ -387,7 +387,10 @@ const StockModule = {
     },
 
     openDepotEditModal: (depotId) => {
-        const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === String(depotId || ''));
+        const targetId = String(depotId || '');
+        const depot = targetId === 'main'
+            ? StockModule.getMainDepot()
+            : (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === targetId);
         if (!depot) return;
         StockModule.resetDepotDraft();
         StockModule.state.depotEditingId = String(depot.id || '');
@@ -442,19 +445,20 @@ const StockModule = {
 
     renderDepotModal: () => {
         const editing = !!String(StockModule.state.depotEditingId || '');
+        const editingMain = String(StockModule.state.depotEditingId || '') === 'main';
         Modal.open(editing ? 'Depo Duzenle' : 'Depo Olustur', `
             <div class="stock-modal-form">
                 <div class="stock-modal-title">${editing ? 'Secili depoyu duzenle' : 'Yeni depo tanimi'}</div>
-                <div class="stock-modal-note">Depo adi ve notu gir. Istersen ayni pencerede raf / hucre de ekleyebilirsin.</div>
+                <div class="stock-modal-note">${editingMain ? 'Ana depoda ayni pencereden raf / hucre ekleyebilirsin.' : 'Depo adi ve notu gir. Istersen ayni pencerede raf / hucre de ekleyebilirsin.'}</div>
 
                 <div class="stock-modal-grid">
                     <div>
                         <label class="stock-modal-label">Depo adi</label>
-                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: SEVKIYATA GIDECEK URUNLER">
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: SEVKIYATA GIDECEK URUNLER" ${editingMain ? 'disabled' : ''}>
                     </div>
                     <div>
                         <label class="stock-modal-label">Not</label>
-                        <textarea class="stock-textarea" oninput="StockModule.setDraftField('depotNote', this.value)" placeholder="or: Merdiven yani alan">${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
+                        <textarea class="stock-textarea" oninput="StockModule.setDraftField('depotNote', this.value)" placeholder="or: Merdiven yani alan" ${editingMain ? 'disabled' : ''}>${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
                     </div>
                 </div>
 
@@ -495,7 +499,7 @@ const StockModule = {
                 </div>
 
                 <div class="stock-modal-footer">
-                    ${editing ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
+                    ${editing && !editingMain ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
                     <div style="display:flex; gap:0.55rem;">
                         <button class="btn-sm" onclick="StockModule.resetDepotDraft(); Modal.close()">Vazgec</button>
                         <button class="btn-primary" onclick="StockModule.saveDepotModal()">${editing ? 'Kaydet' : 'Depoyu kaydet'}</button>
@@ -509,6 +513,7 @@ const StockModule = {
         const name = String(StockModule.state.depotDraftName || '').trim().toUpperCase();
         const note = String(StockModule.state.depotDraftNote || '').trim();
         const editingId = String(StockModule.state.depotEditingId || '');
+        const editingMain = editingId === 'main';
         if (!name) return alert('Depo adi zorunlu.');
 
         const duplicateName = (DB.data.data.stockDepots || []).some((row) =>
@@ -521,11 +526,13 @@ const StockModule = {
         let depotId = editingId;
         const now = new Date().toISOString();
         if (editingId) {
-            const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === editingId);
-            if (!depot) return;
-            depot.name = name;
-            depot.note = note;
-            depot.isActive = true;
+            if (!editingMain) {
+                const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === editingId);
+                if (!depot) return;
+                depot.name = name;
+                depot.note = note;
+                depot.isActive = true;
+            }
         } else {
             depotId = StockModule.makeDepotId(name);
             DB.data.data.stockDepots.push({ id: depotId, name, note, isActive: true, created_at: now });
@@ -683,7 +690,7 @@ const StockModule = {
             `
             : `
                 <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
-                ${StockModule.renderSidebarSection('Ana depo', [mainDepot])}
+                ${StockModule.renderSidebarSection('Ana depo', [mainDepot], { canEdit: true })}
                 ${customDepotSection}
                 ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots)}
                 ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}

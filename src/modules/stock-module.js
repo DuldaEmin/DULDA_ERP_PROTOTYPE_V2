@@ -764,6 +764,7 @@ const StockModule = {
     },
 
     renderPersonnelWorkspaceShell: () => {
+        const rows = StockModule.getStockPersonnelRows();
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -771,7 +772,46 @@ const StockModule = {
                         <h2 class="stock-title">depo & stok / personel</h2>
                         <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
                     </div>
-                    <div id="stock-personnel-mount"></div>
+                    <div class="card-table">
+                        <div style="padding:1.25rem 1.5rem 0.35rem;">
+                            <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Depo ile ilgili personel listesi</div>
+                            <div style="font-size:0.9rem; color:#64748b; margin-top:0.3rem;">Genel personel kartinda "depo & stok" secili olan aktif personeller burada gorunur.</div>
+                        </div>
+                        <table style="width:100%; text-align:left; border-collapse:collapse">
+                            <thead>
+                                <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
+                                    <th style="padding:1.5rem">Ad Soyad</th>
+                                    <th style="padding:1.5rem">ID Kodu</th>
+                                    <th style="padding:1.5rem">Birim / Atolye</th>
+                                    <th style="padding:1.5rem">Kullanici Adi</th>
+                                    <th style="padding:1.5rem">Rol</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.length === 0 ? '<tr><td colspan="5" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli depo & stok personeli yok.</td></tr>' : rows.map((person) => `
+                                    <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
+                                        <td style="padding:1.5rem">
+                                            <div style="display:flex; align-items:center; gap:0.75rem">
+                                                <div style="width:2.75rem; height:2.75rem; background:linear-gradient(135deg, #38bdf8 0%, #2563eb 100%); border-radius:99px; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; flex-shrink:0;">${StockModule.escapeHtml(String(person?.fullName || '?').trim().charAt(0) || '?')}</div>
+                                                <div>
+                                                    <div style="font-weight:700; color:#1e293b;">${StockModule.escapeHtml(person?.fullName || '-')}</div>
+                                                    <div style="font-size:0.88rem; color:#64748b;">${StockModule.escapeHtml(person?.title || '-')}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td style="padding:1.5rem; font-weight:600; color:#475569;">${StockModule.escapeHtml(person?.personCode || '-')}</td>
+                                        <td style="padding:1.5rem; color:#475569;">${StockModule.escapeHtml((typeof PersonnelModule !== 'undefined' && typeof PersonnelModule.getAssignedUnitNames === 'function') ? PersonnelModule.getAssignedUnitNames(person).join(', ') : '-')}</td>
+                                        <td style="padding:1.5rem; color:#475569;">${StockModule.escapeHtml(person?.username || '-')}</td>
+                                        <td style="padding:1.5rem;">
+                                            <span style="display:inline-flex; align-items:center; padding:0.35rem 0.75rem; border-radius:999px; font-size:0.8rem; font-weight:700; ${String(person?.rolePreset || '') === 'tam_yetkili' ? 'background:#ede9fe; color:#7c3aed;' : 'background:#e0f2fe; color:#0369a1;'}">
+                                                ${StockModule.escapeHtml(String(person?.rolePreset || '') === 'tam_yetkili' ? 'Tam Yetkili' : 'Operator')}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         `;

@@ -373,10 +373,22 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
+    restoreSearchFocus: (field) => {
+        const targetId = field === 'code' ? 'stock-search-code' : 'stock-search-name';
+        requestAnimationFrame(() => {
+            const input = document.getElementById(targetId);
+            if (!input) return;
+            input.focus();
+            const end = String(input.value || '').length;
+            if (typeof input.setSelectionRange === 'function') input.setSelectionRange(end, end);
+        });
+    },
+
     setSearch: (field, value) => {
         if (field === 'name') StockModule.state.searchName = String(value || '');
         if (field === 'code') StockModule.state.searchCode = String(value || '');
         UI.renderCurrentPage();
+        StockModule.restoreSearchFocus(field);
     },
 
     setDraftField: (field, value) => {
@@ -793,8 +805,8 @@ const StockModule = {
                         </div>
 
                         <div class="stock-search-grid stock-search-grid-2">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
+                            <input id="stock-search-name" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
+                            <input id="stock-search-code" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
                         </div>
 
                         ${StockModule.renderInventoryGroups(node)}

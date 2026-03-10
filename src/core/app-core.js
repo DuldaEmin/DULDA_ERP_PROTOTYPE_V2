@@ -536,6 +536,11 @@ const Router = {
         if (pageId === 'products' && Router.currentPage !== 'products' && !fromBack) {
             ProductLibraryModule.state.workspaceView = 'menu';
         }
+        // Fresh open rule: entering Stock workspace starts from menu.
+        if (pageId === 'stock' && Router.currentPage !== 'stock' && !fromBack) {
+            StockModule.state.workspaceView = 'menu';
+            StockModule.state.selectedKey = 'all';
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -558,6 +563,12 @@ const Router = {
                 UI.renderCurrentPage();
                 return;
             }
+        }
+
+        if (Router.currentPage === 'stock' && String(StockModule.state.workspaceView || 'menu') !== 'menu') {
+            StockModule.state.workspaceView = 'menu';
+            UI.renderCurrentPage();
+            return;
         }
 
         if (Router.currentPage === 'aluminum-inventory') {

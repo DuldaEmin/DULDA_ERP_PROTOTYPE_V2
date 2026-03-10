@@ -1,5 +1,6 @@
 const StockModule = {
     state: {
+        workspaceView: 'menu',
         topTab: 'all',
         selectedKey: 'all',
         searchName: '',
@@ -41,12 +42,39 @@ const StockModule = {
         if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
         if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
         if (!DB.data.meta.seedFlags || typeof DB.data.meta.seedFlags !== 'object') DB.data.meta.seedFlags = {};
+        if (!Array.isArray(DB.data.data.units)) DB.data.data.units = [];
         if (!Array.isArray(DB.data.data.stockDepots)) DB.data.data.stockDepots = [];
         if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
         if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
 
         let changed = false;
         const now = new Date().toISOString();
+
+        if (DB.data.data.units.length === 0) {
+            DB.data.data.units = [
+                { id: 'u1', name: 'CNC ATOLYESI', type: 'internal' },
+                { id: 'u2', name: 'EKSTRUDER ATOLYESI', type: 'internal' },
+                { id: 'u3', name: 'MONTAJ', type: 'internal' },
+                { id: 'u4', name: 'PAKETLEME', type: 'internal' },
+                { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
+                { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
+                { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
+                { id: 'u8', name: 'AKPA ALUMINYUM A.S.', type: 'external' },
+                { id: 'u9', name: 'HILAL PWD', type: 'external' },
+                { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
+                { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
+            ];
+            changed = true;
+        }
+
+        const mainDepotUnit = (DB.data.data.units || []).find((row) => String(row?.id || '') === 'u_dtm');
+        if (!mainDepotUnit) {
+            DB.data.data.units.push({ id: 'u_dtm', name: 'ANA DEPO', type: 'internal' });
+            changed = true;
+        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'ANA DEPO') {
+            mainDepotUnit.name = 'ANA DEPO';
+            changed = true;
+        }
 
         StockModule.managedDepotSeed.forEach((seed) => {
             const row = (DB.data.data.stockDepots || []).find((item) => String(item?.id || '') === String(seed.id));
@@ -324,6 +352,11 @@ const StockModule = {
             map.get(key).rows.push(row);
         });
         return Array.from(map.values()).sort((a, b) => String(a?.title || '').localeCompare(String(b?.title || ''), 'tr'));
+    },
+
+    openWorkspace: (viewId) => {
+        StockModule.state.workspaceView = String(viewId || 'menu');
+        UI.renderCurrentPage();
     },
 
     setTopTab: (tabId) => {
@@ -669,7 +702,26 @@ const StockModule = {
         `;
     },
 
-    renderLayout: () => {
+    renderMenuLayout: () => {
+        return `
+            <section class="stock-shell">
+                <div class="stock-hub">
+                    <div class="stock-hub-head">
+                        <h2 class="stock-title">depo & stok</h2>
+                    </div>
+
+                    <div class="stock-hub-grid">
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('depots')">
+                            <div class="stock-hub-icon"><i data-lucide="warehouse" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Tum depolar</div>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
+    renderDepotsLayout: () => {
         const node = StockModule.getSelectedNode();
         const mainDepot = StockModule.getMainDepot();
         const customDepots = StockModule.getCustomDepots();
@@ -752,5 +804,12 @@ const StockModule = {
                 </div>
             </section>
         `;
+    },
+
+    renderLayout: () => {
+        if (String(StockModule.state.workspaceView || 'menu') === 'depots') {
+            return StockModule.renderDepotsLayout();
+        }
+        return StockModule.renderMenuLayout();
     }
 };

@@ -390,6 +390,66 @@ tr:hover {
     gap: 1.1rem;
 }
 
+.stock-hub {
+    min-height: 72vh;
+    border: 1px solid #cfd8e4;
+    border-radius: 1.9rem;
+    background: rgba(255, 255, 255, 0.42);
+    padding: 1.5rem 1.4rem 2rem;
+}
+
+.stock-hub-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.stock-hub-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 220px));
+    gap: 1rem;
+    margin-top: 3rem;
+    padding-left: 2rem;
+}
+
+.stock-hub-card {
+    min-height: 126px;
+    border: 1px solid #8e98a8;
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.68);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stock-hub-card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 14px 30px rgba(148, 163, 184, 0.14);
+}
+
+.stock-hub-icon {
+    width: 46px;
+    height: 46px;
+    border-radius: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #10b981 0%, #14b8a6 100%);
+    color: #fff;
+}
+
+.stock-hub-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1f2937;
+    text-align: center;
+}
+
 .stock-hero {
     background:
         linear-gradient(90deg, rgba(218, 226, 237, 0.92) 0%, rgba(230, 234, 241, 0.88) 48%, rgba(235, 230, 241, 0.86) 100%);
@@ -907,6 +967,17 @@ tr:hover {
 }
 
 @media (max-width: 780px) {
+    .stock-hub {
+        min-height: auto;
+        padding: 1rem;
+    }
+
+    .stock-hub-grid {
+        margin-top: 1.5rem;
+        padding-left: 0;
+        grid-template-columns: 1fr;
+    }
+
     .stock-hero {
         padding: 1rem;
     }

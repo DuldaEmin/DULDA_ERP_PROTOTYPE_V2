@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-10T14:16:20.296Z",
+    "updated_at": "2026-03-10T14:17:25.592Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -92,6 +92,57 @@
           "production": true,
           "waste": true,
           "admin": true
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u4": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
         }
       },
       {
@@ -172,6 +223,57 @@
           "production": true,
           "waste": false,
           "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u4": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
         }
       },
       {
@@ -252,6 +354,57 @@
           "production": true,
           "waste": true,
           "admin": true
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u4": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
         }
       },
       {
@@ -332,6 +485,57 @@
           "production": true,
           "waste": false,
           "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u4": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
         }
       },
       {
@@ -412,6 +616,57 @@
           "production": true,
           "waste": false,
           "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u4": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
         }
       }
     ],

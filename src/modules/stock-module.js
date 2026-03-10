@@ -33,6 +33,15 @@ const StockModule = {
     render: (container) => {
         if (!container) return;
         StockModule.ensureData();
+        if (String(StockModule.state.workspaceView || 'menu') === 'personnel') {
+            container.innerHTML = StockModule.renderPersonnelWorkspaceShell();
+            const mountNode = container.querySelector('#stock-personnel-mount');
+            if (mountNode && typeof PersonnelModule !== 'undefined' && typeof PersonnelModule.render === 'function') {
+                PersonnelModule.render(mountNode);
+            }
+            if (window.lucide) window.lucide.createIcons();
+            return;
+        }
         container.innerHTML = StockModule.renderLayout();
         if (window.lucide) window.lucide.createIcons();
     },
@@ -734,6 +743,45 @@ const StockModule = {
                             <div class="stock-hub-icon"><i data-lucide="warehouse" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Tum depolar</div>
                         </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('personnel')">
+                            <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="users" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Personel</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('operation-library')">
+                            <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="library-big" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Islem Kutuphanesi</div>
+                        </button>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
+    renderPersonnelWorkspaceShell: () => {
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">depo & stok / personel</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+                    <div id="stock-personnel-mount"></div>
+                </div>
+            </section>
+        `;
+    },
+
+    renderWorkspacePlaceholder: (title, subtitle) => {
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">${StockModule.escapeHtml(title || 'depo & stok')}</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+                    <div class="card-table" style="padding:2.2rem; text-align:center; color:#94a3b8;">
+                        <div style="font-weight:800; color:#334155; margin-bottom:0.45rem;">Hazirlaniyor</div>
+                        <div style="font-size:0.92rem;">${StockModule.escapeHtml(subtitle || 'Sayfa hazirlaniyor.')}</div>
                     </div>
                 </div>
             </section>
@@ -828,6 +876,12 @@ const StockModule = {
     renderLayout: () => {
         if (String(StockModule.state.workspaceView || 'menu') === 'depots') {
             return StockModule.renderDepotsLayout();
+        }
+        if (String(StockModule.state.workspaceView || 'menu') === 'operation-library') {
+            return StockModule.renderWorkspacePlaceholder(
+                'depo & stok / islem kutuphanesi',
+                'Islem ekleme modulu sonra tasarlanacak. Bu sayfa simdilik bos birakildi.'
+            );
         }
         return StockModule.renderMenuLayout();
     }

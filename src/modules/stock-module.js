@@ -584,10 +584,11 @@ const StockModule = {
                 <div class="stock-side-list">
                     ${items.map((item) => {
             const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
+            const rowCanEdit = canEdit && item?.editable === true;
             return `
-                            <div class="stock-side-row${canEdit ? ' with-edit' : ''}">
+                            <div class="stock-side-row${rowCanEdit ? ' with-edit' : ''}">
                                 <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button>
-                                ${canEdit ? `<button class="stock-side-edit" onclick="event.stopPropagation(); StockModule.openDepotEditModal('${StockModule.escapeHtml(item.id || '')}')">duzenle</button>` : ''}
+                                ${rowCanEdit ? `<button class="stock-side-edit" onclick="event.stopPropagation(); StockModule.openDepotEditModal('${StockModule.escapeHtml(item.id || '')}')">duzenle</button>` : ''}
                             </div>
                         `;
         }).join('')}
@@ -672,29 +673,25 @@ const StockModule = {
         const node = StockModule.getSelectedNode();
         const mainDepot = StockModule.getMainDepot();
         const customDepots = StockModule.getCustomDepots();
+        const transferDepot = customDepots.find((row) => String(row?.id || '') === 'depot_transfer') || null;
+        const userDepots = customDepots.filter((row) => String(row?.id || '') !== 'depot_transfer');
         const unitDepots = StockModule.getUnitRowsMeta();
+        const workshopDepots = transferDepot ? [transferDepot, ...unitDepots] : unitDepots;
         const externalDepots = StockModule.getExternalRowsMeta();
         const overview = StockModule.getOverviewSummary();
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
 
-        const topButton = (id, label) => `<button onclick="StockModule.setTopTab('${id}')" class="stock-tab${StockModule.state.topTab === id ? ' active' : ''}">${label}</button>`;
         const customDepotSection = `
-            ${StockModule.renderSidebarSection('Kullanici depolari', customDepots, { canEdit: true })}
+            ${StockModule.renderSidebarSection('Kullanici depolari', userDepots, { canEdit: true })}
             <div class="stock-side-row"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add">depo ekle +</button></div>
         `;
-        const sidebarHtml = StockModule.state.topTab === 'transfer'
-            ? `
-                ${StockModule.renderSidebarSection('Transfer depo', customDepots.filter((row) => String(row?.id || '') === 'depot_transfer'), { canEdit: true })}
-                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
-                <div class="stock-side-hint">Depo transfer alaninda bekleyen urunler daha sonra sonraki rotaya veya dis birime yonlendirilebilir.</div>
-            `
-            : `
-                <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
-                ${StockModule.renderSidebarSection('Ana depo', [mainDepot], { canEdit: true })}
-                ${customDepotSection}
-                ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots)}
-                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
-            `;
+        const sidebarHtml = `
+            <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
+            ${StockModule.renderSidebarSection('Ana depo', [mainDepot], { canEdit: true })}
+            ${customDepotSection}
+            ${StockModule.renderSidebarSection('Birim / atolye depolari', workshopDepots, { canEdit: true })}
+            ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+        `;
 
         return `
             <section class="stock-shell">
@@ -703,10 +700,6 @@ const StockModule = {
                         <div>
                             <h2 class="stock-title">depo & stok</h2>
                             <div class="stock-desc">Bu ekran depo adreslerini insa etmek ve fabrikadaki urunlerin hangi depoda gorundugunu izlemek icin kullanilir. Mal kabul, sevk, teslim alma ve transfer modulleri hedef lokasyonu buradan secer.</div>
-                        </div>
-                        <div class="stock-tabs">
-                            ${topButton('all', 'tum depolar')}
-                            ${topButton('transfer', 'depo transfer')}
                         </div>
                     </div>
 
@@ -725,7 +718,7 @@ const StockModule = {
                             </div>
                             <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
                                 ${node.kind === 'managed' && node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">duzenle</button>` : ''}
-                                ${StockModule.state.topTab !== 'transfer' ? `<button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>` : ''}
+                                <button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>
                             </div>
                         </div>
                         ${node.kind === 'managed' && managedSummary ? `

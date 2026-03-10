@@ -536,6 +536,11 @@ const Router = {
         if (pageId === 'products' && Router.currentPage !== 'products' && !fromBack) {
             ProductLibraryModule.state.workspaceView = 'menu';
         }
+        // Fresh open rule: entering Stock workspace starts from task panel.
+        if (pageId === 'stock' && Router.currentPage !== 'stock' && !fromBack) {
+            StockModule.state.workspaceView = 'hub';
+            StockModule.state.selectedKey = 'all';
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -544,6 +549,13 @@ const Router = {
         if (Router.currentPage === 'units' && UnitModule.state.view !== 'list') {
             if (['machines', 'stock', 'personnel', 'cncLibrary', 'sawCut', 'plexiLibrary', 'extruderLibrary'].includes(UnitModule.state.view)) UnitModule.state.view = 'dashboard';
             else UnitModule.state.view = 'list';
+            UI.renderCurrentPage();
+            return;
+        }
+
+        if (Router.currentPage === 'stock' && StockModule.state.workspaceView !== 'hub') {
+            StockModule.state.workspaceView = 'hub';
+            StockModule.state.selectedKey = 'all';
             UI.renderCurrentPage();
             return;
         }

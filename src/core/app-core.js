@@ -536,11 +536,6 @@ const Router = {
         if (pageId === 'products' && Router.currentPage !== 'products' && !fromBack) {
             ProductLibraryModule.state.workspaceView = 'menu';
         }
-        // Fresh open rule: entering Stock workspace starts from task panel.
-        if (pageId === 'stock' && Router.currentPage !== 'stock' && !fromBack) {
-            StockModule.state.workspaceView = 'hub';
-            StockModule.state.selectedKey = 'all';
-        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -552,14 +547,6 @@ const Router = {
             UI.renderCurrentPage();
             return;
         }
-
-        if (Router.currentPage === 'stock' && StockModule.state.workspaceView !== 'hub') {
-            StockModule.state.workspaceView = 'hub';
-            StockModule.state.selectedKey = 'all';
-            UI.renderCurrentPage();
-            return;
-        }
-
         if (Router.currentPage === 'products') {
             if (ProductLibraryModule.state.workspaceView && ProductLibraryModule.state.workspaceView !== 'menu') {
                 ProductLibraryModule.state.workspaceView = 'menu';

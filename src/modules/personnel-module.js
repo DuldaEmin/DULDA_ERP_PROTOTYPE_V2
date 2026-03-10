@@ -291,6 +291,10 @@ const PersonnelModule = {
                 person.isAccountActive = true;
                 changed = true;
             }
+            if (typeof person.isStockPersonnel === 'undefined') {
+                person.isStockPersonnel = false;
+                changed = true;
+            }
             if (!person.rolePreset) {
                 person.rolePreset = PersonnelModule.getLegacyPermissions(person).admin ? 'tam_yetkili' : 'operator';
                 changed = true;
@@ -345,6 +349,7 @@ const PersonnelModule = {
                     username: sample.username,
                     password: '',
                     isAccountActive: true,
+                    isStockPersonnel: false,
                     modulePermissions: PersonnelModule.buildPermissionsFromRole(sample.rolePreset),
                     unitPermissions: PersonnelModule.buildUnitPermissionsFromRole(sample.rolePreset),
                     created_at: now
@@ -566,6 +571,17 @@ const PersonnelModule = {
                     <div class="personnel-unit-grid">${PersonnelModule.renderUnitCheckboxes(person)}</div>
                 </div>
 
+                <div class="personnel-modal-card">
+                    <div class="personnel-modal-title">Ek gorev alanlari</div>
+                    <div class="personnel-modal-note">Depo ile ilgili personelleri ayrica depo & stok personel listesinde gostermek icin bu alani isaretle.</div>
+                    <div class="personnel-unit-grid">
+                        <label class="personnel-unit-chip">
+                            <input type="checkbox" id="person_stock_staff" ${person?.isStockPersonnel ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
+                            <span>depo & stok</span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="personnel-modal-footer">
                     <button class="btn-sm" onclick="Modal.close()">Kapat</button>
                     ${readOnly ? '' : `<button class="btn-primary" onclick="PersonnelModule.savePerson('${PersonnelModule.escapeHtml(person?.id || '')}')">Kaydet</button>`}
@@ -583,6 +599,7 @@ const PersonnelModule = {
         const password = String(document.getElementById('person_password')?.value || '').trim();
         const isAccountActive = !!document.getElementById('person_account_active')?.checked;
         const assignedUnitIds = Array.from(document.querySelectorAll('.personnel-unit-checkbox:checked')).map((el) => String(el.value || ''));
+        const isStockPersonnel = !!document.getElementById('person_stock_staff')?.checked;
 
         if (!fullName) return alert('Ad soyad giriniz.');
 
@@ -604,6 +621,7 @@ const PersonnelModule = {
             person.username = username;
             person.password = password;
             person.isAccountActive = isAccountActive;
+            person.isStockPersonnel = isStockPersonnel;
             person.assignedUnitIds = assignedUnitIds;
             person.unitId = primaryUnitId;
             person.modulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
@@ -622,6 +640,7 @@ const PersonnelModule = {
                 username,
                 password,
                 isAccountActive,
+                isStockPersonnel,
                 assignedUnitIds,
                 unitId: primaryUnitId,
                 modulePermissions: PersonnelModule.buildDefaultModulePermissions(),

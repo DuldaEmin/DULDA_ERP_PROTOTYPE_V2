@@ -30,15 +30,21 @@ const StockModule = {
 
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
 
+    getStockPersonnelRows: () => {
+        if (typeof PersonnelModule !== 'undefined' && typeof PersonnelModule.ensureData === 'function') {
+            PersonnelModule.ensureData();
+        }
+        return (DB.data?.data?.personnel || [])
+            .filter((row) => row?.isActive !== false)
+            .filter((row) => row?.isStockPersonnel === true)
+            .sort((a, b) => String(a?.fullName || '').localeCompare(String(b?.fullName || ''), 'tr'));
+    },
+
     render: (container) => {
         if (!container) return;
         StockModule.ensureData();
         if (String(StockModule.state.workspaceView || 'menu') === 'personnel') {
             container.innerHTML = StockModule.renderPersonnelWorkspaceShell();
-            const mountNode = container.querySelector('#stock-personnel-mount');
-            if (mountNode && typeof PersonnelModule !== 'undefined' && typeof PersonnelModule.render === 'function') {
-                PersonnelModule.render(mountNode);
-            }
             if (window.lucide) window.lucide.createIcons();
             return;
         }

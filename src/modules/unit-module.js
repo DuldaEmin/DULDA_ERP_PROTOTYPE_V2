@@ -2115,12 +2115,9 @@ const UnitModule = {
                      <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                      <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="users" color="#2563eb"></i> Personel Yonetimi</h2>
-                        <div style="font-size:0.875rem; color:#64748b">${unit.name} - Calisan listesi ve yetkilendirme</div>
+                        <div style="font-size:0.875rem; color:#64748b">${unit.name} - Calisan listesi</div>
                      </div>
                 </div>
-                <button onclick="UnitModule.openPersonnelModal('${unitId}')" class="btn-primary" style="display:flex; gap:0.5rem; align-items:center">
-                    <i data-lucide="plus" width="20"></i> Yeni Personel Ekle
-                </button>
             </div>
 
             <div class="card-table">
@@ -2129,11 +2126,10 @@ const UnitModule = {
                         <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
                             <th style="padding:1.5rem">Ad Soyad</th>
                             <th style="padding:1.5rem">Yetkiler</th>
-                            <th style="padding:1.5rem; text-align:right">Islemler</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${personnel.length === 0 ? '<tr><td colspan="3" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli personel yok.</td></tr>' : personnel.map(p => `
+                        ${personnel.length === 0 ? '<tr><td colspan="2" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli personel yok.</td></tr>' : personnel.map(p => `
                             <tr style="border-bottom:1px solid #f1f5f9" class="hover:bg-slate-50">
                                 <td style="padding:1.5rem">
                                     <div style="display:flex; align-items:center; gap:0.75rem font-weight:600; color:#334155">
@@ -2147,10 +2143,6 @@ const UnitModule = {
                                         ${getLegacyPermissions(p).production ? '<span style="background:#ecfdf5; color:#047857; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="factory" width="12"></i> Uretim</span>' : ''}
                                         ${getLegacyPermissions(p).waste ? '<span style="background:#ffedd5; color:#c2410c; padding:0.25rem 0.5rem; border-radius:0.25rem; font-size:0.75rem; font-weight:700; display:flex; gap:0.25rem; align-items:center"><i data-lucide="alert-circle" width="12"></i> Fire</span>' : ''}
                                     </div>
-                                </td>
-                                <td style="padding:1.5rem; text-align:right">
-                                     <button onclick="UnitModule.openPersonnelModal('${unitId}', '${p.id}')" style="cursor:pointer; color:#94a3b8; margin-right:0.5rem" onmouseover="this.style.color='#2563eb'" onmouseout="this.style.color='#94a3b8'"><i data-lucide="edit-2" width="18"></i></button>
-                                     <button onclick="UnitModule.deletePersonnel('${p.id}', '${unitId}')" style="cursor:pointer; color:#94a3b8" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'"><i data-lucide="trash-2" width="18"></i></button>
                                 </td>
                             </tr>
                         `).join('')}

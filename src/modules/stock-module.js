@@ -576,6 +576,7 @@ const StockModule = {
     },
 
     renderSidebarSection: (title, items, options = {}) => {
+        const canEdit = !!options.canEdit;
         if (items.length === 0) return '';
         return `
             <div class="stock-side-group">
@@ -583,7 +584,6 @@ const StockModule = {
                 <div class="stock-side-list">
                     ${items.map((item) => {
             const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
-            const canEdit = options.allowEdit !== false && item?.editable === true;
             return `
                             <div class="stock-side-row${canEdit ? ' with-edit' : ''}">
                                 <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button>
@@ -623,7 +623,7 @@ const StockModule = {
                                     <tr>
                                         <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
                                         <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
-                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' / ') || 'Detay daha sonra zenginlestirilecek.')}</td>
+                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' • ') || 'Detay daha sonra zenginlestirilecek.')}</td>
                                     </tr>
                                 `;
         }).join('')}
@@ -668,137 +668,88 @@ const StockModule = {
         `;
     },
 
-    renderHubLayout: () => {
-        const overview = StockModule.getOverviewSummary();
-        const taskCards = [
-            {
-                id: 'depots',
-                icon: 'warehouse',
-                title: 'Tum depolar',
-                desc: 'Ana depo, kullanici depolari, atolye depolari ve dis birimler tek ekranda izlenir.',
-                meta: `${overview.managedCount} tanimli depo`
-            },
-            {
-                id: 'transfer',
-                icon: 'arrow-right-left',
-                title: 'Depo transfer',
-                desc: 'Transfer deposu icin ayrilan islem kutuphanesi ve hedef yonlendirme alani.',
-                meta: `${StockModule.getUnitRowsMeta().length + StockModule.getExternalRowsMeta().length} hedef nokta`
-            }
-        ];
-
-        return `
-            <section class="stock-shell">
-                <div class="stock-hero stock-hero-hub">
-                    <div class="stock-view-head">
-                        <div>
-                            <div class="stock-eyebrow">Depocu ekrani</div>
-                            <h2 class="stock-title">depo & stok gorev paneli</h2>
-                            <div class="stock-desc">Bu ekran depocu icin ana baslangic noktasi. Tum gorev butonlari burada toplanir; ilgili is akisini secip alt ekrana gecersin.</div>
-                        </div>
-                    </div>
-
-                    <div class="stock-metrics">
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Tanimli depo</div><div class="stock-metric-value">${overview.managedCount}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Toplam konum</div><div class="stock-metric-value">${overview.locationCount}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Atolye depolari</div><div class="stock-metric-value">${overview.unitCount + 1}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Dis birim</div><div class="stock-metric-value">${overview.externalCount}</div></div>
-                    </div>
-                </div>
-
-                <div class="stock-task-grid">
-                    ${taskCards.map((card) => `
-                        <button class="stock-task-card" onclick="StockModule.openWorkspace('${card.id}')">
-                            <div class="stock-task-icon"><i data-lucide="${card.icon}" width="20" height="20"></i></div>
-                            <div class="stock-task-body">
-                                <div class="stock-task-title">${card.title}</div>
-                                <div class="stock-task-desc">${card.desc}</div>
-                                <div class="stock-task-meta">${card.meta}</div>
-                            </div>
-                        </button>
-                    `).join('')}
-                </div>
-
-                <div class="stock-panel-grid">
-                    <div class="stock-panel-card">
-                        <div class="stock-panel-title">Bu ekranda ne olacak?</div>
-                        <div class="stock-panel-text">Zamanla tum depocu gorevleri bu panelde butonlasacak. Su an temel iki giris hazir: genel depo gorunumu ve transfer deposu.</div>
-                    </div>
-                    <div class="stock-panel-card">
-                        <div class="stock-panel-title">Yerlesim mantigi</div>
-                        <div class="stock-panel-text">Kalici depolar ve islem depolari ayrildi. Transfer depo kendi gorev ekranina tasindi; tum depo listesinde ise atolye mantigina yakin sekilde konumlandirildi.</div>
-                    </div>
-                </div>
-            </section>
-        `;
-    },
-
-    renderDepotsWorkspace: () => {
+    renderLayout: () => {
         const node = StockModule.getSelectedNode();
         const mainDepot = StockModule.getMainDepot();
-        const userDepots = StockModule.getUserDepots();
-        const workshopDepots = StockModule.getWorkshopDepots();
+        const customDepots = StockModule.getCustomDepots();
+        const unitDepots = StockModule.getUnitRowsMeta();
         const externalDepots = StockModule.getExternalRowsMeta();
         const overview = StockModule.getOverviewSummary();
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
-        const sidebarHtml = `
-            <div class="stock-sidebar-card">
-                <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
-                <div class="stock-side-row"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add">depo ekle +</button></div>
-                ${StockModule.renderSidebarSection('Ana depo', [mainDepot])}
-                ${StockModule.renderSidebarSection('Kullanici depolari', userDepots)}
-                ${StockModule.renderSidebarSection('Birim / atolye depolari', workshopDepots)}
-                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
-            </div>
+
+        const topButton = (id, label) => `<button onclick="StockModule.setTopTab('${id}')" class="stock-tab${StockModule.state.topTab === id ? ' active' : ''}">${label}</button>`;
+        const customDepotSection = `
+            ${StockModule.renderSidebarSection('Kullanici depolari', customDepots, { canEdit: true })}
+            <div class="stock-side-row"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add">depo ekle +</button></div>
         `;
+        const sidebarHtml = StockModule.state.topTab === 'transfer'
+            ? `
+                ${StockModule.renderSidebarSection('Transfer depo', customDepots.filter((row) => String(row?.id || '') === 'depot_transfer'), { canEdit: true })}
+                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+                <div class="stock-side-hint">Depo transfer alaninda bekleyen urunler daha sonra sonraki rotaya veya dis birime yonlendirilebilir.</div>
+            `
+            : `
+                <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
+                ${StockModule.renderSidebarSection('Ana depo', [mainDepot], { canEdit: true })}
+                ${customDepotSection}
+                ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots)}
+                ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+            `;
 
         return `
             <section class="stock-shell">
                 <div class="stock-hero">
-                    <div class="stock-view-head">
+                    <div class="stock-hero-header">
                         <div>
-                            <div class="stock-eyebrow">Depocu ekrani</div>
-                            <h2 class="stock-title">tum depolar</h2>
-                            <div class="stock-desc">Depo adreslerini insa et, urunlerin hangi depoda gorundugunu izle ve atolye ile dis birim gorunumlerini ayni ekranda yonet.</div>
+                            <h2 class="stock-title">depo & stok</h2>
+                            <div class="stock-desc">Bu ekran depo adreslerini insa etmek ve fabrikadaki urunlerin hangi depoda gorundugunu izlemek icin kullanilir. Mal kabul, sevk, teslim alma ve transfer modulleri hedef lokasyonu buradan secer.</div>
                         </div>
-                        <div class="stock-view-actions">
-                            <button class="stock-ghost-btn" onclick="StockModule.openWorkspace('hub')">gorev paneli</button>
-                            <button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>
+                        <div class="stock-tabs">
+                            ${topButton('all', 'tum depolar')}
+                            ${topButton('transfer', 'depo transfer')}
                         </div>
                     </div>
 
                     <div class="stock-metrics">
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Tanimli depo</div><div class="stock-metric-value">${overview.managedCount}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Toplam konum</div><div class="stock-metric-value">${overview.locationCount}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Atolye depolari</div><div class="stock-metric-value">${overview.unitCount + 1}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Dis birim</div><div class="stock-metric-value">${overview.externalCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Tanimli depo</div><div class="stock-metric-value">${overview.managedCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Toplam konum</div><div class="stock-metric-value">${overview.locationCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Atolye depolari</div><div class="stock-metric-value">${overview.unitCount}</div></div>
+                        <div class="stock-metric"><div class="stock-metric-label">Dis birim</div><div class="stock-metric-value">${overview.externalCount}</div></div>
+                    </div>
+
+                    <div class="stock-note-banner">
+                        <div style="display:flex; justify-content:space-between; gap:0.8rem; align-items:flex-start; flex-wrap:wrap;">
+                            <div>
+                                <div class="stock-banner-title">${StockModule.escapeHtml(node.name || '-')}</div>
+                                <div class="stock-banner-note">${StockModule.escapeHtml(node.note || '')}</div>
+                            </div>
+                            <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                                ${node.kind === 'managed' && node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">duzenle</button>` : ''}
+                                ${StockModule.state.topTab !== 'transfer' ? `<button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>` : ''}
+                            </div>
+                        </div>
+                        ${node.kind === 'managed' && managedSummary ? `
+                            <div class="stock-banner-meta">
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Secili depo</div><div class="stock-banner-meta-value">${StockModule.escapeHtml(node.name || '-')}</div></div>
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Raf sayisi</div><div class="stock-banner-meta-value">${managedSummary.rafCount}</div></div>
+                                <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Hucre sayisi</div><div class="stock-banner-meta-value">${managedSummary.locationCount}</div></div>
+                            </div>
+                        ` : ''}
                     </div>
                 </div>
 
                 <div class="stock-workspace">
                     <aside class="stock-sidebar">${sidebarHtml}</aside>
 
-                    <div class="stock-content stock-content-stack">
-                        <div class="stock-panel-card">
-                            <div class="stock-section-head">
-                                <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
-                                <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir.' : 'Arama secili deponun icinde urun adi ve ID koduna gore calisir.'}</div>
-                            </div>
-                            <div class="stock-banner-note">${StockModule.escapeHtml(node.note || '')}</div>
-                            ${node.kind === 'managed' && managedSummary ? `
-                                <div class="stock-banner-meta">
-                                    <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Secili depo</div><div class="stock-banner-meta-value">${StockModule.escapeHtml(node.name || '-')}</div></div>
-                                    <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Raf sayisi</div><div class="stock-banner-meta-value">${managedSummary.rafCount}</div></div>
-                                    <div class="stock-banner-meta-item"><div class="stock-banner-meta-label">Hucre sayisi</div><div class="stock-banner-meta-value">${managedSummary.locationCount}</div></div>
-                                </div>
-                            ` : ''}
+                    <div class="stock-content">
+                        <div class="stock-section-head">
+                            <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
+                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir.' : 'Arama secili deponun icinde urun adi ve ID koduna gore calisir.'}</div>
                         </div>
 
-                        <div class="stock-panel-card stock-search-card">
-                            <div class="stock-search-grid stock-search-grid-2">
-                                <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
-                                <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
-                            </div>
+                        <div class="stock-search-grid stock-search-grid-2">
+                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
+                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
                         </div>
 
                         ${StockModule.renderInventoryGroups(node)}
@@ -808,97 +759,5 @@ const StockModule = {
                 </div>
             </section>
         `;
-    },
-
-    renderTransferWorkspace: () => {
-        const transferDepot = StockModule.getTransferDepotMeta();
-        const transferSummary = StockModule.getManagedSummary(transferDepot.id);
-        const targetUnits = StockModule.getUnitRowsMeta();
-        const targetExternals = StockModule.getExternalRowsMeta();
-        const transferRows = StockModule.getFilteredInventoryRows(transferDepot);
-        const transferOps = [
-            { title: 'Ana depoya al', desc: 'Transferde bekleyen urunu ana depo raflarina geri al.' },
-            { title: 'Polisaja gonder', desc: 'Transferde bekleyen parcayi polisaj veya ilgili atolyeye yonlendir.' },
-            { title: 'Atolyeye sevk et', desc: 'Is emrine gore uygun birim deposuna kontrollu aktarim yap.' },
-            { title: 'Dis birime cikar', desc: 'Fason veya kayitli dis birime transfer kaydi ac.' }
-        ];
-
-        return `
-            <section class="stock-shell">
-                <div class="stock-hero stock-hero-transfer">
-                    <div class="stock-view-head">
-                        <div>
-                            <div class="stock-eyebrow">Depocu ekrani</div>
-                            <h2 class="stock-title">depo transfer</h2>
-                            <div class="stock-desc">Transfer depo kalici stoktan ayrildi. Bu ekranda bekleyen urunleri sonraki lokasyona yonlendirecek islem kutuphanesi olusacak.</div>
-                        </div>
-                        <div class="stock-view-actions">
-                            <button class="stock-ghost-btn" onclick="StockModule.openWorkspace('hub')">gorev paneli</button>
-                            <button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(transferDepot.id || '')}')">transfer depoyu duzenle</button>
-                        </div>
-                    </div>
-
-                    <div class="stock-metrics">
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Transfer depo</div><div class="stock-metric-value">${StockModule.escapeHtml(transferDepot.name || '-')}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Tanimli raf</div><div class="stock-metric-value">${transferSummary.rafCount}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Bekleyen kayit</div><div class="stock-metric-value">${transferRows.length}</div></div>
-                        <div class="stock-metric stock-metric-card"><div class="stock-metric-label">Hedef nokta</div><div class="stock-metric-value">${targetUnits.length + targetExternals.length}</div></div>
-                    </div>
-                </div>
-
-                <div class="stock-panel-grid">
-                    <div class="stock-panel-card">
-                        <div class="stock-panel-title">Islem kutuphanesi</div>
-                        <div class="stock-transfer-ops">
-                            ${transferOps.map((op) => `
-                                <button class="stock-op-card" type="button">
-                                    <span class="stock-op-title">${op.title}</span>
-                                    <span class="stock-op-desc">${op.desc}</span>
-                                </button>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <div class="stock-panel-card">
-                        <div class="stock-panel-title">Hedef alanlar</div>
-                        <div class="stock-panel-text">Buradaki liste ileride islem seciminde kullanilacak hedef kutuphanesinin ilk hali. Transfer akislari bu noktalara gore tanimlanacak.</div>
-                        <div class="stock-chip-group">
-                            ${targetUnits.map((row) => `<div class="stock-chip">${StockModule.escapeHtml(row.name || '-')}</div>`).join('')}
-                            ${targetExternals.map((row) => `<div class="stock-chip stock-chip-muted">${StockModule.escapeHtml(row.name || '-')}</div>`).join('')}
-                        </div>
-                    </div>
-                </div>
-
-                <div class="stock-content stock-content-stack">
-                    <div class="stock-panel-card">
-                        <div class="stock-section-head">
-                            <div class="stock-section-title">transfer depo icerigi</div>
-                            <div class="stock-section-helper">Arama sadece transfer deposunda bekleyen urunler icin calisir.</div>
-                        </div>
-                        <div class="stock-banner-note">${StockModule.escapeHtml(transferDepot.note || '')}</div>
-                    </div>
-
-                    <div class="stock-panel-card stock-search-card">
-                        <div class="stock-search-grid stock-search-grid-2">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
-                            <input class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
-                        </div>
-                    </div>
-
-                    ${StockModule.renderInventoryGroups(transferDepot)}
-                    ${StockModule.renderLocationsCard(transferDepot)}
-                </div>
-            </section>
-        `;
-    },
-
-    renderLayout: () => {
-        if (String(StockModule.state.workspaceView || 'hub') === 'transfer') {
-            return StockModule.renderTransferWorkspace();
-        }
-        if (String(StockModule.state.workspaceView || 'hub') === 'depots') {
-            return StockModule.renderDepotsWorkspace();
-        }
-        return StockModule.renderHubLayout();
     }
 };

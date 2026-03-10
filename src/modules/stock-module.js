@@ -97,7 +97,7 @@ const StockModule = {
                 row.note = seed.note;
                 changed = true;
             }
-            if (row.isActive === false) {
+            if (typeof row.isActive === 'undefined') {
                 row.isActive = true;
                 changed = true;
             }

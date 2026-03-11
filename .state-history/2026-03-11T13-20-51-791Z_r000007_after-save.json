@@ -1,0 +1,1143 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "created_at": "2026-03-10T12:37:15.197Z",
+    "updated_at": "2026-03-11T13:20:51.783Z",
+    "seedFlags": {
+      "stockDepotsSeededV4": true,
+      "personnelModuleSeedV1": true,
+      "machinesSeededV1": true
+    },
+    "options": {
+      "masterUnits": [
+        "adet",
+        "kg",
+        "mt",
+        "koli"
+      ],
+      "masterColors": [
+        "Siyah",
+        "Beyaz",
+        "Antrasit",
+        "Fume"
+      ],
+      "partGroups": [
+        "Genel",
+        "mafsallar",
+        "borular"
+      ],
+      "partSubGroups": [
+        "Genel"
+      ]
+    },
+    "revision": 7
+  },
+  "data": {
+    "products": [],
+    "customers": [],
+    "suppliers": [],
+    "personnel": [
+      {
+        "id": "0710f02a-955c-4873-9852-7d7536a059d7",
+        "personCode": "PER-000001",
+        "fullName": "SEDAT BEYHAN",
+        "title": "Bolum Yetkilisi",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "tam_yetkili",
+        "assignedUnitIds": [
+          "u2"
+        ],
+        "unitId": "u2",
+        "username": "sedatbeyhan",
+        "password": "",
+        "isAccountActive": true,
+        "modulePermissions": {
+          "planlama": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "purchasing": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "sales": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "stock": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "units": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "products": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "personnel": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "settings": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
+        },
+        "created_at": "2026-03-10T13:51:02.800Z",
+        "permissions": {
+          "production": true,
+          "waste": true,
+          "admin": true
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "394c3196-c4d1-4cb2-aed9-9a6db49b5b3e",
+        "personCode": "PER-000002",
+        "fullName": "SADIK YILMAZ",
+        "title": "Operator",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "operator",
+        "assignedUnitIds": [
+          "u2"
+        ],
+        "unitId": "u2",
+        "username": "sadikyilmaz",
+        "password": "",
+        "isAccountActive": true,
+        "modulePermissions": {
+          "planlama": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T13:51:02.800Z",
+        "permissions": {
+          "production": true,
+          "waste": false,
+          "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "6483d38b-81ce-4e18-b93a-94139968e140",
+        "personCode": "PER-000003",
+        "fullName": "ALIRIZA DEMIR",
+        "title": "Bolum Yetkilisi",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "tam_yetkili",
+        "assignedUnitIds": [
+          "u1"
+        ],
+        "unitId": "u1",
+        "username": "alirizademir",
+        "password": "",
+        "isAccountActive": true,
+        "modulePermissions": {
+          "planlama": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "purchasing": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "sales": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "stock": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "units": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "products": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "personnel": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "settings": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
+        },
+        "created_at": "2026-03-10T13:51:02.800Z",
+        "permissions": {
+          "production": true,
+          "waste": true,
+          "admin": true
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": true,
+            "approve": true
+          }
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "6af46f3f-14f9-4921-a984-867073cf106f",
+        "personCode": "PER-000004",
+        "fullName": "MUHAMMET BILECI",
+        "title": "Operator",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "operator",
+        "assignedUnitIds": [
+          "u1"
+        ],
+        "unitId": "u1",
+        "username": "muhammetbileci",
+        "password": "",
+        "isAccountActive": true,
+        "modulePermissions": {
+          "planlama": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T13:51:02.800Z",
+        "permissions": {
+          "production": true,
+          "waste": false,
+          "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "bc9edfe4-edcc-4ada-a2d1-a62766ff543a",
+        "personCode": "PER-000005",
+        "fullName": "EMIN KAYA",
+        "title": "operatör",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "operator",
+        "username": "eminkaya",
+        "password": "emin1641",
+        "isAccountActive": true,
+        "assignedUnitIds": [
+          "u1"
+        ],
+        "unitId": "u1",
+        "modulePermissions": {
+          "planlama": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": true,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T14:01:10.870Z",
+        "permissions": {
+          "production": true,
+          "waste": false,
+          "admin": false
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": true,
+            "create": true,
+            "edit": true,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "345921d9-defb-4bc1-bd12-391b40a11d1b",
+        "personCode": "PER-000006",
+        "fullName": "ALI VELI",
+        "title": "ortacı",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "operator",
+        "username": "aliveli",
+        "password": "1234",
+        "isAccountActive": true,
+        "assignedUnitIds": [
+          "u3"
+        ],
+        "unitId": "u3",
+        "modulePermissions": {
+          "planlama": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T14:21:14.145Z",
+        "permissions": {
+          "production": false,
+          "waste": false,
+          "admin": false
+        },
+        "isStockPersonnel": false
+      },
+      {
+        "id": "72829b0f-b2d7-4f67-a580-1d857655cd92",
+        "personCode": "PER-000007",
+        "fullName": "MEHMET YILMAZ",
+        "title": "operatör",
+        "status": "aktif",
+        "isActive": true,
+        "rolePreset": "tam_yetkili",
+        "username": "mehmetyılmaz",
+        "password": "",
+        "isAccountActive": true,
+        "isStockPersonnel": true,
+        "assignedUnitIds": [],
+        "unitId": "",
+        "modulePermissions": {
+          "planlama": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "purchasing": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "sales": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "stock": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "units": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "products": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "personnel": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "settings": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "unitPermissions": {
+          "u1": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u2": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u3": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u5": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u7": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          },
+          "u_dtm": {
+            "view": false,
+            "create": false,
+            "edit": false,
+            "delete": false,
+            "approve": false
+          }
+        },
+        "created_at": "2026-03-10T15:51:25.938Z",
+        "permissions": {
+          "production": false,
+          "waste": false,
+          "admin": true
+        }
+      }
+    ],
+    "stock_movements": [],
+    "orders": [],
+    "units": [
+      {
+        "id": "u1",
+        "name": "CNC ATOLYESI",
+        "type": "internal"
+      },
+      {
+        "id": "u2",
+        "name": "EKSTRUDER ATOLYESI",
+        "type": "internal"
+      },
+      {
+        "id": "u3",
+        "name": "MONTAJ",
+        "type": "internal"
+      },
+      {
+        "id": "u5",
+        "name": "PLEKSI POLISAJ ATOLYESI",
+        "type": "internal"
+      },
+      {
+        "id": "u7",
+        "name": "TESTERE ATOLYESI",
+        "type": "internal"
+      },
+      {
+        "id": "u_dtm",
+        "name": "ANA DEPO",
+        "type": "internal"
+      },
+      {
+        "id": "u8",
+        "name": "AKPA ALUMINYUM A.S.",
+        "type": "external"
+      },
+      {
+        "id": "u9",
+        "name": "HILAL PWD",
+        "type": "external"
+      },
+      {
+        "id": "u10",
+        "name": "IBRAHIM POLISAJ",
+        "type": "external"
+      },
+      {
+        "id": "u11",
+        "name": "TEKIN ELOKSAL",
+        "type": "external"
+      }
+    ],
+    "machines": [
+      {
+        "id": "m1",
+        "unitId": "u2",
+        "name": "Ekstruder Hatti 1",
+        "status": "ACTIVE"
+      },
+      {
+        "id": "m2",
+        "unitId": "u2",
+        "name": "Ekstruder Hatti 2",
+        "status": "MAINTENANCE"
+      },
+      {
+        "id": "m3",
+        "unitId": "u1",
+        "name": "CNC Kesim 1",
+        "status": "IDLE"
+      }
+    ],
+    "inventory": [],
+    "aluminumProfiles": [],
+    "cncCards": [],
+    "plexiPolishCards": [],
+    "pvdCards": [],
+    "eloksalCards": [],
+    "ibrahimPolishCards": [],
+    "processColorLists": {},
+    "polishSurfaceLists": {},
+    "extruderLibraryCards": [],
+    "montageCards": [],
+    "depoTransferTasks": [],
+    "workOrders": [],
+    "workOrderTransactions": [],
+    "outsourceTransfers": [],
+    "depoTransferLogs": [],
+    "depoRoutes": [],
+    "productCategories": [
+      {
+        "id": "cat1",
+        "name": "Alüminyum profil",
+        "icon": "🏗️",
+        "prefix": "ALM"
+      },
+      {
+        "id": "cat3",
+        "name": "Hırdavat & Vida",
+        "icon": "🔩",
+        "prefix": "VID"
+      },
+      {
+        "id": "cat_ext",
+        "name": "Ekstrüder pleksi",
+        "icon": "🏭",
+        "prefix": "AKS"
+      },
+      {
+        "id": "cat_box",
+        "name": "Koli",
+        "icon": "[ ]",
+        "prefix": "KLI"
+      },
+      {
+        "id": "cat_sarf",
+        "name": "Sarf & Genel Malzeme",
+        "icon": "SG",
+        "prefix": "SRF"
+      }
+    ],
+    "stockDepots": [
+      {
+        "id": "depot_transfer",
+        "name": "TRANSFER DEPO",
+        "note": "Atolyeler arasinda bekleyen ve yonlendirilecek urunler burada gorunur.",
+        "isActive": true,
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "depot_granul",
+        "name": "GRANUL DEPO",
+        "note": "Hammadde ve granul icin ayrilan fiziksel alan.",
+        "isActive": true,
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "depot_profil",
+        "name": "PROFIL DEPO",
+        "note": "Profil ve uzun malzemeler icin ayrilan fiziksel alan.",
+        "isActive": true,
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "depot_mafsal",
+        "name": "MAFSAL DEPO",
+        "note": "Mafsal ve benzeri yarimamul / bitmis unsur alanlari.",
+        "isActive": false,
+        "created_at": "2026-03-10T12:37:17.688Z"
+      }
+    ],
+    "stockDepotLocations": [
+      {
+        "id": "d35069fb-6753-4e83-963e-14704dfb8516",
+        "depotId": "main",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": "Ana depo giris rafi",
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "688ca280-fe92-4644-a57c-048222de6e41",
+        "depotId": "main",
+        "rafCode": "R01",
+        "cellCode": "A2",
+        "note": "",
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "589bcf2d-9546-4ef8-b436-5aac966d523c",
+        "depotId": "main",
+        "rafCode": "R02",
+        "cellCode": "A1",
+        "note": "",
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "cac37618-11c1-4fe6-9ce2-9dc80b408018",
+        "depotId": "depot_granul",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": "",
+        "created_at": "2026-03-10T12:37:17.688Z"
+      },
+      {
+        "id": "4761fc84-f5a9-4b81-ac26-272bd12a23bf",
+        "depotId": "depot_profil",
+        "rafCode": "R01",
+        "cellCode": "A1",
+        "note": "",
+        "created_at": "2026-03-10T12:37:17.688Z"
+      }
+    ],
+    "stockDepotItems": [],
+    "freeExternalVendorJobs": [],
+    "partComponentCards": [],
+    "colorLibrary": [
+      {
+        "id": "933de9ee-6ae3-4028-9e54-68c2ab31175f",
+        "type": "eloksal",
+        "name": "P3 Sarı Eloksal",
+        "note": "akpa kartela",
+        "code": "CLR-ELO-0001",
+        "created_at": "2026-03-11T13:20:24.947Z",
+        "updated_at": "2026-03-11T13:20:24.947Z"
+      },
+      {
+        "id": "460818a8-40b5-49b7-b589-600b87eaa7ae",
+        "type": "eloksal",
+        "name": "P5 parlak eloksal",
+        "note": "...",
+        "code": "CLR-ELO-0002",
+        "created_at": "2026-03-11T13:20:51.783Z",
+        "updated_at": "2026-03-11T13:20:51.783Z"
+      }
+    ],
+    "partWorkOrders": [],
+    "assemblyGroups": [],
+    "unitColors": {
+      "u2": [
+        "Seffaf",
+        "Beyaz",
+        "Siyah",
+        "Antrasit"
+      ]
+    }
+  }
+}

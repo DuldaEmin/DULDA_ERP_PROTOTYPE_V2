@@ -1131,6 +1131,39 @@ const ProductLibraryModule = {
         return candidate;
     },
 
+    buildComponentRouteSignature: (routes = []) => {
+        return (Array.isArray(routes) ? routes : [])
+            .map(route => {
+                const stationId = String(route?.stationId || '').trim().toUpperCase();
+                const processId = String(ProductLibraryModule.getRouteProcessDisplayValue(route) || '').trim().toUpperCase();
+                return stationId ? `${stationId}:${processId}` : '';
+            })
+            .filter(Boolean)
+            .join('|');
+    },
+
+    buildComponentDuplicateSignature: (row = {}) => {
+        return [
+            ProductLibraryModule.normalizeAsciiUpper(row?.name || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.group || ''),
+            ProductLibraryModule.normalizeColorType(row?.colorType || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.subGroup || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.colorCode || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.masterCode || ''),
+            ProductLibraryModule.buildComponentRouteSignature(row?.routes || [])
+        ].join('||');
+    },
+
+    findDuplicateComponentCard: (row = {}, excludeId = '') => {
+        const targetSignature = ProductLibraryModule.buildComponentDuplicateSignature(row);
+        if (!targetSignature) return null;
+        const all = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        return all.find(item => {
+            if (excludeId && String(item?.id || '') === String(excludeId)) return false;
+            return ProductLibraryModule.buildComponentDuplicateSignature(item) === targetSignature;
+        }) || null;
+    },
+
     loadComponentDraftFromRow: (row, options = {}) => {
         if (!row || typeof row !== 'object') return;
         const hasEditingId = Object.prototype.hasOwnProperty.call(options, 'editingId');
@@ -1469,6 +1502,19 @@ const ProductLibraryModule = {
             .filter(r => r.stationId);
         const invalidStation = routes.find(r => !ProductLibraryModule.isValidRouteStationId(r.stationId));
         if (invalidStation) return alert('Rota satirinda gecersiz istasyon secimi var.');
+
+        const duplicateRow = ProductLibraryModule.findDuplicateComponentCard({
+            name,
+            group,
+            subGroup,
+            colorType,
+            colorCode,
+            masterCode,
+            routes
+        }, targetEditingId || '');
+        if (duplicateRow) {
+            return alert(`Bu urun zaten mevcut. ID kod: ${duplicateRow.code || '-'}`);
+        }
 
         const files = (Array.isArray(s.componentDraftFiles) ? s.componentDraftFiles : [])
             .map(file => ({
@@ -3755,6 +3801,31 @@ const ProductLibraryModule = {
         return candidate;
     },
 
+    buildMasterDuplicateSignature: (row = {}) => {
+        return [
+            ProductLibraryModule.normalizeAsciiUpper(row?.categoryId || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.name || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.unit || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.unitAmount || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.brand || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.pack || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.length || ''),
+            ProductLibraryModule.normalizeColorType(row?.colorType || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.color || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row?.colorCode || '')
+        ].join('||');
+    },
+
+    findDuplicateMasterProduct: (row = {}, excludeId = '') => {
+        const targetSignature = ProductLibraryModule.buildMasterDuplicateSignature(row);
+        if (!targetSignature) return null;
+        const all = ProductLibraryModule.getMasterProducts();
+        return all.find(item => {
+            if (excludeId && String(item?.id || '') === String(excludeId)) return false;
+            return ProductLibraryModule.buildMasterDuplicateSignature(item) === targetSignature;
+        }) || null;
+    },
+
     saveMasterProduct: async () => {
         const s = ProductLibraryModule.state;
         const name = String(s.masterDraftName || '').trim();
@@ -3811,6 +3882,22 @@ const ProductLibraryModule = {
                 supplierCode: String(link?.supplierCode || '').trim()
             })).filter(link => link.supplierId || link.supplierName)
             : [];
+
+        const duplicateMaster = ProductLibraryModule.findDuplicateMasterProduct({
+            categoryId: finalCategory.id,
+            name,
+            unit,
+            unitAmount,
+            brand,
+            pack,
+            length,
+            colorType,
+            color,
+            colorCode
+        }, s.masterEditingId || '');
+        if (duplicateMaster) {
+            return alert(`Bu urun zaten mevcut. ID kod: ${duplicateMaster.code || '-'}`);
+        }
 
         if (supplierLinks.length === 0 && Array.isArray(s.masterDraftSupplierIds) && s.masterDraftSupplierIds.length > 0) {
             const fallbackCode = String(s.masterDraftSupplierCode || '').trim();

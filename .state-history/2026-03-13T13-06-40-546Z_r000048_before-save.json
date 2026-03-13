@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T13:07:42.076Z",
+    "updated_at": "2026-03-13T13:05:44.387Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -36,7 +36,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 50
+    "revision": 48
   },
   "data": {
     "products": [
@@ -195,76 +195,6 @@
         },
         "created_at": "2026-03-13T13:04:34.099Z",
         "updated_at": "2026-03-13T13:04:34.099Z"
-      },
-      {
-        "id": "dc1dab6a-8fcf-4d73-bca5-9ab4b8879ac1",
-        "categoryId": "cat_ext",
-        "category": "pmma granul",
-        "type": "MASTER",
-        "name": "pmma granul",
-        "code": "AKS0001",
-        "unitAmount": "",
-        "unitAmountType": "gram",
-        "suppliers": [],
-        "supplierLinks": [],
-        "supplierIds": [],
-        "supplierNames": [],
-        "supplierProductCode": "",
-        "colorType": "",
-        "colorCode": "",
-        "attachment": null,
-        "specs": {
-          "unit": "kg",
-          "unitAmount": "",
-          "unitAmountType": "gram",
-          "brandModel": "",
-          "packageInfo": "",
-          "lengthMm": "",
-          "colorType": "",
-          "color": "",
-          "colorCode": "",
-          "suppliers": [],
-          "supplierLinks": [],
-          "supplierProductCode": "",
-          "note": "granul"
-        },
-        "created_at": "2026-03-13T13:06:40.529Z",
-        "updated_at": "2026-03-13T13:06:40.529Z"
-      },
-      {
-        "id": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
-        "categoryId": "cat3",
-        "category": "Hırdavat & Vida",
-        "type": "MASTER",
-        "name": "6x8 havşa baş inbus vida paslanmaz",
-        "code": "VID0001",
-        "unitAmount": "",
-        "unitAmountType": "adet",
-        "suppliers": [],
-        "supplierLinks": [],
-        "supplierIds": [],
-        "supplierNames": [],
-        "supplierProductCode": "",
-        "colorType": "",
-        "colorCode": "",
-        "attachment": null,
-        "specs": {
-          "unit": "adet",
-          "unitAmount": "",
-          "unitAmountType": "adet",
-          "brandModel": "",
-          "packageInfo": "",
-          "lengthMm": "",
-          "colorType": "",
-          "color": "",
-          "colorCode": "",
-          "suppliers": [],
-          "supplierLinks": [],
-          "supplierProductCode": "",
-          "note": "dikme mafsal vidası"
-        },
-        "created_at": "2026-03-13T13:07:42.075Z",
-        "updated_at": "2026-03-13T13:07:42.075Z"
       }
     ],
     "customers": [],

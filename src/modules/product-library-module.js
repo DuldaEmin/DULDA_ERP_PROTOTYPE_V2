@@ -639,7 +639,7 @@ const ProductLibraryModule = {
         const disabled = !activeType;
 
         container.innerHTML = `
-            <div style="max-width:1220px; margin:0 auto;">
+            <div style="max-width:1360px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
                     <h2 class="page-title" style="margin:0;">Renk Kutuphanesi</h2>
                     <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
@@ -1925,7 +1925,7 @@ const ProductLibraryModule = {
             })();
 
         container.innerHTML = `
-            <div style="max-width:1220px; margin:0 auto;">
+            <div style="max-width:1360px; margin:0 auto;">
                 ${isComponentPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
                         <div style="font-weight:700;">${isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'}</div>
@@ -1938,13 +1938,13 @@ const ProductLibraryModule = {
                 </div>
 
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto auto; gap:0.7rem; align-items:end;">
+                    <div style="display:grid; grid-template-columns:minmax(220px,1.2fr) minmax(240px,1.25fr) minmax(280px,1.35fr) minmax(210px,1.05fr) auto auto; gap:0.7rem; align-items:end;">
                         <input id="cmp_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setComponentFilter('name', this.value, 'cmp_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
                         <select id="cmp_filter_group" onchange="ProductLibraryModule.setComponentFilter('group', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600; background:white;">
                             <option value="">kategori ile ara</option>
                             ${categorySearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.group || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}
                         </select>
-                        <div>
+                        <div style="min-width:280px;">
                             <div style="font-size:0.72rem; color:#64748b; margin:0 0 0.16rem 0.15rem;">kategori / renk</div>
                             <div style="height:42px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
                                 <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">

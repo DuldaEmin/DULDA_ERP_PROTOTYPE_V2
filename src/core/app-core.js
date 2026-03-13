@@ -163,6 +163,7 @@ const IdentityPolicy = {
         ibrahimPolishCards: 'POL',
         extruderLibraryCards: 'EXT',
         montageCards: 'MNT',
+        catalogProductVariants: 'UPV',
         depoTransferTasks: 'DTT',
         depoTransferLogs: 'DTL',
         depoRoutes: 'DRT',
@@ -282,6 +283,7 @@ const DB = {
             polishSurfaceLists: {},
             extruderLibraryCards: [],
             montageCards: [],
+            catalogProductVariants: [],
             depoTransferTasks: [],
             workOrders: [],
             workOrderTransactions: [],
@@ -331,6 +333,7 @@ const DB = {
         if (!d.polishSurfaceLists || typeof d.polishSurfaceLists !== "object" || Array.isArray(d.polishSurfaceLists)) d.polishSurfaceLists = {};
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
         if (!Array.isArray(d.montageCards)) d.montageCards = [];
+        if (!Array.isArray(d.catalogProductVariants)) d.catalogProductVariants = [];
         if (!Array.isArray(d.depoTransferTasks)) d.depoTransferTasks = [];
         if (!Array.isArray(d.workOrders)) d.workOrders = [];
         if (!Array.isArray(d.workOrderTransactions)) d.workOrderTransactions = [];

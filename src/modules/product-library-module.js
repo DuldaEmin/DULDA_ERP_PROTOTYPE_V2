@@ -89,12 +89,41 @@ const ProductLibraryModule = {
         assemblyDraftRoutes: [],
         assemblyDraftRouteStationId: '',
         assemblyDraftFiles: [],
+        modelFilters: { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' },
+        modelGroupExpanded: {},
+        modelFamilyExpanded: {},
+        modelFormOpen: false,
+        modelViewingId: null,
+        modelEditingId: null,
+        modelSelectedId: null,
+        modelDraftFamilyId: '',
+        modelDraftFamilyCode: '',
+        modelDraftFamilyName: '',
+        modelDraftVariantCode: '',
+        modelDraftName: '',
+        modelDraftGroup: '',
+        modelDraftPlexiColorType: '',
+        modelDraftPlexiColor: '',
+        modelDraftPlexiColorCode: '',
+        modelDraftAccessoryColorType: '',
+        modelDraftAccessoryColor: '',
+        modelDraftAccessoryColorCode: '',
+        modelDraftTubeColorType: '',
+        modelDraftTubeColor: '',
+        modelDraftTubeColorCode: '',
+        modelDraftMasterRef: null,
+        modelDraftItems: [],
+        modelDraftMontageCard: null,
+        modelDraftProductFiles: [],
+        modelDraftExplodedFiles: [],
+        modelDraftNote: '',
         componentPickerSource: '',
         masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
 
     render: (container) => {
+        ProductLibraryModule.ensureModelDefaults();
         ProductLibraryModule.ensureMasterDefaults();
         ProductLibraryModule.ensureColorLibraryDefaults();
         ProductLibraryModule.ensureComponentDefaults();
@@ -105,11 +134,7 @@ const ProductLibraryModule = {
             return;
         }
         if (view === 'models') {
-            ProductLibraryModule.renderWorkspacePlaceholder(
-                container,
-                'Urun Modelleri Olusturma',
-                'Sayfa yapim asamasindadir.'
-            );
+            ProductLibraryModule.renderModelsPage(container);
             return;
         }
         if (view === 'components') {

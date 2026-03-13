@@ -264,7 +264,18 @@ const UnitModule = {
         UnitModule.renderComponentRoutePickerPanel(container);
     },
 
-    openUnit: (id) => { if (id === 'u_dtm') return UnitModule.openDepoTransfer(); UnitModule.state.activeUnitId = id; UnitModule.state.view = 'dashboard'; UI.renderCurrentPage(); },
+    openUnit: (id) => {
+        if (id === 'u_dtm') {
+            if (typeof Router !== 'undefined') Router.navigate('stock');
+            if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.openOperationLibrary === 'function') {
+                StockModule.openOperationLibrary();
+            }
+            return;
+        }
+        UnitModule.state.activeUnitId = id;
+        UnitModule.state.view = 'dashboard';
+        UI.renderCurrentPage();
+    },
     openUnitDepot: (id) => {
         UnitModule.state.activeUnitId = id || null;
         UnitModule.state.view = 'unitDepot';
@@ -433,7 +444,11 @@ const UnitModule = {
     },
     openUnitLibrary: (id) => {
         if (id === 'u_dtm') {
-            UnitModule.openDepoTransfer();
+            if (typeof Router !== 'undefined') Router.navigate('stock');
+            if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.openOperationLibrary === 'function') {
+                StockModule.openOperationLibrary();
+            }
+            if (UnitModule.applyPickerPreselectForStation('u_dtm')) UI.renderCurrentPage();
             return;
         }
         const unit = (DB.data.data.units || []).find(u => u.id === id);
@@ -516,6 +531,9 @@ const UnitModule = {
         if (normalizedStationId === 'u_dtm') {
             const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.taskCode || '').trim().toUpperCase() === code);
             UnitModule.state.depoTaskSelectedId = row?.id || null;
+            if (typeof StockModule !== 'undefined' && StockModule?.state) {
+                StockModule.state.operationSelectedId = row?.id || null;
+            }
             return true;
         }
         if (unitName.includes('CNC')) {
@@ -572,6 +590,12 @@ const UnitModule = {
         const view = String(UnitModule.state.view || '');
         const unitId = String(UnitModule.state.activeUnitId || '');
 
+        if (typeof Router !== 'undefined' && Router.currentPage === 'stock' && String(StockModule?.state?.workspaceView || '') === 'operation-library') {
+            const selectedId = String(StockModule?.state?.operationSelectedId || UnitModule.state.depoTaskSelectedId || '');
+            if (!selectedId) return '';
+            const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.id || '') === selectedId);
+            return String(row?.taskCode || '').trim().toUpperCase();
+        }
         if (view === 'depoTransfer') {
             const selectedId = String(UnitModule.state.depoTaskSelectedId || '');
             if (!selectedId) return '';
@@ -631,7 +655,10 @@ const UnitModule = {
     confirmComponentRouteProcessPick: () => {
         const picker = UnitModule.getActiveComponentRoutePicker();
         if (!picker) return;
-        const currentUnitId = String(UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || ''));
+        const isStockOperationLibrary = typeof Router !== 'undefined'
+            && Router.currentPage === 'stock'
+            && String(StockModule?.state?.workspaceView || '') === 'operation-library';
+        const currentUnitId = String(isStockOperationLibrary ? 'u_dtm' : (UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || '')));
         if (currentUnitId !== String(picker.stationId || '')) {
             alert('Yanlis birim kutuphanesindesiniz. Hedef birime geciniz.');
             return;
@@ -647,7 +674,11 @@ const UnitModule = {
         const picker = UnitModule.getActiveComponentRoutePicker();
         if (!picker) return;
         if (String(picker.stationId || '') === 'u_dtm') {
-            UnitModule.openDepoTransfer();
+            if (typeof Router !== 'undefined') Router.navigate('stock');
+            if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.openOperationLibrary === 'function') {
+                StockModule.openOperationLibrary();
+            }
+            if (UnitModule.applyPickerPreselectForStation('u_dtm')) UI.renderCurrentPage();
             return;
         }
         UnitModule.openUnitLibrary(picker.stationId);
@@ -665,8 +696,13 @@ const UnitModule = {
         if (!picker) return;
         const selectedCode = String(UnitModule.getSelectedProcessCodeForPicker() || '').trim().toUpperCase();
         const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
-        const currentUnitId = String(UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || ''));
-        const activeUnitName = units.find(u => String(u?.id || '') === currentUnitId)?.name || '-';
+        const isStockOperationLibrary = typeof Router !== 'undefined'
+            && Router.currentPage === 'stock'
+            && String(StockModule?.state?.workspaceView || '') === 'operation-library';
+        const currentUnitId = String(isStockOperationLibrary ? 'u_dtm' : (UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || '')));
+        const activeUnitName = isStockOperationLibrary
+            ? 'ANA DEPO / ISLEM KUTUPHANESI'
+            : (units.find(u => String(u?.id || '') === currentUnitId)?.name || '-');
         const targetUnitName = units.find(u => String(u?.id || '') === String(picker.stationId || ''))?.name || picker.stationId;
         const sameUnit = currentUnitId === String(picker.stationId || '');
         const canAdd = sameUnit && !!selectedCode;

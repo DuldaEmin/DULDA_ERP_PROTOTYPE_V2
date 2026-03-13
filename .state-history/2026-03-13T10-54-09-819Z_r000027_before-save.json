@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T10:57:47.318Z",
+    "updated_at": "2026-03-13T10:16:04.731Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -30,7 +30,7 @@
         "Genel"
       ]
     },
-    "revision": 31
+    "revision": 27
   },
   "data": {
     "products": [
@@ -1140,40 +1140,7 @@
     "polishSurfaceLists": {},
     "extruderLibraryCards": [],
     "montageCards": [],
-    "depoTransferTasks": [
-      {
-        "id": "729b4348-b112-4a0a-86a2-f75ff399636b",
-        "taskName": "ibrahim polisajcıya parça gönderme",
-        "taskCode": "DTR-000001",
-        "note": "deneme",
-        "created_at": "2026-03-13T10:54:09.804Z",
-        "updated_at": "2026-03-13T10:54:09.804Z"
-      },
-      {
-        "id": "baa08e96-015a-4d2b-b4a5-f64a50e72112",
-        "taskName": "Tekin eloksale ürün gönderme",
-        "taskCode": "DTR-000002",
-        "note": "deneme",
-        "created_at": "2026-03-13T10:56:39.540Z",
-        "updated_at": "2026-03-13T10:56:39.540Z"
-      },
-      {
-        "id": "765cb163-1a8f-43c5-bd50-20088505322b",
-        "taskName": "hilal  pvd ye sevk etme",
-        "taskCode": "DTR-000003",
-        "note": "dneme",
-        "created_at": "2026-03-13T10:57:10.635Z",
-        "updated_at": "2026-03-13T10:57:10.635Z"
-      },
-      {
-        "id": "7afd8e57-79bd-41fc-9999-24c9256d6cb1",
-        "taskName": "ana depoya alma",
-        "taskCode": "DTR-000004",
-        "note": "deneme",
-        "created_at": "2026-03-13T10:57:47.318Z",
-        "updated_at": "2026-03-13T10:57:47.318Z"
-      }
-    ],
+    "depoTransferTasks": [],
     "workOrders": [],
     "workOrderTransactions": [],
     "outsourceTransfers": [],

@@ -5,6 +5,14 @@ const StockModule = {
         selectedKey: 'all',
         searchName: '',
         searchCode: '',
+        operationSearchName: '',
+        operationSearchCode: '',
+        operationFormOpen: false,
+        operationEditingId: null,
+        operationSelectedId: null,
+        operationDraftCode: '',
+        operationDraftName: '',
+        operationDraftNote: '',
         depotDraftName: '',
         depotDraftNote: '',
         locationDraftRaf: '',
@@ -46,10 +54,16 @@ const StockModule = {
         if (String(StockModule.state.workspaceView || 'menu') === 'personnel') {
             container.innerHTML = StockModule.renderPersonnelWorkspaceShell();
             if (window.lucide) window.lucide.createIcons();
+            if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.renderComponentRoutePickerPanel === 'function') {
+                UnitModule.renderComponentRoutePickerPanel(container);
+            }
             return;
         }
         container.innerHTML = StockModule.renderLayout();
         if (window.lucide) window.lucide.createIcons();
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.renderComponentRoutePickerPanel === 'function') {
+            UnitModule.renderComponentRoutePickerPanel(container);
+        }
     },
 
     ensureData: () => {
@@ -61,6 +75,7 @@ const StockModule = {
         if (!Array.isArray(DB.data.data.stockDepots)) DB.data.data.stockDepots = [];
         if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
         if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
 
         let changed = false;
         const now = new Date().toISOString();
@@ -381,6 +396,11 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
+    openOperationLibrary: () => {
+        StockModule.state.workspaceView = 'operation-library';
+        UI.renderCurrentPage();
+    },
+
     setTopTab: (tabId) => {
         const nextTab = String(tabId || 'all');
         StockModule.state.topTab = nextTab;
@@ -411,6 +431,210 @@ const StockModule = {
         if (field === 'code') StockModule.state.searchCode = String(value || '');
         UI.renderCurrentPage();
         StockModule.restoreSearchFocus(field);
+    },
+
+    setOperationFilter: (field, value, focusId = '') => {
+        if (field === 'name') StockModule.state.operationSearchName = String(value || '');
+        if (field === 'code') StockModule.state.operationSearchCode = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        requestAnimationFrame(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const end = String(el.value || '').length;
+            if (typeof el.setSelectionRange === 'function') el.setSelectionRange(end, end);
+        });
+    },
+
+    getOperationLibraryRows: () => {
+        const qName = StockModule.normalize(StockModule.state.operationSearchName);
+        const qCode = StockModule.normalize(StockModule.state.operationSearchCode);
+        return (DB.data.data.depoTransferTasks || [])
+            .slice()
+            .filter((row) => {
+                const nameOk = !qName || StockModule.normalize(row?.taskName).includes(qName);
+                const codeOk = !qCode || StockModule.normalize(row?.taskCode).includes(qCode);
+                return nameOk && codeOk;
+            })
+            .sort((a, b) => new Date(b?.updated_at || b?.created_at || 0) - new Date(a?.updated_at || a?.created_at || 0));
+    },
+
+    getNextOperationCode: () => {
+        const max = (DB.data.data.depoTransferTasks || []).reduce((acc, row) => {
+            const code = String(row?.taskCode || '').trim().toUpperCase();
+            const match = code.match(/^DTR-(\d{6})$/);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        let next = max + 1;
+        let candidate = `DTR-${String(next).padStart(6, '0')}`;
+        while (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.isGlobalCodeTaken === 'function' && UnitModule.isGlobalCodeTaken(candidate)) {
+            next += 1;
+            candidate = `DTR-${String(next).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+
+    openOperationForm: () => {
+        StockModule.state.operationFormOpen = true;
+        StockModule.state.operationEditingId = null;
+        StockModule.state.operationDraftCode = StockModule.getNextOperationCode();
+        StockModule.state.operationDraftName = '';
+        StockModule.state.operationDraftNote = '';
+        UI.renderCurrentPage();
+    },
+
+    startEditOperation: (taskId) => {
+        const row = (DB.data.data.depoTransferTasks || []).find((item) => String(item?.id || '') === String(taskId || ''));
+        if (!row) return;
+        StockModule.state.operationSelectedId = row.id;
+        StockModule.state.operationFormOpen = true;
+        StockModule.state.operationEditingId = row.id;
+        StockModule.state.operationDraftCode = row.taskCode || StockModule.getNextOperationCode();
+        StockModule.state.operationDraftName = row.taskName || '';
+        StockModule.state.operationDraftNote = row.note || '';
+        UI.renderCurrentPage();
+    },
+
+    resetOperationDraft: () => {
+        StockModule.state.operationFormOpen = false;
+        StockModule.state.operationEditingId = null;
+        StockModule.state.operationDraftCode = '';
+        StockModule.state.operationDraftName = '';
+        StockModule.state.operationDraftNote = '';
+        UI.renderCurrentPage();
+    },
+
+    selectOperation: (taskId) => {
+        StockModule.state.operationSelectedId = String(taskId || '');
+        UI.renderCurrentPage();
+    },
+
+    saveOperation: async () => {
+        const taskName = String(StockModule.state.operationDraftName || '').trim();
+        const note = String(StockModule.state.operationDraftNote || '').trim();
+        const taskCode = String(StockModule.state.operationDraftCode || StockModule.getNextOperationCode()).trim().toUpperCase();
+        if (!taskName) return alert('Islem adi zorunlu.');
+        const editId = String(StockModule.state.operationEditingId || '');
+        const exclude = editId ? { collection: 'depoTransferTasks', id: editId, field: 'taskCode' } : null;
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.isGlobalCodeTaken === 'function' && UnitModule.isGlobalCodeTaken(taskCode, exclude)) {
+            return alert('Bu islem ID zaten kullaniliyor.');
+        }
+        const now = new Date().toISOString();
+        const all = DB.data.data.depoTransferTasks || [];
+        if (editId) {
+            const row = all.find((item) => String(item?.id || '') === editId);
+            if (!row) return;
+            row.taskName = taskName;
+            row.taskCode = taskCode;
+            row.note = note;
+            row.updated_at = now;
+            StockModule.state.operationSelectedId = row.id;
+        } else {
+            const id = crypto.randomUUID();
+            all.push({
+                id,
+                taskName,
+                taskCode,
+                note,
+                created_at: now,
+                updated_at: now
+            });
+            StockModule.state.operationSelectedId = id;
+        }
+        DB.data.data.depoTransferTasks = all;
+        await DB.save();
+        StockModule.resetOperationDraft();
+    },
+
+    deleteOperation: async (taskId) => {
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.isSuperAdmin === 'function' && !UnitModule.isSuperAdmin()) {
+            alert('Bu islem sadece super admin icin acik.');
+            return;
+        }
+        const row = (DB.data.data.depoTransferTasks || []).find((item) => String(item?.id || '') === String(taskId || ''));
+        if (!row) return;
+        if (!confirm(`"${row.taskName}" silinsin mi?`)) return;
+        DB.data.data.depoTransferTasks = (DB.data.data.depoTransferTasks || []).filter((item) => String(item?.id || '') !== String(taskId || ''));
+        if (String(StockModule.state.operationEditingId || '') === String(taskId || '')) StockModule.resetOperationDraft();
+        if (String(StockModule.state.operationSelectedId || '') === String(taskId || '')) StockModule.state.operationSelectedId = null;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    renderOperationLibraryLayout: () => {
+        const rows = StockModule.getOperationLibraryRows();
+        const activeTaskCode = StockModule.state.operationDraftCode || StockModule.getNextOperationCode();
+        const isFormOpen = !!StockModule.state.operationFormOpen;
+        const picker = typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.getActiveComponentRoutePicker === 'function'
+            ? UnitModule.getActiveComponentRoutePicker()
+            : null;
+        const isPickerMode = !!picker && String(picker.stationId || '') === 'u_dtm';
+        const canDelete = typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.isSuperAdmin === 'function'
+            ? UnitModule.isSuperAdmin()
+            : true;
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">depo & stok / islem kutuphanesi</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1.25rem 1.5rem;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.65rem; align-items:center;">
+                            <input id="stock_op_search_name" value="${StockModule.escapeHtml(StockModule.state.operationSearchName || '')}" oninput="StockModule.setOperationFilter('name', this.value, 'stock_op_search_name')" placeholder="islem adi ile ara" class="stock-input">
+                            <input id="stock_op_search_code" value="${StockModule.escapeHtml(StockModule.state.operationSearchCode || '')}" oninput="StockModule.setOperationFilter('code', this.value, 'stock_op_search_code')" placeholder="islem ID ile ara" class="stock-input">
+                            <button class="btn-primary" onclick="StockModule.openOperationForm()" style="min-width:170px;">Islem ekle +</button>
+                        </div>
+                    </div>
+
+                    <div class="card-table">
+                        <table style="width:100%; text-align:left; border-collapse:collapse">
+                            <thead>
+                                <tr style="border-bottom:1px solid #f1f5f9; color:#94a3b8; font-size:0.75rem; text-transform:uppercase">
+                                    <th style="padding:1.15rem">Islem adi</th>
+                                    <th style="padding:1.15rem">ID kod</th>
+                                    <th style="padding:1.15rem">Islem notu</th>
+                                    <th style="padding:1.15rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows.length === 0 ? '<tr><td colspan="4" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli islem yok.</td></tr>' : rows.map((row) => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${isPickerMode && String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#ffe4e6;' : ''}">
+                                        <td style="padding:1.15rem; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.taskName || '-')}</td>
+                                        <td style="padding:1.15rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.taskCode || '-')}</td>
+                                        <td style="padding:1.15rem; color:#64748b;">${StockModule.escapeHtml(row.note || '-')}</td>
+                                        <td style="padding:1.15rem; text-align:right;">
+                                            <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                ${isPickerMode ? `<button class="btn-sm" onclick="StockModule.selectOperation('${row.id}')" style="${String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>` : ''}
+                                                <button class="btn-sm" onclick="StockModule.startEditOperation('${row.id}')">Duzenle</button>
+                                                <button class="btn-sm" onclick="StockModule.deleteOperation('${row.id}')" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    ${isFormOpen ? `
+                        <div class="card-table" style="padding:1.25rem 1.5rem; margin-top:1rem;">
+                            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-bottom:0.8rem;">
+                                <button class="btn-sm" onclick="StockModule.resetOperationDraft()">vazgec</button>
+                                <button class="btn-primary" onclick="StockModule.saveOperation()">kaydet</button>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; margin-bottom:0.7rem;">
+                                <input value="${StockModule.escapeHtml(StockModule.state.operationDraftName || '')}" oninput="StockModule.state.operationDraftName=this.value" placeholder="islem adi" class="stock-input">
+                                <input value="${StockModule.escapeHtml(activeTaskCode)}" readonly placeholder="ID kod" class="stock-input" style="background:#f8fafc; font-family:monospace; font-weight:700;">
+                            </div>
+                            <textarea oninput="StockModule.state.operationDraftNote=this.value" placeholder="islem notu" class="stock-textarea" style="min-height:92px;">${StockModule.escapeHtml(StockModule.state.operationDraftNote || '')}</textarea>
+                        </div>
+                    ` : ''}
+                </div>
+            </section>
+        `;
     },
 
     setDraftField: (field, value) => {
@@ -924,10 +1148,7 @@ const StockModule = {
             return StockModule.renderDepotsLayout();
         }
         if (String(StockModule.state.workspaceView || 'menu') === 'operation-library') {
-            return StockModule.renderWorkspacePlaceholder(
-                'depo & stok / islem kutuphanesi',
-                'Islem ekleme modulu sonra tasarlanacak. Bu sayfa simdilik bos birakildi.'
-            );
+            return StockModule.renderOperationLibraryLayout();
         }
         return StockModule.renderMenuLayout();
     }

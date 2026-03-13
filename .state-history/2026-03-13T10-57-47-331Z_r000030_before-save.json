@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T10:57:47.318Z",
+    "updated_at": "2026-03-13T10:57:10.636Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -30,7 +30,7 @@
         "Genel"
       ]
     },
-    "revision": 31
+    "revision": 30
   },
   "data": {
     "products": [
@@ -1164,14 +1164,6 @@
         "note": "dneme",
         "created_at": "2026-03-13T10:57:10.635Z",
         "updated_at": "2026-03-13T10:57:10.635Z"
-      },
-      {
-        "id": "7afd8e57-79bd-41fc-9999-24c9256d6cb1",
-        "taskName": "ana depoya alma",
-        "taskCode": "DTR-000004",
-        "note": "deneme",
-        "created_at": "2026-03-13T10:57:47.318Z",
-        "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
     "workOrders": [],

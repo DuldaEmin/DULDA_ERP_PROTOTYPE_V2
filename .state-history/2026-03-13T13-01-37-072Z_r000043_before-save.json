@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T13:01:37.053Z",
+    "updated_at": "2026-03-13T12:59:32.310Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -36,7 +36,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 44
+    "revision": 43
   },
   "data": {
     "products": [
@@ -1265,12 +1265,6 @@
         "name": "Sarf & Genel Malzeme",
         "icon": "SG",
         "prefix": "SRF"
-      },
-      {
-        "id": "ea2fb154-b12a-496d-952f-a6fd97ac0435",
-        "name": "dikme aksesuarları",
-        "icon": "📦",
-        "prefix": "DIK"
       }
     ],
     "stockDepots": [

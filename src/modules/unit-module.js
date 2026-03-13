@@ -88,9 +88,6 @@ const UnitModule = {
         depoTaskSelectedId: null,
         depoTaskDraftCode: '',
         depoTaskDraftName: '',
-        depoTaskDraftSourceId: '',
-        depoTaskDraftTargetId: '',
-        depoTaskDraftType: 'GONDER',
         depoTaskDraftNote: '',
         workOrderTab: 'BEKLEYEN',
         workOrderSearch: '',
@@ -293,9 +290,6 @@ const UnitModule = {
         UnitModule.state.depoTaskSelectedId = null;
         UnitModule.state.depoTaskDraftCode = '';
         UnitModule.state.depoTaskDraftName = '';
-        UnitModule.state.depoTaskDraftSourceId = '';
-        UnitModule.state.depoTaskDraftTargetId = '';
-        UnitModule.state.depoTaskDraftType = 'GONDER';
         UnitModule.state.depoTaskDraftNote = '';
         UnitModule.applyPickerPreselectForStation('u_dtm');
         UI.renderCurrentPage();
@@ -1818,14 +1812,11 @@ const UnitModule = {
             .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
 
         const qName = String(UnitModule.state.depoTaskSearchName || '').trim().toLowerCase();
-        const qRoute = String(UnitModule.state.depoTaskSearchRoute || '').trim().toLowerCase();
         const qCode = String(UnitModule.state.depoTaskSearchCode || '').trim().toLowerCase();
         const filteredTasks = tasks.filter(row => {
             const nameOk = !qName || String(row.taskName || '').toLowerCase().includes(qName);
             const codeOk = !qCode || String(row.taskCode || '').toLowerCase().includes(qCode);
-            const routeName = String(unitMap[row.targetUnitId] || row.targetUnitId || '').toLowerCase();
-            const routeOk = !qRoute || routeName.includes(qRoute);
-            return nameOk && codeOk && routeOk;
+            return nameOk && codeOk;
         });
         const canDeleteTask = UnitModule.isSuperAdmin();
         const activeTaskCode = UnitModule.state.depoTaskDraftCode || UnitModule.getNextDepoTaskCode();
@@ -1840,8 +1831,8 @@ const UnitModule = {
                         <i data-lucide="arrow-left" width="18" height="18"></i>
                     </button>
                     <div>
-                        <h2 class="page-title" style="margin:0;">Ana Depo</h2>
-                        <div style="font-size:0.85rem; color:#64748b;">Ana depo operasyon ve rota yonetim ekrani</div>
+                        <h2 class="page-title" style="margin:0;">Ana Depo Islem Kutuphanesi</h2>
+                        <div style="font-size:0.85rem; color:#64748b;">Route icin secilecek ana depo komutlarini burada tanimlayin.</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">
@@ -1852,9 +1843,8 @@ const UnitModule = {
             </div>
 
             <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:1rem;">
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:0.65rem; align-items:center;">
+                <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.65rem; align-items:center;">
                     <input id="depo_task_search_name" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchName || '')}" oninput="UnitModule.setDepoTaskFilter('name', this.value, 'depo_task_search_name')" placeholder="islem adi ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
-                    <input id="depo_task_search_route" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchRoute || '')}" oninput="UnitModule.setDepoTaskFilter('route', this.value, 'depo_task_search_route')" placeholder="rota ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                     <input id="depo_task_search_code" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskSearchCode || '')}" oninput="UnitModule.setDepoTaskFilter('code', this.value, 'depo_task_search_code')" placeholder="islem ID ile ara" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                     <button class="btn-primary" onclick="UnitModule.openDepoTaskForm()" style="min-width:170px;">Islem ekle +</button>
                 </div>
@@ -1866,17 +1856,15 @@ const UnitModule = {
                         <thead>
                             <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
                                 <th style="padding:0.55rem; text-align:left;">Islem adi</th>
-                                <th style="padding:0.55rem; text-align:left;">Rota</th>
                                 <th style="padding:0.55rem; text-align:left;">ID kod</th>
                                 <th style="padding:0.55rem; text-align:left;">Not</th>
                                 <th style="padding:0.55rem; text-align:right;">Islem</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredTasks.length === 0 ? `<tr><td colspan="5" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
+                            ${filteredTasks.length === 0 ? `<tr><td colspan="4" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
                                 <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#ffe4e6;' : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
-                                    <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(unitMap[t.targetUnitId] || t.targetUnitId || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(t.note || '-')}</td>
                                     <td style="padding:0.55rem; text-align:right;">
@@ -1899,15 +1887,11 @@ const UnitModule = {
                         <button class="btn-sm" onclick="UnitModule.resetDepoTaskDraft()">vazgec</button>
                         <button class="btn-primary" onclick="UnitModule.saveDepoTask()">kaydet</button>
                     </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.7rem; margin-bottom:0.7rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.7rem; margin-bottom:0.7rem;">
                         <input id="depo_task_name" value="${UnitModule.escapeHtml(UnitModule.state.depoTaskDraftName || '')}" oninput="UnitModule.state.depoTaskDraftName=this.value" placeholder="islem adi" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
-                        <select id="depo_task_target" onchange="UnitModule.state.depoTaskDraftTargetId=this.value" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:600;">
-                            <option value="">Gidecegi yer</option>
-                            ${units.map(u => `<option value="${u.id}" ${String(UnitModule.state.depoTaskDraftTargetId || '') === String(u.id) ? 'selected' : ''}>${UnitModule.escapeHtml(u.name)}</option>`).join('')}
-                        </select>
                         <input id="depo_task_code" value="${UnitModule.escapeHtml(activeTaskCode)}" readonly placeholder="ID kod" style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.6rem; padding:0.55rem 0.65rem; font-weight:700; font-family:monospace;">
                     </div>
-                    <textarea id="depo_task_note" oninput="UnitModule.state.depoTaskDraftNote=this.value" placeholder="not ekle" style="width:100%; min-height:86px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0.7rem; color:#334155;">${UnitModule.escapeHtml(UnitModule.state.depoTaskDraftNote || '')}</textarea>
+                    <textarea id="depo_task_note" oninput="UnitModule.state.depoTaskDraftNote=this.value" placeholder="islem notu" style="width:100%; min-height:86px; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0.7rem; color:#334155;">${UnitModule.escapeHtml(UnitModule.state.depoTaskDraftNote || '')}</textarea>
                 </div>
             ` : ''}
         `;
@@ -1933,7 +1917,6 @@ const UnitModule = {
         UnitModule.state.depoTaskEditingId = null;
         UnitModule.state.depoTaskDraftCode = UnitModule.getNextDepoTaskCode();
         UnitModule.state.depoTaskDraftName = '';
-        UnitModule.state.depoTaskDraftTargetId = '';
         UnitModule.state.depoTaskDraftNote = '';
         UI.renderCurrentPage();
     },
@@ -1960,9 +1943,6 @@ const UnitModule = {
         UnitModule.state.depoTaskEditingId = row.id;
         UnitModule.state.depoTaskDraftCode = row.taskCode || UnitModule.getNextDepoTaskCode();
         UnitModule.state.depoTaskDraftName = row.taskName || '';
-        UnitModule.state.depoTaskDraftSourceId = row.sourceUnitId || '';
-        UnitModule.state.depoTaskDraftTargetId = row.targetUnitId || '';
-        UnitModule.state.depoTaskDraftType = row.taskType || 'GONDER';
         UnitModule.state.depoTaskDraftNote = row.note || '';
         UI.renderCurrentPage();
     },
@@ -1971,9 +1951,6 @@ const UnitModule = {
         UnitModule.state.depoTaskEditingId = null;
         UnitModule.state.depoTaskDraftCode = '';
         UnitModule.state.depoTaskDraftName = '';
-        UnitModule.state.depoTaskDraftSourceId = '';
-        UnitModule.state.depoTaskDraftTargetId = '';
-        UnitModule.state.depoTaskDraftType = 'GONDER';
         UnitModule.state.depoTaskDraftNote = '';
         UI.renderCurrentPage();
     },
@@ -1983,17 +1960,10 @@ const UnitModule = {
     },
     saveDepoTask: async () => {
         const taskName = String(UnitModule.state.depoTaskDraftName || '').trim();
-        const targetUnitId = String(UnitModule.state.depoTaskDraftTargetId || '').trim();
         const note = String(UnitModule.state.depoTaskDraftNote || '').trim();
         const taskCode = String(UnitModule.state.depoTaskDraftCode || UnitModule.getNextDepoTaskCode()).trim().toUpperCase();
 
         if (!taskName) return alert('Is tanimi zorunlu.');
-        if (!targetUnitId) return alert('Gidecegi yer zorunlu.');
-
-        const validUnitIds = new Set((DB.data.data.units || []).map(u => u.id));
-        if (!validUnitIds.has(targetUnitId)) {
-            return alert('Gecersiz hedef secimi.');
-        }
 
         const editId = UnitModule.state.depoTaskEditingId;
         const exclude = editId ? { collection: 'depoTransferTasks', id: editId, field: 'taskCode' } : null;
@@ -2009,9 +1979,6 @@ const UnitModule = {
             if (!row) return;
             row.taskName = taskName;
             row.taskCode = taskCode;
-            row.targetUnitId = targetUnitId;
-            row.sourceUnitId = String(row.sourceUnitId || '');
-            row.taskType = 'GONDER';
             row.note = note;
             row.updated_at = now;
         } else {
@@ -2019,9 +1986,6 @@ const UnitModule = {
                 id: crypto.randomUUID(),
                 taskName,
                 taskCode,
-                sourceUnitId: '',
-                targetUnitId,
-                taskType: 'GONDER',
                 note,
                 created_at: now,
                 updated_at: now

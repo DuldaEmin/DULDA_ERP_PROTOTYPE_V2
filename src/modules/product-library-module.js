@@ -1324,12 +1324,17 @@ const ProductLibraryModule = {
         if (!Array.isArray(ProductLibraryModule.state.componentDraftRoutes)) {
             ProductLibraryModule.state.componentDraftRoutes = [];
         }
+        const routeId = crypto.randomUUID();
         ProductLibraryModule.state.componentDraftRoutes.push({
-            id: crypto.randomUUID(),
+            id: routeId,
             stationId,
             processId: ProductLibraryModule.isSupplierRouteStationId(stationId) ? 'FASON' : ''
         });
         ProductLibraryModule.state.componentDraftRouteStationId = '';
+        if (stationId === 'u_dtm') {
+            ProductLibraryModule.openComponentRouteProcessPicker(routeId);
+            return;
+        }
         UI.renderCurrentPage();
     },
 
@@ -2207,12 +2212,17 @@ const ProductLibraryModule = {
         if (!Array.isArray(ProductLibraryModule.state.assemblyDraftRoutes)) {
             ProductLibraryModule.state.assemblyDraftRoutes = [];
         }
+        const routeId = crypto.randomUUID();
         ProductLibraryModule.state.assemblyDraftRoutes.push({
-            id: crypto.randomUUID(),
+            id: routeId,
             stationId,
             processId: ProductLibraryModule.isSupplierRouteStationId(stationId) ? 'FASON' : ''
         });
         ProductLibraryModule.state.assemblyDraftRouteStationId = '';
+        if (stationId === 'u_dtm') {
+            ProductLibraryModule.openAssemblyRouteProcessPicker(routeId);
+            return;
+        }
         UI.renderCurrentPage();
     },
 

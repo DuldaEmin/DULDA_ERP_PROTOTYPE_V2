@@ -273,6 +273,7 @@ const DB = {
             inventory: [],
             aluminumProfiles: [],
             cncCards: [],
+            cncCategories: [],
             plexiPolishCards: [],
             pvdCards: [],
             eloksalCards: [],
@@ -321,6 +322,7 @@ const DB = {
         if (!Array.isArray(d.inventory)) d.inventory = [];
         if (!Array.isArray(d.aluminumProfiles)) d.aluminumProfiles = [];
         if (!Array.isArray(d.cncCards)) d.cncCards = [];
+        if (!Array.isArray(d.cncCategories)) d.cncCategories = [];
         if (!Array.isArray(d.plexiPolishCards)) d.plexiPolishCards = [];
         if (!Array.isArray(d.pvdCards)) d.pvdCards = [];
         if (!Array.isArray(d.eloksalCards)) d.eloksalCards = [];

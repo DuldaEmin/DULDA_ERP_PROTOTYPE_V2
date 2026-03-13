@@ -3,16 +3,22 @@ const CncLibraryModule = {
         activeUnitId: null,
         searchName: '',
         searchId: '',
+        searchCategory: '',
         selectedId: null,
         formOpen: false,
         editingId: null,
         draftId: null,
+        draftProductName: '',
+        draftNotes: '',
+        draftCategoryId: '',
+        draftCategoryName: '',
         draftOperations: [],
         draftDrawing: null
     },
 
     ensureData: () => {
-        if (!DB.data.data.cncCards) DB.data.data.cncCards = [];
+        if (!Array.isArray(DB.data?.data?.cncCards)) DB.data.data.cncCards = [];
+        if (!Array.isArray(DB.data?.data?.cncCategories)) DB.data.data.cncCategories = [];
     },
 
     render: (container, unitId) => {
@@ -22,6 +28,7 @@ const CncLibraryModule = {
 
         const unit = (DB.data.data.units || []).find(u => u.id === unitId);
         const cards = (DB.data.data.cncCards || []).filter(c => c.unitId === unitId);
+        const categories = CncLibraryModule.getCategories(unitId);
         const role = String(DB.data?.meta?.activeRole || 'super-admin').toLowerCase();
         const canDelete = role === 'super-admin';
         const filtered = cards
@@ -32,7 +39,16 @@ const CncLibraryModule = {
                 const idOk = CncLibraryModule.state.searchId
                     ? String(c.cncId || '').toLowerCase().includes(CncLibraryModule.state.searchId.toLowerCase())
                     : true;
-                return nameOk && idOk;
+                const selectedCategoryId = String(CncLibraryModule.state.searchCategory || '').trim();
+                const selectedCategoryName = selectedCategoryId
+                    ? CncLibraryModule.getCategoryNameById(selectedCategoryId, unitId)
+                    : '';
+                const cardCategoryId = String(c.categoryId || '').trim();
+                const cardCategoryName = CncLibraryModule.resolveCardCategoryName(c, unitId);
+                const categoryOk = selectedCategoryId
+                    ? cardCategoryId === selectedCategoryId || (!!selectedCategoryName && CncLibraryModule.normalizeText(cardCategoryName) === CncLibraryModule.normalizeText(selectedCategoryName))
+                    : true;
+                return nameOk && idOk && categoryOk;
             })
             .sort((a, b) => String(a.productName || '').localeCompare(String(b.productName || ''), 'tr'));
 
@@ -41,6 +57,10 @@ const CncLibraryModule = {
             : null;
         const ops = CncLibraryModule.renumber(CncLibraryModule.state.draftOperations);
         const drawing = CncLibraryModule.state.draftDrawing;
+        const draftCategoryKnown = !!categories.find(c => String(c.id || '') === String(CncLibraryModule.state.draftCategoryId || ''));
+        const draftCategorySelectValue = draftCategoryKnown
+            ? String(CncLibraryModule.state.draftCategoryId || '')
+            : (CncLibraryModule.state.draftCategoryName ? '__draft__' : '');
 
         container.innerHTML = `
             <div style="max-width:1300px; margin:0 auto;">
@@ -63,12 +83,17 @@ const CncLibraryModule = {
                     <div style="display:flex; gap:0.6rem; margin-bottom:0.8rem; flex-wrap:wrap;">
                         <input id="cnc_search_name" value="${CncLibraryModule.escape(CncLibraryModule.state.searchName)}" oninput="CncLibraryModule.setSearch('name', this.value, this.selectionStart)" placeholder="isimle ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
                         <input id="cnc_search_id" value="${CncLibraryModule.escape(CncLibraryModule.state.searchId)}" oninput="CncLibraryModule.setSearch('id', this.value, this.selectionStart)" placeholder="ID ile ara" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600;">
+                        <select id="cnc_search_category" onchange="CncLibraryModule.setSearchCategory(this.value)" style="height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; min-width:220px; font-weight:600; background:white;">
+                            <option value="">kategoriye gore filtrele</option>
+                            ${categories.map(category => `<option value="${CncLibraryModule.escape(category.id)}" ${String(CncLibraryModule.state.searchCategory || '') === String(category.id || '') ? 'selected' : ''}>${CncLibraryModule.escape(category.name || '')}</option>`).join('')}
+                        </select>
                     </div>
                     <div id="cnc_table_block" class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
                             <thead>
                                 <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
                                     <th style="padding:0.65rem; text-align:left;">Urun ismi</th>
+                                    <th style="padding:0.65rem; text-align:left;">Kategori</th>
                                     <th style="padding:0.65rem; text-align:left;">ID</th>
                                     <th style="padding:0.65rem; text-align:center;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
@@ -77,9 +102,10 @@ const CncLibraryModule = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
+                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${CncLibraryModule.state.selectedId === card.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700;">${CncLibraryModule.escape(card.productName || '-')}</td>
+                                        <td style="padding:0.65rem; color:#475569;">${CncLibraryModule.escape(CncLibraryModule.resolveCardCategoryName(card, unitId) || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace;">${CncLibraryModule.escape(card.cncId || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
                                             <button onclick="CncLibraryModule.viewCardOperations('${card.id}')" style="border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:0.5rem; padding:0.2rem 0.75rem; font-weight:700; cursor:pointer;">goruntule</button>
@@ -112,11 +138,22 @@ const CncLibraryModule = {
                         </div>
 
                         <div style="display:grid; grid-template-columns:repeat(12, minmax(0,1fr)); gap:0.6rem;">
-                            <div style="grid-column:span 8;">
+                            <div style="grid-column:span 6;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun ismi *</label>
-                                <input id="cnc_name" value="${CncLibraryModule.escape(editingCard?.productName || '')}" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                                <input id="cnc_name" value="${CncLibraryModule.escape(CncLibraryModule.state.draftProductName || '')}" oninput="CncLibraryModule.setDraftField('productName', this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
-                            <div style="grid-column:span 4;">
+                            <div style="grid-column:span 3;">
+                                <label style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">
+                                    <span>kategori</span>
+                                    <button type="button" onclick="CncLibraryModule.openCategoryManager()" style="font-size:0.66rem; color:#2563eb; background:none; border:none; cursor:pointer; font-weight:700; padding:0;">YONET (EKLE-SIL)</button>
+                                </label>
+                                <select id="cnc_category" onchange="CncLibraryModule.setDraftCategory(this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; background:white; font-weight:600;">
+                                    <option value="" ${draftCategorySelectValue === '' ? 'selected' : ''}>Kategori secin</option>
+                                    ${!draftCategoryKnown && CncLibraryModule.state.draftCategoryName ? `<option value="__draft__" selected>${CncLibraryModule.escape(CncLibraryModule.state.draftCategoryName)} (mevcut)</option>` : ''}
+                                    ${categories.map(category => `<option value="${CncLibraryModule.escape(category.id)}" ${draftCategorySelectValue === String(category.id || '') ? 'selected' : ''}>${CncLibraryModule.escape(category.name || '')}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="grid-column:span 3;">
                                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">kart ID</label>
                                 <input id="cnc_id" disabled value="${CncLibraryModule.escape(editingCard?.cncId || CncLibraryModule.state.draftId)}" style="width:100%; height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace;">
                             </div>
@@ -161,7 +198,7 @@ const CncLibraryModule = {
                             </div>
                             <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.65rem;">
                                 <strong style="font-size:0.9rem;">Notlar</strong>
-                                <textarea id="cnc_notes" rows="6" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical; margin-top:0.35rem;">${CncLibraryModule.escape(editingCard?.notes || '')}</textarea>
+                                <textarea id="cnc_notes" rows="6" oninput="CncLibraryModule.setDraftField('notes', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical; margin-top:0.35rem;">${CncLibraryModule.escape(CncLibraryModule.state.draftNotes || '')}</textarea>
                             </div>
                         </div>
                     </div>
@@ -195,6 +232,29 @@ const CncLibraryModule = {
         }, 0);
     },
 
+    setSearchCategory: (value) => {
+        CncLibraryModule.state.searchCategory = value || '';
+        UI.renderCurrentPage();
+    },
+
+    setDraftField: (field, value) => {
+        if (field === 'productName') CncLibraryModule.state.draftProductName = value || '';
+        if (field === 'notes') CncLibraryModule.state.draftNotes = value || '';
+    },
+
+    setDraftCategory: (value) => {
+        if (value === '__draft__') return;
+        const unitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        if (!value) {
+            CncLibraryModule.state.draftCategoryId = '';
+            CncLibraryModule.state.draftCategoryName = '';
+            return;
+        }
+        const category = CncLibraryModule.getCategories(unitId).find(row => String(row.id || '') === String(value || ''));
+        CncLibraryModule.state.draftCategoryId = category?.id || '';
+        CncLibraryModule.state.draftCategoryName = category?.name || '';
+    },
+
     toggleRowSelect: (cardId, checked) => {
         CncLibraryModule.state.selectedId = checked ? cardId : null;
         UI.renderCurrentPage();
@@ -220,6 +280,10 @@ const CncLibraryModule = {
                         </div>
                     </div>
                 `).join('')}
+                <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                    <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.3rem; font-weight:700;">Kategori</div>
+                    <div style="font-size:0.84rem; color:#334155;">${CncLibraryModule.escape(CncLibraryModule.resolveCardCategoryName(card, card.unitId || CncLibraryModule.state.activeUnitId) || '-')}</div>
+                </div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem; margin-top:0.35rem;">
                     <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.3rem; font-weight:700;">Kart notlari</div>
                     <div style="font-size:0.84rem; color:#334155; white-space:pre-wrap; min-height:48px;">${CncLibraryModule.escape(card.notes || '-')}</div>
@@ -247,12 +311,7 @@ const CncLibraryModule = {
     },
 
     startCreate: () => {
-        CncLibraryModule.state.formOpen = true;
-        CncLibraryModule.state.editingId = null;
-        CncLibraryModule.state.draftId = CncLibraryModule.generateId();
-        CncLibraryModule.state.draftOperations = [];
-        CncLibraryModule.state.draftDrawing = null;
-        UI.renderCurrentPage();
+        CncLibraryModule.resetDraft(true);
     },
 
     startEdit: (cardId) => {
@@ -262,15 +321,27 @@ const CncLibraryModule = {
         CncLibraryModule.state.editingId = cardId;
         CncLibraryModule.state.selectedId = cardId;
         CncLibraryModule.state.draftId = card.cncId;
+        CncLibraryModule.state.draftProductName = card.productName || '';
+        CncLibraryModule.state.draftNotes = card.notes || '';
+        CncLibraryModule.state.draftCategoryId = card.categoryId || '';
+        CncLibraryModule.state.draftCategoryName = CncLibraryModule.resolveCardCategoryName(card, card.unitId || CncLibraryModule.state.activeUnitId);
         CncLibraryModule.state.draftOperations = CncLibraryModule.renumber((card.operations || []).map(op => ({ ...op })));
         CncLibraryModule.state.draftDrawing = card.technicalDrawing ? { ...card.technicalDrawing } : null;
         UI.renderCurrentPage();
     },
 
     cancelForm: () => {
-        CncLibraryModule.state.formOpen = false;
+        CncLibraryModule.resetDraft(false);
+    },
+
+    resetDraft: (keepOpen = false) => {
+        CncLibraryModule.state.formOpen = !!keepOpen;
         CncLibraryModule.state.editingId = null;
         CncLibraryModule.state.draftId = CncLibraryModule.generateId();
+        CncLibraryModule.state.draftProductName = '';
+        CncLibraryModule.state.draftNotes = '';
+        CncLibraryModule.state.draftCategoryId = '';
+        CncLibraryModule.state.draftCategoryName = '';
         CncLibraryModule.state.draftOperations = [];
         CncLibraryModule.state.draftDrawing = null;
         UI.renderCurrentPage();
@@ -284,8 +355,10 @@ const CncLibraryModule = {
     },
 
     saveCard: async (unitId) => {
-        const name = document.getElementById('cnc_name')?.value.trim() || '';
-        const notes = document.getElementById('cnc_notes')?.value.trim() || '';
+        const name = String(CncLibraryModule.state.draftProductName || '').trim();
+        const notes = String(CncLibraryModule.state.draftNotes || '').trim();
+        const categoryId = String(CncLibraryModule.state.draftCategoryId || '').trim();
+        let categoryName = String(CncLibraryModule.state.draftCategoryName || '').trim();
         const drawingFile = document.getElementById('cnc_drawing')?.files?.[0];
         const ops = CncLibraryModule.renumber(CncLibraryModule.state.draftOperations);
 
@@ -296,6 +369,8 @@ const CncLibraryModule = {
         }
 
         const all = DB.data.data.cncCards || [];
+        const categoryFromList = categoryId ? CncLibraryModule.getCategories(unitId).find(row => String(row.id || '') === categoryId) : null;
+        if (categoryFromList) categoryName = categoryFromList.name || categoryName;
 
         let drawing = CncLibraryModule.state.draftDrawing ? { ...CncLibraryModule.state.draftDrawing } : null;
         if (drawingFile) {
@@ -319,6 +394,8 @@ const CncLibraryModule = {
             unitId,
             productName: name,
             cncId,
+            categoryId,
+            categoryName,
             notes,
             operations: ops,
             technicalDrawing: drawing,
@@ -332,6 +409,78 @@ const CncLibraryModule = {
         await DB.save();
         CncLibraryModule.state.selectedId = payload.id;
         CncLibraryModule.cancelForm();
+    },
+
+    openCategoryManager: () => {
+        const unitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        if (!unitId) return;
+        const categories = CncLibraryModule.getCategories(unitId);
+        Modal.open('CNC kategorileri', `
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <input id="cnc_category_new_name" placeholder="Yeni kategori adi" style="flex:1; min-width:220px; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem;">
+                    <button onclick="CncLibraryModule.addCategory()" class="btn-primary" style="padding:0.45rem 0.8rem;">Kategori ekle</button>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; overflow:hidden;">
+                    ${categories.length === 0
+                        ? `<div style="padding:0.85rem; color:#94a3b8; text-align:center;">Henuz kategori eklenmedi.</div>`
+                        : categories.map(category => `
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; padding:0.7rem 0.8rem; border-bottom:1px solid #f1f5f9;">
+                                <div style="font-weight:700; color:#334155;">${CncLibraryModule.escape(category.name || '')}</div>
+                                <button onclick="CncLibraryModule.deleteCategory('${category.id}')" style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.4rem; padding:0.2rem 0.55rem; cursor:pointer;">sil</button>
+                            </div>
+                        `).join('')
+                    }
+                </div>
+            </div>
+        `, { maxWidth: '560px' });
+    },
+
+    addCategory: async () => {
+        const unitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        const name = String(document.getElementById('cnc_category_new_name')?.value || '').trim();
+        if (!unitId) return;
+        if (!name) return alert('Kategori adi zorunlu.');
+        const exists = CncLibraryModule.getCategories(unitId)
+            .some(row => CncLibraryModule.normalizeText(row.name) === CncLibraryModule.normalizeText(name));
+        if (exists) return alert('Bu kategori zaten var.');
+        const payload = {
+            id: crypto.randomUUID(),
+            unitId,
+            name,
+            createdAt: new Date().toISOString()
+        };
+        DB.data.data.cncCategories.push(payload);
+        CncLibraryModule.state.draftCategoryId = payload.id;
+        CncLibraryModule.state.draftCategoryName = payload.name;
+        await DB.save();
+        UI.renderCurrentPage();
+        CncLibraryModule.openCategoryManager();
+    },
+
+    deleteCategory: async (categoryId) => {
+        const category = (DB.data.data.cncCategories || []).find(row => String(row.id || '') === String(categoryId || ''));
+        if (!category) return;
+        const linkedCount = (DB.data.data.cncCards || []).filter(card => {
+            if (String(card.unitId || '') !== String(category.unitId || '')) return false;
+            if (String(card.categoryId || '') === String(category.id || '')) return true;
+            return CncLibraryModule.normalizeText(card.categoryName) === CncLibraryModule.normalizeText(category.name);
+        }).length;
+        if (linkedCount > 0) {
+            return alert('Bu kategori kayitlarda kullaniliyor. Once kartlardaki kategoriyi degistirin.');
+        }
+        if (!confirm('Bu kategori silinsin mi?')) return;
+        DB.data.data.cncCategories = (DB.data.data.cncCategories || []).filter(row => String(row.id || '') !== String(categoryId || ''));
+        if (String(CncLibraryModule.state.draftCategoryId || '') === String(categoryId || '')) {
+            CncLibraryModule.state.draftCategoryId = '';
+            CncLibraryModule.state.draftCategoryName = '';
+        }
+        if (String(CncLibraryModule.state.searchCategory || '') === String(categoryId || '')) {
+            CncLibraryModule.state.searchCategory = '';
+        }
+        await DB.save();
+        UI.renderCurrentPage();
+        CncLibraryModule.openCategoryManager();
     },
 
     deleteCard: async (cardId) => {
@@ -665,6 +814,27 @@ const CncLibraryModule = {
         if (!normalized) return false;
         return CncLibraryModule.collectGlobalCodes(exclude).has(normalized);
     },
+
+    getCategories: (unitId) => {
+        const uid = String(unitId || '').trim();
+        return [...(DB.data?.data?.cncCategories || [])]
+            .filter(row => String(row?.unitId || '') === uid)
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+
+    getCategoryNameById: (categoryId, unitId = '') => {
+        const category = CncLibraryModule.getCategories(unitId || CncLibraryModule.state.activeUnitId)
+            .find(row => String(row.id || '') === String(categoryId || ''));
+        return String(category?.name || '').trim();
+    },
+
+    resolveCardCategoryName: (card, unitId = '') => {
+        const derived = CncLibraryModule.getCategoryNameById(card?.categoryId, unitId || card?.unitId || CncLibraryModule.state.activeUnitId);
+        if (derived) return derived;
+        return String(card?.categoryName || '').trim();
+    },
+
+    normalizeText: (value) => String(value || '').trim().toLocaleLowerCase('tr'),
 
     renumber: (ops) => [...(ops || [])]
         .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))

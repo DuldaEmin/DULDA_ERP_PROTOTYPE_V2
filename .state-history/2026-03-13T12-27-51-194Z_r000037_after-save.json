@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T12:28:38.077Z",
+    "updated_at": "2026-03-13T12:27:51.173Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -36,7 +36,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 40
+    "revision": 37
   },
   "data": {
     "products": [
@@ -1423,33 +1423,6 @@
         "code": "CLR-BOY-0001",
         "created_at": "2026-03-13T12:27:51.173Z",
         "updated_at": "2026-03-13T12:27:51.173Z"
-      },
-      {
-        "id": "87840c6e-c802-48c4-a95a-21a221bd3368",
-        "type": "pleksi",
-        "name": "şeffaf",
-        "note": "şeffaf",
-        "code": "CLR-PLX-0001",
-        "created_at": "2026-03-13T12:28:07.317Z",
-        "updated_at": "2026-03-13T12:28:07.317Z"
-      },
-      {
-        "id": "a66efde2-19ed-4fb0-90b0-1b4919f8e18b",
-        "type": "pleksi",
-        "name": "antrasit",
-        "note": "deneme",
-        "code": "CLR-PLX-0002",
-        "created_at": "2026-03-13T12:28:28.133Z",
-        "updated_at": "2026-03-13T12:28:28.133Z"
-      },
-      {
-        "id": "1c1ace0a-2458-446c-941b-1e71d0d51031",
-        "type": "pleksi",
-        "name": "sarı",
-        "note": "deneme",
-        "code": "CLR-PLX-0003",
-        "created_at": "2026-03-13T12:28:38.077Z",
-        "updated_at": "2026-03-13T12:28:38.077Z"
       }
     ],
     "partWorkOrders": [],

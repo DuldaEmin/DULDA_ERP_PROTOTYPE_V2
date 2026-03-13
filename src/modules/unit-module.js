@@ -4242,9 +4242,8 @@ const UnitModule = {
                                 <input id="elx_product_name" value="${UnitModule.escapeHtml(UnitModule.state.elxProductName || '')}" oninput="UnitModule.state.elxProductName=this.value" placeholder="ornek: dikme basligi" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             </div>
                             <div style="grid-column:span 4; width:100%; max-width:440px; justify-self:start;">
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; margin-bottom:0.2rem;">
+                                <div style="margin-bottom:0.2rem;">
                                     <label style="display:block; font-size:0.74rem; color:#64748b;">kategori / renk *</label>
-                                    <button type="button" onclick="UnitModule.openProcessColorModal('${unitId}', '${processType}')" style="height:22px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.45rem; padding:0 0.45rem; font-size:0.66rem; font-weight:800; cursor:pointer; white-space:nowrap;">YONET (EKLE-SIL)</button>
                                 </div>
                                 <div style="height:38px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
                                     <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
@@ -4662,9 +4661,8 @@ const UnitModule = {
                         </div>
 
                         <div style="grid-column:span 2; width:100%; max-width:440px;">
-                            <div class="lbl" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.3rem;">
+                            <div class="lbl" style="margin-bottom:0.3rem;">
                                 <span>KATEGORI / RENK</span>
-                                <button onclick="Router.navigate('product-library'); ProductLibraryModule.openWorkspace('colors');" style="color:#3b82f6; font-size:0.6rem; cursor:pointer; font-weight:700; background:none; border:none">[ + YONET (EKLE/SIL) ]</button>
                             </div>
                             <div style="height:42px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%; background:white;">
                                 <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">

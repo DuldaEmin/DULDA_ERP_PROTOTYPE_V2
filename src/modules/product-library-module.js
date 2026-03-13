@@ -1836,9 +1836,8 @@ const ProductLibraryModule = {
                                 </select>
                             </div>
                             <div>
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; margin-bottom:0.2rem;">
+                                <div style="margin-bottom:0.2rem;">
                                     <label style="display:block; font-size:0.74rem; color:#64748b;">kategori / renk</label>
-                                    <button type="button" onclick="ProductLibraryModule.openWorkspace('colors')" style="height:20px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.4rem; padding:0 0.4rem; font-size:0.64rem; font-weight:800; cursor:pointer; white-space:nowrap;">+yonet (ekle-sil)</button>
                                 </div>
                                 <div style="height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
                                     <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
@@ -3384,9 +3383,8 @@ const ProductLibraryModule = {
                         <input value="${ProductLibraryModule.escapeHtml(state.masterDraftUnitAmount || '')}" oninput="ProductLibraryModule.setMasterDraft('unitAmount', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                     </div>
                     <div style="width:100%; max-width:440px;">
-                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.45rem; margin-bottom:0.2rem;">
+                        <div style="margin-bottom:0.2rem;">
                             <label style="display:block; font-size:0.72rem; color:#64748b;">kategori / renk</label>
-                            <button type="button" onclick="ProductLibraryModule.openWorkspace('colors')" style="height:22px; border:1px solid #cbd5e1; background:white; color:#2563eb; border-radius:0.4rem; padding:0 0.45rem; font-size:0.66rem; font-weight:800; cursor:pointer; white-space:nowrap;">YONET (EKLE-SIL)</button>
                         </div>
                         <div style="height:45px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
                             <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">

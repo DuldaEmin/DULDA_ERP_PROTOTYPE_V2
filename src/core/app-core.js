@@ -510,6 +510,15 @@ const DB = {
         }
     },
 
+    saveNow: async () => {
+        if (DB.saveTimeout) {
+            clearTimeout(DB.saveTimeout);
+            DB.saveTimeout = null;
+        }
+        UI.showSavingIndicator(true);
+        await DB.save();
+    },
+
     flushOnUnload: () => {
         // Disabled by constitution: tab close / page hide must not overwrite disk state.
     },
@@ -619,10 +628,29 @@ const Router = {
 };
 
 const UI = {
-    init: () => { },
+    init: () => {
+        const manualSaveButton = document.getElementById('manualSaveButton');
+        if (manualSaveButton && !manualSaveButton.dataset.bound) {
+            manualSaveButton.dataset.bound = 'true';
+            manualSaveButton.addEventListener('click', () => {
+                void DB.saveNow();
+            });
+        }
+        UI.updateManualSaveButton(false);
+    },
+    updateManualSaveButton: (isSaving) => {
+        const button = document.getElementById('manualSaveButton');
+        if (!button) return;
+        button.disabled = !!isSaving;
+        button.innerHTML = isSaving
+            ? '<i data-lucide="loader-2" class="spin" width="16" height="16"></i> Kaydediliyor...'
+            : '<i data-lucide="save" width="16" height="16"></i> Degisiklikleri Kaydet';
+        if (window.lucide) window.lucide.createIcons();
+    },
     updateStatus: (msg) => {
         const ind = document.getElementById('dbStatusIndicator');
         if (ind) ind.innerHTML = `<i data-lucide="database" width="16" height="16"></i> ${msg}`;
+        UI.updateManualSaveButton(false);
         if (window.lucide) window.lucide.createIcons();
     },
     showSavingIndicator: (show) => {
@@ -630,6 +658,7 @@ const UI = {
         if (ind) ind.innerHTML = show
             ? '<i data-lucide="loader-2" class="spin" width="16" height="16"></i> Kaydediliyor...'
             : `<i data-lucide="database" width="16" height="16"></i> ${DB.storageMode === "disk" ? "Dosyaya Otomatik Kayıt" : "Tarayıcı Kaydı (Yedek)"}`;
+        UI.updateManualSaveButton(show);
         if (window.lucide) window.lucide.createIcons();
     },
     showConnectionScreen: (type) => {

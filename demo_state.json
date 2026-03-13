@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T15:04:58.747Z",
+    "updated_at": "2026-03-13T15:20:00.000Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -38,7 +38,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 67
+    "revision": 68
   },
   "data": {
     "products": [
@@ -2075,6 +2075,101 @@
         "createdAt": "2026-03-13T10:05:54.960Z"
       }
     ],
-    "catalogProductVariants": []
+    "catalogProductVariants": [
+      {
+        "id": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+        "familyCode": "URM-000001",
+        "familyName": "2008 bombeli aluminyum dikme",
+        "variantCode": "URM-000001-V01",
+        "productName": "2008 bombeli aluminyum dikme",
+        "productGroup": "Aluminyum Dikmeler",
+        "masterRef": {
+          "id": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
+          "code": "VID0001",
+          "name": "6x8 havşa baş inbus vida paslanmaz",
+          "categoryName": "Hırdavat & Vida"
+        },
+        "items": [
+          {
+            "id": "2738be92-4754-49f8-a96c-fb07e1db733b",
+            "source": "component",
+            "refId": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+            "code": "PRC-000005",
+            "name": "aluminyum dikme ay bağlantısı"
+          },
+          {
+            "id": "09ff0c3a-c6ab-41ab-857e-cb8825c7d3b5",
+            "source": "component",
+            "refId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+            "code": "PRC-000003",
+            "name": "40 lık aluminyum dikme yarıklı tapa"
+          },
+          {
+            "id": "44ecf257-04de-4345-b5b5-b5880f6c5103",
+            "source": "component",
+            "refId": "0f95fb28-d22f-475a-8b68-d6a054c7189a",
+            "code": "PRC-000001",
+            "name": "aluminyum dikme üst boru"
+          },
+          {
+            "id": "8cd93837-58f4-4b0d-a7e1-37f90b3550b8",
+            "source": "component",
+            "refId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+            "code": "PRC-000007",
+            "name": "2008 bombeli 40 lık dikme pleksi"
+          },
+          {
+            "id": "b16f9e52-a08e-4cab-8765-5c08bf35a6d7",
+            "source": "component",
+            "refId": "3f3c7192-6721-4c58-af07-785b8edf3013",
+            "code": "PRC-000006",
+            "name": "aluminyum dikme yüzüğü"
+          },
+          {
+            "id": "7ca21c47-f72b-4e43-8157-78bf1a8e909d",
+            "source": "component",
+            "refId": "1114c5b3-58c4-4a53-8c13-1ab6dd378ed1",
+            "code": "PRC-000002",
+            "name": "aluminyum dikme alt borusu"
+          },
+          {
+            "id": "a08ef636-71fd-498f-b74b-106444ddc985",
+            "source": "component",
+            "refId": "b720dffa-db74-4422-b198-419d2b9aa8ce",
+            "code": "PRC-000008",
+            "name": "40 lık aluminyum dikme flanşı"
+          }
+        ],
+        "montageCard": {
+          "id": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+          "cardCode": "MON-000001",
+          "productCode": "DIKMELER",
+          "productName": "aluminyum dikme oluşturma"
+        },
+        "colors": {
+          "plexi": {
+            "type": "pleksi",
+            "name": "şeffaf",
+            "code": "CLR-PLX-0001"
+          },
+          "accessory": {
+            "type": "eloksal",
+            "name": "P3 Sarı Eloksal",
+            "code": "CLR-ELO-0001"
+          },
+          "tube": {
+            "type": "eloksal",
+            "name": "P3 Sarı Eloksal",
+            "code": "CLR-ELO-0001"
+          }
+        },
+        "productFiles": [],
+        "explodedFiles": [],
+        "note": "",
+        "created_at": "2026-03-13T15:07:00.000Z",
+        "updated_at": "2026-03-13T15:07:00.000Z"
+      }
+    ]
   }
 }

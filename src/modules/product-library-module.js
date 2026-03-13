@@ -2743,6 +2743,1089 @@ const ProductLibraryModule = {
         `;
     },
 
+    ensureModelDefaults: () => {
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.catalogProductVariants)) DB.data.data.catalogProductVariants = [];
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.catalogProductGroups) || DB.data.meta.options.catalogProductGroups.length === 0) {
+            DB.data.meta.options.catalogProductGroups = ['Aluminyum Dikmeler', 'Paslanmaz Dikmeler', 'Lux Seri Babalar'];
+        }
+        if (!ProductLibraryModule.state.modelFilters || typeof ProductLibraryModule.state.modelFilters !== 'object') {
+            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+        }
+        if (!ProductLibraryModule.state.modelGroupExpanded || typeof ProductLibraryModule.state.modelGroupExpanded !== 'object') {
+            ProductLibraryModule.state.modelGroupExpanded = {};
+        }
+        if (!ProductLibraryModule.state.modelFamilyExpanded || typeof ProductLibraryModule.state.modelFamilyExpanded !== 'object') {
+            ProductLibraryModule.state.modelFamilyExpanded = {};
+        }
+    },
+
+    getModelGroupOptions: () => {
+        ProductLibraryModule.ensureModelDefaults();
+        return [...(DB.data.meta?.options?.catalogProductGroups || [])]
+            .map(x => String(x || '').trim())
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b, 'tr'));
+    },
+
+    getModelColorFieldConfig: (field) => {
+        const map = {
+            plexi: { typeKey: 'modelDraftPlexiColorType', nameKey: 'modelDraftPlexiColor', codeKey: 'modelDraftPlexiColorCode', label: 'pleksi rengi' },
+            accessory: { typeKey: 'modelDraftAccessoryColorType', nameKey: 'modelDraftAccessoryColor', codeKey: 'modelDraftAccessoryColorCode', label: 'aksesuar rengi' },
+            tube: { typeKey: 'modelDraftTubeColorType', nameKey: 'modelDraftTubeColor', codeKey: 'modelDraftTubeColorCode', label: 'boru rengi' }
+        };
+        return map[String(field || '')] || null;
+    },
+
+    getModelColorDraftValue: (field) => {
+        const cfg = ProductLibraryModule.getModelColorFieldConfig(field);
+        if (!cfg) return { type: '', name: '', code: '' };
+        return {
+            type: ProductLibraryModule.normalizeColorType(ProductLibraryModule.state[cfg.typeKey] || ''),
+            name: String(ProductLibraryModule.state[cfg.nameKey] || '').trim(),
+            code: String(ProductLibraryModule.state[cfg.codeKey] || '').trim().toUpperCase()
+        };
+    },
+
+    setModelColorType: (field, value) => {
+        const cfg = ProductLibraryModule.getModelColorFieldConfig(field);
+        if (!cfg) return;
+        ProductLibraryModule.state[cfg.typeKey] = ProductLibraryModule.normalizeColorType(value || '');
+        ProductLibraryModule.state[cfg.nameKey] = '';
+        ProductLibraryModule.state[cfg.codeKey] = '';
+        UI.renderCurrentPage();
+    },
+
+    setModelColor: (field, value) => {
+        const cfg = ProductLibraryModule.getModelColorFieldConfig(field);
+        if (!cfg) return;
+        const type = ProductLibraryModule.normalizeColorType(ProductLibraryModule.state[cfg.typeKey] || '');
+        const options = ProductLibraryModule.getColorLibraryItemsByType(type);
+        const row = options.find(x => String(x.name || '') === String(value || '')) || null;
+        ProductLibraryModule.state[cfg.nameKey] = row ? String(row.name || '') : '';
+        ProductLibraryModule.state[cfg.codeKey] = row ? String(row.code || '').trim().toUpperCase() : '';
+        UI.renderCurrentPage();
+    },
+
+    renderModelColorField: (field) => {
+        const cfg = ProductLibraryModule.getModelColorFieldConfig(field);
+        if (!cfg) return '';
+        const active = ProductLibraryModule.getModelColorDraftValue(field);
+        const options = ProductLibraryModule.getColorLibraryItemsByType(active.type);
+        return `
+            <div>
+                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">${ProductLibraryModule.escapeHtml(cfg.label)}</label>
+                <div style="display:grid; grid-template-columns:0.95fr 1.25fr; gap:0;">
+                    <select onchange="ProductLibraryModule.setModelColorType('${field}', this.value)" style="height:40px; border:1px solid #cbd5e1; border-right:none; border-radius:0.65rem 0 0 0.65rem; padding:0 0.6rem; font-weight:700;">
+                        <option value="">kategori sec</option>
+                        ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${active.type === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
+                    </select>
+                    <select onchange="ProductLibraryModule.setModelColor('${field}', this.value)" style="height:40px; border:1px solid #cbd5e1; border-radius:0 0.65rem 0.65rem 0; padding:0 0.6rem; font-weight:700;">
+                        <option value="">renk sec</option>
+                        ${options.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${active.name === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
+        `;
+    },
+
+    getModelMontageCardOptions: () => {
+        return (Array.isArray(DB.data?.data?.montageCards) ? DB.data.data.montageCards : [])
+            .map(row => ({
+                id: String(row?.id || ''),
+                cardCode: String(row?.cardCode || '').trim().toUpperCase(),
+                productCode: String(row?.productCode || '').trim().toUpperCase(),
+                productName: String(row?.productName || '').trim()
+            }))
+            .filter(row => row.id && (row.cardCode || row.productName))
+            .sort((a, b) => {
+                const nameCmp = String(a.productName || '').localeCompare(String(b.productName || ''), 'tr');
+                if (nameCmp !== 0) return nameCmp;
+                return String(a.cardCode || '').localeCompare(String(b.cardCode || ''), 'tr');
+            });
+    },
+
+    getCatalogProductVariants: () => {
+        ProductLibraryModule.ensureModelDefaults();
+        return (DB.data.data.catalogProductVariants || [])
+            .filter(row => row && typeof row === 'object')
+            .map((row, index) => {
+                const familyCodeRaw = String(row.familyCode || '').trim().toUpperCase();
+                const variantCodeRaw = String(row.variantCode || '').trim().toUpperCase();
+                const familyCode = familyCodeRaw || (variantCodeRaw.includes('-V') ? variantCodeRaw.split('-V')[0] : '');
+                const normalizeColorBlock = (block, fallbackType, fallbackName, fallbackCode) => {
+                    const strict = ProductLibraryModule.resolveStrictLibraryColorSelection({
+                        colorType: block?.type || fallbackType || '',
+                        colorCode: block?.code || fallbackCode || '',
+                        colorName: block?.name || fallbackName || ''
+                    });
+                    if (strict.found) return { type: strict.type, name: strict.name, code: strict.code };
+                    return {
+                        type: ProductLibraryModule.normalizeColorType(block?.type || fallbackType || ''),
+                        name: String(block?.name || fallbackName || '').trim(),
+                        code: String(block?.code || fallbackCode || '').trim().toUpperCase()
+                    };
+                };
+                return {
+                    id: String(row.id || ''),
+                    orderIndex: index,
+                    familyId: String(row.familyId || '').trim() || String(row.id || ''),
+                    familyCode,
+                    familyName: String(row.familyName || row.productName || '').trim(),
+                    variantCode: variantCodeRaw,
+                    productName: String(row.productName || row.name || '').trim(),
+                    productGroup: String(row.productGroup || row.group || '').trim(),
+                    masterRef: row.masterRef && typeof row.masterRef === 'object'
+                        ? {
+                            id: String(row.masterRef.id || '').trim(),
+                            code: String(row.masterRef.code || '').trim().toUpperCase(),
+                            name: String(row.masterRef.name || '').trim(),
+                            categoryName: String(row.masterRef.categoryName || '').trim()
+                        }
+                        : null,
+                    items: (Array.isArray(row.items) ? row.items : [])
+                        .map(item => ({
+                            id: String(item?.id || crypto.randomUUID()),
+                            source: String(item?.source || 'component'),
+                            refId: String(item?.refId || ''),
+                            code: String(item?.code || '').trim().toUpperCase(),
+                            name: String(item?.name || '').trim()
+                        }))
+                        .filter(item => item.code),
+                    montageCard: row.montageCard && typeof row.montageCard === 'object'
+                        ? {
+                            id: String(row.montageCard.id || '').trim(),
+                            cardCode: String(row.montageCard.cardCode || '').trim().toUpperCase(),
+                            productCode: String(row.montageCard.productCode || '').trim().toUpperCase(),
+                            productName: String(row.montageCard.productName || '').trim()
+                        }
+                        : null,
+                    colors: {
+                        plexi: normalizeColorBlock(row.colors?.plexi, row.plexiColorType, row.plexiColor, row.plexiColorCode),
+                        accessory: normalizeColorBlock(row.colors?.accessory, row.accessoryColorType, row.accessoryColor, row.accessoryColorCode),
+                        tube: normalizeColorBlock(row.colors?.tube, row.tubeColorType, row.tubeColor, row.tubeColorCode)
+                    },
+                    productFiles: (Array.isArray(row.productFiles) ? row.productFiles : [])
+                        .map(file => ({
+                            name: String(file?.name || 'dosya').trim() || 'dosya',
+                            type: String(file?.type || '').trim(),
+                            size: Number(file?.size || 0),
+                            data: String(file?.data || '')
+                        }))
+                        .filter(file => file.data),
+                    explodedFiles: (Array.isArray(row.explodedFiles) ? row.explodedFiles : [])
+                        .map(file => ({
+                            name: String(file?.name || 'dosya').trim() || 'dosya',
+                            type: String(file?.type || '').trim(),
+                            size: Number(file?.size || 0),
+                            data: String(file?.data || '')
+                        }))
+                        .filter(file => file.data),
+                    note: String(row.note || '').trim(),
+                    createdAt: String(row.created_at || ''),
+                    updatedAt: String(row.updated_at || '')
+                };
+            })
+            .filter(row => row.id && row.variantCode && row.productName);
+    },
+
+    getCatalogVariantById: (id) => {
+        return ProductLibraryModule.getCatalogProductVariants().find(row => String(row.id || '') === String(id || '')) || null;
+    },
+
+    buildModelFileSignature: (files) => {
+        return (Array.isArray(files) ? files : [])
+            .map(file => `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`)
+            .join('||');
+    },
+
+    buildModelVariantSignature: (row = {}) => {
+        const colors = row.colors || {};
+        return [
+            ProductLibraryModule.normalizeAsciiUpper(row.productName || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row.productGroup || ''),
+            ProductLibraryModule.normalizeColorType(colors.plexi?.type || ''),
+            ProductLibraryModule.normalizeAsciiUpper(colors.plexi?.name || ''),
+            ProductLibraryModule.normalizeColorType(colors.accessory?.type || ''),
+            ProductLibraryModule.normalizeAsciiUpper(colors.accessory?.name || ''),
+            ProductLibraryModule.normalizeColorType(colors.tube?.type || ''),
+            ProductLibraryModule.normalizeAsciiUpper(colors.tube?.name || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row.masterRef?.code || ''),
+            (Array.isArray(row.items) ? row.items : []).map(item => `${String(item?.source || '')}:${ProductLibraryModule.normalizeAsciiUpper(item?.code || '')}`).join('|'),
+            ProductLibraryModule.normalizeAsciiUpper(row.montageCard?.cardCode || ''),
+            ProductLibraryModule.normalizeAsciiUpper(row.note || ''),
+            ProductLibraryModule.buildModelFileSignature(row.productFiles),
+            ProductLibraryModule.buildModelFileSignature(row.explodedFiles)
+        ].join('||');
+    },
+
+    findDuplicateModelVariant: (row = {}, excludeId = '') => {
+        const targetSignature = ProductLibraryModule.buildModelVariantSignature(row);
+        if (!targetSignature) return null;
+        return ProductLibraryModule.getCatalogProductVariants().find(item => {
+            if (excludeId && String(item.id || '') === String(excludeId || '')) return false;
+            const sameFamily = row.familyId
+                ? String(item.familyId || '') === String(row.familyId || '')
+                : (
+                    ProductLibraryModule.normalizeAsciiUpper(item.familyName || '') === ProductLibraryModule.normalizeAsciiUpper(row.familyName || '') &&
+                    ProductLibraryModule.normalizeAsciiUpper(item.productGroup || '') === ProductLibraryModule.normalizeAsciiUpper(row.productGroup || '')
+                );
+            return sameFamily && ProductLibraryModule.buildModelVariantSignature(item) === targetSignature;
+        }) || null;
+    },
+
+    generateModelFamilyCode: () => {
+        const max = ProductLibraryModule.getCatalogProductVariants().reduce((acc, row) => {
+            const match = String(row.familyCode || '').match(/^URM-(\d{6})$/);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        let next = max + 1;
+        let candidate = `URM-${String(next).padStart(6, '0')}`;
+        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
+            next += 1;
+            candidate = `URM-${String(next).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+
+    generateModelVariantCode: (familyCode, excludeId = '') => {
+        const safeFamilyCode = String(familyCode || '').trim().toUpperCase();
+        if (!safeFamilyCode) return '';
+        const escaped = safeFamilyCode.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^${escaped}-V(\\d{2})$`);
+        const max = ProductLibraryModule.getCatalogProductVariants().reduce((acc, row) => {
+            if (excludeId && String(row.id || '') === String(excludeId || '')) return acc;
+            const match = String(row.variantCode || '').match(regex);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        return `${safeFamilyCode}-V${String(max + 1).padStart(2, '0')}`;
+    },
+
+    openModelForm: () => {
+        const familyCode = ProductLibraryModule.generateModelFamilyCode();
+        ProductLibraryModule.state.modelViewingId = null;
+        ProductLibraryModule.state.modelFormOpen = true;
+        ProductLibraryModule.state.modelEditingId = null;
+        ProductLibraryModule.state.modelDraftFamilyId = crypto.randomUUID();
+        ProductLibraryModule.state.modelDraftFamilyCode = familyCode;
+        ProductLibraryModule.state.modelDraftFamilyName = '';
+        ProductLibraryModule.state.modelDraftVariantCode = `${familyCode}-V01`;
+        ProductLibraryModule.state.modelDraftName = '';
+        ProductLibraryModule.state.modelDraftGroup = ProductLibraryModule.getModelGroupOptions()[0] || '';
+        ProductLibraryModule.state.modelDraftPlexiColorType = '';
+        ProductLibraryModule.state.modelDraftPlexiColor = '';
+        ProductLibraryModule.state.modelDraftPlexiColorCode = '';
+        ProductLibraryModule.state.modelDraftAccessoryColorType = '';
+        ProductLibraryModule.state.modelDraftAccessoryColor = '';
+        ProductLibraryModule.state.modelDraftAccessoryColorCode = '';
+        ProductLibraryModule.state.modelDraftTubeColorType = '';
+        ProductLibraryModule.state.modelDraftTubeColor = '';
+        ProductLibraryModule.state.modelDraftTubeColorCode = '';
+        ProductLibraryModule.state.modelDraftMasterRef = null;
+        ProductLibraryModule.state.modelDraftItems = [];
+        ProductLibraryModule.state.modelDraftMontageCard = null;
+        ProductLibraryModule.state.modelDraftProductFiles = [];
+        ProductLibraryModule.state.modelDraftExplodedFiles = [];
+        ProductLibraryModule.state.modelDraftNote = '';
+        UI.renderCurrentPage();
+        setTimeout(() => document.getElementById('model_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    },
+
+    resetModelDraft: (close = true) => {
+        ProductLibraryModule.state.modelEditingId = null;
+        ProductLibraryModule.state.modelViewingId = null;
+        ProductLibraryModule.state.modelDraftFamilyId = '';
+        ProductLibraryModule.state.modelDraftFamilyCode = '';
+        ProductLibraryModule.state.modelDraftFamilyName = '';
+        ProductLibraryModule.state.modelDraftVariantCode = '';
+        ProductLibraryModule.state.modelDraftName = '';
+        ProductLibraryModule.state.modelDraftGroup = '';
+        ProductLibraryModule.state.modelDraftPlexiColorType = '';
+        ProductLibraryModule.state.modelDraftPlexiColor = '';
+        ProductLibraryModule.state.modelDraftPlexiColorCode = '';
+        ProductLibraryModule.state.modelDraftAccessoryColorType = '';
+        ProductLibraryModule.state.modelDraftAccessoryColor = '';
+        ProductLibraryModule.state.modelDraftAccessoryColorCode = '';
+        ProductLibraryModule.state.modelDraftTubeColorType = '';
+        ProductLibraryModule.state.modelDraftTubeColor = '';
+        ProductLibraryModule.state.modelDraftTubeColorCode = '';
+        ProductLibraryModule.state.modelDraftMasterRef = null;
+        ProductLibraryModule.state.modelDraftItems = [];
+        ProductLibraryModule.state.modelDraftMontageCard = null;
+        ProductLibraryModule.state.modelDraftProductFiles = [];
+        ProductLibraryModule.state.modelDraftExplodedFiles = [];
+        ProductLibraryModule.state.modelDraftNote = '';
+        ProductLibraryModule.state.modelFormOpen = !close;
+        UI.renderCurrentPage();
+    },
+
+    loadModelDraftFromRow: (row) => {
+        if (!row) return;
+        ProductLibraryModule.state.modelViewingId = null;
+        ProductLibraryModule.state.modelFormOpen = true;
+        ProductLibraryModule.state.modelEditingId = row.id;
+        ProductLibraryModule.state.modelSelectedId = row.id;
+        ProductLibraryModule.state.modelDraftFamilyId = String(row.familyId || '');
+        ProductLibraryModule.state.modelDraftFamilyCode = String(row.familyCode || '');
+        ProductLibraryModule.state.modelDraftFamilyName = String(row.familyName || row.productName || '');
+        ProductLibraryModule.state.modelDraftVariantCode = String(row.variantCode || '');
+        ProductLibraryModule.state.modelDraftName = String(row.productName || '');
+        ProductLibraryModule.state.modelDraftGroup = String(row.productGroup || '');
+        ProductLibraryModule.state.modelDraftPlexiColorType = String(row.colors?.plexi?.type || '');
+        ProductLibraryModule.state.modelDraftPlexiColor = String(row.colors?.plexi?.name || '');
+        ProductLibraryModule.state.modelDraftPlexiColorCode = String(row.colors?.plexi?.code || '');
+        ProductLibraryModule.state.modelDraftAccessoryColorType = String(row.colors?.accessory?.type || '');
+        ProductLibraryModule.state.modelDraftAccessoryColor = String(row.colors?.accessory?.name || '');
+        ProductLibraryModule.state.modelDraftAccessoryColorCode = String(row.colors?.accessory?.code || '');
+        ProductLibraryModule.state.modelDraftTubeColorType = String(row.colors?.tube?.type || '');
+        ProductLibraryModule.state.modelDraftTubeColor = String(row.colors?.tube?.name || '');
+        ProductLibraryModule.state.modelDraftTubeColorCode = String(row.colors?.tube?.code || '');
+        ProductLibraryModule.state.modelDraftMasterRef = row.masterRef ? { ...row.masterRef } : null;
+        ProductLibraryModule.state.modelDraftItems = Array.isArray(row.items) ? row.items.map(item => ({ ...item })) : [];
+        ProductLibraryModule.state.modelDraftMontageCard = row.montageCard ? { ...row.montageCard } : null;
+        ProductLibraryModule.state.modelDraftProductFiles = Array.isArray(row.productFiles) ? row.productFiles.map(file => ({ ...file })) : [];
+        ProductLibraryModule.state.modelDraftExplodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles.map(file => ({ ...file })) : [];
+        ProductLibraryModule.state.modelDraftNote = String(row.note || '');
+        UI.renderCurrentPage();
+        setTimeout(() => document.getElementById('model_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+    },
+
+    startEditModelVariant: (id) => {
+        const row = ProductLibraryModule.getCatalogVariantById(id);
+        if (!row) return;
+        ProductLibraryModule.loadModelDraftFromRow(row);
+    },
+
+    openModelVariantView: (id) => {
+        ProductLibraryModule.state.modelViewingId = String(id || '');
+        ProductLibraryModule.state.modelFormOpen = false;
+        ProductLibraryModule.state.modelEditingId = null;
+        UI.renderCurrentPage();
+    },
+
+    closeModelVariantView: () => {
+        ProductLibraryModule.state.modelViewingId = null;
+        UI.renderCurrentPage();
+    },
+
+    setModelFilter: (field, value, focusId = '') => {
+        if (!ProductLibraryModule.state.modelFilters || typeof ProductLibraryModule.state.modelFilters !== 'object') {
+            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+        }
+        if (!Object.prototype.hasOwnProperty.call(ProductLibraryModule.state.modelFilters, field)) return;
+        ProductLibraryModule.state.modelFilters[field] = String(value || '');
+        UI.renderCurrentPage();
+        if (!focusId) return;
+        setTimeout(() => {
+            const el = document.getElementById(focusId);
+            if (!el) return;
+            el.focus();
+            const len = el.value.length;
+            try { el.setSelectionRange(len, len); } catch (_) { }
+        }, 0);
+    },
+
+    toggleModelGroupSection: (key) => {
+        ProductLibraryModule.state.modelGroupExpanded[key] = !ProductLibraryModule.state.modelGroupExpanded[key];
+        UI.renderCurrentPage();
+    },
+
+    toggleModelFamilySection: (key) => {
+        ProductLibraryModule.state.modelFamilyExpanded[key] = !ProductLibraryModule.state.modelFamilyExpanded[key];
+        UI.renderCurrentPage();
+    },
+
+    openModelGroupDictionary: () => {
+        const items = ProductLibraryModule.getModelGroupOptions();
+        Modal.open('Urun Grubu + Yonet', `
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="display:grid; grid-template-columns:1fr auto; gap:0.5rem;">
+                    <input id="catalog_group_name" placeholder="urun grubu" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                    <button class="btn-primary" onclick="ProductLibraryModule.addModelGroupOption()" style="height:38px; border-radius:0.55rem;">ekle</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:360px; overflow:auto;">
+                    ${items.map((item, idx) => `
+                        <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.renameModelGroupOption(${idx})">duzenle</button>
+                            <button class="btn-sm" onclick="ProductLibraryModule.removeModelGroupOption(${idx})">sil</button>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `, { maxWidth: '640px' });
+    },
+
+    addModelGroupOption: async () => {
+        const val = String(document.getElementById('catalog_group_name')?.value || '').trim();
+        if (!val) return;
+        const list = ProductLibraryModule.getModelGroupOptions();
+        if (list.some(x => ProductLibraryModule.normalizeAsciiUpper(x) === ProductLibraryModule.normalizeAsciiUpper(val))) {
+            return alert('Bu urun grubu zaten var.');
+        }
+        DB.data.meta.options.catalogProductGroups = [...list, val];
+        await DB.save();
+        ProductLibraryModule.openModelGroupDictionary();
+        UI.renderCurrentPage();
+    },
+
+    renameModelGroupOption: async (idx) => {
+        const list = ProductLibraryModule.getModelGroupOptions();
+        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const next = prompt('Yeni urun grubu adi:', list[idx] || '');
+        if (!next) return;
+        list[idx] = String(next || '').trim() || list[idx];
+        DB.data.meta.options.catalogProductGroups = list;
+        await DB.save();
+        ProductLibraryModule.openModelGroupDictionary();
+        UI.renderCurrentPage();
+    },
+
+    removeModelGroupOption: async (idx) => {
+        const list = ProductLibraryModule.getModelGroupOptions();
+        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const target = list[idx];
+        const inUse = ProductLibraryModule.getCatalogProductVariants().some(row =>
+            ProductLibraryModule.normalizeAsciiUpper(row.productGroup || '') === ProductLibraryModule.normalizeAsciiUpper(target || '')
+        );
+        if (inUse) return alert('Bu urun grubu kayitlarda kullaniliyor.');
+        if (!confirm(`"${target}" silinsin mi?`)) return;
+        list.splice(idx, 1);
+        DB.data.meta.options.catalogProductGroups = list;
+        await DB.save();
+        ProductLibraryModule.openModelGroupDictionary();
+        UI.renderCurrentPage();
+    },
+
+    openModelMasterPicker: () => {
+        const rows = ProductLibraryModule.getMasterProducts();
+        Modal.open('Master Urun Kutuphanesi', `
+            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
+                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli master urun yok.</div>' : rows.map(row => `
+                    <div style="display:grid; grid-template-columns:1.2fr 160px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
+                        <div>
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.categoryName || '-')}</div>
+                        </div>
+                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.code || '-')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.selectModelMaster('${row.id}')">ekle</button>
+                    </div>
+                `).join('')}
+            </div>
+        `, { maxWidth: '820px' });
+    },
+
+    selectModelMaster: (id) => {
+        const row = ProductLibraryModule.getMasterProductById(id);
+        if (!row) return;
+        ProductLibraryModule.state.modelDraftMasterRef = {
+            id: String(row.id || ''),
+            code: String(row.code || '').trim().toUpperCase(),
+            name: String(row.name || '').trim(),
+            categoryName: String(row.categoryName || '').trim()
+        };
+        Modal.close();
+        UI.renderCurrentPage();
+    },
+
+    clearModelMaster: () => {
+        ProductLibraryModule.state.modelDraftMasterRef = null;
+        UI.renderCurrentPage();
+    },
+
+    openModelComponentPicker: () => {
+        const rows = ProductLibraryModule.getComponentCards();
+        Modal.open('Parca & Bilesen Kutuphanesi', `
+            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
+                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli parca/bilesen yok.</div>' : rows.map(row => `
+                    <div style="display:grid; grid-template-columns:1.2fr 160px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
+                        <div>
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml([row.group, row.subGroup].filter(Boolean).join(' / ') || '-')}</div>
+                        </div>
+                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.code || '-')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.addModelDraftComponent('${row.id}')">ekle</button>
+                    </div>
+                `).join('')}
+            </div>
+        `, { maxWidth: '820px' });
+    },
+
+    addModelDraftComponent: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row) return;
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
+        if (items.some(item => String(item?.code || '') === String(row.code || '').trim().toUpperCase())) {
+            return alert('Bu parca zaten secili.');
+        }
+        items.push({
+            id: crypto.randomUUID(),
+            source: 'component',
+            refId: String(row.id || ''),
+            code: String(row.code || '').trim().toUpperCase(),
+            name: String(row.name || '').trim()
+        });
+        ProductLibraryModule.state.modelDraftItems = items;
+        Modal.close();
+        UI.renderCurrentPage();
+    },
+
+    removeModelDraftItem: (id) => {
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
+        ProductLibraryModule.state.modelDraftItems = items.filter(item => String(item?.id || '') !== String(id || ''));
+        UI.renderCurrentPage();
+    },
+
+    moveModelDraftItem: (index, direction) => {
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? [...ProductLibraryModule.state.modelDraftItems] : [];
+        const idx = Number(index);
+        const nextIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (!Number.isInteger(idx) || idx < 0 || idx >= items.length) return;
+        if (nextIdx < 0 || nextIdx >= items.length) return;
+        const [row] = items.splice(idx, 1);
+        items.splice(nextIdx, 0, row);
+        ProductLibraryModule.state.modelDraftItems = items;
+        UI.renderCurrentPage();
+    },
+
+    openModelMontagePicker: () => {
+        const rows = ProductLibraryModule.getModelMontageCardOptions();
+        Modal.open('Montaj Islem Karti', `
+            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
+                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli montaj karti yok.</div>' : rows.map(row => `
+                    <div style="display:grid; grid-template-columns:1.4fr 170px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
+                        <div>
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.productName || '-')}</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.productCode || '-')}</div>
+                        </div>
+                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.cardCode || '-')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.selectModelMontageCard('${row.id}')">ekle</button>
+                    </div>
+                `).join('')}
+            </div>
+        `, { maxWidth: '860px' });
+    },
+
+    selectModelMontageCard: (id) => {
+        const row = ProductLibraryModule.getModelMontageCardOptions().find(x => String(x.id || '') === String(id || ''));
+        if (!row) return;
+        ProductLibraryModule.state.modelDraftMontageCard = {
+            id: row.id,
+            cardCode: row.cardCode,
+            productCode: row.productCode,
+            productName: row.productName
+        };
+        Modal.close();
+        UI.renderCurrentPage();
+    },
+
+    clearModelMontageCard: () => {
+        ProductLibraryModule.state.modelDraftMontageCard = null;
+        UI.renderCurrentPage();
+    },
+
+    getModelDraftFiles: (kind) => {
+        return kind === 'exploded'
+            ? (Array.isArray(ProductLibraryModule.state.modelDraftExplodedFiles) ? ProductLibraryModule.state.modelDraftExplodedFiles : [])
+            : (Array.isArray(ProductLibraryModule.state.modelDraftProductFiles) ? ProductLibraryModule.state.modelDraftProductFiles : []);
+    },
+
+    setModelDraftFiles: (kind, files) => {
+        if (kind === 'exploded') ProductLibraryModule.state.modelDraftExplodedFiles = files;
+        else ProductLibraryModule.state.modelDraftProductFiles = files;
+    },
+
+    handleModelFiles: async (kind, input) => {
+        const fileList = Array.from(input?.files || []);
+        if (fileList.length === 0) return;
+        const maxFileSize = 25 * 1024 * 1024;
+        const allowed = ['pdf', 'jpg', 'jpeg', 'png'];
+        const normalized = [];
+
+        for (const file of fileList) {
+            const name = String(file?.name || '');
+            const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+            if (!allowed.includes(ext)) {
+                alert(`Desteklenmeyen dosya: ${name}`);
+                continue;
+            }
+            if (Number(file?.size || 0) > maxFileSize) {
+                alert(`${name} 25MB sinirini asiyor.`);
+                continue;
+            }
+            try {
+                const data = await ProductLibraryModule.readFileAsDataUrl(file);
+                normalized.push({ name, type: String(file.type || ''), size: Number(file.size || 0), data });
+            } catch (_) { }
+        }
+
+        if (normalized.length === 0) return;
+        const existing = ProductLibraryModule.getModelDraftFiles(kind);
+        const merged = [...existing];
+        const seen = new Set(existing.map(file => `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`));
+        normalized.forEach(file => {
+            const key = `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`;
+            if (seen.has(key)) return;
+            seen.add(key);
+            merged.push(file);
+        });
+        ProductLibraryModule.setModelDraftFiles(kind, merged);
+        if (input) input.value = '';
+        UI.renderCurrentPage();
+    },
+
+    removeModelDraftFile: (kind, index) => {
+        const files = [...ProductLibraryModule.getModelDraftFiles(kind)];
+        if (index < 0 || index >= files.length) return;
+        files.splice(index, 1);
+        ProductLibraryModule.setModelDraftFiles(kind, files);
+        UI.renderCurrentPage();
+    },
+
+    clearModelDraftFiles: (kind) => {
+        ProductLibraryModule.setModelDraftFiles(kind, []);
+        UI.renderCurrentPage();
+    },
+
+    previewModelDraftFile: (kind, index) => {
+        const files = ProductLibraryModule.getModelDraftFiles(kind);
+        const file = files[index];
+        if (!file?.data) return;
+        ProductLibraryModule.openPreviewModal(file);
+    },
+
+    previewModelStoredFile: (id, kind, index) => {
+        const row = ProductLibraryModule.getCatalogVariantById(id);
+        if (!row) return;
+        const files = kind === 'exploded' ? (row.explodedFiles || []) : (row.productFiles || []);
+        const file = files[index];
+        if (!file?.data) return;
+        ProductLibraryModule.openPreviewModal(file);
+    },
+
+    collectModelDraftPayload: () => {
+        const productName = String(ProductLibraryModule.state.modelDraftName || '').trim();
+        const productGroup = String(ProductLibraryModule.state.modelDraftGroup || '').trim();
+        const familyId = String(ProductLibraryModule.state.modelDraftFamilyId || '').trim();
+        const familyCode = String(ProductLibraryModule.state.modelDraftFamilyCode || '').trim().toUpperCase();
+        const familyName = String(ProductLibraryModule.state.modelDraftFamilyName || productName || '').trim();
+        return {
+            familyId,
+            familyCode,
+            familyName,
+            productName,
+            productGroup,
+            colors: {
+                plexi: ProductLibraryModule.getModelColorDraftValue('plexi'),
+                accessory: ProductLibraryModule.getModelColorDraftValue('accessory'),
+                tube: ProductLibraryModule.getModelColorDraftValue('tube')
+            },
+            masterRef: ProductLibraryModule.state.modelDraftMasterRef ? { ...ProductLibraryModule.state.modelDraftMasterRef } : null,
+            items: (Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [])
+                .map(item => ({
+                    id: String(item?.id || crypto.randomUUID()),
+                    source: String(item?.source || 'component'),
+                    refId: String(item?.refId || ''),
+                    code: String(item?.code || '').trim().toUpperCase(),
+                    name: String(item?.name || '').trim()
+                }))
+                .filter(item => item.code),
+            montageCard: ProductLibraryModule.state.modelDraftMontageCard ? { ...ProductLibraryModule.state.modelDraftMontageCard } : null,
+            productFiles: ProductLibraryModule.getModelDraftFiles('product').map(file => ({ ...file })),
+            explodedFiles: ProductLibraryModule.getModelDraftFiles('exploded').map(file => ({ ...file })),
+            note: String(ProductLibraryModule.state.modelDraftNote || '').trim()
+        };
+    },
+
+    saveModelVariant: async (asVariant = false) => {
+        ProductLibraryModule.ensureModelDefaults();
+        const all = DB.data.data.catalogProductVariants || [];
+        const editingId = String(ProductLibraryModule.state.modelEditingId || '').trim();
+        const editingRow = editingId ? ProductLibraryModule.getCatalogVariantById(editingId) : null;
+        const draft = ProductLibraryModule.collectModelDraftPayload();
+
+        if (!draft.productName) return alert('Urun adi zorunlu.');
+        if (!draft.productGroup) return alert('Urun grubu seciniz.');
+
+        const validateColor = (block, label) => {
+            if (!block.type && !block.name && !block.code) return block;
+            const strict = ProductLibraryModule.resolveStrictLibraryColorSelection({
+                colorType: block.type,
+                colorCode: block.code,
+                colorName: block.name
+            });
+            if (!strict.found) throw new Error(`${label} kutuphanede bulunamadi. Lutfen listeden seciniz.`);
+            return { type: strict.type, name: strict.name, code: strict.code };
+        };
+
+        try {
+            draft.colors.plexi = validateColor(draft.colors.plexi, 'Pleksi rengi');
+            draft.colors.accessory = validateColor(draft.colors.accessory, 'Aksesuar rengi');
+            draft.colors.tube = validateColor(draft.colors.tube, 'Boru rengi');
+        } catch (err) {
+            return alert(err.message || 'Renk secimi gecersiz.');
+        }
+
+        if (asVariant && !editingRow) return alert('Farkli kaydet icin once mevcut bir varyanti duzenleyin.');
+
+        let familyId = draft.familyId;
+        let familyCode = draft.familyCode;
+        let familyName = draft.familyName;
+        let variantCode = String(ProductLibraryModule.state.modelDraftVariantCode || '').trim().toUpperCase();
+
+        if (asVariant && editingRow) {
+            familyId = editingRow.familyId;
+            familyCode = editingRow.familyCode;
+            familyName = editingRow.familyName || editingRow.productName;
+            variantCode = ProductLibraryModule.generateModelVariantCode(familyCode);
+            if (ProductLibraryModule.buildModelVariantSignature(editingRow) === ProductLibraryModule.buildModelVariantSignature({
+                ...draft,
+                familyId,
+                familyCode,
+                familyName
+            })) {
+                return alert('Degisiklik yok. Farkli kaydet icin kartta bir alan degismelidir.');
+            }
+        } else if (editingRow) {
+            familyId = editingRow.familyId;
+            familyCode = editingRow.familyCode;
+            familyName = editingRow.familyName || editingRow.productName;
+            variantCode = editingRow.variantCode;
+        } else {
+            familyId = familyId || crypto.randomUUID();
+            familyCode = familyCode || ProductLibraryModule.generateModelFamilyCode();
+            familyName = familyName || draft.productName;
+            variantCode = variantCode || `${familyCode}-V01`;
+        }
+
+        const normalizedRow = { ...draft, familyId, familyCode, familyName, variantCode };
+        const duplicate = ProductLibraryModule.findDuplicateModelVariant(normalizedRow, asVariant ? '' : editingId);
+        if (duplicate) return alert(`Bu varyant zaten mevcut. Varyant ID: ${duplicate.variantCode || '-'}`);
+
+        const now = new Date().toISOString();
+        if (editingRow && !asVariant) {
+            const idx = all.findIndex(row => String(row?.id || '') === editingId);
+            if (idx === -1) {
+                ProductLibraryModule.resetModelDraft(true);
+                return;
+            }
+            all[idx] = {
+                ...all[idx],
+                familyId,
+                familyCode,
+                familyName,
+                variantCode,
+                productName: normalizedRow.productName,
+                productGroup: normalizedRow.productGroup,
+                masterRef: normalizedRow.masterRef,
+                items: normalizedRow.items,
+                montageCard: normalizedRow.montageCard,
+                colors: normalizedRow.colors,
+                productFiles: normalizedRow.productFiles,
+                explodedFiles: normalizedRow.explodedFiles,
+                note: normalizedRow.note,
+                updated_at: now
+            };
+            ProductLibraryModule.state.modelSelectedId = editingId;
+        } else {
+            const id = crypto.randomUUID();
+            all.push({
+                id,
+                familyId,
+                familyCode,
+                familyName,
+                variantCode,
+                productName: normalizedRow.productName,
+                productGroup: normalizedRow.productGroup,
+                masterRef: normalizedRow.masterRef,
+                items: normalizedRow.items,
+                montageCard: normalizedRow.montageCard,
+                colors: normalizedRow.colors,
+                productFiles: normalizedRow.productFiles,
+                explodedFiles: normalizedRow.explodedFiles,
+                note: normalizedRow.note,
+                created_at: now,
+                updated_at: now
+            });
+            ProductLibraryModule.state.modelSelectedId = id;
+        }
+
+        DB.data.data.catalogProductVariants = all;
+        await DB.save();
+        ProductLibraryModule.resetModelDraft(true);
+    },
+
+    deleteModelVariant: async (id) => {
+        const all = DB.data.data.catalogProductVariants || [];
+        const row = all.find(x => String(x?.id || '') === String(id || ''));
+        if (!row) return;
+        if (!confirm('Bu urun varyanti silinsin mi?')) return;
+        DB.data.data.catalogProductVariants = all.filter(x => String(x?.id || '') !== String(id || ''));
+        if (String(ProductLibraryModule.state.modelSelectedId || '') === String(id || '')) ProductLibraryModule.state.modelSelectedId = null;
+        if (String(ProductLibraryModule.state.modelEditingId || '') === String(id || '')) ProductLibraryModule.resetModelDraft(true);
+        if (String(ProductLibraryModule.state.modelViewingId || '') === String(id || '')) ProductLibraryModule.state.modelViewingId = null;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    renderModelVariantView: (container, row) => {
+        const colors = row.colors || {};
+        const componentRows = Array.isArray(row.items) ? row.items : [];
+        const productFiles = Array.isArray(row.productFiles) ? row.productFiles : [];
+        const explodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles : [];
+        container.innerHTML = `
+            <div style="max-width:1680px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; margin-bottom:0.85rem;">
+                    <div>
+                        <h2 class="page-title" style="margin:0;">${ProductLibraryModule.escapeHtml(row.productName || '-')}</h2>
+                        <div style="color:#64748b; margin-top:0.22rem;">${ProductLibraryModule.escapeHtml(row.productGroup || '-')} / ${ProductLibraryModule.escapeHtml(row.variantCode || '-')}</div>
+                    </div>
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                        <button class="btn-sm" onclick="ProductLibraryModule.closeModelVariantView()">listeye don</button>
+                        <button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <div style="display:grid; grid-template-columns:repeat(4, minmax(180px, 1fr)); gap:0.8rem;">
+                        <div><div style="font-size:0.72rem; color:#64748b;">urun grubu</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row.productGroup || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">aile kodu</div><div style="font-weight:700; font-family:monospace; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.familyCode || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">varyant kodu</div><div style="font-weight:700; font-family:monospace; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.variantCode || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">montaj islem karti</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row.montageCard?.cardCode || '-')}</div></div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3, minmax(180px, 1fr)); gap:0.8rem; margin-top:1rem;">
+                        <div><div style="font-size:0.72rem; color:#64748b;">pleksi rengi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(colors.plexi?.name || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">aksesuar rengi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(colors.accessory?.name || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">boru rengi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(colors.tube?.name || '-')}</div></div>
+                    </div>
+                    <div style="margin-top:1rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kodu</div>
+                        <div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</div>
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:minmax(0,1.5fr) minmax(360px,0.95fr); gap:1rem; align-items:start;">
+                    <div class="card-table" style="padding:1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.65rem;">
+                            <strong>Secilen Kalemler</strong>
+                            <span style="font-size:0.8rem; color:#64748b;">Toplam: ${componentRows.length + (row.masterRef ? 1 : 0)}</span>
+                        </div>
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                    <th style="padding:0.45rem; text-align:left;">Sira</th>
+                                    <th style="padding:0.45rem; text-align:left;">Kaynak</th>
+                                    <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.45rem; text-align:left;">ID kod</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${row.masterRef ? `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.45rem;">1</td>
+                                        <td style="padding:0.45rem;">Master</td>
+                                        <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(row.masterRef?.name || '-')}</td>
+                                        <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</td>
+                                    </tr>
+                                ` : ''}
+                                ${componentRows.length === 0 ? `
+                                    <tr><td colspan="4" style="padding:0.9rem; color:#94a3b8; text-align:center;">Parca/bilesen secilmedi.</td></tr>
+                                ` : componentRows.map((item, idx) => `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.45rem;">${idx + (row.masterRef ? 2 : 1)}</td>
+                                        <td style="padding:0.45rem;">Parca</td>
+                                        <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
+                                        <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="display:grid; gap:1rem;">
+                        <div class="card-table" style="padding:1rem;">
+                            <div style="font-weight:700; margin-bottom:0.55rem;">Urun Fotografi / Teknik Resim</div>
+                            <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                ${productFiles.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : productFiles.map((file, idx) => `
+                                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                                        <div style="font-size:0.82rem; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.previewModelStoredFile('${row.id}', 'product', ${idx})">goruntule</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                        <div class="card-table" style="padding:1rem;">
+                            <div style="font-weight:700; margin-bottom:0.55rem;">Patlatilmis Resim</div>
+                            <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                ${explodedFiles.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : explodedFiles.map((file, idx) => `
+                                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                                        <div style="font-size:0.82rem; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.previewModelStoredFile('${row.id}', 'exploded', ${idx})">goruntule</button>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-top:1rem;">
+                    <div style="font-size:0.74rem; color:#64748b; margin-bottom:0.35rem;">not</div>
+                    <div style="white-space:pre-wrap; color:#334155;">${ProductLibraryModule.escapeHtml(row.note || '-')}</div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderModelsPage: (container) => {
+        const state = ProductLibraryModule.state;
+        const viewRow = state.modelViewingId ? ProductLibraryModule.getCatalogVariantById(state.modelViewingId) : null;
+        if (viewRow) {
+            ProductLibraryModule.renderModelVariantView(container, viewRow);
+            return;
+        }
+
+        const filters = state.modelFilters || { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+        const groupOptions = ProductLibraryModule.getModelGroupOptions();
+        const rows = ProductLibraryModule.getCatalogProductVariants().filter((row) => {
+            const qGroup = String(filters.group || '').trim();
+            const qName = String(filters.name || '').trim().toLocaleLowerCase('tr-TR');
+            const qCode = String(filters.code || '').trim().toLocaleLowerCase('tr-TR');
+            const qPlexi = String(filters.plexi || '').trim().toLocaleLowerCase('tr-TR');
+            const qAccessory = String(filters.accessory || '').trim().toLocaleLowerCase('tr-TR');
+            const qTube = String(filters.tube || '').trim().toLocaleLowerCase('tr-TR');
+            if (qGroup && row.productGroup !== qGroup) return false;
+            if (qName && !`${row.productName || ''} ${row.familyName || ''}`.toLocaleLowerCase('tr-TR').includes(qName)) return false;
+            if (qCode && !`${row.familyCode || ''} ${row.variantCode || ''}`.toLocaleLowerCase('tr-TR').includes(qCode)) return false;
+            if (qPlexi && !String(row.colors?.plexi?.name || '').toLocaleLowerCase('tr-TR').includes(qPlexi)) return false;
+            if (qAccessory && !String(row.colors?.accessory?.name || '').toLocaleLowerCase('tr-TR').includes(qAccessory)) return false;
+            if (qTube && !String(row.colors?.tube?.name || '').toLocaleLowerCase('tr-TR').includes(qTube)) return false;
+            return true;
+        });
+
+        const grouped = new Map();
+        rows.forEach((row) => {
+            const groupKey = String(row.productGroup || 'Diger');
+            if (!grouped.has(groupKey)) grouped.set(groupKey, new Map());
+            const families = grouped.get(groupKey);
+            if (!families.has(row.familyId)) {
+                families.set(row.familyId, { familyId: row.familyId, familyCode: row.familyCode, familyName: row.familyName || row.productName, rows: [] });
+            }
+            families.get(row.familyId).rows.push(row);
+        });
+
+        const hasFilter = Object.values(filters).some(Boolean);
+        const listHtml = rows.length === 0
+            ? '<div style="text-align:center; color:#94a3b8; padding:2rem;">Kayitli urun modeli yok.</div>'
+            : Array.from(grouped.entries()).sort((a, b) => a[0].localeCompare(b[0], 'tr')).map(([groupKey, families]) => {
+                const groupOpen = hasFilter ? true : !!state.modelGroupExpanded[groupKey];
+                return `
+                    <div style="border:1px solid #e2e8f0; border-radius:0.9rem; overflow:hidden; margin-bottom:0.75rem;">
+                        <button type="button" onclick='ProductLibraryModule.toggleModelGroupSection(${JSON.stringify(groupKey)})' style="width:100%; border:none; background:${groupOpen ? '#eef2ff' : '#f8fafc'}; padding:0.8rem 0.95rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                            <span style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(groupKey)}</span>
+                            <span style="font-size:0.84rem; color:#64748b;">${families.size} model</span>
+                        </button>
+                        ${groupOpen ? `<div style="padding:0.75rem;">${Array.from(families.values()).sort((a, b) => String(a.familyName || '').localeCompare(String(b.familyName || ''), 'tr')).map((family) => {
+                            const familyKey = `${groupKey}::${family.familyId}`;
+                            const familyOpen = hasFilter ? true : !!state.modelFamilyExpanded[familyKey];
+                            return `
+                                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden; margin-bottom:0.65rem;">
+                                    <button type="button" onclick='ProductLibraryModule.toggleModelFamilySection(${JSON.stringify(familyKey)})' style="width:100%; border:none; background:${familyOpen ? '#fff7ed' : 'white'}; padding:0.72rem 0.85rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                                        <div style="text-align:left;">
+                                            <div style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(family.familyName || '-')}</div>
+                                            <div style="font-size:0.8rem; color:#64748b; font-family:monospace;">${ProductLibraryModule.escapeHtml(family.familyCode || '-')}</div>
+                                        </div>
+                                        <span style="font-size:0.84rem; color:#64748b;">${family.rows.length} varyant</span>
+                                    </button>
+                                    ${familyOpen ? `<div style="overflow:auto;"><table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;"><th style="padding:0.5rem; text-align:left;">Urun</th><th style="padding:0.5rem; text-align:left;">Varyant ID</th><th style="padding:0.5rem; text-align:left;">Pleksi</th><th style="padding:0.5rem; text-align:left;">Aksesuar</th><th style="padding:0.5rem; text-align:left;">Boru</th><th style="padding:0.5rem; text-align:left;">Montaj</th><th style="padding:0.5rem; text-align:left;">Islem</th></tr></thead><tbody>${family.rows.sort((a, b) => String(a.variantCode || '').localeCompare(String(b.variantCode || ''), 'tr')).map(row => `
+                                        <tr style="border-bottom:1px solid #f1f5f9; ${String(state.modelSelectedId || '') === String(row.id || '') ? 'background:#fff7ed;' : ''}">
+                                            <td style="padding:0.5rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.productName || '-')}</td>
+                                            <td style="padding:0.5rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.variantCode || '-')}</td>
+                                            <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.plexi?.name || '-')}</td>
+                                            <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.accessory?.name || '-')}</td>
+                                            <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.tube?.name || '-')}</td>
+                                            <td style="padding:0.5rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.montageCard?.cardCode || '-')}</td>
+                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button><button class="btn-sm" onclick="ProductLibraryModule.deleteModelVariant('${row.id}')">sil</button></div></td>
+                                        </tr>`).join('')}</tbody></table></div>` : ''}
+                                </div>
+                            `;
+                        }).join('')}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+        const masterRef = state.modelDraftMasterRef;
+        const componentItems = Array.isArray(state.modelDraftItems) ? state.modelDraftItems : [];
+        const productFiles = ProductLibraryModule.getModelDraftFiles('product');
+        const explodedFiles = ProductLibraryModule.getModelDraftFiles('exploded');
+        const montageCard = state.modelDraftMontageCard;
+        const selectedRows = [
+            ...(masterRef ? [{ id: `master-${masterRef.id || masterRef.code}`, source: 'Master', name: masterRef.name || '-', code: masterRef.code || '-', removable: false }] : []),
+            ...componentItems.map(item => ({ id: item.id, source: 'Parca', name: item.name || '-', code: item.code || '-', removable: true }))
+        ];
+
+        container.innerHTML = `
+            <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; flex-wrap:wrap; margin-bottom:1rem;">
+                    <div>
+                        <h2 class="page-title" style="margin:0;">Urun Modelleri</h2>
+                        <div style="color:#64748b; margin-top:0.22rem;">Satisa sunulan katalog urunlerini ve varyantlarini buradan yonetin</div>
+                    </div>
+                    <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                        <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                        <button class="btn-primary" onclick="ProductLibraryModule.openModelForm()">urun ekle +</button>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
+                    <div style="display:grid; grid-template-columns:220px 1fr 210px 170px 170px 170px; gap:0.65rem;">
+                        <select onchange="ProductLibraryModule.setModelFilter('group', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.65rem; font-weight:700;"><option value="">urun grubu sec</option>${groupOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.group || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}</select>
+                        <input id="model_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setModelFilter('name', this.value, 'model_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                        <input id="model_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setModelFilter('code', this.value, 'model_filter_code')" placeholder="aile/varyant ID ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                        <input id="model_filter_plexi" value="${ProductLibraryModule.escapeHtml(filters.plexi || '')}" oninput="ProductLibraryModule.setModelFilter('plexi', this.value, 'model_filter_plexi')" placeholder="pleksi rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                        <input id="model_filter_accessory" value="${ProductLibraryModule.escapeHtml(filters.accessory || '')}" oninput="ProductLibraryModule.setModelFilter('accessory', this.value, 'model_filter_accessory')" placeholder="aksesuar rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                        <input id="model_filter_tube" value="${ProductLibraryModule.escapeHtml(filters.tube || '')}" oninput="ProductLibraryModule.setModelFilter('tube', this.value, 'model_filter_tube')" placeholder="boru rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:0.9rem; margin-bottom:1rem;">${listHtml}</div>
+
+                ${(state.modelFormOpen || !!state.modelEditingId) ? `
+                    <div id="model_form_anchor" class="card-table" style="padding:1rem; border:2px solid #cbd5e1;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.9rem;">
+                            <div><div style="font-weight:800; color:#334155; font-size:1.15rem;">${state.modelEditingId ? 'Urun varyanti duzenle' : 'Yeni urun karti olustur'}</div><div style="font-size:0.82rem; color:#64748b; margin-top:0.25rem;">Bu kart satisa sunulan katalog urununu ve varyant baglarini tanimlar.</div></div>
+                            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">${state.modelEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteModelVariant('${state.modelEditingId}')">Sil</button>` : ''}<button class="btn-primary" onclick="ProductLibraryModule.saveModelVariant(true)" ${state.modelEditingId ? '' : 'disabled'} style="${state.modelEditingId ? 'background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;' : 'opacity:0.5; cursor:not-allowed;'}">Farkli Kaydet</button><button class="btn-sm" onclick="ProductLibraryModule.resetModelDraft(true)">Vazgec</button><button class="btn-primary" onclick="ProductLibraryModule.saveModelVariant(false)">Kaydet</button></div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:minmax(0,1.55fr) minmax(360px,0.95fr); gap:1rem; align-items:start;">
+                            <div style="display:grid; gap:0.9rem;">
+                                <div style="display:grid; grid-template-columns:1.15fr 1.1fr 0.85fr; gap:0.7rem; align-items:end;">
+                                    <div><div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.2rem;"><label style="display:block; font-size:0.74rem; color:#64748b;">urun grubu</label><button type="button" onclick="ProductLibraryModule.openModelGroupDictionary()" style="border:none; background:none; color:#2563eb; font-size:0.78rem; font-weight:700; cursor:pointer;">+yonet (ekle-sil)</button></div><select onchange="ProductLibraryModule.state.modelDraftGroup=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.65rem; font-weight:700;"><option value="">urun grubu sec</option>${groupOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(state.modelDraftGroup || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}</select></div>
+                                    <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">urun adi (katalogda gorunen)</label><input value="${ProductLibraryModule.escapeHtml(state.modelDraftName || '')}" oninput="ProductLibraryModule.state.modelDraftName=this.value; if(!ProductLibraryModule.state.modelEditingId) ProductLibraryModule.state.modelDraftFamilyName=this.value;" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.65rem; font-weight:700;"></div>
+                                    <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ID kod</label><input disabled value="${ProductLibraryModule.escapeHtml(state.modelDraftVariantCode || '-')}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;"></div>
+                                </div>
+                                <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.7rem;">${ProductLibraryModule.renderModelColorField('plexi')}${ProductLibraryModule.renderModelColorField('accessory')}${ProductLibraryModule.renderModelColorField('tube')}</div>
+                                <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kodu</label><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(masterRef?.code || '')}" placeholder="master secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMasterPicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMaster()" style="height:40px; min-width:80px;">sil</button></div></div>
+                                <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">parca ve bilesen ID kodlari</label><div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(componentItems.map(item => item.code).join(', '))}" placeholder="parca/bilesen secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelComponentPicker()" style="height:40px; min-width:110px;">goruntule</button></div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.45rem;"><strong style="font-size:0.92rem;">Secilen Kalemler</strong><span style="font-size:0.8rem; color:#64748b;">Toplam: ${selectedRows.length}</span></div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.55rem;">Patlatilmis resimdeki parca numara sirasina gore kalem ekleyin.</div><table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;"><th style="padding:0.45rem; text-align:left;">Sira</th><th style="padding:0.45rem; text-align:left;">Kaynak</th><th style="padding:0.45rem; text-align:left;">Urun</th><th style="padding:0.45rem; text-align:left;">ID kod</th><th style="padding:0.45rem; text-align:right;">Islem</th></tr></thead><tbody>${selectedRows.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : selectedRows.map((item, idx) => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.45rem;">${idx + 1}</td><td style="padding:0.45rem;">${item.source}</td><td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td><td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td><td style="padding:0.45rem; text-align:right;">${item.removable ? `<div style="display:flex; gap:0.3rem; justify-content:flex-end;"><button class="btn-sm" onclick="ProductLibraryModule.moveModelDraftItem(${idx - (masterRef ? 1 : 0)}, 'up')" ${idx === (masterRef ? 1 : 0) ? 'disabled style="opacity:0.45; cursor:not-allowed;"' : ''}>↑</button><button class="btn-sm" onclick="ProductLibraryModule.moveModelDraftItem(${idx - (masterRef ? 1 : 0)}, 'down')" ${idx === selectedRows.length - 1 ? 'disabled style="opacity:0.45; cursor:not-allowed;"' : ''}>↓</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${item.id}')">sil</button></div>` : '<span style="color:#94a3b8;">-</span>'}</td></tr>`).join('')}</tbody></table></div>
+                            </div>
+                            <div style="display:grid; gap:0.9rem;">
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem;">
+                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun fotografi/ teknik resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('product', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${productFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : productFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('product', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('product', ${idx})">kaldir</button></div></div>`).join('')}</div>${productFiles.length > 0 ? '<button class="btn-sm" style="margin-top:0.45rem;" onclick="ProductLibraryModule.clearModelDraftFiles(\'product\')">tumunu kaldir</button>' : ''}</div>
+                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun patlatilmis resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('exploded', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : explodedFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('exploded', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('exploded', ${idx})">kaldir</button></div></div>`).join('')}</div>${explodedFiles.length > 0 ? '<button class="btn-sm" style="margin-top:0.45rem;" onclick="ProductLibraryModule.clearModelDraftFiles(\'exploded\')">tumunu kaldir</button>' : ''}</div>
+                                </div>
+                                <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.25rem;">not</label><textarea rows="6" oninput="ProductLibraryModule.state.modelDraftNote=this.value" style="width:100%; border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.modelDraftNote || '')}</textarea></div>
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
+            </div>
+        `;
+    },
+
     ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [
@@ -2964,6 +4047,7 @@ const ProductLibraryModule = {
         readMany('colorLibrary', DB.data?.data?.colorLibrary, ['code']);
         readMany('partComponentCards', DB.data?.data?.partComponentCards, ['code']);
         readMany('assemblyGroups', DB.data?.data?.assemblyGroups, ['code']);
+        readMany('catalogProductVariants', DB.data?.data?.catalogProductVariants, ['familyCode', 'variantCode']);
         return bag;
     },
 

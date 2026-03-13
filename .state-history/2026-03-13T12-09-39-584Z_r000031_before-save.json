@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T12:10:42.504Z",
+    "updated_at": "2026-03-13T10:57:47.318Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -30,7 +30,7 @@
         "Genel"
       ]
     },
-    "revision": 33
+    "revision": 31
   },
   "data": {
     "products": [
@@ -1133,41 +1133,11 @@
       }
     ],
     "plexiPolishCards": [],
-    "pvdCards": [
-      {
-        "id": "17cd4da7-1bc7-40b6-bb85-0c77d9dbda5b",
-        "unitId": "u9",
-        "cardCode": "PVD-000001",
-        "productName": "gold kaplama",
-        "colorType": "pvd",
-        "color": "Titanyum Gold",
-        "colorCode": "",
-        "note": "",
-        "created_at": "2026-03-13T12:10:42.504Z",
-        "updated_at": "2026-03-13T12:10:42.504Z"
-      }
-    ],
+    "pvdCards": [],
     "eloksalCards": [],
-    "ibrahimPolishCards": [
-      {
-        "id": "aa675670-2ac2-4987-8ea6-b56de0e4ea3f",
-        "unitId": "u10",
-        "cardCode": "IPS-000001",
-        "productName": "parlak polisaj",
-        "surface": "Parlak",
-        "note": "",
-        "created_at": "2026-03-13T12:09:39.566Z",
-        "updated_at": "2026-03-13T12:09:39.566Z"
-      }
-    ],
+    "ibrahimPolishCards": [],
     "processColorLists": {},
-    "polishSurfaceLists": {
-      "u10": [
-        "Parlak",
-        "Mat",
-        "Satine"
-      ]
-    },
+    "polishSurfaceLists": {},
     "extruderLibraryCards": [],
     "montageCards": [],
     "depoTransferTasks": [
@@ -1400,12 +1370,6 @@
         "Beyaz",
         "Siyah",
         "Antrasit"
-      ],
-      "u9": [
-        "Titanyum Gold",
-        "Rose Gold",
-        "Siyah",
-        "Gumus"
       ]
     },
     "sawCutMeta": {

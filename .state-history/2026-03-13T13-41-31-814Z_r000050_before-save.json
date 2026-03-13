@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-13T13:41:41.622Z",
+    "updated_at": "2026-03-13T13:07:42.076Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -24,8 +24,7 @@
       "partGroups": [
         "Genel",
         "mafsallar",
-        "borular",
-        "aluminyum dikme aksesuarları"
+        "borular"
       ],
       "partSubGroups": [
         "Genel"
@@ -37,7 +36,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 53
+    "revision": 50
   },
   "data": {
     "products": [

@@ -1,5 +1,6 @@
 const Modal = {
     open: (title, html, options = {}) => {
+        Modal.close();
         const maxWidth = options.maxWidth || '450px';
         const showHeader = options.showHeader !== false;
 
@@ -24,7 +25,9 @@ const Modal = {
             window.MojibakeFix.sanitizeTree(overlay);
         }
     },
-    close: () => document.getElementById('m')?.remove()
+    close: () => {
+        document.querySelectorAll('.modal-overlay').forEach(node => node.remove());
+    }
 };
 
 window.addEventListener('DOMContentLoaded', App.init);

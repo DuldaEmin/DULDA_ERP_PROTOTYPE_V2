@@ -65,6 +65,7 @@ const ProductLibraryModule = {
         componentFormOpen: false,
         componentEditingId: null,
         componentViewingId: null,
+        componentViewPreviewIndex: 0,
         componentDraftCode: '',
         componentDraftName: '',
         componentDraftGroup: '',
@@ -964,11 +965,11 @@ const ProductLibraryModule = {
                     <button class="btn-primary" onclick="ProductLibraryModule.addComponentDictionaryOption('${meta.kind}')" style="height:38px; border-radius:0.55rem;">ekle</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:350px; overflow:auto;">
-                    ${items.map((item, idx) => `
+                    ${items.map((item) => `
                         <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
                             <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
-                            <button class="btn-sm" onclick="ProductLibraryModule.renameComponentDictionaryOption('${meta.kind}', ${idx})">duzenle</button>
-                            <button class="btn-sm" onclick="ProductLibraryModule.removeComponentDictionaryOption('${meta.kind}', ${idx})">sil</button>
+                            <button class="btn-sm" onclick='ProductLibraryModule.renameComponentDictionaryOption(${JSON.stringify(meta.kind)}, ${JSON.stringify(item)})'>duzenle</button>
+                            <button class="btn-sm" onclick='ProductLibraryModule.removeComponentDictionaryOption(${JSON.stringify(meta.kind)}, ${JSON.stringify(item)})'>sil</button>
                         </div>
                     `).join('')}
                 </div>
@@ -998,12 +999,13 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    renameComponentDictionaryOption: async (kind, index) => {
+    renameComponentDictionaryOption: async (kind, currentValue) => {
         const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
         if (!Array.isArray(DB.data.meta.options?.[meta.key])) return;
         const list = DB.data.meta.options[meta.key];
-        const idx = Number(index);
-        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const currentNorm = ProductLibraryModule.normalizeAsciiUpper(String(currentValue || ''));
+        const idx = list.findIndex(x => ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === currentNorm);
+        if (idx < 0) return;
 
         const oldValue = String(list[idx] || '').trim();
         if (!oldValue) return;
@@ -1070,12 +1072,13 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    removeComponentDictionaryOption: async (kind, index) => {
+    removeComponentDictionaryOption: async (kind, currentValue) => {
         const meta = ProductLibraryModule.getComponentDictionaryMeta(kind);
         if (!Array.isArray(DB.data.meta.options?.[meta.key])) return;
         const list = DB.data.meta.options[meta.key];
-        const idx = Number(index);
-        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const currentNorm = ProductLibraryModule.normalizeAsciiUpper(String(currentValue || ''));
+        const idx = list.findIndex(x => ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === currentNorm);
+        if (idx < 0) return;
         if (list.length <= 1) return alert('En az bir secenek kalmalidir.');
 
         if (!confirm(`"${String(list[idx] || '')}" silinsin mi?`)) return;
@@ -1158,6 +1161,59 @@ const ProductLibraryModule = {
             return 'FASON';
         }
         return String(routeRow?.processId || '').trim().toUpperCase();
+    },
+
+    getRouteProcessName: (routeRow) => {
+        const stationId = String(routeRow?.stationId || '').trim();
+        const code = String(ProductLibraryModule.getRouteProcessDisplayValue(routeRow) || '').trim().toUpperCase();
+        if (!stationId || !code) return '';
+        if (ProductLibraryModule.isSupplierRouteStationId(stationId)) return 'Fason';
+
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const unit = units.find(row => String(row?.id || '') === stationId) || null;
+        const unitName = String(unit?.name || '').toUpperCase();
+        const findByCode = (list, fields, labelFields, withUnit = true) => {
+            if (!Array.isArray(list)) return null;
+            const row = list.find(item => {
+                if (withUnit && String(item?.unitId || '') !== stationId) return false;
+                return fields.some(field => String(item?.[field] || '').trim().toUpperCase() === code);
+            });
+            if (!row) return '';
+            for (const field of labelFields) {
+                const value = String(row?.[field] || '').trim();
+                if (value) return value;
+            }
+            return '';
+        };
+
+        if (stationId === 'u_dtm') {
+            return findByCode(DB.data?.data?.depoTransferTasks, ['taskCode'], ['taskName'], false);
+        }
+        if (unitName.includes('CNC')) {
+            return findByCode(DB.data?.data?.cncCards, ['cncId'], ['productName', 'name']);
+        }
+        if (stationId === 'u2' || unitName.includes('EKSTR')) {
+            return findByCode(DB.data?.data?.extruderLibraryCards, ['cardCode'], ['productName', 'name']);
+        }
+        if (unitName.includes('TESTERE')) {
+            return findByCode(DB.data?.data?.sawCutOrders, ['code'], ['processName', 'productName', 'name']);
+        }
+        if (stationId === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            return findByCode(DB.data?.data?.pvdCards, ['cardCode'], ['productName', 'name']);
+        }
+        if (stationId === 'u11' || unitName.includes('ELOKSAL')) {
+            return findByCode(DB.data?.data?.eloksalCards, ['cardCode'], ['productName', 'name']);
+        }
+        if (stationId === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            return findByCode(DB.data?.data?.ibrahimPolishCards, ['cardCode'], ['productName', 'processName', 'name']);
+        }
+        if (stationId === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
+            return findByCode(DB.data?.data?.plexiPolishCards, ['cardCode'], ['processName', 'productName', 'name']);
+        }
+        if (stationId === 'u3' || unitName.includes('MONTAJ')) {
+            return findByCode(DB.data?.data?.montageCards, ['cardCode', 'productCode'], ['productName', 'name']);
+        }
+        return '';
     },
 
     generateComponentCode: (exclude = null) => {
@@ -1262,12 +1318,19 @@ const ProductLibraryModule = {
 
     openComponentCardView: (id) => {
         ProductLibraryModule.state.componentViewingId = String(id || '');
+        ProductLibraryModule.state.componentViewPreviewIndex = 0;
         ProductLibraryModule.state.componentFormOpen = false;
         UI.renderCurrentPage();
     },
 
     closeComponentCardView: () => {
         ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentViewPreviewIndex = 0;
+        UI.renderCurrentPage();
+    },
+
+    selectComponentViewFile: (index) => {
+        ProductLibraryModule.state.componentViewPreviewIndex = Math.max(0, Number(index) || 0);
         UI.renderCurrentPage();
     },
 
@@ -1647,6 +1710,7 @@ const ProductLibraryModule = {
         }
         if (String(ProductLibraryModule.state.componentViewingId || '') === String(id || '')) {
             ProductLibraryModule.state.componentViewingId = null;
+            ProductLibraryModule.state.componentViewPreviewIndex = 0;
         }
 
         await DB.save();
@@ -1657,6 +1721,22 @@ const ProductLibraryModule = {
         const unitMap = ProductLibraryModule.getRouteStationMap();
         const routes = Array.isArray(row?.routes) ? row.routes : [];
         const files = Array.isArray(row?.attachments) ? row.attachments : [];
+        const previewIndex = Math.min(
+            Math.max(0, Number(ProductLibraryModule.state.componentViewPreviewIndex || 0)),
+            Math.max(files.length - 1, 0)
+        );
+        const previewFile = files[previewIndex] || null;
+        const previewType = String(previewFile?.type || '').toLowerCase();
+        const previewData = String(previewFile?.data || '');
+        const previewIsPdf = previewType.includes('pdf') || previewData.startsWith('data:application/pdf');
+        const previewIsImage = previewType.startsWith('image/') || previewData.startsWith('data:image/');
+        const previewHtml = !previewFile?.data
+            ? '<div style="display:flex; align-items:center; justify-content:center; min-height:280px; color:#94a3b8; font-weight:700;">Onizlenecek dosya secilmedi.</div>'
+            : previewIsPdf
+                ? `<iframe src="${previewData}" style="width:100%; min-height:420px; border:none; border-radius:0.8rem; background:white;"></iframe>`
+                : previewIsImage
+                    ? `<div style="display:flex; align-items:center; justify-content:center; min-height:420px; background:white; border-radius:0.8rem; overflow:hidden;"><img src="${previewData}" alt="${ProductLibraryModule.escapeHtml(previewFile?.name || 'dosya')}" style="max-width:100%; max-height:420px; object-fit:contain;"></div>`
+                    : '<div style="display:flex; align-items:center; justify-content:center; min-height:280px; color:#94a3b8; font-weight:700;">Bu dosya turu icin yerlesik onizleme yok.</div>';
 
         container.innerHTML = `
             <div style="max-width:1120px; margin:0 auto;">
@@ -1683,14 +1763,16 @@ const ProductLibraryModule = {
                                 <th style="padding:0.5rem; text-align:left;">Sira</th>
                                 <th style="padding:0.5rem; text-align:left;">Istasyon</th>
                                 <th style="padding:0.5rem; text-align:left;">Islem ID</th>
+                                <th style="padding:0.5rem; text-align:left;">Islem adi</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${routes.length === 0 ? '<tr><td colspan="3" style="padding:0.8rem; color:#94a3b8;">Rota tanimli degil.</td></tr>' : routes.map((r, idx) => `
+                            ${routes.length === 0 ? '<tr><td colspan="4" style="padding:0.8rem; color:#94a3b8;">Rota tanimli degil.</td></tr>' : routes.map((r, idx) => `
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:0.5rem;">${idx + 1}</td>
                                     <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(unitMap[r.stationId] || r.stationId || '-')}</td>
                                     <td style="padding:0.5rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '-')}</td>
+                                    <td style="padding:0.5rem; color:#334155; font-weight:700;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessName(r) || '-')}</td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1700,13 +1782,20 @@ const ProductLibraryModule = {
                 <div class="card-table" style="padding:1rem;">
                     <div style="font-weight:700; margin-bottom:0.6rem;">Dosyalar</div>
                     ${files.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : `
-                        <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                        <div style="display:flex; flex-direction:column; gap:0.8rem;">
                             ${files.map((file, idx) => `
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem 0.6rem;">
-                                    <div style="font-size:0.86rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
-                                    <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid ${idx === previewIndex ? '#93c5fd' : '#e2e8f0'}; background:${idx === previewIndex ? '#eff6ff' : 'white'}; border-radius:0.6rem; padding:0.5rem 0.65rem;">
+                                    <div style="font-size:0.86rem; color:#334155; font-weight:${idx === previewIndex ? '700' : '600'};">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button class="btn-sm" onclick="ProductLibraryModule.selectComponentViewFile(${idx})" style="${idx === previewIndex ? 'background:#dbeafe; border-color:#93c5fd; color:#1d4ed8;' : ''}">onizle</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
+                                    </div>
                                 </div>
                             `).join('')}
+                            <div style="border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.75rem; background:#f8fafc;">
+                                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.55rem;">${previewFile ? `Onizleme: ${ProductLibraryModule.escapeHtml(previewFile.name || 'dosya')}` : 'Onizleme'}</div>
+                                ${previewHtml}
+                            </div>
                         </div>
                     `}
                 </div>
@@ -3214,11 +3303,11 @@ const ProductLibraryModule = {
                     <button class="btn-primary" onclick="ProductLibraryModule.addModelGroupOption()" style="height:38px; border-radius:0.55rem;">ekle</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:360px; overflow:auto;">
-                    ${items.map((item, idx) => `
+                    ${items.map((item) => `
                         <div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem 0.55rem;">
                             <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item)}</div>
-                            <button class="btn-sm" onclick="ProductLibraryModule.renameModelGroupOption(${idx})">duzenle</button>
-                            <button class="btn-sm" onclick="ProductLibraryModule.removeModelGroupOption(${idx})">sil</button>
+                            <button class="btn-sm" onclick='ProductLibraryModule.renameModelGroupOption(${JSON.stringify(item)})'>duzenle</button>
+                            <button class="btn-sm" onclick='ProductLibraryModule.removeModelGroupOption(${JSON.stringify(item)})'>sil</button>
                         </div>
                     `).join('')}
                 </div>
@@ -3239,9 +3328,11 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    renameModelGroupOption: async (idx) => {
+    renameModelGroupOption: async (currentValue) => {
         const list = ProductLibraryModule.getModelGroupOptions();
-        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const currentNorm = ProductLibraryModule.normalizeAsciiUpper(String(currentValue || ''));
+        const idx = list.findIndex(x => ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === currentNorm);
+        if (idx < 0) return;
         const next = prompt('Yeni urun grubu adi:', list[idx] || '');
         if (!next) return;
         list[idx] = String(next || '').trim() || list[idx];
@@ -3251,9 +3342,11 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    removeModelGroupOption: async (idx) => {
+    removeModelGroupOption: async (currentValue) => {
         const list = ProductLibraryModule.getModelGroupOptions();
-        if (!Number.isInteger(idx) || idx < 0 || idx >= list.length) return;
+        const currentNorm = ProductLibraryModule.normalizeAsciiUpper(String(currentValue || ''));
+        const idx = list.findIndex(x => ProductLibraryModule.normalizeAsciiUpper(String(x || '')) === currentNorm);
+        if (idx < 0) return;
         const target = list[idx];
         const inUse = ProductLibraryModule.getCatalogProductVariants().some(row =>
             ProductLibraryModule.normalizeAsciiUpper(row.productGroup || '') === ProductLibraryModule.normalizeAsciiUpper(target || '')

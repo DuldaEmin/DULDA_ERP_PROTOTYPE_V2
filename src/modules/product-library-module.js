@@ -61,6 +61,7 @@ const ProductLibraryModule = {
         colorDraftName: '',
         colorDraftNote: '',
         componentFilters: { name: '', group: '', colorType: '', subGroup: '', code: '' },
+        componentCategoryExpanded: {},
         componentFormOpen: false,
         componentEditingId: null,
         componentViewingId: null,
@@ -740,6 +741,9 @@ const ProductLibraryModule = {
         if (!groups.includes(ProductLibraryModule.state.componentDraftGroup)) {
             ProductLibraryModule.state.componentDraftGroup = groups[0] || '';
         }
+        if (!ProductLibraryModule.state.componentCategoryExpanded || typeof ProductLibraryModule.state.componentCategoryExpanded !== 'object') {
+            ProductLibraryModule.state.componentCategoryExpanded = {};
+        }
         ProductLibraryModule.state.componentDraftColorType = ProductLibraryModule.normalizeColorType(ProductLibraryModule.state.componentDraftColorType || '');
         if (!ProductLibraryModule.state.componentDraftColorType) {
             ProductLibraryModule.state.componentDraftColorCode = '';
@@ -810,6 +814,19 @@ const ProductLibraryModule = {
             const len = el.value.length;
             try { el.setSelectionRange(len, len); } catch (_) { }
         }, 0);
+    },
+
+    toggleComponentCategorySection: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        if (!key) return;
+        const current = (ProductLibraryModule.state.componentCategoryExpanded && typeof ProductLibraryModule.state.componentCategoryExpanded === 'object')
+            ? ProductLibraryModule.state.componentCategoryExpanded
+            : {};
+        ProductLibraryModule.state.componentCategoryExpanded = {
+            ...current,
+            [key]: !current[key]
+        };
+        UI.renderCurrentPage();
     },
 
     openComponentForm: () => {
@@ -1765,6 +1782,58 @@ const ProductLibraryModule = {
         const files = Array.isArray(state.componentDraftFiles) ? state.componentDraftFiles : [];
         const routes = Array.isArray(state.componentDraftRoutes) ? state.componentDraftRoutes : [];
         const draftCode = String(state.componentDraftCode || ProductLibraryModule.generateComponentCode(state.componentEditingId || null));
+        const componentExpandedMap = (state.componentCategoryExpanded && typeof state.componentCategoryExpanded === 'object')
+            ? state.componentCategoryExpanded
+            : {};
+        const renderComponentRow = (row) => `
+            <tr style="border-bottom:1px solid #f1f5f9;">
+                <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
+                <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</td>
+                <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</td>
+                <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
+                <td style="padding:0.55rem; text-align:center;">
+                    ${isComponentPicker
+                        ? `<button class="btn-sm" onclick="${isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`}">ekle</button>`
+                        : '<input type="checkbox" disabled>'}
+                </td>
+            </tr>
+        `;
+        const rowsHtml = rows.length === 0
+            ? '<tr><td colspan="7" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli parca/bilesen yok.</td></tr>'
+            : (() => {
+                const preferredGroups = Array.from(new Set([
+                    ...ProductLibraryModule.getPartGroups(),
+                    ...rows.map(row => String(row?.group || '').trim()).filter(Boolean)
+                ]));
+                const grouped = preferredGroups
+                    .map((groupName) => {
+                        const items = rows.filter(row => String(row?.group || '').trim() === groupName);
+                        return { key: groupName || 'Diger', name: groupName || 'Diger', items };
+                    })
+                    .filter(group => group.items.length > 0);
+
+                return grouped.map((group) => {
+                    const isOpen = !!componentExpandedMap[group.key];
+                    const arrowIcon = isOpen ? 'chevron-down' : 'chevron-right';
+                    const bodyRows = isOpen ? group.items.map(renderComponentRow).join('') : '';
+                    return `
+                        <tr>
+                            <td colspan="7" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
+                                <button type="button" onclick='ProductLibraryModule.toggleComponentCategorySection(${JSON.stringify(group.key)})' style="width:calc(100% - 0.7rem); margin:0.3rem 0.35rem; border:1px solid #cbd5e1; border-radius:0.62rem; background:${isOpen ? '#eef2ff' : 'white'}; padding:0.65rem 0.8rem; display:flex; align-items:center; gap:0.6rem; cursor:pointer; text-align:left;">
+                                    <span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #0f172a; border-radius:999px; color:#0f172a; background:white;">
+                                        <i data-lucide="${arrowIcon}" width="16" height="16"></i>
+                                    </span>
+                                    <span style="font-weight:800; color:#334155; font-size:1rem;">${ProductLibraryModule.escapeHtml(group.name)}</span>
+                                    <span style="font-size:0.86rem; color:#64748b; font-weight:700;">(${group.items.length})</span>
+                                </button>
+                            </td>
+                        </tr>
+                        ${bodyRows}
+                    `;
+                }).join('');
+            })();
 
         container.innerHTML = `
             <div style="max-width:1220px; margin:0 auto;">
@@ -1822,23 +1891,7 @@ const ProductLibraryModule = {
                                 <th style="padding:0.55rem; text-align:center;">sec</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            ${rows.length === 0 ? '<tr><td colspan="7" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli parca/bilesen yok.</td></tr>' : rows.map(row => `
-                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
-                                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</td>
-                                    <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</td>
-                                    <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
-                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
-                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
-                                    <td style="padding:0.55rem; text-align:center;">
-                                        ${isComponentPicker
-                                            ? `<button class="btn-sm" onclick="${isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`}">ekle</button>`
-                                            : '<input type="checkbox" disabled>'}
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
+                        <tbody>${rowsHtml}</tbody>
                     </table>
                 </div>
 

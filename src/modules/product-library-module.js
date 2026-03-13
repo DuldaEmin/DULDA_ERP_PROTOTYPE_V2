@@ -3562,6 +3562,27 @@ const ProductLibraryModule = {
         ProductLibraryModule.openPreviewModal(file);
     },
 
+    renderModelStoredFileCards: (rowId, kind, files = []) => {
+        if (!Array.isArray(files) || files.length === 0) {
+            return '<div style="color:#94a3b8;">Dosya yok.</div>';
+        }
+        return files.map((file, idx) => {
+            const type = String(file?.type || '').toLowerCase();
+            const data = String(file?.data || '');
+            const isImage = type.startsWith('image/') || data.startsWith('data:image/');
+            const previewBox = isImage
+                ? `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; padding:0.45rem; display:flex; align-items:center; justify-content:center; min-height:180px; overflow:hidden;"><img src="${data}" alt="${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}" style="max-width:100%; max-height:170px; object-fit:contain; border-radius:0.45rem;"></div>`
+                : `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; padding:0.75rem; min-height:180px; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:800;">PDF / DOSYA ONIZLEME</div>`;
+            return `
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.55rem; background:white;">
+                    ${previewBox}
+                    <div style="font-size:0.82rem; margin:0.5rem 0 0.4rem; color:#334155; word-break:break-word;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.previewModelStoredFile('${rowId}', '${kind}', ${idx})">goruntule</button>
+                </div>
+            `;
+        }).join('');
+    },
+
     collectModelDraftPayload: () => {
         const productName = String(ProductLibraryModule.state.modelDraftName || '').trim();
         const productGroup = String(ProductLibraryModule.state.modelDraftGroup || '').trim();
@@ -3804,24 +3825,14 @@ const ProductLibraryModule = {
                     <div style="display:grid; gap:1rem;">
                         <div class="card-table" style="padding:1rem;">
                             <div style="font-weight:700; margin-bottom:0.55rem;">Urun Fotografi / Teknik Resim</div>
-                            <div style="display:flex; flex-direction:column; gap:0.45rem;">
-                                ${productFiles.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : productFiles.map((file, idx) => `
-                                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
-                                        <div style="font-size:0.82rem; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
-                                        <button class="btn-sm" onclick="ProductLibraryModule.previewModelStoredFile('${row.id}', 'product', ${idx})">goruntule</button>
-                                    </div>
-                                `).join('')}
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
+                                ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'product', productFiles)}
                             </div>
                         </div>
                         <div class="card-table" style="padding:1rem;">
                             <div style="font-weight:700; margin-bottom:0.55rem;">Patlatilmis Resim</div>
-                            <div style="display:flex; flex-direction:column; gap:0.45rem;">
-                                ${explodedFiles.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : explodedFiles.map((file, idx) => `
-                                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
-                                        <div style="font-size:0.82rem; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
-                                        <button class="btn-sm" onclick="ProductLibraryModule.previewModelStoredFile('${row.id}', 'exploded', ${idx})">goruntule</button>
-                                    </div>
-                                `).join('')}
+                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
+                                ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'exploded', explodedFiles)}
                             </div>
                         </div>
                     </div>

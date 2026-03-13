@@ -1894,22 +1894,20 @@ const UnitModule = {
                                 <th style="padding:0.55rem; text-align:left;">Islem adi</th>
                                 <th style="padding:0.55rem; text-align:left;">ID kod</th>
                                 <th style="padding:0.55rem; text-align:left;">Not</th>
-                                <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                <th style="padding:0.55rem; text-align:right;">Goruntule</th>
+                                <th style="padding:0.55rem; text-align:right;">Duzenle</th>
+                                <th style="padding:0.55rem; text-align:right;">Sec</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${filteredTasks.length === 0 ? `<tr><td colspan="4" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
+                            ${filteredTasks.length === 0 ? `<tr><td colspan="6" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
                                 <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#ffe4e6;' : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(t.note || '-')}</td>
-                                    <td style="padding:0.55rem; text-align:right;">
-                                        <div style="display:inline-flex; align-items:center; gap:0.35rem;">
-                                            ${isDepoPickerMode ? `<button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>` : ''}
-                                            <button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button>
-                                            <button class="btn-sm" onclick="UnitModule.deleteDepoTask('${t.id}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
-                                        </div>
-                                    </td>
+                                    <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.previewDepoTask('${t.id}')">Goruntule</button></td>
+                                    <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button></td>
+                                    <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -1920,6 +1918,7 @@ const UnitModule = {
             ${isFormOpen ? `
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem;">
                     <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-bottom:0.8rem;">
+                        ${UnitModule.state.depoTaskEditingId ? `<button class="btn-sm" onclick="UnitModule.deleteDepoTask('${UnitModule.state.depoTaskEditingId}')" ${canDeleteTask ? '' : 'disabled'} style="${canDeleteTask ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">sil</button>` : ''}
                         <button class="btn-sm" onclick="UnitModule.resetDepoTaskDraft()">vazgec</button>
                         <button class="btn-primary" onclick="UnitModule.saveDepoTask()">kaydet</button>
                     </div>
@@ -1993,6 +1992,26 @@ const UnitModule = {
     selectDepoTask: (taskId) => {
         UnitModule.state.depoTaskSelectedId = taskId;
         UI.renderCurrentPage();
+    },
+    previewDepoTask: (taskId) => {
+        const row = (DB.data.data.depoTransferTasks || []).find(x => x.id === taskId);
+        if (!row) return;
+        Modal.open(`Islem Detay - ${UnitModule.escapeHtml(row.taskName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Islem adi</div>
+                    <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.taskName || '-')}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">ID kod</div>
+                    <div style="font-weight:700; color:#1d4ed8; font-family:monospace;">${UnitModule.escapeHtml(row.taskCode || '-')}</div>
+                </div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Not</div>
+                    <div style="color:#334155; white-space:pre-wrap;">${UnitModule.escapeHtml(row.note || '-')}</div>
+                </div>
+            </div>
+        `, { maxWidth: '720px' });
     },
     saveDepoTask: async () => {
         const taskName = String(UnitModule.state.depoTaskDraftName || '').trim();
@@ -2373,6 +2392,7 @@ const UnitModule = {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.8rem">
                     <div style="font-size:2rem; font-weight:700; color:#0f172a; line-height:1">yeni olcu olustur</div>
                     <div style="display:flex; gap:0.5rem">
+                        ${UnitModule.state.sawEditingId ? `<button class="btn-sm btn-danger" onclick="UnitModule.deleteSawRow('${UnitModule.state.sawEditingId}')">sil</button>` : ''}
                         <button class="btn-sm" onclick="UnitModule.resetSawDraft(false)">vazgec</button>
                         <button class="btn-primary" onclick="UnitModule.saveSawCut('${unitId}')">kaydet</button>
                     </div>
@@ -2418,11 +2438,10 @@ const UnitModule = {
                             <th style="text-align:center">GORUNTULE</th>
                             <th style="text-align:center">DUZENLE</th>
                             <th style="text-align:center">SEC</th>
-                            <th style="text-align:right">SIL</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${filteredRows.length === 0 ? `<tr><td colspan="8" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
+                        ${filteredRows.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
                             <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#ffe4e6' : ''}">
                                 <td style="font-weight:700; color:#334155">${r.processName || '-'}</td>
                                 <td style="text-align:center; font-weight:700; color:#0f766e">${r.lengthMm ?? r.cutLengthMm ?? '-'}</td>
@@ -2433,7 +2452,6 @@ const UnitModule = {
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.previewSawRow('${r.id}')">goruntule</button></td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.editSawRow('${r.id}')">duzenle</button></td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
-                                <td style="text-align:right"><button class="btn-sm btn-danger" onclick="UnitModule.deleteSawRow('${r.id}')">sil</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -2690,11 +2708,10 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="12" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
@@ -2713,9 +2730,6 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="UnitModule.selectExtruderRow('${row.id}')" class="btn-sm" style="${UnitModule.state.extruderSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
                                         </td>
-                                        <td style="padding:0.65rem; text-align:right;">
-                                            <button onclick="UnitModule.deleteExtruderRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>
-                                        </td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -2728,6 +2742,7 @@ const UnitModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${editing ? `<button onclick="UnitModule.deleteExtruderRow('${UnitModule.state.extruderEditingId}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
                                 <button onclick="UnitModule.resetExtruderDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
                                 <button onclick="UnitModule.saveExtruderRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
                             </div>
@@ -3093,11 +3108,10 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
@@ -3117,9 +3131,6 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="UnitModule.selectPlexiRow('${row.id}')" class="btn-sm" style="${UnitModule.state.plexiSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
                                         </td>
-                                        <td style="padding:0.65rem; text-align:right;">
-                                            <button onclick="UnitModule.deletePlexiRow('${row.id}')" class="btn-sm" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">sil</button>
-                                        </td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3132,6 +3143,7 @@ const UnitModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editing ? 'Islem duzenle' : 'Yeni islem olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${editing ? `<button onclick="UnitModule.deletePlexiRow('${UnitModule.state.plexiEditingId}')" class="btn-sm" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>` : ''}
                                 <button onclick="UnitModule.resetPlexiDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
                                 <button onclick="UnitModule.savePlexiRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
                             </div>
@@ -3564,11 +3576,10 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
@@ -3579,7 +3590,6 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPvdRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPvdRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPvdRow('${row.id}')" class="btn-sm" style="${UnitModule.state.pvdSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePvdRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3592,6 +3602,7 @@ const UnitModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${editing ? `<button onclick="UnitModule.deletePvdRow('${UnitModule.state.pvdEditingId}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
                                 <button onclick="UnitModule.resetPvdDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
                                 <button onclick="UnitModule.savePvdRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
                             </div>
@@ -3860,11 +3871,10 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</span></td>
@@ -3873,7 +3883,6 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPolishRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPolishRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPolishRow('${row.id}')" class="btn-sm" style="${UnitModule.state.polishSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deletePolishRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3886,6 +3895,7 @@ const UnitModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${editing ? `<button onclick="UnitModule.deletePolishRow('${UnitModule.state.polishEditingId}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
                                 <button onclick="UnitModule.resetPolishDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
                                 <button onclick="UnitModule.savePolishRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
                             </div>
@@ -4200,11 +4210,10 @@ const UnitModule = {
                                     <th style="padding:0.65rem; text-align:right;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
@@ -4218,7 +4227,6 @@ const UnitModule = {
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewEloksalRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editEloksalRow('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectEloksalRow('${row.id}')" class="btn-sm" style="${UnitModule.state.elxSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.deleteEloksalRow('${row.id}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -4231,6 +4239,7 @@ const UnitModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${editing ? 'Urun duzenle' : 'Yeni urun olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${editing ? `<button onclick="UnitModule.deleteEloksalRow('${UnitModule.state.elxEditingId}')" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
                                 <button onclick="UnitModule.resetEloksalDraft(false)" style="border:1px solid #cbd5e1; background:white; border-radius:0.4rem; padding:0.25rem 0.55rem; cursor:pointer;">Vazgec</button>
                                 <button onclick="UnitModule.saveEloksalRow('${unitId}')" class="btn-primary" style="padding:0.3rem 0.6rem;">Kaydet</button>
                             </div>

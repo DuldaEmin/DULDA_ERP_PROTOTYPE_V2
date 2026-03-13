@@ -577,6 +577,27 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
+    previewOperation: (taskId) => {
+        const row = (DB.data.data.depoTransferTasks || []).find((item) => String(item?.id || '') === String(taskId || ''));
+        if (!row) return;
+        Modal.open(`Islem Detay - ${StockModule.escapeHtml(row.taskName || '-')}`, `
+            <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Islem adi</div>
+                    <div style="font-weight:700; color:#334155;">${StockModule.escapeHtml(row.taskName || '-')}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">ID kod</div>
+                    <div style="font-weight:700; color:#1d4ed8; font-family:monospace;">${StockModule.escapeHtml(row.taskCode || '-')}</div>
+                </div>
+                <div style="grid-column:1/-1; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    <div style="font-size:0.72rem; color:#64748b;">Islem notu</div>
+                    <div style="color:#334155; white-space:pre-wrap;">${StockModule.escapeHtml(row.note || '-')}</div>
+                </div>
+            </div>
+        `, { maxWidth: '720px' });
+    },
+
     saveOperation: async () => {
         const taskName = String(StockModule.state.operationDraftName || '').trim();
         const note = String(StockModule.state.operationDraftNote || '').trim();
@@ -663,22 +684,20 @@ const StockModule = {
                                     <th style="padding:1.15rem">Islem adi</th>
                                     <th style="padding:1.15rem">ID kod</th>
                                     <th style="padding:1.15rem">Islem notu</th>
-                                    <th style="padding:1.15rem; text-align:right;">Islem</th>
+                                    <th style="padding:1.15rem; text-align:right;">Goruntule</th>
+                                    <th style="padding:1.15rem; text-align:right;">Duzenle</th>
+                                    <th style="padding:1.15rem; text-align:right;">Sec</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${rows.length === 0 ? '<tr><td colspan="4" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli islem yok.</td></tr>' : rows.map((row) => `
+                                ${rows.length === 0 ? '<tr><td colspan="6" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli islem yok.</td></tr>' : rows.map((row) => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${isPickerMode && String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:1.15rem; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.taskName || '-')}</td>
                                         <td style="padding:1.15rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.taskCode || '-')}</td>
                                         <td style="padding:1.15rem; color:#64748b;">${StockModule.escapeHtml(row.note || '-')}</td>
-                                        <td style="padding:1.15rem; text-align:right;">
-                                            <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                ${isPickerMode ? `<button class="btn-sm" onclick="StockModule.selectOperation('${row.id}')" style="${String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button>` : ''}
-                                                <button class="btn-sm" onclick="StockModule.startEditOperation('${row.id}')">Duzenle</button>
-                                                <button class="btn-sm" onclick="StockModule.deleteOperation('${row.id}')" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>
-                                            </div>
-                                        </td>
+                                        <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.previewOperation('${row.id}')">Goruntule</button></td>
+                                        <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.startEditOperation('${row.id}')">Duzenle</button></td>
+                                        <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.selectOperation('${row.id}')" style="${String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -688,6 +707,7 @@ const StockModule = {
                     ${isFormOpen ? `
                         <div class="card-table" style="padding:1.25rem 1.5rem; margin-top:1rem;">
                             <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin-bottom:0.8rem;">
+                                ${StockModule.state.operationEditingId ? `<button class="btn-sm" onclick="StockModule.deleteOperation('${StockModule.state.operationEditingId}')" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">sil</button>` : ''}
                                 <button class="btn-sm" onclick="StockModule.resetOperationDraft()">vazgec</button>
                                 <button class="btn-primary" onclick="StockModule.saveOperation()">kaydet</button>
                             </div>

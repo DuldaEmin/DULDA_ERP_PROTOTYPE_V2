@@ -539,11 +539,10 @@ const MontageLibraryModule = {
                                     <th style="padding:0.65rem; text-align:center;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${MontageLibraryModule.state.selectedId === row.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.productCode || '-')}</td>
@@ -551,7 +550,6 @@ const MontageLibraryModule = {
                                         <td style="padding:0.65rem; text-align:center;"><button onclick="MontageLibraryModule.previewRow('${row.id}')" class="btn-sm" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8;">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.startEdit('${row.id}')" class="btn-sm">duzenle</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${MontageLibraryModule.state.selectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.delete('${row.id}')" class="btn-sm" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">sil</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -564,6 +562,7 @@ const MontageLibraryModule = {
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <strong>${MontageLibraryModule.state.editingId ? 'Kart duzenle' : 'Yeni kart olustur'}</strong>
                             <div style="display:flex; gap:0.4rem;">
+                                ${MontageLibraryModule.state.editingId ? `<button onclick="MontageLibraryModule.delete('${MontageLibraryModule.state.editingId}')" class="btn-sm" ${canDelete ? '' : 'disabled'} style="${canDelete ? 'color:#b91c1c; border-color:#fecaca; background:#fef2f2;' : 'opacity:0.45; cursor:not-allowed;'}">Sil</button>` : ''}
                                 <button onclick="MontageLibraryModule.resetDraft(false)" class="btn-sm">Vazgec</button>
                                 <button onclick="MontageLibraryModule.save('${unitId}')" class="btn-primary" style="padding:0.32rem 0.65rem;">Kaydet</button>
                             </div>

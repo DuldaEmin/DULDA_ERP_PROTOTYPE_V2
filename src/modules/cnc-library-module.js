@@ -98,11 +98,10 @@ const CncLibraryModule = {
                                     <th style="padding:0.65rem; text-align:center;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
                                     <th style="padding:0.65rem; text-align:right;">Sec</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sil</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
+                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(card => `
                                     <tr style="border-bottom:1px solid #f1f5f9; ${CncLibraryModule.state.selectedId === card.id ? 'background:#ffe4e6;' : ''}">
                                         <td style="padding:0.65rem; font-weight:700;">${CncLibraryModule.escape(card.productName || '-')}</td>
                                         <td style="padding:0.65rem; color:#475569;">${CncLibraryModule.escape(CncLibraryModule.resolveCardCategoryName(card, unitId) || '-')}</td>
@@ -115,9 +114,6 @@ const CncLibraryModule = {
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
                                             <button onclick="CncLibraryModule.selectCard('${card.id}')" style="border:1px solid ${CncLibraryModule.state.selectedId === card.id ? '#be123c' : '#cbd5e1'}; background:${CncLibraryModule.state.selectedId === card.id ? '#ffe4e6' : 'white'}; color:${CncLibraryModule.state.selectedId === card.id ? '#9f1239' : '#334155'}; border-radius:0.4rem; padding:0.2rem 0.6rem; font-weight:700; cursor:pointer;">sec</button>
-                                        </td>
-                                        <td style="padding:0.65rem; text-align:right;">
-                                            <button onclick="CncLibraryModule.deleteCard('${card.id}')" ${canDelete ? '' : 'disabled'} style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.4rem; padding:0.2rem 0.6rem; cursor:${canDelete ? 'pointer' : 'not-allowed'}; opacity:${canDelete ? '1' : '0.45'};">sil</button>
                                         </td>
                                     </tr>
                                 `).join('')}

@@ -893,11 +893,18 @@ const ProductLibraryModule = {
     },
 
     cancelComponentPicker: () => {
+        const src = String(ProductLibraryModule.state.componentPickerSource || '');
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
-        ProductLibraryModule.state.workspaceView = 'assembly';
-        ProductLibraryModule.state.assemblyFormOpen = true;
-        ProductLibraryModule.state.assemblyViewingId = null;
+        if (src === 'model-component') {
+            ProductLibraryModule.state.workspaceView = 'models';
+            ProductLibraryModule.state.modelFormOpen = true;
+            ProductLibraryModule.state.modelViewingId = null;
+        } else {
+            ProductLibraryModule.state.workspaceView = 'assembly';
+            ProductLibraryModule.state.assemblyFormOpen = true;
+            ProductLibraryModule.state.assemblyViewingId = null;
+        }
         UI.renderCurrentPage();
     },
 
@@ -1706,6 +1713,8 @@ const ProductLibraryModule = {
 
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
+        const isModelComponentPicker = state.componentPickerSource === 'model-component';
+        const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker;
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
@@ -1759,10 +1768,10 @@ const ProductLibraryModule = {
 
         container.innerHTML = `
             <div style="max-width:1220px; margin:0 auto;">
-                ${isAssemblyComponentPicker ? `
+                ${isComponentPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelComponentPicker()">parca grup formuna don</button>
+                        <div style="font-weight:700;">${isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelComponentPicker()">${isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don'}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
@@ -1795,8 +1804,8 @@ const ProductLibraryModule = {
                             </div>
                         </div>
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <button class="btn-primary" onclick="${isAssemblyComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()'}" style="height:42px; min-width:135px;">${isAssemblyComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
-                        <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" ${isAssemblyComponentPicker ? 'disabled' : ''} style="height:42px; min-width:160px; ${isAssemblyComponentPicker ? 'opacity:0.5; cursor:not-allowed;' : ''}">parca grup ekle +</button>
+                        <button class="btn-primary" onclick="${isComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()'}" style="height:42px; min-width:135px;">${isComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
+                        <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" ${isComponentPicker ? 'disabled' : ''} style="height:42px; min-width:160px; ${isComponentPicker ? 'opacity:0.5; cursor:not-allowed;' : ''}">parca grup ekle +</button>
                     </div>
                 </div>
 
@@ -1823,8 +1832,8 @@ const ProductLibraryModule = {
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
                                     <td style="padding:0.55rem; text-align:center;">
-                                        ${isAssemblyComponentPicker
-                                            ? `<button class="btn-sm" onclick="ProductLibraryModule.selectComponentForAssembly('${row.id}')">ekle</button>`
+                                        ${isComponentPicker
+                                            ? `<button class="btn-sm" onclick="${isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`}">ekle</button>`
                                             : '<input type="checkbox" disabled>'}
                                     </td>
                                 </tr>
@@ -2817,15 +2826,19 @@ const ProductLibraryModule = {
         return `
             <div>
                 <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">${ProductLibraryModule.escapeHtml(cfg.label)}</label>
-                <div style="display:grid; grid-template-columns:0.95fr 1.25fr; gap:0;">
-                    <select onchange="ProductLibraryModule.setModelColorType('${field}', this.value)" style="height:40px; border:1px solid #cbd5e1; border-right:none; border-radius:0.65rem 0 0 0.65rem; padding:0 0.6rem; font-weight:700;">
+                <div style="height:40px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
+                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                    <select onchange="ProductLibraryModule.setModelColorType('${field}', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:#334155;">
                         <option value="">kategori sec</option>
                         ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${active.type === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
                     </select>
-                    <select onchange="ProductLibraryModule.setModelColor('${field}', this.value)" style="height:40px; border:1px solid #cbd5e1; border-radius:0 0.65rem 0.65rem 0; padding:0 0.6rem; font-weight:700;">
+                    </div>
+                    <div style="background:${active.type ? 'white' : '#f1f5f9'};">
+                    <select ${active.type ? '' : 'disabled'} onchange="ProductLibraryModule.setModelColor('${field}', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:${active.type ? '#111827' : '#94a3b8'};">
                         <option value="">renk sec</option>
                         ${options.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${active.name === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
                     </select>
+                    </div>
                 </div>
             </div>
         `;
@@ -3202,21 +3215,12 @@ const ProductLibraryModule = {
     },
 
     openModelMasterPicker: () => {
-        const rows = ProductLibraryModule.getMasterProducts();
-        Modal.open('Master Urun Kutuphanesi', `
-            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
-                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli master urun yok.</div>' : rows.map(row => `
-                    <div style="display:grid; grid-template-columns:1.2fr 160px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
-                        <div>
-                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div>
-                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.categoryName || '-')}</div>
-                        </div>
-                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.code || '-')}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.selectModelMaster('${row.id}')">ekle</button>
-                    </div>
-                `).join('')}
-            </div>
-        `, { maxWidth: '820px' });
+        ProductLibraryModule.state.masterPickerSource = 'model-master';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.masterFormOpen = false;
+        ProductLibraryModule.state.masterEditingId = null;
+        ProductLibraryModule.state.workspaceView = 'master';
+        UI.renderCurrentPage();
     },
 
     selectModelMaster: (id) => {
@@ -3228,7 +3232,10 @@ const ProductLibraryModule = {
             name: String(row.name || '').trim(),
             categoryName: String(row.categoryName || '').trim()
         };
-        Modal.close();
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'models';
+        ProductLibraryModule.state.modelFormOpen = true;
+        ProductLibraryModule.state.modelViewingId = null;
         UI.renderCurrentPage();
     },
 
@@ -3238,29 +3245,21 @@ const ProductLibraryModule = {
     },
 
     openModelComponentPicker: () => {
-        const rows = ProductLibraryModule.getComponentCards();
-        Modal.open('Parca & Bilesen Kutuphanesi', `
-            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
-                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli parca/bilesen yok.</div>' : rows.map(row => `
-                    <div style="display:grid; grid-template-columns:1.2fr 160px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
-                        <div>
-                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</div>
-                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml([row.group, row.subGroup].filter(Boolean).join(' / ') || '-')}</div>
-                        </div>
-                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.code || '-')}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.addModelDraftComponent('${row.id}')">ekle</button>
-                    </div>
-                `).join('')}
-            </div>
-        `, { maxWidth: '820px' });
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = 'model-component';
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = false;
+        ProductLibraryModule.state.workspaceView = 'components';
+        UI.renderCurrentPage();
     },
 
-    addModelDraftComponent: (id) => {
+    addModelDraftComponent: (id, render = true) => {
         const row = ProductLibraryModule.getComponentCardById(id);
-        if (!row) return;
+        if (!row) return false;
         const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
         if (items.some(item => String(item?.code || '') === String(row.code || '').trim().toUpperCase())) {
-            return alert('Bu parca zaten secili.');
+            alert('Bu parca zaten secili.');
+            return false;
         }
         items.push({
             id: crypto.randomUUID(),
@@ -3270,8 +3269,8 @@ const ProductLibraryModule = {
             name: String(row.name || '').trim()
         });
         ProductLibraryModule.state.modelDraftItems = items;
-        Modal.close();
-        UI.renderCurrentPage();
+        if (render) UI.renderCurrentPage();
+        return true;
     },
 
     removeModelDraftItem: (id) => {
@@ -3289,6 +3288,16 @@ const ProductLibraryModule = {
         const [row] = items.splice(idx, 1);
         items.splice(nextIdx, 0, row);
         ProductLibraryModule.state.modelDraftItems = items;
+        UI.renderCurrentPage();
+    },
+
+    selectModelComponent: (id) => {
+        const added = ProductLibraryModule.addModelDraftComponent(id, false);
+        if (!added) return;
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'models';
+        ProductLibraryModule.state.modelFormOpen = true;
+        ProductLibraryModule.state.modelViewingId = null;
         UI.renderCurrentPage();
     },
 
@@ -4237,7 +4246,8 @@ const ProductLibraryModule = {
         const selectedId = state.masterSelectedId;
         const isComponentPicker = state.masterPickerSource === 'component';
         const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
-        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker;
+        const isModelMasterPicker = state.masterPickerSource === 'model-master';
+        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker;
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -4401,8 +4411,8 @@ const ProductLibraryModule = {
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
                 ${isMasterPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.'}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : 'parca formuna don'}</button>
+                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : (isModelMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : (isModelMasterPicker ? 'urun modeli formuna don' : 'parca formuna don')}</button>
                     </div>
                 ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
@@ -4803,6 +4813,17 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.state.componentFormOpen = true;
             ProductLibraryModule.state.masterPickerSource = '';
+        } else if (ProductLibraryModule.state.masterPickerSource === 'model-master') {
+            ProductLibraryModule.state.modelDraftMasterRef = {
+                id: String(record.id || ''),
+                code: String(record.code || '').trim().toUpperCase(),
+                name: String(record.name || '').trim(),
+                categoryName: String(record.categoryName || '').trim()
+            };
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'models';
+            ProductLibraryModule.state.modelFormOpen = true;
+            ProductLibraryModule.state.modelViewingId = null;
         } else if (ProductLibraryModule.state.masterPickerSource === 'assembly-master') {
             const added = ProductLibraryModule.addAssemblyDraftItem('master', record.id);
             if (!added) return;
@@ -4823,6 +4844,10 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;
             ProductLibraryModule.state.assemblyViewingId = null;
+        } else if (src === 'model-master') {
+            ProductLibraryModule.state.workspaceView = 'models';
+            ProductLibraryModule.state.modelFormOpen = true;
+            ProductLibraryModule.state.modelViewingId = null;
         } else {
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.state.componentFormOpen = true;

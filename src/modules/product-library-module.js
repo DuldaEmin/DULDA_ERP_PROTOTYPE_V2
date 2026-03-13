@@ -3562,6 +3562,30 @@ const ProductLibraryModule = {
         ProductLibraryModule.openPreviewModal(file);
     },
 
+    getModelMasterColorLabel: (masterRef) => {
+        if (!masterRef?.id) return '-';
+        const row = ProductLibraryModule.getMasterProductById(masterRef.id);
+        if (!row) return '-';
+        const linked = ProductLibraryModule.resolveLinkedColorInfo({
+            colorType: row?.specs?.colorType || row?.colorType || '',
+            colorCode: row?.specs?.colorCode || row?.colorCode || '',
+            colorName: row?.specs?.color || row?.color || ''
+        });
+        return linked.name || '-';
+    },
+
+    getModelComponentColorLabel: (item) => {
+        if (!item?.refId) return '-';
+        const row = ProductLibraryModule.getComponentCardById(item.refId);
+        if (!row) return '-';
+        const linked = ProductLibraryModule.resolveLinkedColorInfo({
+            colorType: row?.colorType || '',
+            colorCode: row?.colorCode || '',
+            colorName: row?.subGroup || ''
+        });
+        return linked.name || String(row?.subGroup || '').trim() || '-';
+    },
+
     renderModelStoredFileCards: (rowId, kind, files = []) => {
         if (!Array.isArray(files) || files.length === 0) {
             return '<div style="color:#94a3b8;">Dosya yok.</div>';
@@ -3570,9 +3594,12 @@ const ProductLibraryModule = {
             const type = String(file?.type || '').toLowerCase();
             const data = String(file?.data || '');
             const isImage = type.startsWith('image/') || data.startsWith('data:image/');
+            const isPdf = type.includes('pdf') || data.startsWith('data:application/pdf');
             const previewBox = isImage
                 ? `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; padding:0.45rem; display:flex; align-items:center; justify-content:center; min-height:180px; overflow:hidden;"><img src="${data}" alt="${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}" style="max-width:100%; max-height:170px; object-fit:contain; border-radius:0.45rem;"></div>`
-                : `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; padding:0.75rem; min-height:180px; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:800;">PDF / DOSYA ONIZLEME</div>`;
+                : isPdf
+                    ? `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; min-height:220px; overflow:hidden;"><iframe src="${data}" title="${ProductLibraryModule.escapeHtml(file?.name || 'pdf')}" style="width:100%; height:220px; border:0; background:white;"></iframe></div>`
+                    : `<div style="border:1px solid #e2e8f0; border-radius:0.75rem; background:#f8fafc; padding:0.75rem; min-height:180px; display:flex; align-items:center; justify-content:center; color:#64748b; font-weight:800;">PDF / DOSYA ONIZLEME</div>`;
             return `
                 <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.55rem; background:white;">
                     ${previewBox}
@@ -3780,7 +3807,10 @@ const ProductLibraryModule = {
                     </div>
                     <div style="margin-top:1rem;">
                         <div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kodu</div>
-                        <div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</div>
+                        <div style="display:flex; align-items:center; gap:0.65rem; flex-wrap:wrap;">
+                            <div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</div>
+                            <div style="font-weight:600; color:#475569;">${ProductLibraryModule.escapeHtml(row.masterRef?.name || '-')}</div>
+                        </div>
                     </div>
                 </div>
 
@@ -3796,6 +3826,7 @@ const ProductLibraryModule = {
                                     <th style="padding:0.45rem; text-align:left;">Sira</th>
                                     <th style="padding:0.45rem; text-align:left;">Kaynak</th>
                                     <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.45rem; text-align:left;">Renk</th>
                                     <th style="padding:0.45rem; text-align:left;">ID kod</th>
                                 </tr>
                             </thead>
@@ -3805,16 +3836,18 @@ const ProductLibraryModule = {
                                         <td style="padding:0.45rem;">1</td>
                                         <td style="padding:0.45rem;">Master</td>
                                         <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(row.masterRef?.name || '-')}</td>
+                                        <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getModelMasterColorLabel(row.masterRef))}</td>
                                         <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</td>
                                     </tr>
                                 ` : ''}
                                 ${componentRows.length === 0 ? `
-                                    <tr><td colspan="4" style="padding:0.9rem; color:#94a3b8; text-align:center;">Parca/bilesen secilmedi.</td></tr>
+                                    <tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Parca/bilesen secilmedi.</td></tr>
                                 ` : componentRows.map((item, idx) => `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
                                         <td style="padding:0.45rem;">${idx + (row.masterRef ? 2 : 1)}</td>
                                         <td style="padding:0.45rem;">Parca</td>
                                         <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
+                                        <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getModelComponentColorLabel(item))}</td>
                                         <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td>
                                     </tr>
                                 `).join('')}

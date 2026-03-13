@@ -22,6 +22,72 @@ const StockModule = {
         depotEditingId: null
     },
 
+    moduleBlueprints: {
+        'goods-receipt': {
+            title: 'depo & stok / mal kabul',
+            intro: 'Disaridan satin alinan urunlerin depoya fiziksel girisi bu modulden yapilacak.',
+            sections: [
+                { title: 'Temel islev', items: ['Tedarikciden gelen urunleri teslim al ve ana depoya kaydet.', 'Belge no, tedarikci, tarih ve teslim alan personel bilgisini birlikte tut.', 'Kalem bazli miktar, birim, hedef depo ve raf secimi yap.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Tedarikci secimi, belge / irsaliye no, teslim tarihi, not.', 'Urun satirlari: urun adi, ID kod, miktar, birim, hedef depo, raf / hucre.', 'Istege bagli kalite kontrol ve eksik / hasar notu.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Stock hareketi olusur ve urun secilen depoda gorunur.', 'Satin alma kaydi ile eslestirilecek altyapi hazir tutulur.', 'Daha sonra kabul edilen kalemler otomatik maliyet ve tedarik gecmisine baglanabilir.'] }
+            ]
+        },
+        'inventory-registration': {
+            title: 'depo & stok / envantere elle kayit',
+            intro: 'Sistemde daha once acilmamis veya sayimla bulunan mevcut urunleri baslangic stogu gibi kaydetmek icin kullanilacak.',
+            sections: [
+                { title: 'Temel islev', items: ['Bitmis urun, yari mamul ve hammaddeyi elle envantere ekle.', 'Mevcut stok acilisi ve sayim farki girisi burada yapilsin.', 'Kayitlar stok hareketinde ayri bir kaynak tipi ile izlensin.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Urun tipi, urun secimi / kodu, miktar, birim, depo, raf / hucre.', 'Durum: hammadde, yari mamul, bitmis urun.', 'Yari mamul icin son tamamlanan istasyon ve aciklama alani.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Siparis planlama bu stogu kullanabilsin.', 'Yari mamul kayitlari daha sonra kalan rota kontrolune girebilsin.', 'Elle girilen satirlar raporda ayri filtrelenebilsin.'] }
+            ]
+        },
+        'production-receipt': {
+            title: 'depo & stok / uretimden gelen kabul',
+            intro: 'Atolyelerden veya dis fasondan gelen yari mamul ve bitmis urunlerin depoya alinacagi modul olacak.',
+            sections: [
+                { title: 'Temel islev', items: ['CNC, testere, pleksi, eloksal, pvd, polisaj, montaj gibi kaynaklardan gelen urunleri teslim al.', 'Urunu yari mamul veya bitmis olarak isaretle.', 'Biten rota asamasini kaydet ki sistem tekrar baslatmasin.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Kaynak birim, is emri / referans no, urun kodu, miktar, depo secimi.', 'Durum secimi: yari mamul veya bitmis.', 'Son tamamlanan istasyon, teslim alan kisi ve not.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Ana depo once bitmis urunu, sonra yari mamulu kontrol eden siparis mantigina veri saglar.', 'Tum kalemler hazir olursa montaja uyari dusulecek altyapiyi besler.', 'Montaj bitince sevkiyat depoya aktarilacak zincirin ilk adimi olur.'] }
+            ]
+        },
+        'outsource-shipment': {
+            title: 'depo & stok / dis fason sevk',
+            intro: 'Dis fasona gidecek urunlerin cikisi, teslim kaydi ve geri donus takibi bu moduldedir.',
+            sections: [
+                { title: 'Temel islev', items: ['Eloksal, pvd, polisaj gibi dis isleme gidecek urunleri depodan cikar.', 'Hangi fasona ne gitti, ne zaman gitti ve hangi belge ile gitti bilgisi tutulur.', 'Geri donuste ayni kayit uzerinden teslim alma yapilabilir.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Fason secimi, sevk tarihi, arac / teslim eden, belge no.', 'Kalem listesi: urun kodu, ad, miktar, birim, cikis depolari.', 'Beklenen donus tarihi ve aciklama.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Stock hareketi cikis olarak islenir.', 'Fason surecindeki urunler ayri bir bekleyen listede izlenir.', 'Geri gelen urunler uretimden gelen kabul ekraninda teslim alinabilir.'] }
+            ]
+        },
+        'shipment-prep': {
+            title: 'depo & stok / sevkiyat hazirlama',
+            intro: 'Satis tarafindan onay bekleyen veya onaylanan siparislerin sevkiyata hazirlanmasi bu modulden yonetilecek.',
+            sections: [
+                { title: 'Temel islev', items: ['Hazir urunleri siparis bazli toplat ve sevkiyat deposuna cek.', 'Montajdan gelen bitmis urunleri sevke hazir olarak isaretle.', 'Sevk edilecek kalemlerin miktar, paket ve teslim durumunu takip et.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Siparis no, musteri, teslim tarihi, sevk durumu.', 'Siparis satirlari: urun, miktar, hazir miktar, eksik miktar.', 'Paketleme notu, sevkiyat depo lokasyonu ve sorumlu personel.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Satisciya urun hazir bildirimi gidecek altyapi burada beslenecek.', 'Onaylanan satirlar irsaliyeye aktarima hazir olacak.', 'Sevkiyat tamamlaninca ana stoktan dusus yapilacak.'] }
+            ]
+        },
+        'dispatch-note': {
+            title: 'depo & stok / irsaliye ve teslim takibi',
+            intro: 'Ilk etapta kullanicisiz basit irsaliye akisi ile sevk ve teslim takipleri bu modulde toplanacak.',
+            sections: [
+                { title: 'Temel islev', items: ['Sevk edilen urunler icin irsaliye olustur.', 'Musteriye giden ve fasondan donen hareketler icin belge numarasi sakla.', 'Teslim edildi, yolda, iade edildi gibi durumlar izlenebilsin.'] },
+                { title: 'Ekranda olacak alanlar', items: ['Irsaliye no, tarih, musteri / fason, tasiyan, not.', 'Kalem listesi: urun kodu, urun adi, miktar, birim.', 'Belge yazdir / goruntule ve teslim durumu alani.'] },
+                { title: 'Kayit sonrasi beklenti', items: ['Satis siparisi sevk edildi durumuna gecirilebilir.', 'Belge gecmisi daha sonra kullanici ve onay akisina baglanabilir.', 'Sevkiyat raporlari icin temel hareket verisi burada birikir.'] }
+            ]
+        },
+        'ready-flow': {
+            title: 'depo & stok / montaj ve satis bildirim akisi',
+            intro: 'Depoda tum kalemler tamamlandiginda montaja, montaj bitince de satisa gidecek uyari zinciri bu baslik altinda netlestirildi.',
+            sections: [
+                { title: 'Akis mantigi', items: ['Bir siparis icin gereken tum kalemler ana depoda hazirsa montaj birimine gorev acilir.', 'Gorev, urun modeline bagli montaj islem kartini referans alir.', 'Montaj tamamlaninca bitmis urun sevkiyat depoya veya hazir urun alanina alinir.'] },
+                { title: 'Planlanan uyari metinleri', items: ['Montaja: Malzeme hazir, belirli adet urunu montaj kartina gore topla.', 'Satisciya: Siparis kalemleri hazir, sevk onayi bekleniyor.', 'Depoya: Onay gelen siparis icin irsaliye ve sevk islemi baslat.'] },
+                { title: 'Bu modulu neden yaziyoruz', items: ['Satis, depo ve montaj ayni durumu farkli ekranlardan gorebilsin.', 'Hazir urun ile yari mamul mantigi siparis kararinda dogru kullanilsin.', 'Daha sonra otomatik gorev ve bildirim sistemine temel olsun.'] }
+            ]
+        }
+    },
+
     managedDepotSeed: [
         { id: 'depot_transfer', name: 'TRANSFER DEPO', note: 'Atolyeler arasinda bekleyen ve yonlendirilecek urunler burada gorunur.' },
         { id: 'depot_granul', name: 'GRANUL DEPO', note: 'Hammadde ve granul icin ayrilan fiziksel alan.' },
@@ -969,6 +1035,34 @@ const StockModule = {
                     </div>
 
                     <div class="stock-hub-grid">
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('goods-receipt')">
+                            <div class="stock-hub-icon stock-hub-icon-emerald"><i data-lucide="package-check" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Mal Kabul</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('inventory-registration')">
+                            <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="clipboard-plus" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Envantere Elle Kayit</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('production-receipt')">
+                            <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="boxes" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Uretimden Gelen Kabul</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('outsource-shipment')">
+                            <div class="stock-hub-icon stock-hub-icon-purple"><i data-lucide="truck" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Dis Fason Sevk</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('shipment-prep')">
+                            <div class="stock-hub-icon stock-hub-icon-orange"><i data-lucide="package-open" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Sevkiyat Hazirlama</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('dispatch-note')">
+                            <div class="stock-hub-icon stock-hub-icon-pink"><i data-lucide="file-text" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Irsaliye ve Teslim Takibi</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('ready-flow')">
+                            <div class="stock-hub-icon stock-hub-icon-yellow"><i data-lucide="bell-ring" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Montaj ve Satis Uyarilari</div>
+                        </button>
                         <button class="stock-hub-card" onclick="StockModule.openWorkspace('depots')">
                             <div class="stock-hub-icon"><i data-lucide="warehouse" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Tum depolar</div>
@@ -1052,6 +1146,40 @@ const StockModule = {
                     <div class="card-table" style="padding:2.2rem; text-align:center; color:#94a3b8;">
                         <div style="font-weight:800; color:#334155; margin-bottom:0.45rem;">Hazirlaniyor</div>
                         <div style="font-size:0.92rem;">${StockModule.escapeHtml(subtitle || 'Sayfa hazirlaniyor.')}</div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
+    renderBlueprintWorkspace: (viewId) => {
+        const blueprint = StockModule.moduleBlueprints[String(viewId || '')];
+        if (!blueprint) return StockModule.renderWorkspacePlaceholder('depo & stok', 'Bu modul icin henuz not tanimlanmadi.');
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">${StockModule.escapeHtml(blueprint.title || 'depo & stok')}</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+                    <div class="card-table" style="padding:1.4rem 1.5rem; margin-bottom:1rem;">
+                        <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Modul notu</div>
+                        <div style="font-size:0.94rem; color:#64748b; margin-top:0.45rem; line-height:1.7;">${StockModule.escapeHtml(blueprint.intro || '')}</div>
+                    </div>
+                    <div style="display:grid; gap:1rem;">
+                        ${(blueprint.sections || []).map((section) => `
+                            <div class="card-table" style="padding:1.2rem 1.35rem;">
+                                <div style="font-size:0.98rem; font-weight:800; color:#0f172a; margin-bottom:0.7rem;">${StockModule.escapeHtml(section.title || '-')}</div>
+                                <div style="display:grid; gap:0.55rem;">
+                                    ${(section.items || []).map((item) => `
+                                        <div style="display:flex; align-items:flex-start; gap:0.65rem; color:#334155; line-height:1.65;">
+                                            <div style="width:8px; height:8px; border-radius:999px; background:#0f172a; margin-top:0.48rem; flex-shrink:0;"></div>
+                                            <div>${StockModule.escapeHtml(item || '')}</div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             </section>
@@ -1144,10 +1272,14 @@ const StockModule = {
     },
 
     renderLayout: () => {
-        if (String(StockModule.state.workspaceView || 'menu') === 'depots') {
+        const workspaceView = String(StockModule.state.workspaceView || 'menu');
+        if (StockModule.moduleBlueprints[workspaceView]) {
+            return StockModule.renderBlueprintWorkspace(workspaceView);
+        }
+        if (workspaceView === 'depots') {
             return StockModule.renderDepotsLayout();
         }
-        if (String(StockModule.state.workspaceView || 'menu') === 'operation-library') {
+        if (workspaceView === 'operation-library') {
             return StockModule.renderOperationLibraryLayout();
         }
         return StockModule.renderMenuLayout();

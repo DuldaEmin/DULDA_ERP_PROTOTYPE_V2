@@ -1591,6 +1591,72 @@ const UnitModule = {
         DB.data.data.workOrders.push(order);
         return order;
     },
+    createWorkOrderFromComponentCard: (options = {}) => {
+        if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
+        const componentId = String(options?.componentId || '').trim();
+        const lotQty = Number(options?.lotQty || 0);
+        const dueDate = String(options?.dueDate || '').trim();
+        const priorityRaw = String(options?.priority || 'NORMAL').trim().toUpperCase();
+        const priority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(priorityRaw) ? priorityRaw : 'NORMAL';
+        const note = String(options?.note || '').trim();
+        const createdByUnitId = String(options?.createdByUnitId || '').trim();
+        const sourceType = String(options?.sourceType || '').trim().toUpperCase();
+        const sourceId = String(options?.sourceId || '').trim();
+        const sourceCode = String(options?.sourceCode || '').trim().toUpperCase();
+        if (!componentId) throw new Error('Lutfen parca/bilesen seciniz.');
+        if (!Number.isFinite(lotQty) || lotQty <= 0) throw new Error('Lot miktari 0 dan buyuk olmali.');
+        const componentCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        const comp = componentCards.find(x => String(x?.id || '') === componentId);
+        if (!comp) throw new Error('Parca/bilesen karti bulunamadi.');
+        const routesRaw = Array.isArray(comp?.routes) ? comp.routes : [];
+        const routes = routesRaw
+            .map((r, idx) => {
+                const stationId = String(r?.stationId || '').trim();
+                if (!stationId) return null;
+                return {
+                    id: crypto.randomUUID(),
+                    seq: idx + 1,
+                    stationId,
+                    stationName: UnitModule.getRouteStationName(stationId),
+                    processId: String(r?.processId || '').trim().toUpperCase()
+                };
+            })
+            .filter(Boolean);
+        if (routes.length === 0) throw new Error('Secilen parca icin rota tanimli degil.');
+        const workOrderCode = UnitModule.getNextWorkOrderCode();
+        const now = new Date().toISOString();
+        const order = {
+            id: crypto.randomUUID(),
+            workOrderCode,
+            montageCardId: '',
+            montageCardCode: '',
+            productCode: String(comp.code || ''),
+            productName: String(comp.name || comp.code || ''),
+            lotQty: Number(lotQty),
+            dueDate: dueDate || '',
+            priority,
+            note,
+            status: 'OPEN',
+            lines: [{
+                id: crypto.randomUUID(),
+                lineCode: `${workOrderCode}-01`,
+                componentCode: String(comp.code || ''),
+                componentName: String(comp.name || comp.code || ''),
+                multiplier: 1,
+                targetQty: Number(lotQty),
+                routes,
+                plans: {}
+            }],
+            createdByUnitId,
+            sourceType,
+            sourceId,
+            sourceCode,
+            created_at: now,
+            updated_at: now
+        };
+        DB.data.data.workOrders.push(order);
+        return order;
+    },
     createWorkOrder: async () => {
         try {
             UnitModule.createWorkOrderFromMontageCard({

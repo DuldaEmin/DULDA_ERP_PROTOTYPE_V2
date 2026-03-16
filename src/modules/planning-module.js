@@ -2,7 +2,9 @@ const PlanningModule = {
     state: {
         workspaceView: 'menu',
         stockDraftEditingId: '',
+        stockDraftSourceKind: 'MODEL',
         stockDraftVariantId: '',
+        stockDraftComponentId: '',
         stockDraftQty: '10',
         stockDraftDueDate: '',
         stockDraftPriority: 'NORMAL',
@@ -40,6 +42,7 @@ const PlanningModule = {
     ensureData: () => {
         if (!Array.isArray(DB.data?.data?.planningDemands)) DB.data.data.planningDemands = [];
         if (!Array.isArray(DB.data?.data?.catalogProductVariants)) DB.data.data.catalogProductVariants = [];
+        if (!Array.isArray(DB.data?.data?.partComponentCards)) DB.data.data.partComponentCards = [];
         if (!Array.isArray(DB.data?.data?.montageCards)) DB.data.data.montageCards = [];
         if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
     },
@@ -65,7 +68,9 @@ const PlanningModule = {
 
     resetStockDraft: () => {
         PlanningModule.state.stockDraftEditingId = '';
+        PlanningModule.state.stockDraftSourceKind = 'MODEL';
         PlanningModule.state.stockDraftVariantId = '';
+        PlanningModule.state.stockDraftComponentId = '';
         PlanningModule.state.stockDraftQty = '10';
         PlanningModule.state.stockDraftPriority = 'NORMAL';
         PlanningModule.state.stockDraftNote = '';
@@ -92,7 +97,24 @@ const PlanningModule = {
         });
     },
 
+    getComponents: () => {
+        PlanningModule.ensureData();
+        return (DB.data.data.partComponentCards || [])
+            .filter((row) => Array.isArray(row?.routes) && row.routes.length > 0)
+            .slice()
+            .sort((a, b) => {
+                const ga = String(a?.group || '');
+                const gb = String(b?.group || '');
+                if (ga !== gb) return ga.localeCompare(gb, 'tr');
+                const na = String(a?.name || '');
+                const nb = String(b?.name || '');
+                if (na !== nb) return na.localeCompare(nb, 'tr');
+                return String(a?.code || '').localeCompare(String(b?.code || ''), 'tr');
+            });
+    },
+
     findVariantById: (variantId) => PlanningModule.getVariants().find((row) => String(row?.id || '') === String(variantId || '')) || null,
+    findComponentById: (componentId) => PlanningModule.getComponents().find((row) => String(row?.id || '') === String(componentId || '')) || null,
 
     findMontageCardForVariant: (variant) => {
         if (!variant) return null;
@@ -126,11 +148,13 @@ const PlanningModule = {
     },
 
     setStockDraftField: (field, value) => {
+        if (field === 'stockDraftSourceKind') PlanningModule.state.stockDraftSourceKind = String(value || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
         if (field === 'stockDraftVariantId') PlanningModule.state.stockDraftVariantId = String(value || '');
+        if (field === 'stockDraftComponentId') PlanningModule.state.stockDraftComponentId = String(value || '');
         if (field === 'stockDraftQty') PlanningModule.state.stockDraftQty = String(value || '');
         if (field === 'stockDraftDueDate') PlanningModule.state.stockDraftDueDate = String(value || '');
         if (field === 'stockDraftPriority') PlanningModule.state.stockDraftPriority = PlanningModule.getPriorityValue(value);
-        if (field === 'stockDraftNote') PlanningModule.state.stockDraftNote = String(value || '');
+        if (field === 'stockDraftNote') PlanningModule.state.stockDraftNote = String(value ?? '');
         UI.renderCurrentPage();
     },
 
@@ -139,7 +163,9 @@ const PlanningModule = {
         if (!row) return;
         if (String(row?.status || 'OPEN').toUpperCase() !== 'OPEN') return alert('Sadece bekleyen talepler duzenlenebilir.');
         PlanningModule.state.stockDraftEditingId = String(row.id || '');
+        PlanningModule.state.stockDraftSourceKind = String(row.itemType || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
         PlanningModule.state.stockDraftVariantId = String(row.variantId || '');
+        PlanningModule.state.stockDraftComponentId = String(row.componentId || '');
         PlanningModule.state.stockDraftQty = String(row.qty || '10');
         PlanningModule.state.stockDraftDueDate = String(row.dueDate || '');
         PlanningModule.state.stockDraftPriority = PlanningModule.getPriorityValue(row.priority || 'NORMAL');
@@ -149,12 +175,15 @@ const PlanningModule = {
 
     saveStockDemand: async (releaseNow = false) => {
         PlanningModule.ensureData();
-        const variant = PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId);
+        const sourceKind = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
+        const variant = sourceKind === 'MODEL' ? PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId) : null;
+        const component = sourceKind === 'COMPONENT' ? PlanningModule.findComponentById(PlanningModule.state.stockDraftComponentId) : null;
         const qty = Number(PlanningModule.state.stockDraftQty || 0);
-        if (!variant) return alert('Lutfen urun varyanti seciniz.');
+        if (sourceKind === 'MODEL' && !variant) return alert('Lutfen urun varyanti seciniz.');
+        if (sourceKind === 'COMPONENT' && !component) return alert('Lutfen parca/bilesen seciniz.');
         if (!Number.isFinite(qty) || qty <= 0) return alert('Uretim adedi 0 dan buyuk olmali.');
-        const montageCard = PlanningModule.findMontageCardForVariant(variant);
-        if (!montageCard?.id) return alert('Bu varyanta bagli montaj karti bulunamadi.');
+        const montageCard = sourceKind === 'MODEL' ? PlanningModule.findMontageCardForVariant(variant) : null;
+        if (sourceKind === 'MODEL' && !montageCard?.id) return alert('Bu varyanta bagli montaj karti bulunamadi.');
 
         const all = PlanningModule.getDemands();
         const now = new Date().toISOString();
@@ -173,14 +202,19 @@ const PlanningModule = {
             all.push(demand);
         }
 
-        demand.variantId = String(variant.id || '');
-        demand.familyId = String(variant.familyId || '');
-        demand.variantCode = String(variant.variantCode || '');
-        demand.productGroup = String(variant.productGroup || '');
-        demand.productName = String(variant.productName || '');
-        demand.productCode = String(montageCard.productCode || montageCard.cardCode || '');
-        demand.montageCardId = String(montageCard.id || '');
-        demand.montageCardCode = String(montageCard.cardCode || '');
+        demand.itemType = sourceKind;
+        demand.variantId = sourceKind === 'MODEL' ? String(variant.id || '') : '';
+        demand.componentId = sourceKind === 'COMPONENT' ? String(component.id || '') : '';
+        demand.familyId = sourceKind === 'MODEL' ? String(variant.familyId || '') : '';
+        demand.variantCode = sourceKind === 'MODEL' ? String(variant.variantCode || '') : '';
+        demand.componentCode = sourceKind === 'COMPONENT' ? String(component.code || '') : '';
+        demand.productGroup = sourceKind === 'MODEL' ? String(variant.productGroup || '') : String(component.group || '');
+        demand.productName = sourceKind === 'MODEL' ? String(variant.productName || '') : String(component.name || '');
+        demand.productCode = sourceKind === 'MODEL'
+            ? String(montageCard.productCode || montageCard.cardCode || '')
+            : String(component.code || '');
+        demand.montageCardId = sourceKind === 'MODEL' ? String(montageCard.id || '') : '';
+        demand.montageCardCode = sourceKind === 'MODEL' ? String(montageCard.cardCode || '') : '';
         demand.qty = Number(qty);
         demand.dueDate = String(PlanningModule.state.stockDraftDueDate || '').trim();
         demand.priority = PlanningModule.getPriorityValue(PlanningModule.state.stockDraftPriority || 'NORMAL');
@@ -210,20 +244,31 @@ const PlanningModule = {
 
     releaseDemandInternal: (demand) => {
         if (!demand) throw new Error('Talep bulunamadi.');
-        if (!demand?.montageCardId) throw new Error('Talep montaj karti icermiyor.');
         if (String(demand?.status || 'OPEN').toUpperCase() === 'RELEASED' && demand?.workOrderId) {
             throw new Error('Bu talep zaten is emrine donusmus.');
         }
-        const order = UnitModule.createWorkOrderFromMontageCard({
-            montageId: String(demand.montageCardId || ''),
-            lotQty: Number(demand.qty || 0),
-            dueDate: String(demand.dueDate || ''),
-            priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
-            note: String(demand.note || '').trim(),
-            sourceType: 'PLAN_STOCK',
-            sourceId: String(demand.id || ''),
-            sourceCode: String(demand.demandCode || '')
-        });
+        const itemType = String(demand?.itemType || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
+        const order = itemType === 'COMPONENT'
+            ? UnitModule.createWorkOrderFromComponentCard({
+                componentId: String(demand.componentId || ''),
+                lotQty: Number(demand.qty || 0),
+                dueDate: String(demand.dueDate || ''),
+                priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
+                note: String(demand.note || '').trim(),
+                sourceType: 'PLAN_STOCK_COMPONENT',
+                sourceId: String(demand.id || ''),
+                sourceCode: String(demand.demandCode || '')
+            })
+            : UnitModule.createWorkOrderFromMontageCard({
+                montageId: String(demand.montageCardId || ''),
+                lotQty: Number(demand.qty || 0),
+                dueDate: String(demand.dueDate || ''),
+                priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
+                note: String(demand.note || '').trim(),
+                sourceType: 'PLAN_STOCK_MODEL',
+                sourceId: String(demand.id || ''),
+                sourceCode: String(demand.demandCode || '')
+            });
         const now = new Date().toISOString();
         demand.status = 'RELEASED';
         demand.workOrderId = String(order.id || '');
@@ -270,6 +315,8 @@ const PlanningModule = {
         return `<span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${style}">${PlanningModule.escapeHtml(value)}</span>`;
     },
 
+    getItemTypeLabel: (value) => String(value || '').toUpperCase() === 'COMPONENT' ? 'Parca & Bilesen' : 'Urun Modeli',
+
     renderDemandRows: (rows, emptyMessage) => {
         if (!rows.length) {
             return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">${PlanningModule.escapeHtml(emptyMessage || 'Kayit yok.')}</td></tr>`;
@@ -279,7 +326,7 @@ const PlanningModule = {
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(row?.sourceLabel || 'Stok Uretimi')}</div></td>
-                    <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(row?.productName || '-')}</div><div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(row?.variantCode || '-')}</div></td>
+                    <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(row?.productName || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div><div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(row?.variantCode || row?.componentCode || '-')}</div></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.productCode || '-')}</td>
                     <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
@@ -325,9 +372,13 @@ const PlanningModule = {
 
     renderStockProductionWorkspace: () => {
         const variants = PlanningModule.getVariants().filter((row) => PlanningModule.findMontageCardForVariant(row));
+        const components = PlanningModule.getComponents();
         if (!PlanningModule.state.stockDraftDueDate) PlanningModule.resetStockDraft();
-        if (!PlanningModule.state.stockDraftVariantId && variants[0]?.id) PlanningModule.state.stockDraftVariantId = String(variants[0].id);
-        const selectedVariant = PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId);
+        const sourceKind = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
+        if (sourceKind === 'MODEL' && !PlanningModule.state.stockDraftVariantId && variants[0]?.id) PlanningModule.state.stockDraftVariantId = String(variants[0].id);
+        if (sourceKind === 'COMPONENT' && !PlanningModule.state.stockDraftComponentId && components[0]?.id) PlanningModule.state.stockDraftComponentId = String(components[0].id);
+        const selectedVariant = sourceKind === 'MODEL' ? PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId) : null;
+        const selectedComponent = sourceKind === 'COMPONENT' ? PlanningModule.findComponentById(PlanningModule.state.stockDraftComponentId) : null;
         const selectedMontage = PlanningModule.findMontageCardForVariant(selectedVariant);
         const recentRows = PlanningModule.getDemands()
             .filter((row) => String(row?.sourceType || '').toUpperCase() === 'STOCK')
@@ -335,6 +386,15 @@ const PlanningModule = {
             .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')))
             .slice(0, 8);
         const isEditing = !!String(PlanningModule.state.stockDraftEditingId || '').trim();
+        const summaryTitle = sourceKind === 'COMPONENT'
+            ? String(selectedComponent?.name || '-')
+            : String(selectedVariant?.productName || '-');
+        const summaryLine = sourceKind === 'COMPONENT'
+            ? `${String(selectedComponent?.code || '-')} / ${String(selectedComponent?.group || '-')}`
+            : `${String(selectedVariant?.variantCode || '-')} / ${String(selectedMontage?.cardCode || '-')}`;
+        const summaryCode = sourceKind === 'COMPONENT'
+            ? String(selectedComponent?.code || '-')
+            : String(selectedMontage?.productCode || '-');
         return `
             <section style="max-width:1680px; margin:0 auto;">
                 <div style="background:rgba(255,255,255,0.72); border:1px solid #cbd5e1; border-radius:1.8rem; padding:1.4rem;">
@@ -352,8 +412,8 @@ const PlanningModule = {
                     <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.8rem; margin-bottom:1rem;">
                         <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Bekleyen talep</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${PlanningModule.getDemands().filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN').length}</div></div>
                         <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Is emrine donusen</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${PlanningModule.getDemands().filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED').length}</div></div>
-                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Secili montaj karti</div><div style="font-size:1rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(selectedMontage?.cardCode || '-')}</div></div>
-                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Secili urun kodu</div><div style="font-size:1rem; font-weight:800; color:#0f172a; font-family:monospace;">${PlanningModule.escapeHtml(selectedMontage?.productCode || '-')}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Kaynak tipi</div><div style="font-size:1rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(sourceKind))}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.8rem 0.95rem;"><div style="font-size:0.74rem; color:#64748b;">Secili kod</div><div style="font-size:1rem; font-weight:800; color:#0f172a; font-family:monospace;">${PlanningModule.escapeHtml(summaryCode)}</div></div>
                     </div>
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:1rem; margin-bottom:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.8rem; flex-wrap:wrap;">
@@ -361,13 +421,20 @@ const PlanningModule = {
                             <div style="font-size:0.82rem; color:#64748b;">Talep once havuza dusurulebilir veya dogrudan is emrine cevrilebilir.</div>
                         </div>
                         <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.7rem;">
-                            <div style="grid-column:span 6;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Urun varyanti *</label><select onchange="PlanningModule.setStockDraftField('stockDraftVariantId', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:600;">${variants.length === 0 ? '<option value="">Kayitli montajli varyant yok</option>' : variants.map((row) => `<option value="${PlanningModule.escapeHtml(row.id || '')}" ${String(PlanningModule.state.stockDraftVariantId || '') === String(row.id || '') ? 'selected' : ''}>${PlanningModule.escapeHtml(row.productGroup || '-')} / ${PlanningModule.escapeHtml(row.productName || '-')} / ${PlanningModule.escapeHtml(row.variantCode || '-')}</option>`).join('')}</select></div>
+                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kaynak tipi *</label><select onchange="PlanningModule.setStockDraftField('stockDraftSourceKind', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:600;"><option value="MODEL" ${sourceKind === 'MODEL' ? 'selected' : ''}>Urun Modelleri</option><option value="COMPONENT" ${sourceKind === 'COMPONENT' ? 'selected' : ''}>Parca & Bilesen</option></select></div>
+                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">${sourceKind === 'COMPONENT' ? 'Parca / bilesen *' : 'Urun varyanti *'}</label><select onchange="PlanningModule.setStockDraftField('${sourceKind === 'COMPONENT' ? 'stockDraftComponentId' : 'stockDraftVariantId'}', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:600;">${sourceKind === 'COMPONENT'
+                                    ? (components.length === 0
+                                        ? '<option value="">Kayitli rotali parca yok</option>'
+                                        : components.map((row) => `<option value="${PlanningModule.escapeHtml(row.id || '')}" ${String(PlanningModule.state.stockDraftComponentId || '') === String(row.id || '') ? 'selected' : ''}>${PlanningModule.escapeHtml(row.group || '-')} / ${PlanningModule.escapeHtml(row.name || '-')} / ${PlanningModule.escapeHtml(row.code || '-')}</option>`).join(''))
+                                    : (variants.length === 0
+                                        ? '<option value="">Kayitli montajli varyant yok</option>'
+                                        : variants.map((row) => `<option value="${PlanningModule.escapeHtml(row.id || '')}" ${String(PlanningModule.state.stockDraftVariantId || '') === String(row.id || '') ? 'selected' : ''}>${PlanningModule.escapeHtml(row.productGroup || '-')} / ${PlanningModule.escapeHtml(row.productName || '-')} / ${PlanningModule.escapeHtml(row.variantCode || '-')}</option>`).join(''))}</select></div>
                             <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Uretim adedi *</label><input type="number" min="1" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftQty || '10')}" oninput="PlanningModule.setStockDraftField('stockDraftQty', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:700;"></div>
                             <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Hedef tarih</label><input type="date" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftDueDate || '')}" oninput="PlanningModule.setStockDraftField('stockDraftDueDate', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem;"></div>
                             <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Oncelik</label><select onchange="PlanningModule.setStockDraftField('stockDraftPriority', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem;"><option value="LOW" ${String(PlanningModule.state.stockDraftPriority || '') === 'LOW' ? 'selected' : ''}>DUSUK</option><option value="NORMAL" ${String(PlanningModule.state.stockDraftPriority || 'NORMAL') === 'NORMAL' ? 'selected' : ''}>NORMAL</option><option value="HIGH" ${String(PlanningModule.state.stockDraftPriority || '') === 'HIGH' ? 'selected' : ''}>YUKSEK</option><option value="URGENT" ${String(PlanningModule.state.stockDraftPriority || '') === 'URGENT' ? 'selected' : ''}>ACIL</option></select></div>
-                            <div style="grid-column:span 8;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Planlama notu / neden</label><textarea rows="3" oninput="PlanningModule.setStockDraftField('stockDraftNote', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem; resize:vertical;">${PlanningModule.escapeHtml(PlanningModule.state.stockDraftNote || '')}</textarea></div>
+                            <div style="grid-column:span 8;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Planlama notu / neden</label><textarea rows="3" onchange="PlanningModule.setStockDraftField('stockDraftNote', this.value)" onblur="PlanningModule.setStockDraftField('stockDraftNote', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem; resize:vertical;">${PlanningModule.escapeHtml(PlanningModule.state.stockDraftNote || '')}</textarea></div>
                             <div style="grid-column:span 4; display:grid; gap:0.6rem; align-content:end;">
-                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.8rem;"><div style="font-size:0.74rem; color:#64748b;">Urun / montaj ozeti</div><div style="font-weight:800; color:#0f172a; margin-top:0.25rem;">${PlanningModule.escapeHtml(selectedVariant?.productName || '-')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.2rem;">${PlanningModule.escapeHtml(selectedVariant?.variantCode || '-')} / ${PlanningModule.escapeHtml(selectedMontage?.cardCode || '-')}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem; font-family:monospace;">${PlanningModule.escapeHtml(selectedMontage?.productCode || '-')}</div></div>
+                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.8rem;"><div style="font-size:0.74rem; color:#64748b;">Kaynak ozeti</div><div style="font-weight:800; color:#0f172a; margin-top:0.25rem;">${PlanningModule.escapeHtml(summaryTitle)}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.2rem;">${PlanningModule.escapeHtml(summaryLine)}</div><div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem; font-family:monospace;">${PlanningModule.escapeHtml(summaryCode)}</div></div>
                                 <div style="display:flex; gap:0.5rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.saveStockDemand(false)">${isEditing ? 'guncelle' : 'talep olustur'}</button><button class="btn-primary" onclick="PlanningModule.saveStockDemand(true)">${isEditing ? 'guncelle + is emri' : 'kaydet + is emri'}</button></div>
                             </div>
                         </div>

@@ -939,6 +939,7 @@ const ProductLibraryModule = {
     },
 
     clearComponentMasterCode: () => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.componentDraftMasterCode = '';
         UI.renderCurrentPage();
     },
@@ -1359,6 +1360,11 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
+    confirmDestructiveAction: (message = 'Silmek istediginizden emin misiniz?') => {
+        if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+        return window.confirm(message);
+    },
+
     setComponentRouteStation: (value) => {
         ProductLibraryModule.state.componentDraftRouteStationId = String(value || '').trim();
     },
@@ -1488,6 +1494,8 @@ const ProductLibraryModule = {
 
     removeComponentRouteRow: (routeId) => {
         const list = Array.isArray(ProductLibraryModule.state.componentDraftRoutes) ? ProductLibraryModule.state.componentDraftRoutes : [];
+        if (!list.some(x => String(x.id) === String(routeId))) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.componentDraftRoutes = list.filter(x => String(x.id) !== String(routeId));
         UI.renderCurrentPage();
     },
@@ -1558,12 +1566,14 @@ const ProductLibraryModule = {
             ? [...ProductLibraryModule.state.componentDraftFiles]
             : [];
         if (index < 0 || index >= files.length) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         files.splice(index, 1);
         ProductLibraryModule.state.componentDraftFiles = files;
         UI.renderCurrentPage();
     },
 
     clearComponentDraftFiles: () => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.componentDraftFiles = [];
         UI.renderCurrentPage();
     },
@@ -2320,6 +2330,8 @@ const ProductLibraryModule = {
 
     removeAssemblyDraftItem: (code) => {
         const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        if (!list.some(item => String(item?.code || '') === String(code || ''))) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.assemblyDraftItems = list.filter(item => String(item?.code || '') !== String(code || ''));
         UI.renderCurrentPage();
     },
@@ -2343,6 +2355,8 @@ const ProductLibraryModule = {
         const target = String(source || '');
         if (!['master', 'component'].includes(target)) return;
         const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        if (!list.some(item => String(item?.source || '') === target)) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.assemblyDraftItems = list.filter(item => String(item?.source || '') !== target);
         UI.renderCurrentPage();
     },
@@ -2427,6 +2441,8 @@ const ProductLibraryModule = {
 
     removeAssemblyRouteRow: (routeId) => {
         const list = Array.isArray(ProductLibraryModule.state.assemblyDraftRoutes) ? ProductLibraryModule.state.assemblyDraftRoutes : [];
+        if (!list.some(x => String(x.id) === String(routeId))) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.assemblyDraftRoutes = list.filter(x => String(x.id) !== String(routeId));
         UI.renderCurrentPage();
     },
@@ -2488,12 +2504,14 @@ const ProductLibraryModule = {
             ? [...ProductLibraryModule.state.assemblyDraftFiles]
             : [];
         if (index < 0 || index >= files.length) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         files.splice(index, 1);
         ProductLibraryModule.state.assemblyDraftFiles = files;
         UI.renderCurrentPage();
     },
 
     clearAssemblyDraftFiles: () => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.assemblyDraftFiles = [];
         UI.renderCurrentPage();
     },
@@ -3482,6 +3500,8 @@ const ProductLibraryModule = {
         const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
             ? ProductLibraryModule.state.modelDraftMasterRefs
             : [];
+        if (!rows.some((row) => String(row?.rowId || '') === String(rowId || ''))) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.modelDraftMasterRefs = rows.filter((row) => String(row?.rowId || '') !== String(rowId || ''));
         ProductLibraryModule.syncModelDraftPrimaryMasterRef();
         UI.renderCurrentPage();
@@ -3603,6 +3623,8 @@ const ProductLibraryModule = {
 
     removeModelDraftItem: (id) => {
         const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
+        if (!items.some(item => String(item?.id || '') === String(id || ''))) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.modelDraftItems = items.filter(item => String(item?.id || '') !== String(id || ''));
         UI.renderCurrentPage();
     },
@@ -3726,6 +3748,7 @@ const ProductLibraryModule = {
     },
 
     clearModelMontageCard: () => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.modelDraftMontageCard = null;
         UI.renderCurrentPage();
     },
@@ -3783,12 +3806,14 @@ const ProductLibraryModule = {
     removeModelDraftFile: (kind, index) => {
         const files = [...ProductLibraryModule.getModelDraftFiles(kind)];
         if (index < 0 || index >= files.length) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         files.splice(index, 1);
         ProductLibraryModule.setModelDraftFiles(kind, files);
         UI.renderCurrentPage();
     },
 
     clearModelDraftFiles: (kind) => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.setModelDraftFiles(kind, []);
         UI.renderCurrentPage();
     },
@@ -5247,6 +5272,7 @@ const ProductLibraryModule = {
             ? [...ProductLibraryModule.state.masterDraftSupplierLinks]
             : [];
         if (index < 0 || index >= links.length) return;
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         links.splice(index, 1);
         ProductLibraryModule.state.masterDraftSupplierLinks = links;
         ProductLibraryModule.state.masterDraftSupplierIds = Array.from(
@@ -5275,6 +5301,7 @@ const ProductLibraryModule = {
     },
 
     clearMasterAttachment: () => {
+        if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.masterDraftAttachment = null;
         UI.renderCurrentPage();
     },

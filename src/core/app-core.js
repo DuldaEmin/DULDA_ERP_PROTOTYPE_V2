@@ -585,6 +585,9 @@ const Router = {
             StockModule.state.workspaceView = 'menu';
             StockModule.state.selectedKey = 'all';
         }
+        if (pageId === 'planlama' && Router.currentPage !== 'planlama' && !fromBack) {
+            PlanningModule.state.workspaceView = 'menu';
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -611,6 +614,12 @@ const Router = {
 
         if (Router.currentPage === 'stock' && String(StockModule.state.workspaceView || 'menu') !== 'menu') {
             StockModule.state.workspaceView = 'menu';
+            UI.renderCurrentPage();
+            return;
+        }
+
+        if (Router.currentPage === 'planlama' && String(PlanningModule.state.workspaceView || 'menu') !== 'menu') {
+            PlanningModule.state.workspaceView = 'menu';
             UI.renderCurrentPage();
             return;
         }
@@ -700,6 +709,7 @@ const UI = {
         }
 
         if (page === 'dashboard') UI.renderDashboard(container);
+        else if (page === 'planlama') { pageTitle.innerText = 'PLANLAMA'; PlanningModule.render(container); }
         else if (page === 'stock') { pageTitle.innerText = 'STOK YÖNETİMİ'; StockModule.render(container); }
         else if (page === 'purchasing') { pageTitle.innerText = 'SATIN ALMA'; PurchasingModule.render(container); }
         else if (page === 'units') { pageTitle.innerText = 'BİRİM YÖNETİMİ'; UnitModule.render(container); }

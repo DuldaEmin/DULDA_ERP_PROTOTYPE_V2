@@ -140,7 +140,6 @@ const UnitModule = {
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
                 { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
-                { id: 'u8', name: 'AKPA ALUMINYUM A.S.', type: 'external' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
                 { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
@@ -216,6 +215,39 @@ const UnitModule = {
                 });
             }
             if (UnitModule.state.activeUnitId && packageIds.includes(UnitModule.state.activeUnitId)) {
+                UnitModule.state.activeUnitId = null;
+                UnitModule.state.view = 'list';
+            }
+            DB.markDirty();
+        }
+
+        // AKPA Aluminyum birimi kaldirildi; eski kayitlardan da temizle.
+        const akpaUnitIds = (DB.data.data.units || [])
+            .filter((u) => String(u?.id || '') === 'u8' || String(u?.name || '').toUpperCase().includes('AKPA'))
+            .map((u) => u.id);
+        if (akpaUnitIds.length > 0) {
+            DB.data.data.units = (DB.data.data.units || []).filter((u) => !akpaUnitIds.includes(u.id));
+            if (Array.isArray(DB.data.data.machines)) {
+                DB.data.data.machines = DB.data.data.machines.filter((m) => !akpaUnitIds.includes(m.unitId));
+            }
+            if (Array.isArray(DB.data.data.personnel)) {
+                DB.data.data.personnel = DB.data.data.personnel.map((person) => {
+                    if (!person || typeof person !== 'object') return person;
+                    const assignedUnitIds = Array.isArray(person.assignedUnitIds)
+                        ? person.assignedUnitIds.filter((unitId) => !akpaUnitIds.includes(unitId))
+                        : [];
+                    const unitPermissions = person.unitPermissions && typeof person.unitPermissions === 'object'
+                        ? Object.fromEntries(Object.entries(person.unitPermissions).filter(([unitId]) => !akpaUnitIds.includes(unitId)))
+                        : person.unitPermissions;
+                    return {
+                        ...person,
+                        assignedUnitIds,
+                        unitId: akpaUnitIds.includes(person.unitId) ? (assignedUnitIds[0] || '') : person.unitId,
+                        unitPermissions
+                    };
+                });
+            }
+            if (UnitModule.state.activeUnitId && akpaUnitIds.includes(UnitModule.state.activeUnitId)) {
                 UnitModule.state.activeUnitId = null;
                 UnitModule.state.view = 'list';
             }
@@ -756,7 +788,6 @@ const UnitModule = {
             u5: { bg: '#fce7f3', fg: '#be185d' },
             u7: { bg: '#fef3c7', fg: '#b45309' },
             u_dtm: { bg: '#dbeafe', fg: '#1e40af' },
-            u8: { bg: '#ffedd5', fg: '#c2410c' },
             u9: { bg: '#ffedd5', fg: '#ea580c' },
             u10: { bg: '#fed7aa', fg: '#9a3412' },
             u11: { bg: '#fde68a', fg: '#92400e' },

@@ -154,7 +154,6 @@ const StockModule = {
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
                 { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
-                { id: 'u8', name: 'AKPA ALUMINYUM A.S.', type: 'external' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
                 { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
@@ -176,6 +175,14 @@ const StockModule = {
             .map((row) => row.id);
         if (packageIds.length > 0) {
             DB.data.data.units = (DB.data.data.units || []).filter((row) => !packageIds.includes(row.id));
+            changed = true;
+        }
+
+        const akpaUnitIds = (DB.data.data.units || [])
+            .filter((row) => String(row?.id || '') === 'u8' || String(row?.name || '').toUpperCase().includes('AKPA'))
+            .map((row) => row.id);
+        if (akpaUnitIds.length > 0) {
+            DB.data.data.units = (DB.data.data.units || []).filter((row) => !akpaUnitIds.includes(row.id));
             changed = true;
         }
 

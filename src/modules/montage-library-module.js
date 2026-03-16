@@ -543,13 +543,13 @@ const MontageLibraryModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${MontageLibraryModule.state.selectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(MontageLibraryModule.state.selectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.productCode || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;"><button onclick="MontageLibraryModule.previewRow('${row.id}')" class="btn-sm" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8;">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.startEdit('${row.id}')" class="btn-sm">duzenle</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${MontageLibraryModule.state.selectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(MontageLibraryModule.state.selectedId === row.id)}">sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>

@@ -91,7 +91,7 @@ const ProductLibraryModule = {
         assemblyDraftRoutes: [],
         assemblyDraftRouteStationId: '',
         assemblyDraftFiles: [],
-        modelFilters: { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' },
+        modelFilters: { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' },
         modelGroupExpanded: {},
         modelFamilyExpanded: {},
         modelFormOpen: false,
@@ -2903,7 +2903,7 @@ const ProductLibraryModule = {
             DB.data.meta.options.catalogProductGroups = ['Aluminyum Dikmeler', 'Paslanmaz Dikmeler', 'Lux Seri Babalar'];
         }
         if (!ProductLibraryModule.state.modelFilters || typeof ProductLibraryModule.state.modelFilters !== 'object') {
-            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
         }
         if (!ProductLibraryModule.state.modelGroupExpanded || typeof ProductLibraryModule.state.modelGroupExpanded !== 'object') {
             ProductLibraryModule.state.modelGroupExpanded = {};
@@ -2980,6 +2980,35 @@ const ProductLibraryModule = {
                         <option value="">renk sec</option>
                         ${options.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${active.name === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
                     </select>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderModelListColorFilter: (field) => {
+        const cfg = ProductLibraryModule.getModelColorFieldConfig(field);
+        if (!cfg) return '';
+        const filters = ProductLibraryModule.state.modelFilters || {};
+        const typeKey = `${field}Type`;
+        const activeType = ProductLibraryModule.normalizeColorType(filters[typeKey] || '');
+        const activeName = String(filters[field] || '');
+        const options = ProductLibraryModule.getColorLibraryItemsByType(activeType);
+        return `
+            <div>
+                <div style="font-size:0.72rem; color:#64748b; margin:0 0 0.16rem 0.15rem;">${ProductLibraryModule.escapeHtml(cfg.label)}</div>
+                <div style="height:42px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%; background:white;">
+                    <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                        <select onchange="ProductLibraryModule.setModelFilter('${typeKey}', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:#334155;">
+                            <option value="">kategori sec</option>
+                            ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${activeType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="background:${activeType ? 'white' : '#f1f5f9'};">
+                        <select ${activeType ? '' : 'disabled'} onchange="ProductLibraryModule.setModelFilter('${field}', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:${activeType ? '#111827' : '#94a3b8'};">
+                            <option value="">renk sec</option>
+                            ${options.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${activeName === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
+                        </select>
                     </div>
                 </div>
             </div>
@@ -3269,10 +3298,13 @@ const ProductLibraryModule = {
 
     setModelFilter: (field, value, focusId = '') => {
         if (!ProductLibraryModule.state.modelFilters || typeof ProductLibraryModule.state.modelFilters !== 'object') {
-            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+            ProductLibraryModule.state.modelFilters = { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
         }
         if (!Object.prototype.hasOwnProperty.call(ProductLibraryModule.state.modelFilters, field)) return;
         ProductLibraryModule.state.modelFilters[field] = String(value || '');
+        if (field === 'plexiType' || field === 'accessoryType' || field === 'tubeType') {
+            ProductLibraryModule.state.modelFilters[field.replace('Type', '')] = '';
+        }
         UI.renderCurrentPage();
         if (!focusId) return;
         setTimeout(() => {
@@ -3887,20 +3919,26 @@ const ProductLibraryModule = {
             return;
         }
 
-        const filters = state.modelFilters || { group: '', name: '', code: '', plexi: '', accessory: '', tube: '' };
+        const filters = state.modelFilters || { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
         const groupOptions = ProductLibraryModule.getModelGroupOptions();
         const rows = ProductLibraryModule.getCatalogProductVariants().filter((row) => {
             const qGroup = String(filters.group || '').trim();
             const qName = String(filters.name || '').trim().toLocaleLowerCase('tr-TR');
             const qCode = String(filters.code || '').trim().toLocaleLowerCase('tr-TR');
+            const qPlexiType = ProductLibraryModule.normalizeColorType(filters.plexiType || '');
             const qPlexi = String(filters.plexi || '').trim().toLocaleLowerCase('tr-TR');
+            const qAccessoryType = ProductLibraryModule.normalizeColorType(filters.accessoryType || '');
             const qAccessory = String(filters.accessory || '').trim().toLocaleLowerCase('tr-TR');
+            const qTubeType = ProductLibraryModule.normalizeColorType(filters.tubeType || '');
             const qTube = String(filters.tube || '').trim().toLocaleLowerCase('tr-TR');
             if (qGroup && row.productGroup !== qGroup) return false;
             if (qName && !`${row.productName || ''} ${row.familyName || ''}`.toLocaleLowerCase('tr-TR').includes(qName)) return false;
             if (qCode && !`${row.familyCode || ''} ${row.variantCode || ''}`.toLocaleLowerCase('tr-TR').includes(qCode)) return false;
+            if (qPlexiType && ProductLibraryModule.normalizeColorType(row.colors?.plexi?.type || '') !== qPlexiType) return false;
             if (qPlexi && !String(row.colors?.plexi?.name || '').toLocaleLowerCase('tr-TR').includes(qPlexi)) return false;
+            if (qAccessoryType && ProductLibraryModule.normalizeColorType(row.colors?.accessory?.type || '') !== qAccessoryType) return false;
             if (qAccessory && !String(row.colors?.accessory?.name || '').toLocaleLowerCase('tr-TR').includes(qAccessory)) return false;
+            if (qTubeType && ProductLibraryModule.normalizeColorType(row.colors?.tube?.type || '') !== qTubeType) return false;
             if (qTube && !String(row.colors?.tube?.name || '').toLocaleLowerCase('tr-TR').includes(qTube)) return false;
             return true;
         });
@@ -3924,7 +3962,10 @@ const ProductLibraryModule = {
                 return `
                     <div style="border:1px solid #e2e8f0; border-radius:0.9rem; overflow:hidden; margin-bottom:0.75rem;">
                         <button type="button" onclick='ProductLibraryModule.toggleModelGroupSection(${JSON.stringify(groupKey)})' style="width:100%; border:none; background:${groupOpen ? '#eef2ff' : '#f8fafc'}; padding:0.8rem 0.95rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-                            <span style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(groupKey)}</span>
+                            <span style="display:flex; align-items:center; gap:0.55rem;">
+                                <span style="display:inline-block; width:14px; text-align:center; color:#64748b; font-weight:900; transform:${groupOpen ? 'rotate(90deg)' : 'rotate(0deg)'}; transition:transform 160ms ease;">></span>
+                                <span style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(groupKey)}</span>
+                            </span>
                             <span style="font-size:0.84rem; color:#64748b;">${families.size} model</span>
                         </button>
                         ${groupOpen ? `<div style="padding:0.75rem;">${Array.from(families.values()).sort((a, b) => String(a.familyName || '').localeCompare(String(b.familyName || ''), 'tr')).map((family) => {
@@ -3933,9 +3974,12 @@ const ProductLibraryModule = {
                             return `
                                 <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden; margin-bottom:0.65rem;">
                                     <button type="button" onclick='ProductLibraryModule.toggleModelFamilySection(${JSON.stringify(familyKey)})' style="width:100%; border:none; background:${familyOpen ? '#fff7ed' : 'white'}; padding:0.72rem 0.85rem; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
-                                        <div style="text-align:left;">
-                                            <div style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(family.familyName || '-')}</div>
-                                            <div style="font-size:0.8rem; color:#64748b; font-family:monospace;">${ProductLibraryModule.escapeHtml(family.familyCode || '-')}</div>
+                                        <div style="display:flex; align-items:center; gap:0.55rem; text-align:left;">
+                                            <span style="display:inline-block; width:14px; text-align:center; color:#64748b; font-weight:900; transform:${familyOpen ? 'rotate(90deg)' : 'rotate(0deg)'}; transition:transform 160ms ease;">></span>
+                                            <div>
+                                                <div style="font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(family.familyName || '-')}</div>
+                                                <div style="font-size:0.8rem; color:#64748b; font-family:monospace;">${ProductLibraryModule.escapeHtml(family.familyCode || '-')}</div>
+                                            </div>
                                         </div>
                                         <span style="font-size:0.84rem; color:#64748b;">${family.rows.length} varyant</span>
                                     </button>
@@ -3980,13 +4024,13 @@ const ProductLibraryModule = {
                 </div>
 
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
-                    <div style="display:grid; grid-template-columns:220px 1fr 210px 170px 170px 170px; gap:0.65rem;">
+                    <div style="display:grid; grid-template-columns:220px minmax(280px,1fr) 210px 220px 220px 220px; gap:0.65rem; align-items:end;">
                         <select onchange="ProductLibraryModule.setModelFilter('group', this.value)" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.65rem; font-weight:700;"><option value="">urun grubu sec</option>${groupOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt)}" ${String(filters.group || '') === String(opt) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt)}</option>`).join('')}</select>
                         <input id="model_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setModelFilter('name', this.value, 'model_filter_name')" placeholder="urun adiyla ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
                         <input id="model_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setModelFilter('code', this.value, 'model_filter_code')" placeholder="aile/varyant ID ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
-                        <input id="model_filter_plexi" value="${ProductLibraryModule.escapeHtml(filters.plexi || '')}" oninput="ProductLibraryModule.setModelFilter('plexi', this.value, 'model_filter_plexi')" placeholder="pleksi rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
-                        <input id="model_filter_accessory" value="${ProductLibraryModule.escapeHtml(filters.accessory || '')}" oninput="ProductLibraryModule.setModelFilter('accessory', this.value, 'model_filter_accessory')" placeholder="aksesuar rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
-                        <input id="model_filter_tube" value="${ProductLibraryModule.escapeHtml(filters.tube || '')}" oninput="ProductLibraryModule.setModelFilter('tube', this.value, 'model_filter_tube')" placeholder="boru rengi" style="height:42px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:600;">
+                        ${ProductLibraryModule.renderModelListColorFilter('plexi')}
+                        ${ProductLibraryModule.renderModelListColorFilter('accessory')}
+                        ${ProductLibraryModule.renderModelListColorFilter('tube')}
                     </div>
                 </div>
 

@@ -691,13 +691,13 @@ const StockModule = {
                             </thead>
                             <tbody>
                                 ${rows.length === 0 ? '<tr><td colspan="6" style="padding:2rem; text-align:center; color:#94a3b8">Kayitli islem yok.</td></tr>' : rows.map((row) => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${isPickerMode && String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${isPickerMode ? UnitModule.getRoutePickerSelectedRowStyle(String(StockModule.state.operationSelectedId || '') === String(row.id || '')) : ''}">
                                         <td style="padding:1.15rem; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.taskName || '-')}</td>
                                         <td style="padding:1.15rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.taskCode || '-')}</td>
                                         <td style="padding:1.15rem; color:#64748b;">${StockModule.escapeHtml(row.note || '-')}</td>
                                         <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.previewOperation('${row.id}')">Goruntule</button></td>
                                         <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.startEditOperation('${row.id}')">Duzenle</button></td>
-                                        <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.selectOperation('${row.id}')" style="${String(StockModule.state.operationSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button></td>
+                                        <td style="padding:1.15rem; text-align:right;"><button class="btn-sm" onclick="StockModule.selectOperation('${row.id}')" style="${UnitModule.getRoutePickerSelectButtonStyle(String(StockModule.state.operationSelectedId || '') === String(row.id || ''))}">Sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>

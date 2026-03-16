@@ -586,6 +586,23 @@ const UnitModule = {
         const picker = UnitModule.getActiveComponentRoutePicker();
         return !!picker;
     },
+    getRoutePickerSelectedRowStyle: (isSelected) => {
+        if (!isSelected) return '';
+        return UnitModule.shouldShowComponentRoutePickerPanel()
+            ? 'background:#ecfdf5; box-shadow:inset 0 0 0 1px #86efac;'
+            : 'background:#ffe4e6;';
+    },
+    getRoutePickerSelectButtonStyle: (isSelected) => {
+        if (!isSelected) return '';
+        return UnitModule.shouldShowComponentRoutePickerPanel()
+            ? 'background:#16a34a; color:white; border-color:#16a34a; box-shadow:0 0 0 3px rgba(34,197,94,0.16);'
+            : 'background:#0f172a; color:white; border-color:#0f172a;';
+    },
+    getRoutePickerAddButtonStyle: (canAdd) => {
+        return canAdd
+            ? 'background:#16a34a; border-color:#16a34a; color:white; box-shadow:0 0 0 3px rgba(34,197,94,0.16), 0 10px 22px rgba(22,163,74,0.22);'
+            : 'background:#cbd5e1; border-color:#cbd5e1; color:#64748b; opacity:1; cursor:not-allowed; box-shadow:none;';
+    },
     getSelectedProcessCodeForPicker: () => {
         const view = String(UnitModule.state.view || '');
         const unitId = String(UnitModule.state.activeUnitId || '');
@@ -718,7 +735,7 @@ const UnitModule = {
                     <div style="display:flex; gap:0.45rem; align-items:center;">
                         <button class="btn-sm" onclick="UnitModule.goToComponentRoutePickerTarget()">hedef birime git</button>
                         <button class="btn-sm" onclick="UnitModule.cancelComponentRouteProcessPick()">vazgec</button>
-                        <button class="btn-primary" onclick="UnitModule.confirmComponentRouteProcessPick()" ${canAdd ? '' : 'disabled'} style="${canAdd ? '' : 'opacity:0.55; cursor:not-allowed;'}">ekle</button>
+                        <button class="btn-primary" onclick="UnitModule.confirmComponentRouteProcessPick()" ${canAdd ? '' : 'disabled'} style="${UnitModule.getRoutePickerAddButtonStyle(canAdd)}">ekle</button>
                     </div>
                 </div>
             </div>
@@ -1901,13 +1918,13 @@ const UnitModule = {
                         </thead>
                         <tbody>
                             ${filteredTasks.length === 0 ? `<tr><td colspan="6" style="padding:1rem; color:#94a3b8; text-align:center;">Kayitli islem yok.</td></tr>` : filteredTasks.map(t => `
-                                <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode && UnitModule.state.depoTaskSelectedId === t.id ? 'background:#ffe4e6;' : ''}">
+                                <tr style="border-bottom:1px solid #f1f5f9; ${isDepoPickerMode ? UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.depoTaskSelectedId === t.id) : ''}">
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(t.taskName || '-')}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(t.taskCode || '-')}</td>
                                     <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(t.note || '-')}</td>
                                     <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.previewDepoTask('${t.id}')">Goruntule</button></td>
                                     <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.startEditDepoTask('${t.id}')">Duzenle</button></td>
-                                    <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.state.depoTaskSelectedId === t.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">Sec</button></td>
+                                    <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.selectDepoTask('${t.id}')" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.depoTaskSelectedId === t.id)}">Sec</button></td>
                                 </tr>
                             `).join('')}
                         </tbody>
@@ -2442,7 +2459,7 @@ const UnitModule = {
                     </thead>
                     <tbody>
                         ${filteredRows.length === 0 ? `<tr><td colspan="7" style="text-align:center; padding:1.5rem; color:#94a3b8">Kayit yok.</td></tr>` : filteredRows.map(r => `
-                            <tr style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#ffe4e6' : ''}">
+                            <tr style="${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.sawSelectedOrderId === r.id)}">
                                 <td style="font-weight:700; color:#334155">${r.processName || '-'}</td>
                                 <td style="text-align:center; font-weight:700; color:#0f766e">${r.lengthMm ?? r.cutLengthMm ?? '-'}</td>
                                 <td style="text-align:center">
@@ -2451,7 +2468,7 @@ const UnitModule = {
                                 <td style="font-family:monospace; color:#475569; font-weight:700">${r.code || '-'}</td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.previewSawRow('${r.id}')">goruntule</button></td>
                                 <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.editSawRow('${r.id}')">duzenle</button></td>
-                                <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.state.sawSelectedOrderId === r.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                <td style="text-align:center"><button class="btn-sm" onclick="UnitModule.selectSawRow('${r.id}')" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.sawSelectedOrderId === r.id)}">sec</button></td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -2712,7 +2729,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="11" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.extruderSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.extruderSelectedId === row.id)}">
                                         <td style="padding:0.65rem;"><span style="font-size:0.72rem; font-weight:700; color:#475569; background:#f8fafc; border:1px solid #e2e8f0; padding:0.25rem 0.55rem; border-radius:0.5rem">${typeLabel(row.kind)}</span></td>
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">${Number.isFinite(Number(row.diameterMm)) ? Number(row.diameterMm) : '-'}</td>
@@ -2728,7 +2745,7 @@ const UnitModule = {
                                             <button onclick="UnitModule.editExtruderRow('${row.id}')" class="btn-sm">duzenle</button>
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
-                                            <button onclick="UnitModule.selectExtruderRow('${row.id}')" class="btn-sm" style="${UnitModule.state.extruderSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
+                                            <button onclick="UnitModule.selectExtruderRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.extruderSelectedId === row.id)}">sec</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -3112,7 +3129,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.plexiSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.plexiSelectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processName || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;">
                                             <span style="display:inline-block; min-width:48px; border:1px solid ${row.firePolish ? '#22c55e' : '#cbd5e1'}; background:${row.firePolish ? '#dcfce7' : 'white'}; color:${row.firePolish ? '#166534' : '#64748b'}; border-radius:999px; padding:0.15rem 0.5rem; font-size:0.73rem; font-weight:700;">${row.firePolish ? 'Var' : '-'}</span>
@@ -3129,7 +3146,7 @@ const UnitModule = {
                                             <button onclick="UnitModule.editPlexiRow('${row.id}')" class="btn-sm">duzenle</button>
                                         </td>
                                         <td style="padding:0.65rem; text-align:right;">
-                                            <button onclick="UnitModule.selectPlexiRow('${row.id}')" class="btn-sm" style="${UnitModule.state.plexiSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button>
+                                            <button onclick="UnitModule.selectPlexiRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.plexiSelectedId === row.id)}">sec</button>
                                         </td>
                                     </tr>
                                 `).join('')}
@@ -3580,7 +3597,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.pvdSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.pvdSelectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
                                             <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.color || '-')}</span>
@@ -3589,7 +3606,7 @@ const UnitModule = {
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPvdRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPvdRow('${row.id}')" class="btn-sm">duzenle</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPvdRow('${row.id}')" class="btn-sm" style="${UnitModule.state.pvdSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPvdRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.pvdSelectedId === row.id)}">sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3875,14 +3892,14 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.polishSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.polishSelectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.surface || '-')}</span></td>
                                         <td style="padding:0.65rem; color:#475569;">${UnitModule.escapeHtml(row.note || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewPolishRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editPolishRow('${row.id}')" class="btn-sm">duzenle</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPolishRow('${row.id}')" class="btn-sm" style="${UnitModule.state.polishSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectPolishRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.polishSelectedId === row.id)}">sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -4214,7 +4231,7 @@ const UnitModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.state.elxSelectedId === row.id ? 'background:#ffe4e6;' : ''}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(UnitModule.state.elxSelectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem;">
                                             <span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.2rem 0.6rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.processType || '-')}</span>
@@ -4226,7 +4243,7 @@ const UnitModule = {
                                         <td style="padding:0.65rem; font-family:monospace; color:#64748b;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.previewEloksalRow('${row.id}')" class="btn-sm">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.editEloksalRow('${row.id}')" class="btn-sm">duzenle</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectEloksalRow('${row.id}')" class="btn-sm" style="${UnitModule.state.elxSelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a' : ''}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="UnitModule.selectEloksalRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(UnitModule.state.elxSelectedId === row.id)}">sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>

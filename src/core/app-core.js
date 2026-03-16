@@ -284,6 +284,7 @@ const DB = {
             extruderLibraryCards: [],
             montageCards: [],
             catalogProductVariants: [],
+            planningDemands: [],
             depoTransferTasks: [],
             workOrders: [],
             workOrderTransactions: [],
@@ -334,6 +335,7 @@ const DB = {
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
         if (!Array.isArray(d.montageCards)) d.montageCards = [];
         if (!Array.isArray(d.catalogProductVariants)) d.catalogProductVariants = [];
+        if (!Array.isArray(d.planningDemands)) d.planningDemands = [];
         if (!Array.isArray(d.depoTransferTasks)) d.depoTransferTasks = [];
         if (!Array.isArray(d.workOrders)) d.workOrders = [];
         if (!Array.isArray(d.workOrderTransactions)) d.workOrderTransactions = [];

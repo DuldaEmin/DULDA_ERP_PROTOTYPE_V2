@@ -1549,22 +1549,26 @@ const UnitModule = {
             };
         });
     },
-    createWorkOrder: async () => {
+    createWorkOrderFromMontageCard: (options = {}) => {
         if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
-        const montageId = String(UnitModule.state.workOrderDraftMontageId || '').trim();
-        const lotQty = Number(UnitModule.state.workOrderDraftLotQty || 0);
-        const dueDate = String(UnitModule.state.workOrderDraftDueDate || '').trim();
-        const priorityRaw = String(UnitModule.state.workOrderDraftPriority || 'NORMAL').trim().toUpperCase();
+        const montageId = String(options?.montageId || '').trim();
+        const lotQty = Number(options?.lotQty || 0);
+        const dueDate = String(options?.dueDate || '').trim();
+        const priorityRaw = String(options?.priority || 'NORMAL').trim().toUpperCase();
         const priority = ['LOW', 'NORMAL', 'HIGH', 'URGENT'].includes(priorityRaw) ? priorityRaw : 'NORMAL';
-        const note = String(UnitModule.state.workOrderDraftNote || '').trim();
-        if (!montageId) return alert('Lutfen montaj karti seciniz.');
-        if (!Number.isFinite(lotQty) || lotQty <= 0) return alert('Lot miktari 0 dan buyuk olmali.');
+        const note = String(options?.note || '').trim();
+        const createdByUnitId = String(options?.createdByUnitId || '').trim();
+        const sourceType = String(options?.sourceType || '').trim().toUpperCase();
+        const sourceId = String(options?.sourceId || '').trim();
+        const sourceCode = String(options?.sourceCode || '').trim().toUpperCase();
+        if (!montageId) throw new Error('Lutfen montaj karti seciniz.');
+        if (!Number.isFinite(lotQty) || lotQty <= 0) throw new Error('Lot miktari 0 dan buyuk olmali.');
         const montage = (DB.data.data.montageCards || []).find(x => String(x?.id || '') === montageId);
-        if (!montage) return alert('Montaj karti bulunamadi.');
+        if (!montage) throw new Error('Montaj karti bulunamadi.');
         const workOrderCode = UnitModule.getNextWorkOrderCode();
         const lines = UnitModule.buildWorkOrderLinesFromMontage(montage, lotQty, workOrderCode);
         const now = new Date().toISOString();
-        DB.data.data.workOrders.push({
+        const order = {
             id: crypto.randomUUID(),
             workOrderCode,
             montageCardId: String(montage.id || ''),
@@ -1577,10 +1581,30 @@ const UnitModule = {
             note,
             status: 'OPEN',
             lines,
-            createdByUnitId: String(UnitModule.state.activeUnitId || ''),
+            createdByUnitId,
+            sourceType,
+            sourceId,
+            sourceCode,
             created_at: now,
             updated_at: now
-        });
+        };
+        DB.data.data.workOrders.push(order);
+        return order;
+    },
+    createWorkOrder: async () => {
+        try {
+            UnitModule.createWorkOrderFromMontageCard({
+                montageId: String(UnitModule.state.workOrderDraftMontageId || '').trim(),
+                lotQty: Number(UnitModule.state.workOrderDraftLotQty || 0),
+                dueDate: String(UnitModule.state.workOrderDraftDueDate || '').trim(),
+                priority: String(UnitModule.state.workOrderDraftPriority || 'NORMAL').trim().toUpperCase(),
+                note: String(UnitModule.state.workOrderDraftNote || '').trim(),
+                createdByUnitId: String(UnitModule.state.activeUnitId || '')
+            });
+        } catch (error) {
+            alert(error?.message || 'Is emri olusturulamadi.');
+            return;
+        }
         await DB.save();
         UnitModule.closeWorkOrderCreateForm();
     },

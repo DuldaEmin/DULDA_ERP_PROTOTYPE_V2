@@ -24,6 +24,18 @@ const App = {
         return String(value || '')
             .trim()
             .toLocaleLowerCase('tr-TR')
+            .replace(/ı/g, 'i')
+            .replace(/İ/g, 'i')
+            .replace(/ş/g, 's')
+            .replace(/Ş/g, 's')
+            .replace(/ğ/g, 'g')
+            .replace(/Ğ/g, 'g')
+            .replace(/ü/g, 'u')
+            .replace(/Ü/g, 'u')
+            .replace(/ö/g, 'o')
+            .replace(/Ö/g, 'o')
+            .replace(/ç/g, 'c')
+            .replace(/Ç/g, 'c')
             .replace(/\s+/g, ' ');
     },
 
@@ -87,6 +99,78 @@ const App = {
     db: {
         // Legacy reference, keeping for compatibility if utilized elsewhere, but DB object handles logic now
     }
+};
+
+App.normalizeActionLabel = (value) => {
+    return String(value || '')
+        .trim()
+        .toLocaleLowerCase('tr-TR')
+        .replace(/ı/g, 'i')
+        .replace(/İ/g, 'i')
+        .replace(/ş/g, 's')
+        .replace(/Ş/g, 's')
+        .replace(/ğ/g, 'g')
+        .replace(/Ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/Ü/g, 'u')
+        .replace(/ö/g, 'o')
+        .replace(/Ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/Ç/g, 'c')
+        .replace(/\s+/g, ' ');
+};
+
+App.isDestructiveActionLabel = (value) => {
+    const label = App.normalizeActionLabel(value);
+    return ['sil', 'kaldir', 'tumunu kaldir', 'resmi kaldir', 'tumunu sil'].includes(label);
+};
+
+App.installDeleteConfirmationGuard = () => {
+    if (App.deleteConfirmGuardInstalled) return;
+    App.deleteConfirmGuardInstalled = true;
+
+    if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !App.nativeConfirm) {
+        App.nativeConfirm = window.confirm.bind(window);
+        window.confirm = (message) => {
+            if (App.skipNextNativeConfirm) {
+                App.skipNextNativeConfirm = false;
+                return true;
+            }
+            return App.nativeConfirm(message);
+        };
+    }
+
+    document.addEventListener('click', (event) => {
+        const targetNode = event.target;
+        const targetElement = targetNode && targetNode.nodeType === 1
+            ? targetNode
+            : targetNode?.parentElement || null;
+        const clickable = targetElement?.closest?.('button, a, [role="button"], input[type="button"], input[type="submit"]');
+        if (!clickable || clickable.disabled) return;
+        if (String(clickable.dataset?.skipDeleteConfirm || '') === 'true') return;
+
+        const actionLabel = clickable.dataset?.confirmAction
+            || clickable.getAttribute('title')
+            || clickable.getAttribute('aria-label')
+            || clickable.textContent
+            || '';
+
+        if (!App.isDestructiveActionLabel(actionLabel)) return;
+
+        const message = clickable.dataset?.confirmMessage || 'Silmek istediginizden emin misiniz?';
+        const approved = (App.nativeConfirm || window.confirm)(message);
+        if (!approved) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            return;
+        }
+
+        App.skipNextNativeConfirm = true;
+        setTimeout(() => {
+            App.skipNextNativeConfirm = false;
+        }, 0);
+    }, true);
 };
 
 const DB = {

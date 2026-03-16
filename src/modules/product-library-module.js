@@ -3469,6 +3469,41 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
+    openModelDraftLinkedRecord: (kind, refId, mode = 'view') => {
+        const type = String(kind || '').trim().toLowerCase();
+        const id = String(refId || '').trim();
+        const action = String(mode || 'view').trim().toLowerCase();
+        if (!id) return alert('Bagli kayit bulunamadi.');
+
+        if (type === 'component') {
+            const row = ProductLibraryModule.getComponentCardById(id);
+            if (!row) return alert('Bagli parca kaydi bulunamadi.');
+            ProductLibraryModule.state.workspaceView = 'components';
+            if (action === 'edit') ProductLibraryModule.startEditComponentCard(id);
+            else ProductLibraryModule.openComponentCardView(id);
+            return;
+        }
+
+        if (type === 'master') {
+            const row = ProductLibraryModule.getMasterProductById(id);
+            if (!row) return alert('Bagli master urun kaydi bulunamadi.');
+            ProductLibraryModule.state.workspaceView = 'master';
+            if (action === 'edit') {
+                ProductLibraryModule.editMasterProduct(id);
+                return;
+            }
+            const hasPreview = !!(row.attachment?.data || row.previewImage || row.previewPdf);
+            if (hasPreview) {
+                ProductLibraryModule.previewMasterAttachment(id);
+                return;
+            }
+            ProductLibraryModule.state.masterSelectedId = id;
+            ProductLibraryModule.state.masterFormOpen = false;
+            ProductLibraryModule.state.masterEditingId = null;
+            UI.renderCurrentPage();
+        }
+    },
+
     selectModelComponent: (id) => {
         const added = ProductLibraryModule.addModelDraftComponent(id, false);
         if (!added) return;
@@ -3991,7 +4026,7 @@ const ProductLibraryModule = {
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.accessory?.name || '-')}</td>
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.tube?.name || '-')}</td>
                                             <td style="padding:0.5rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.montageCard?.cardCode || '-')}</td>
-                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button><button class="btn-sm" onclick="ProductLibraryModule.deleteModelVariant('${row.id}')">sil</button></div></td>
+                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button></div></td>
                                         </tr>`).join('')}</tbody></table></div>` : ''}
                                 </div>
                             `;
@@ -4006,8 +4041,22 @@ const ProductLibraryModule = {
         const explodedFiles = ProductLibraryModule.getModelDraftFiles('exploded');
         const montageCard = state.modelDraftMontageCard;
         const selectedRows = [
-            ...(masterRef ? [{ id: `master-${masterRef.id || masterRef.code}`, source: 'Master', name: masterRef.name || '-', code: masterRef.code || '-', removable: false }] : []),
-            ...componentItems.map(item => ({ id: item.id, source: 'Parca', name: item.name || '-', code: item.code || '-', removable: true }))
+            ...(masterRef ? [{
+                id: `master-${masterRef.id || masterRef.code}`,
+                source: 'Master',
+                name: masterRef.name || '-',
+                code: masterRef.code || '-',
+                linkedType: 'master',
+                linkedId: String(masterRef.id || '').trim()
+            }] : []),
+            ...componentItems.map(item => ({
+                id: item.id,
+                source: 'Parca',
+                name: item.name || '-',
+                code: item.code || '-',
+                linkedType: 'component',
+                linkedId: String(item.refId || '').trim()
+            }))
         ];
 
         container.innerHTML = `
@@ -4052,7 +4101,7 @@ const ProductLibraryModule = {
                                 <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.7rem;">${ProductLibraryModule.renderModelColorField('plexi')}${ProductLibraryModule.renderModelColorField('accessory')}${ProductLibraryModule.renderModelColorField('tube')}</div>
                                 <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kodu</label><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(masterRef?.code || '')}" placeholder="master secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMasterPicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMaster()" style="height:40px; min-width:80px;">sil</button></div></div>
                                 <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">parca ve bilesen ID kodlari</label><div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(componentItems.map(item => item.code).join(', '))}" placeholder="parca/bilesen secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelComponentPicker()" style="height:40px; min-width:110px;">goruntule</button></div></div>
-                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.45rem;"><strong style="font-size:0.92rem;">Secilen Kalemler</strong><span style="font-size:0.8rem; color:#64748b;">Toplam: ${selectedRows.length}</span></div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.55rem;">Patlatilmis resimdeki parca numara sirasina gore kalem ekleyin.</div><table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;"><th style="padding:0.45rem; text-align:left;">Sira</th><th style="padding:0.45rem; text-align:left;">Kaynak</th><th style="padding:0.45rem; text-align:left;">Urun</th><th style="padding:0.45rem; text-align:left;">ID kod</th><th style="padding:0.45rem; text-align:right;">Islem</th></tr></thead><tbody>${selectedRows.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : selectedRows.map((item, idx) => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.45rem;">${idx + 1}</td><td style="padding:0.45rem;">${item.source}</td><td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td><td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td><td style="padding:0.45rem; text-align:right;">${item.removable ? `<div style="display:flex; gap:0.3rem; justify-content:flex-end;"><button class="btn-sm" onclick="ProductLibraryModule.moveModelDraftItem(${idx - (masterRef ? 1 : 0)}, 'up')" ${idx === (masterRef ? 1 : 0) ? 'disabled style="opacity:0.45; cursor:not-allowed;"' : ''}>↑</button><button class="btn-sm" onclick="ProductLibraryModule.moveModelDraftItem(${idx - (masterRef ? 1 : 0)}, 'down')" ${idx === selectedRows.length - 1 ? 'disabled style="opacity:0.45; cursor:not-allowed;"' : ''}>↓</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${item.id}')">sil</button></div>` : '<span style="color:#94a3b8;">-</span>'}</td></tr>`).join('')}</tbody></table></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.45rem;"><strong style="font-size:0.92rem;">Secilen Kalemler</strong><span style="font-size:0.8rem; color:#64748b;">Toplam: ${selectedRows.length}</span></div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.55rem;">Patlatilmis resimdeki parca numara sirasina gore kalem ekleyin.</div><table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;"><th style="padding:0.45rem; text-align:left;">Sira</th><th style="padding:0.45rem; text-align:left;">Kaynak</th><th style="padding:0.45rem; text-align:left;">Urun</th><th style="padding:0.45rem; text-align:left;">ID kod</th><th style="padding:0.45rem; text-align:right;">Islem</th></tr></thead><tbody>${selectedRows.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : selectedRows.map((item, idx) => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.45rem;">${idx + 1}</td><td style="padding:0.45rem;">${item.source}</td><td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td><td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td><td style="padding:0.45rem; text-align:right;">${item.linkedId ? `<div style="display:flex; gap:0.3rem; justify-content:flex-end;"><button class="btn-sm" onclick='ProductLibraryModule.openModelDraftLinkedRecord(${JSON.stringify(item.linkedType)}, ${JSON.stringify(item.linkedId)}, "view")'>goruntule</button><button class="btn-sm" onclick='ProductLibraryModule.openModelDraftLinkedRecord(${JSON.stringify(item.linkedType)}, ${JSON.stringify(item.linkedId)}, "edit")'>duzenle</button></div>` : '<span style="color:#94a3b8;">-</span>'}</td></tr>`).join('')}</tbody></table></div>
                             </div>
                             <div style="display:grid; gap:0.9rem;">
                                 <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
@@ -4807,6 +4856,7 @@ const ProductLibraryModule = {
                         <textarea rows="3" oninput="ProductLibraryModule.setMasterDraft('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.masterDraftNote || '')}</textarea>
                     </div>
                     <div style="display:flex; gap:0.6rem;">
+                        ${state.masterEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${state.masterEditingId}')" style="height:40px; padding:0 1rem; color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>` : ''}
                         <button class="btn-sm" onclick="ProductLibraryModule.loadSelectedMasterForEdit()" ${state.masterSelectedId ? '' : 'disabled'} style="height:40px; padding:0 1rem;">duzenle</button>
                         <button class="btn-primary" onclick="ProductLibraryModule.saveMasterProduct()" style="height:40px; padding:0 1.2rem; border-radius:0.7rem;">kaydet</button>
                     </div>

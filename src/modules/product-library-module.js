@@ -125,6 +125,7 @@ const ProductLibraryModule = {
         modelComponentPickerRowId: '',
         componentPickerSource: '',
         masterPickerSource: '',
+        planningPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
 
@@ -166,6 +167,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
         if (nextView !== 'components') ProductLibraryModule.state.componentPickerSource = '';
+        if (nextView !== 'models' && nextView !== 'components') ProductLibraryModule.state.planningPickerSource = '';
         UI.renderCurrentPage();
     },
 
@@ -173,8 +175,24 @@ const ProductLibraryModule = {
         ProductLibraryModule.resetModelAccordionState();
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         UI.renderCurrentPage();
+    },
+
+    openPlanningPicker: (kind) => {
+        const normalized = String(kind || '').trim().toLowerCase() === 'component' ? 'component' : 'model';
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = normalized;
+        ProductLibraryModule.state.workspaceView = normalized === 'component' ? 'components' : 'models';
+        Router.navigate('products', { fromBack: true });
+    },
+
+    cancelPlanningPicker: () => {
+        ProductLibraryModule.state.planningPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'menu';
+        Router.navigate('planlama', { fromBack: true });
     },
 
     resetModelAccordionState: () => {
@@ -1864,7 +1882,8 @@ const ProductLibraryModule = {
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
         const isModelComponentPicker = state.componentPickerSource === 'model-component' || state.componentPickerSource === 'model-component-row';
-        const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker;
+        const isPlanningComponentPicker = String(state.planningPickerSource || '') === 'component';
+        const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker || isPlanningComponentPicker;
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
@@ -1928,7 +1947,7 @@ const ProductLibraryModule = {
                 <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
                 <td style="padding:0.55rem; text-align:center;">
                     ${isComponentPicker
-                        ? `<button class="btn-sm" onclick="${isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`}">ekle</button>`
+                        ? `<button class="btn-sm" onclick="${isPlanningComponentPicker ? `ProductLibraryModule.selectPlanningComponent('${row.id}')` : (isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`)}">ekle</button>`
                         : '<input type="checkbox" disabled>'}
                 </td>
             </tr>
@@ -1972,8 +1991,8 @@ const ProductLibraryModule = {
             <div style="max-width:1360px; margin:0 auto;">
                 ${isComponentPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelComponentPicker()">${isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don'}</button>
+                        <div style="font-weight:700;">${isPlanningComponentPicker ? 'Planlama icin parca/bilesen secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.' : (isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.')}</div>
+                        <button class="btn-sm" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.cancelComponentPicker()'}">${isPlanningComponentPicker ? 'planlamaya don' : (isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don')}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
@@ -2006,7 +2025,7 @@ const ProductLibraryModule = {
                             </div>
                         </div>
                         <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <button class="btn-primary" onclick="${isComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()'}" style="height:42px; min-width:135px;">${isComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
+                        <button class="btn-primary" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : (isComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()')}" style="height:42px; min-width:135px;">${isComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
                         <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" ${isComponentPicker ? 'disabled' : ''} style="height:42px; min-width:160px; ${isComponentPicker ? 'opacity:0.5; cursor:not-allowed;' : ''}">parca grup ekle +</button>
                     </div>
                 </div>
@@ -3726,6 +3745,20 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelViewingId = null;
         UI.renderCurrentPage();
     },
+    selectPlanningModel: (id) => {
+        const row = ProductLibraryModule.getCatalogVariantById(id);
+        if (!row || typeof PlanningModule?.applyPickedModel !== 'function') return;
+        ProductLibraryModule.state.planningPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'menu';
+        PlanningModule.applyPickedModel(id);
+    },
+    selectPlanningComponent: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row || typeof PlanningModule?.applyPickedComponent !== 'function') return;
+        ProductLibraryModule.state.planningPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'menu';
+        PlanningModule.applyPickedComponent(id);
+    },
 
     openModelMontagePicker: () => {
         const rows = ProductLibraryModule.getModelMontageCardOptions();
@@ -4175,8 +4208,9 @@ const ProductLibraryModule = {
 
     renderModelsPage: (container) => {
         const state = ProductLibraryModule.state;
+        const isPlanningModelPicker = String(state.planningPickerSource || '') === 'model';
         const viewRow = state.modelViewingId ? ProductLibraryModule.getCatalogVariantById(state.modelViewingId) : null;
-        if (viewRow) {
+        if (viewRow && !isPlanningModelPicker) {
             ProductLibraryModule.renderModelVariantView(container, viewRow);
             return;
         }
@@ -4253,7 +4287,7 @@ const ProductLibraryModule = {
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.accessory?.name || '-')}</td>
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.tube?.name || '-')}</td>
                                             <td style="padding:0.5rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.montageCard?.cardCode || '-')}</td>
-                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button></div></td>
+                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button>${isPlanningModelPicker ? `<button class="btn-sm" onclick="ProductLibraryModule.selectPlanningModel('${row.id}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">ekle</button>` : ''}</div></td>
                                         </tr>`).join('')}</tbody></table></div>` : ''}
                                 </div>
                             `;
@@ -4302,6 +4336,12 @@ const ProductLibraryModule = {
 
         container.innerHTML = `
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
+                ${isPlanningModelPicker ? `
+                    <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="font-weight:700;">Planlama icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok icin uretim ekranina baglanir.</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">planlamaya don</button>
+                    </div>
+                ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; flex-wrap:wrap; margin-bottom:1rem;">
                     <div>
                         <h2 class="page-title" style="margin:0;">Urun Modelleri</h2>
@@ -4309,7 +4349,7 @@ const ProductLibraryModule = {
                     </div>
                     <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
                         <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
-                        <button class="btn-primary" onclick="ProductLibraryModule.openModelForm()">urun ekle +</button>
+                        <button class="btn-primary" onclick="${isPlanningModelPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.openModelForm()'}">${isPlanningModelPicker ? 'vazgec' : 'urun ekle +'}</button>
                     </div>
                 </div>
 

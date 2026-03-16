@@ -147,6 +147,28 @@ const PlanningModule = {
         UI.renderCurrentPage();
     },
 
+    openItemPicker: (kind) => {
+        const normalized = String(kind || '').trim().toLowerCase() === 'component' ? 'component' : 'model';
+        PlanningModule.state.stockDraftSourceKind = normalized === 'component' ? 'COMPONENT' : 'MODEL';
+        ProductLibraryModule.openPlanningPicker(normalized);
+    },
+
+    applyPickedModel: (id) => {
+        PlanningModule.state.stockDraftSourceKind = 'MODEL';
+        PlanningModule.state.stockDraftVariantId = String(id || '');
+        PlanningModule.state.stockDraftComponentId = '';
+        Router.navigate('planlama', { fromBack: true });
+        PlanningModule.openWorkspace('stock-production');
+    },
+
+    applyPickedComponent: (id) => {
+        PlanningModule.state.stockDraftSourceKind = 'COMPONENT';
+        PlanningModule.state.stockDraftComponentId = String(id || '');
+        PlanningModule.state.stockDraftVariantId = '';
+        Router.navigate('planlama', { fromBack: true });
+        PlanningModule.openWorkspace('stock-production');
+    },
+
     setStockDraftField: (field, value) => {
         if (field === 'stockDraftSourceKind') PlanningModule.state.stockDraftSourceKind = String(value || 'MODEL').toUpperCase() === 'COMPONENT' ? 'COMPONENT' : 'MODEL';
         if (field === 'stockDraftVariantId') PlanningModule.state.stockDraftVariantId = String(value || '');
@@ -422,14 +444,18 @@ const PlanningModule = {
                         </div>
                         <div style="display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:0.7rem;">
                             <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kaynak tipi *</label><select onchange="PlanningModule.setStockDraftField('stockDraftSourceKind', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:600;"><option value="MODEL" ${sourceKind === 'MODEL' ? 'selected' : ''}>Urun Modelleri</option><option value="COMPONENT" ${sourceKind === 'COMPONENT' ? 'selected' : ''}>Parca & Bilesen</option></select></div>
-                            <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">${sourceKind === 'COMPONENT' ? 'Parca / bilesen *' : 'Urun varyanti *'}</label><select onchange="PlanningModule.setStockDraftField('${sourceKind === 'COMPONENT' ? 'stockDraftComponentId' : 'stockDraftVariantId'}', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:600;">${sourceKind === 'COMPONENT'
-                                    ? (components.length === 0
-                                        ? '<option value="">Kayitli rotali parca yok</option>'
-                                        : components.map((row) => `<option value="${PlanningModule.escapeHtml(row.id || '')}" ${String(PlanningModule.state.stockDraftComponentId || '') === String(row.id || '') ? 'selected' : ''}>${PlanningModule.escapeHtml(row.group || '-')} / ${PlanningModule.escapeHtml(row.name || '-')} / ${PlanningModule.escapeHtml(row.code || '-')}</option>`).join(''))
-                                    : (variants.length === 0
-                                        ? '<option value="">Kayitli montajli varyant yok</option>'
-                                        : variants.map((row) => `<option value="${PlanningModule.escapeHtml(row.id || '')}" ${String(PlanningModule.state.stockDraftVariantId || '') === String(row.id || '') ? 'selected' : ''}>${PlanningModule.escapeHtml(row.productGroup || '-')} / ${PlanningModule.escapeHtml(row.productName || '-')} / ${PlanningModule.escapeHtml(row.variantCode || '-')}</option>`).join(''))}</select></div>
-                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Uretim adedi *</label><input type="number" min="1" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftQty || '10')}" oninput="PlanningModule.setStockDraftField('stockDraftQty', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:700;"></div>
+                            <div style="grid-column:span 3;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">${sourceKind === 'COMPONENT' ? 'Parca / bilesen *' : 'Urun varyanti *'}</label>
+                                <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.45rem;">
+                                    <div style="height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; background:#f8fafc; padding:0 0.65rem; display:flex; align-items:center; font-weight:700; color:${(sourceKind === 'COMPONENT' ? selectedComponent : selectedVariant) ? '#0f172a' : '#94a3b8'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                        ${PlanningModule.escapeHtml(sourceKind === 'COMPONENT'
+                                            ? (selectedComponent ? `${selectedComponent.group || '-'} / ${selectedComponent.name || '-'} / ${selectedComponent.code || '-'}` : 'Parca secmek icin ilgili sayfaya gidin')
+                                            : (selectedVariant ? `${selectedVariant.productGroup || '-'} / ${selectedVariant.productName || '-'} / ${selectedVariant.variantCode || '-'}` : 'Urun modeli secmek icin ilgili sayfaya gidin'))}
+                                    </div>
+                                    <button class="btn-sm" type="button" onclick="PlanningModule.openItemPicker('${sourceKind === 'COMPONENT' ? 'component' : 'model'}')" style="height:40px; min-width:110px;">sec + ekle</button>
+                                </div>
+                            </div>
+                            <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Uretim adedi *</label><input type="number" min="1" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftQty || '10')}" oninput="PlanningModule.state.stockDraftQty=this.value" onchange="PlanningModule.state.stockDraftQty=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:700;"></div>
                             <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Hedef tarih</label><input type="date" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftDueDate || '')}" oninput="PlanningModule.setStockDraftField('stockDraftDueDate', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem;"></div>
                             <div style="grid-column:span 2;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Oncelik</label><select onchange="PlanningModule.setStockDraftField('stockDraftPriority', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem;"><option value="LOW" ${String(PlanningModule.state.stockDraftPriority || '') === 'LOW' ? 'selected' : ''}>DUSUK</option><option value="NORMAL" ${String(PlanningModule.state.stockDraftPriority || 'NORMAL') === 'NORMAL' ? 'selected' : ''}>NORMAL</option><option value="HIGH" ${String(PlanningModule.state.stockDraftPriority || '') === 'HIGH' ? 'selected' : ''}>YUKSEK</option><option value="URGENT" ${String(PlanningModule.state.stockDraftPriority || '') === 'URGENT' ? 'selected' : ''}>ACIL</option></select></div>
                             <div style="grid-column:span 8;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Planlama notu / neden</label><textarea rows="3" onchange="PlanningModule.setStockDraftField('stockDraftNote', this.value)" onblur="PlanningModule.setStockDraftField('stockDraftNote', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.6rem; resize:vertical;">${PlanningModule.escapeHtml(PlanningModule.state.stockDraftNote || '')}</textarea></div>

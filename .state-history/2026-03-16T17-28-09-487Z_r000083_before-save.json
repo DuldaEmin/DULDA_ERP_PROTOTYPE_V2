@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-16T17:31:42.323Z",
+    "updated_at": "2026-03-16T15:29:30.012Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -38,7 +38,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 85
+    "revision": 83
   },
   "data": {
     "products": [
@@ -1513,107 +1513,7 @@
         "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
-    "workOrders": [
-      {
-        "id": "0e903166-6035-4889-81cd-af29f2edf5ba",
-        "workOrderCode": "WO-000001",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "productCode": "DIKMELER",
-        "productName": "aluminyum dikme oluşturma",
-        "lotQty": 12,
-        "dueDate": "2026-03-19",
-        "priority": "NORMAL",
-        "note": "hfgthfgh",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "dc233440-2f68-45ea-81dd-810903422bf9",
-            "lineCode": "WO-000001-01",
-            "componentCode": "DIKMELER",
-            "componentName": "DIKMELER",
-            "multiplier": 1,
-            "targetQty": 12,
-            "routes": [
-              {
-                "id": "61a01ecc-ff0a-4e75-ae91-749faac82614",
-                "seq": 1,
-                "stationId": "u3",
-                "stationName": "MONTAJ",
-                "processId": ""
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_STOCK_MODEL",
-        "sourceId": "ffbb1bd7-c44d-4c5a-bcc8-decb4c0866e0",
-        "sourceCode": "PLN-000001",
-        "created_at": "2026-03-16T17:28:09.402Z",
-        "updated_at": "2026-03-16T17:28:09.402Z"
-      },
-      {
-        "id": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
-        "workOrderCode": "WO-000002",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "lotQty": 20,
-        "dueDate": "2026-03-19",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "840ab1bd-bcac-4163-9213-61e3a86d781c",
-            "lineCode": "WO-000002-01",
-            "componentCode": "PRC-000007",
-            "componentName": "2008 bombeli 40 lık dikme pleksi",
-            "multiplier": 1,
-            "targetQty": 20,
-            "routes": [
-              {
-                "id": "0e59e275-8ee9-4e38-8b3f-d3f7141ff6dc",
-                "seq": 1,
-                "stationId": "u2",
-                "stationName": "EKSTRUDER ATOLYESI",
-                "processId": "EKS-000001"
-              },
-              {
-                "id": "f04c8011-3482-43f7-9b13-fd97d210ccc7",
-                "seq": 2,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000001"
-              },
-              {
-                "id": "9cd91da0-7457-4d89-a982-23bc8aebd742",
-                "seq": 3,
-                "stationId": "u5",
-                "stationName": "PLEKSI POLISAJ ATOLYESI",
-                "processId": "PLSJ-000001"
-              },
-              {
-                "id": "f2004d43-93bd-4ba4-bba2-376987b62b5c",
-                "seq": 4,
-                "stationId": "u_dtm",
-                "stationName": "ANA DEPO",
-                "processId": "DTR-000004"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_STOCK_COMPONENT",
-        "sourceId": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
-        "sourceCode": "PLN-000002",
-        "created_at": "2026-03-16T17:31:42.323Z",
-        "updated_at": "2026-03-16T17:31:42.323Z"
-      }
-    ],
+    "workOrders": [],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
@@ -2358,62 +2258,6 @@
             "categoryName": "Hırdavat & Vida"
           }
         ]
-      }
-    ],
-    "planningDemands": [
-      {
-        "id": "ffbb1bd7-c44d-4c5a-bcc8-decb4c0866e0",
-        "demandCode": "PLN-000001",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-16T17:28:09.399Z",
-        "itemType": "MODEL",
-        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-        "componentId": "",
-        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-        "variantCode": "URM-000001-V01",
-        "componentCode": "",
-        "productGroup": "Aluminyum Dikmeler",
-        "productName": "2008 bombeli aluminyum dikme",
-        "productCode": "DIKMELER",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "qty": 12,
-        "dueDate": "2026-03-19",
-        "priority": "NORMAL",
-        "note": "hfgthfgh",
-        "status": "RELEASED",
-        "updated_at": "2026-03-16T17:28:09.402Z",
-        "workOrderId": "0e903166-6035-4889-81cd-af29f2edf5ba",
-        "workOrderCode": "WO-000001",
-        "released_at": "2026-03-16T17:28:09.402Z"
-      },
-      {
-        "id": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
-        "demandCode": "PLN-000002",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-16T17:31:42.322Z",
-        "itemType": "COMPONENT",
-        "variantId": "",
-        "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-        "familyId": "",
-        "variantCode": "",
-        "componentCode": "PRC-000007",
-        "productGroup": "dikme pleksileri",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "productCode": "PRC-000007",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "qty": 20,
-        "dueDate": "2026-03-19",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "updated_at": "2026-03-16T17:31:42.323Z",
-        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
-        "workOrderCode": "WO-000002",
-        "released_at": "2026-03-16T17:31:42.323Z"
       }
     ]
   }

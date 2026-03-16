@@ -160,6 +160,9 @@ const ProductLibraryModule = {
 
     openWorkspace: (view) => {
         const nextView = String(view || 'menu');
+        if (String(ProductLibraryModule.state.workspaceView || '') === 'models' && nextView !== 'models') {
+            ProductLibraryModule.resetModelAccordionState();
+        }
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
         if (nextView !== 'components') ProductLibraryModule.state.componentPickerSource = '';
@@ -167,10 +170,16 @@ const ProductLibraryModule = {
     },
 
     goWorkspaceMenu: () => {
+        ProductLibraryModule.resetModelAccordionState();
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         UI.renderCurrentPage();
+    },
+
+    resetModelAccordionState: () => {
+        ProductLibraryModule.state.modelGroupExpanded = {};
+        ProductLibraryModule.state.modelFamilyExpanded = {};
     },
 
     renderWorkspaceMenu: (container) => {
@@ -3405,7 +3414,9 @@ const ProductLibraryModule = {
     },
 
     toggleModelFamilySection: (key) => {
-        ProductLibraryModule.state.modelFamilyExpanded[key] = !ProductLibraryModule.state.modelFamilyExpanded[key];
+        const familyKey = String(key || '');
+        const currentlyOpen = !!ProductLibraryModule.state.modelFamilyExpanded[familyKey];
+        ProductLibraryModule.state.modelFamilyExpanded = currentlyOpen ? {} : { [familyKey]: true };
         UI.renderCurrentPage();
     },
 

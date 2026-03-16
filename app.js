@@ -269,6 +269,14 @@ const Router = {
     currentPage: 'dashboard',
     init: () => Router.navigate('dashboard'),
     navigate: (pageId) => {
+        const currentPage = String(Router.currentPage || '');
+        const nextPage = String(pageId || '');
+        if (currentPage === 'products' && nextPage !== 'products'
+            && typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.resetModelAccordionState === 'function') {
+            ProductLibraryModule.resetModelAccordionState();
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },

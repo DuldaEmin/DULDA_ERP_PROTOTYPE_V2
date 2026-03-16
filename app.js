@@ -3,16 +3,85 @@
  * Synced with ASIL Design System
  */
 const App = {
+    nativeConfirm: null,
+    skipNextNativeConfirm: false,
+    deleteConfirmGuardInstalled: false,
     init: async () => {
         console.log("DULDA ERP Initializing...");
 
         // Load data from LocalStorage immediately
         DB.loadState();
 
+        App.installDeleteConfirmationGuard();
+
         // Initialize Router and UI
         Router.init();
         UI.init();
         UI.updateStatus('🟢 Otomatik Kayıt Aktif');
+    },
+
+    normalizeActionLabel: (value) => {
+        return String(value || '')
+            .trim()
+            .toLocaleLowerCase('tr-TR')
+            .replace(/\s+/g, ' ');
+    },
+
+    isDestructiveActionLabel: (value) => {
+        const label = App.normalizeActionLabel(value);
+        return [
+            'sil',
+            'kaldir',
+            'kaldır',
+            'tumunu kaldir',
+            'tümünü kaldır',
+            'resmi kaldir',
+            'resmi kaldır'
+        ].includes(label);
+    },
+
+    installDeleteConfirmationGuard: () => {
+        if (App.deleteConfirmGuardInstalled) return;
+        App.deleteConfirmGuardInstalled = true;
+
+        if (typeof window !== 'undefined' && typeof window.confirm === 'function' && !App.nativeConfirm) {
+            App.nativeConfirm = window.confirm.bind(window);
+            window.confirm = (message) => {
+                if (App.skipNextNativeConfirm) {
+                    App.skipNextNativeConfirm = false;
+                    return true;
+                }
+                return App.nativeConfirm(message);
+            };
+        }
+
+        document.addEventListener('click', (event) => {
+            const clickable = event.target?.closest?.('button, a, [role="button"], input[type="button"], input[type="submit"]');
+            if (!clickable || clickable.disabled) return;
+            if (String(clickable.dataset?.skipDeleteConfirm || '') === 'true') return;
+
+            const actionLabel = clickable.dataset?.confirmAction
+                || clickable.getAttribute('title')
+                || clickable.getAttribute('aria-label')
+                || clickable.textContent
+                || '';
+
+            if (!App.isDestructiveActionLabel(actionLabel)) return;
+
+            const message = clickable.dataset?.confirmMessage || 'Silmek istediginizden emin misiniz?';
+            const approved = (App.nativeConfirm || window.confirm)(message);
+            if (!approved) {
+                event.preventDefault();
+                event.stopPropagation();
+                if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+                return;
+            }
+
+            App.skipNextNativeConfirm = true;
+            setTimeout(() => {
+                App.skipNextNativeConfirm = false;
+            }, 0);
+        }, true);
     },
 
     db: {

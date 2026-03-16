@@ -66,6 +66,7 @@ const ProductLibraryModule = {
         componentEditingId: null,
         componentViewingId: null,
         componentViewPreviewIndex: 0,
+        componentViewReturnContext: null,
         componentDraftCode: '',
         componentDraftName: '',
         componentDraftGroup: '',
@@ -1327,16 +1328,29 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    openComponentCardView: (id) => {
+    openComponentCardView: (id, returnContext = null) => {
         ProductLibraryModule.state.componentViewingId = String(id || '');
         ProductLibraryModule.state.componentViewPreviewIndex = 0;
+        ProductLibraryModule.state.componentViewReturnContext = returnContext && typeof returnContext === 'object'
+            ? { ...returnContext }
+            : null;
         ProductLibraryModule.state.componentFormOpen = false;
         UI.renderCurrentPage();
     },
 
     closeComponentCardView: () => {
+        const returnContext = ProductLibraryModule.state.componentViewReturnContext;
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentViewPreviewIndex = 0;
+        ProductLibraryModule.state.componentViewReturnContext = null;
+        if (returnContext?.workspaceView === 'models') {
+            ProductLibraryModule.state.workspaceView = 'models';
+            ProductLibraryModule.state.modelFormOpen = true;
+            ProductLibraryModule.state.modelViewingId = null;
+            UI.renderCurrentPage();
+            setTimeout(() => document.getElementById('model_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+            return;
+        }
         UI.renderCurrentPage();
     },
 
@@ -2089,7 +2103,6 @@ const ProductLibraryModule = {
                                         </div>
                                     `).join('')}
                                 </div>
-                                ${files.length > 0 ? '<button class="btn-sm" style="margin-top:0.5rem;" onclick="ProductLibraryModule.clearComponentDraftFiles()">tumunu kaldir</button>' : ''}
                             </div>
                         </div>
                         <div style="margin-top:0.95rem;">
@@ -2895,7 +2908,6 @@ const ProductLibraryModule = {
                                             </div>
                                         `).join('')}
                                     </div>
-                                    ${files.length > 0 ? '<button class="btn-sm" style="margin-top:0.5rem;" onclick="ProductLibraryModule.clearAssemblyDraftFiles()">tumunu kaldir</button>' : ''}
                                 </div>
                             </div>
                         </div>
@@ -3595,6 +3607,31 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
+    previewModelDraftLinkedRecord: (kind, refId) => {
+        const type = String(kind || '').trim().toLowerCase();
+        const id = String(refId || '').trim();
+        if (!id) return alert('Bagli kayit bulunamadi.');
+
+        if (type === 'component') {
+            const row = ProductLibraryModule.getComponentCardById(id);
+            if (!row) return alert('Bagli parca kaydi bulunamadi.');
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.openComponentCardView(id, {
+                workspaceView: 'models',
+                modelFormOpen: true
+            });
+            return;
+        }
+
+        if (type === 'master') {
+            const row = ProductLibraryModule.getMasterProductById(id);
+            if (!row) return alert('Bagli master urun kaydi bulunamadi.');
+            const hasPreview = !!(row.attachment?.data || row.previewImage || row.previewPdf);
+            if (!hasPreview) return alert('Goruntulenecek dosya yok.');
+            ProductLibraryModule.previewMasterAttachment(id);
+        }
+    },
+
     moveModelDraftItem: (index, direction) => {
         const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? [...ProductLibraryModule.state.modelDraftItems] : [];
         const idx = Number(index);
@@ -4203,9 +4240,9 @@ const ProductLibraryModule = {
                     <div style="font-weight:800; color:#475569;">${idx + 1}</div>
                     <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
                         <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(row?.code || 'master secilmedi')}</div>
-                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(row?.name || 'Master urun secmek icin goruntule butonunu kullanin.')}</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(row?.name || 'Master urun secmek icin sec butonunu kullanin.')}</div>
                     </div>
-                    <button class="btn-sm" onclick="ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">goruntule</button>
+                    <button class="btn-sm" onclick="${row?.id ? `ProductLibraryModule.previewModelDraftLinkedRecord('master', '${ProductLibraryModule.escapeHtml(row.id || '')}')` : `ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')`}" style="height:40px;">${row?.id ? 'gor' : 'sec'}</button>
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelMasterDraftRow('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');
@@ -4219,9 +4256,9 @@ const ProductLibraryModule = {
                     <div style="font-weight:800; color:#475569;">${idx + 1}</div>
                     <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
                         <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(item?.code || 'parca secilmedi')}</div>
-                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(item?.name || 'Parca secmek icin goruntule butonunu kullanin.')}</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(item?.name || 'Parca secmek icin sec butonunu kullanin.')}</div>
                     </div>
-                    <button class="btn-sm" onclick="ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">goruntule</button>
+                    <button class="btn-sm" onclick="${item?.refId ? `ProductLibraryModule.previewModelDraftLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item.refId || '')}')` : `ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')`}" style="height:40px;">${item?.refId ? 'gor' : 'sec'}</button>
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');
@@ -4295,8 +4332,8 @@ const ProductLibraryModule = {
                             <div style="display:grid; gap:0.9rem;">
                                 <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem;">
-                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun fotografi/ teknik resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('product', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${productFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : productFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('product', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('product', ${idx})">kaldir</button></div></div>`).join('')}</div>${productFiles.length > 0 ? '<button class="btn-sm" style="margin-top:0.45rem;" onclick="ProductLibraryModule.clearModelDraftFiles(\'product\')">tumunu kaldir</button>' : ''}</div>
-                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun patlatilmis resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('exploded', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : explodedFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('exploded', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('exploded', ${idx})">kaldir</button></div></div>`).join('')}</div>${explodedFiles.length > 0 ? '<button class="btn-sm" style="margin-top:0.45rem;" onclick="ProductLibraryModule.clearModelDraftFiles(\'exploded\')">tumunu kaldir</button>' : ''}</div>
+                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun fotografi/ teknik resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('product', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${productFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : productFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('product', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('product', ${idx})">kaldir</button></div></div>`).join('')}</div></div>
+                                    <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun patlatilmis resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('exploded', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : explodedFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('exploded', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('exploded', ${idx})">kaldir</button></div></div>`).join('')}</div></div>
                                 </div>
                                 <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.25rem;">not</label><textarea rows="6" oninput="ProductLibraryModule.state.modelDraftNote=this.value" style="width:100%; border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.modelDraftNote || '')}</textarea></div>
                             </div>

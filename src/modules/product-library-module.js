@@ -1378,6 +1378,13 @@ const ProductLibraryModule = {
                 return;
             }
         }
+        if (returnContext?.page === 'stock' && returnContext?.view === 'workOrderPlanning') {
+            if (typeof Router !== 'undefined') Router.navigate('stock', { fromBack: true });
+            if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.openWorkspace === 'function') {
+                StockModule.openWorkspace('work-order-planning');
+                return;
+            }
+        }
         if (returnContext?.workspaceView === 'models') {
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;

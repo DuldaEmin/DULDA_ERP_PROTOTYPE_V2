@@ -125,6 +125,16 @@ const StockModule = {
             }
             return;
         }
+        if (String(StockModule.state.workspaceView || 'menu') === 'work-order-planning') {
+            if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.renderWorkOrderPlanningPlaceholder === 'function') {
+                UnitModule.renderWorkOrderPlanningPlaceholder(container, 'u_dtm');
+                if (window.lucide) window.lucide.createIcons();
+                if (typeof UnitModule.renderComponentRoutePickerPanel === 'function') {
+                    UnitModule.renderComponentRoutePickerPanel(container);
+                }
+                return;
+            }
+        }
         container.innerHTML = StockModule.renderLayout();
         if (window.lucide) window.lucide.createIcons();
         if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.renderComponentRoutePickerPanel === 'function') {
@@ -1065,6 +1075,10 @@ const StockModule = {
                         <button class="stock-hub-card" onclick="StockModule.openWorkspace('goods-receipt')">
                             <div class="stock-hub-icon stock-hub-icon-emerald"><i data-lucide="package-check" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Mal Kabul</div>
+                        </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('work-order-planning')">
+                            <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="clipboard-list" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Is Emri Planlama</div>
                         </button>
                         <button class="stock-hub-card" onclick="StockModule.openWorkspace('inventory-registration')">
                             <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="clipboard-plus" width="24" height="24"></i></div>

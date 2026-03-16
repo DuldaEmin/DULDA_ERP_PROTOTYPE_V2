@@ -614,11 +614,14 @@ const UnitModule = {
         if (!componentCode) return alert('Parca kodu bulunamadi.');
         const component = (DB.data?.data?.partComponentCards || []).find(x => String(x?.code || '').trim().toUpperCase() === componentCode);
         if (!component) return alert('Parca/bilesen karti bulunamadi.');
+        const returnPage = String(unitId || '') === 'u_dtm' && String(typeof Router !== 'undefined' ? Router.currentPage || '' : '') === 'stock'
+            ? 'stock'
+            : 'units';
         if (typeof Router !== 'undefined') Router.navigate('products');
         if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.openComponentCardView(component.id, {
-                page: 'units',
+                page: returnPage,
                 view: 'workOrderPlanning',
                 unitId: String(unitId || UnitModule.state.activeUnitId || '')
             });

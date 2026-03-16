@@ -630,6 +630,69 @@ const UnitModule = {
         const normalizedStationId = String(stationId || '').trim();
         const code = String(processId || '').trim().toUpperCase();
         if (!normalizedStationId || !code) return alert('Islem kaydi bulunamadi.');
+        const unit = (DB.data?.data?.units || []).find(u => String(u?.id || '') === normalizedStationId);
+        const unitName = String(unit?.name || '').toUpperCase();
+
+        if (normalizedStationId === 'u_dtm') {
+            const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.taskCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.previewOperation === 'function') {
+                StockModule.previewOperation(row.id);
+                return;
+            }
+        }
+        if (unitName.includes('CNC')) {
+            const row = (DB.data?.data?.cncCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cncId || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            if (typeof CncLibraryModule !== 'undefined' && CncLibraryModule && typeof CncLibraryModule.viewCardOperations === 'function') {
+                CncLibraryModule.viewCardOperations(row.id);
+                return;
+            }
+        }
+        if (normalizedStationId === 'u2' || unitName.includes('EKSTR')) {
+            const row = (DB.data?.data?.extruderLibraryCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewExtruderRow(row.id);
+            return;
+        }
+        if (unitName.includes('TESTERE')) {
+            const row = (DB.data?.data?.sawCutOrders || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.code || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewSawRow(row.id);
+            return;
+        }
+        if (normalizedStationId === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            const row = (DB.data?.data?.pvdCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewPvdRow(row.id);
+            return;
+        }
+        if (normalizedStationId === 'u11' || unitName.includes('ELOKSAL')) {
+            const row = (DB.data?.data?.eloksalCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewEloksalRow(row.id);
+            return;
+        }
+        if (normalizedStationId === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            const row = (DB.data?.data?.ibrahimPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewPolishRow(row.id);
+            return;
+        }
+        if (normalizedStationId === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
+            const row = (DB.data?.data?.plexiPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            UnitModule.previewPlexiRow(row.id);
+            return;
+        }
+        if (normalizedStationId === 'u3' || unitName.includes('MONTAJ')) {
+            const row = (DB.data?.data?.montageCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || x?.productCode || '').trim().toUpperCase() === code);
+            if (!row) return alert('Ilgili islem kutuphane kaydi bulunamadi.');
+            if (typeof MontageLibraryModule !== 'undefined' && MontageLibraryModule && typeof MontageLibraryModule.previewRow === 'function') {
+                MontageLibraryModule.previewRow(row.id);
+                return;
+            }
+        }
         UnitModule.state.libraryReturnContext = {
             view: 'workOrderPlanning',
             unitId: String(unitId || UnitModule.state.activeUnitId || '')
@@ -2070,7 +2133,7 @@ const UnitModule = {
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     <div class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
-                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
+                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
                             <tbody>
                                 ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map(r => {
                                     const priority = String(r.order?.priority || 'NORMAL').toUpperCase();
@@ -2087,7 +2150,7 @@ const UnitModule = {
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
-                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
+                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div><div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
                                 }).join('')}
                             </tbody>
                         </table>

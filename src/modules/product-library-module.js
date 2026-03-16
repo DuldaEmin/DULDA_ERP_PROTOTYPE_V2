@@ -1371,6 +1371,13 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentViewPreviewIndex = 0;
         ProductLibraryModule.state.componentViewReturnContext = null;
+        if (returnContext?.page === 'units' && returnContext?.view === 'workOrderPlanning') {
+            if (typeof Router !== 'undefined') Router.navigate('units', { fromBack: true });
+            if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.openWorkOrderPlanning === 'function') {
+                UnitModule.openWorkOrderPlanning(returnContext.unitId || UnitModule.state.activeUnitId || null);
+                return;
+            }
+        }
         if (returnContext?.workspaceView === 'models') {
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;

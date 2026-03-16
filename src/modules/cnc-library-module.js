@@ -66,7 +66,7 @@ const CncLibraryModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>

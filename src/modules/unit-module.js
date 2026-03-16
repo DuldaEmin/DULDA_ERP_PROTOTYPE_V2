@@ -79,6 +79,7 @@ const UnitModule = {
         extruderDraftColorCode: '',
         extruderDraftBubble: false,
         extruderDraftNote: '',
+        libraryReturnContext: null,
         depoTaskSearchName: '',
         depoTaskSearchRoute: '',
         depoTaskSearchCode: '',
@@ -321,6 +322,15 @@ const UnitModule = {
         if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
         UI.renderCurrentPage();
     },
+    handleLibraryBack: (unitId) => {
+        const returnContext = UnitModule.state.libraryReturnContext;
+        UnitModule.state.libraryReturnContext = null;
+        if (returnContext?.view === 'workOrderPlanning' && String(returnContext.unitId || '') === String(unitId || '')) {
+            UnitModule.openWorkOrderPlanning(unitId);
+            return;
+        }
+        UnitModule.openUnit(unitId);
+    },
     openDepoTransfer: () => {
         UnitModule.state.activeUnitId = 'u_dtm';
         UnitModule.state.view = 'depoTransfer';
@@ -528,6 +538,106 @@ const UnitModule = {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'unitLibraryEmpty';
         UI.renderCurrentPage();
+    },
+    applyProcessSelectionForStation: (stationId, processId) => {
+        const normalizedStationId = String(stationId || '').trim();
+        const code = String(processId || '').trim().toUpperCase();
+        if (!normalizedStationId || !code) return false;
+        const unit = (DB.data?.data?.units || []).find(u => String(u?.id || '') === normalizedStationId);
+        const unitName = String(unit?.name || '').toUpperCase();
+
+        if (normalizedStationId === 'u_dtm') {
+            const row = (DB.data?.data?.depoTransferTasks || []).find(x => String(x?.taskCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.depoTaskSelectedId = row.id;
+            if (typeof StockModule !== 'undefined' && StockModule?.state) {
+                StockModule.state.operationSelectedId = row.id;
+            }
+            return true;
+        }
+        if (unitName.includes('CNC')) {
+            if (typeof CncLibraryModule === 'undefined' || !CncLibraryModule?.state) return false;
+            const row = (DB.data?.data?.cncCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cncId || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            CncLibraryModule.state.selectedId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u2' || unitName.includes('EKSTR')) {
+            const row = (DB.data?.data?.extruderLibraryCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.extruderSelectedId = row.id;
+            return true;
+        }
+        if (unitName.includes('TESTERE')) {
+            const row = (DB.data?.data?.sawCutOrders || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.code || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.sawSelectedOrderId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            const row = (DB.data?.data?.pvdCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.pvdSelectedId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u11' || unitName.includes('ELOKSAL')) {
+            const row = (DB.data?.data?.eloksalCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.elxSelectedId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            const row = (DB.data?.data?.ibrahimPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.polishSelectedId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
+            const row = (DB.data?.data?.plexiPolishCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            UnitModule.state.plexiSelectedId = row.id;
+            return true;
+        }
+        if (normalizedStationId === 'u3' || unitName.includes('MONTAJ')) {
+            if (typeof MontageLibraryModule === 'undefined' || !MontageLibraryModule?.state) return false;
+            const row = (DB.data?.data?.montageCards || []).find(x => String(x?.unitId || '') === normalizedStationId && String(x?.cardCode || x?.productCode || '').trim().toUpperCase() === code);
+            if (!row) return false;
+            MontageLibraryModule.state.selectedId = row.id;
+            return true;
+        }
+        return false;
+    },
+    openWorkOrderComponentPreview: (orderId, lineId, unitId = '') => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(orderId || ''));
+        const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
+        const componentCode = String(line?.componentCode || '').trim().toUpperCase();
+        if (!componentCode) return alert('Parca kodu bulunamadi.');
+        const component = (DB.data?.data?.partComponentCards || []).find(x => String(x?.code || '').trim().toUpperCase() === componentCode);
+        if (!component) return alert('Parca/bilesen karti bulunamadi.');
+        if (typeof Router !== 'undefined') Router.navigate('products');
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.openComponentCardView(component.id, {
+                page: 'units',
+                view: 'workOrderPlanning',
+                unitId: String(unitId || UnitModule.state.activeUnitId || '')
+            });
+            return;
+        }
+        UI.renderCurrentPage();
+    },
+    openWorkOrderProcessPreview: (stationId, processId, unitId = '') => {
+        const normalizedStationId = String(stationId || '').trim();
+        const code = String(processId || '').trim().toUpperCase();
+        if (!normalizedStationId || !code) return alert('Islem kaydi bulunamadi.');
+        UnitModule.state.libraryReturnContext = {
+            view: 'workOrderPlanning',
+            unitId: String(unitId || UnitModule.state.activeUnitId || '')
+        };
+        UnitModule.openUnitLibrary(normalizedStationId);
+        const found = UnitModule.applyProcessSelectionForStation(normalizedStationId, code);
+        UI.renderCurrentPage();
+        if (!found) alert('Ilgili islem kutuphane kaydi bulunamadi.');
     },
     getActiveComponentRoutePicker: () => {
         const moduleRef = typeof ProductLibraryModule !== 'undefined' ? ProductLibraryModule : null;
@@ -1968,7 +2078,16 @@ const UnitModule = {
                                     const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
                                     const canTake = r.metrics.availableQty > 0;
                                     const canComplete = r.metrics.inProcessQty > 0;
-                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.metrics.processId || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
+                                    const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
+                                    const processCode = String(r.metrics.processId || '').trim().toUpperCase();
+                                    const processPreviewAction = `UnitModule.openWorkOrderProcessPreview('${r.metrics.stationId}','${processCode}','${unitId}')`;
+                                    const linkButtonStyle = 'background:none; border:none; padding:0; margin:0; cursor:pointer; text-align:left;';
+                                    const componentNameHtml = `<button type="button" onclick="${componentPreviewAction}" style="${linkButtonStyle} font-weight:700; color:#1d4ed8; text-decoration:underline;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</button>`;
+                                    const componentCodeHtml = `<button type="button" onclick="${componentPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</button>`;
+                                    const processCodeHtml = processCode
+                                        ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
+                                        : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
+                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(r.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(r.order?.productCode || '-')}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
                                 }).join('')}
                             </tbody>
                         </table>
@@ -2404,7 +2523,7 @@ const UnitModule = {
         container.innerHTML = `
             <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center">
                 <div style="display:flex; align-items:center; gap:1rem">
-                    <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
+                    <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="library" color="#1d4ed8"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
                         <div style="font-size:0.875rem; color:#64748b">${unit?.name || ''} - Bu birim icin modul henuz tanimlanmadi.</div>
@@ -2510,7 +2629,7 @@ const UnitModule = {
         container.innerHTML = `
             <div style="margin-bottom:1.25rem; display:flex; justify-content:space-between; align-items:center">
                 <div style="display:flex; align-items:center; gap:1rem">
-                    <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
+                    <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; padding:0.5rem; border-radius:0.5rem; border:1px solid #e2e8f0; cursor:pointer"><i data-lucide="arrow-left" width="20"></i></button>
                     <div>
                         <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.5rem"><i data-lucide="scissors" color="#047857"></i> &#220;r&#252;n K&#252;t&#252;phanesi</h2>
                         <div style="font-size:0.875rem; color:#64748b">${unit?.name || 'TESTERE'} &#8226; Olcu kayitlari burada listelenir</div>
@@ -2805,7 +2924,7 @@ const UnitModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>
@@ -3216,7 +3335,7 @@ const UnitModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>
@@ -3685,7 +3804,7 @@ const UnitModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>
@@ -3980,7 +4099,7 @@ const UnitModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>
@@ -4318,7 +4437,7 @@ const UnitModule = {
             <div style="max-width:1300px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:1rem; padding:0.2rem 0.1rem;">
                     <div style="display:flex; align-items:center; gap:0.6rem;">
-                        <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
+                        <button onclick="UnitModule.handleLibraryBack('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem; cursor:pointer;">
                             <i data-lucide="arrow-left" width="18"></i>
                         </button>
                         <div>

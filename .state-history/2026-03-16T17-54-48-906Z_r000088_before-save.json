@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-16T17:55:19.252Z",
+    "updated_at": "2026-03-16T17:54:39.280Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -38,7 +38,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 90
+    "revision": 88
   },
   "data": {
     "products": [
@@ -1620,7 +1620,7 @@
         "sourceId": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
         "sourceCode": "PLN-000002",
         "created_at": "2026-03-16T17:31:42.323Z",
-        "updated_at": "2026-03-16T17:55:19.252Z"
+        "updated_at": "2026-03-16T17:54:39.280Z"
       }
     ],
     "workOrderTransactions": [
@@ -1645,28 +1645,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-03-16T17:54:39.280Z"
-      },
-      {
-        "id": "9fc6f9a6-88ed-496d-a695-2719de2e25ac",
-        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
-        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
-        "stationId": "u2",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-16T17:54:48.844Z"
-      },
-      {
-        "id": "2b0cf9f9-2913-4d7b-8a80-95c6f5ce0e87",
-        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
-        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
-        "stationId": "u1",
-        "type": "TAKE",
-        "qty": 20,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-16T17:55:19.252Z"
       }
     ],
     "outsourceTransfers": [],

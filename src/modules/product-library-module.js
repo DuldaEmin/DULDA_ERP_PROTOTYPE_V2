@@ -1783,6 +1783,7 @@ const ProductLibraryModule = {
         const unitMap = ProductLibraryModule.getRouteStationMap();
         const routes = Array.isArray(row?.routes) ? row.routes : [];
         const files = Array.isArray(row?.attachments) ? row.attachments : [];
+        const hasFiles = files.length > 0;
         const previewIndex = Math.min(
             Math.max(0, Number(ProductLibraryModule.state.componentViewPreviewIndex || 0)),
             Math.max(files.length - 1, 0)
@@ -1806,6 +1807,26 @@ const ProductLibraryModule = {
                     <h2 class="page-title" style="margin:0;">Parca ve Bilesen Detay</h2>
                     <button class="btn-sm" onclick="ProductLibraryModule.closeComponentCardView()">geri</button>
                 </div>
+                ${hasFiles ? `
+                    <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                        <div style="font-weight:700; margin-bottom:0.6rem;">Dosyalar</div>
+                        <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                            ${files.map((file, idx) => `
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid ${idx === previewIndex ? '#93c5fd' : '#e2e8f0'}; background:${idx === previewIndex ? '#eff6ff' : 'white'}; border-radius:0.6rem; padding:0.5rem 0.65rem;">
+                                    <div style="font-size:0.86rem; color:#334155; font-weight:${idx === previewIndex ? '700' : '600'};">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                    <div style="display:flex; gap:0.4rem;">
+                                        <button class="btn-sm" onclick="ProductLibraryModule.selectComponentViewFile(${idx})" style="${idx === previewIndex ? 'background:#dbeafe; border-color:#93c5fd; color:#1d4ed8;' : ''}">onizle</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                            <div style="border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.75rem; background:#f8fafc;">
+                                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.55rem;">${previewFile ? `Onizleme: ${ProductLibraryModule.escapeHtml(previewFile.name || 'dosya')}` : 'Onizleme'}</div>
+                                ${previewHtml}
+                            </div>
+                        </div>
+                    </div>
+                ` : ''}
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:0.7rem;">
                         <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div></div>
@@ -1840,27 +1861,7 @@ const ProductLibraryModule = {
                         </tbody>
                     </table>
                 </div>
-
-                <div class="card-table" style="padding:1rem;">
-                    <div style="font-weight:700; margin-bottom:0.6rem;">Dosyalar</div>
-                    ${files.length === 0 ? '<div style="color:#94a3b8;">Dosya yok.</div>' : `
-                        <div style="display:flex; flex-direction:column; gap:0.8rem;">
-                            ${files.map((file, idx) => `
-                                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid ${idx === previewIndex ? '#93c5fd' : '#e2e8f0'}; background:${idx === previewIndex ? '#eff6ff' : 'white'}; border-radius:0.6rem; padding:0.5rem 0.65rem;">
-                                    <div style="font-size:0.86rem; color:#334155; font-weight:${idx === previewIndex ? '700' : '600'};">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
-                                    <div style="display:flex; gap:0.4rem;">
-                                        <button class="btn-sm" onclick="ProductLibraryModule.selectComponentViewFile(${idx})" style="${idx === previewIndex ? 'background:#dbeafe; border-color:#93c5fd; color:#1d4ed8;' : ''}">onizle</button>
-                                        <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                            <div style="border:1px solid #e2e8f0; border-radius:0.9rem; padding:0.75rem; background:#f8fafc;">
-                                <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.55rem;">${previewFile ? `Onizleme: ${ProductLibraryModule.escapeHtml(previewFile.name || 'dosya')}` : 'Onizleme'}</div>
-                                ${previewHtml}
-                            </div>
-                        </div>
-                    `}
-                </div>
+                ${hasFiles ? '' : `<div class="card-table" style="padding:1rem;"><div style="font-weight:700; margin-bottom:0.6rem;">Dosyalar</div><div style="color:#94a3b8;">Dosya yok.</div></div>`}
             </div>
         `;
     },
@@ -4114,6 +4115,7 @@ const ProductLibraryModule = {
         const componentRows = Array.isArray(row.items) ? row.items : [];
         const productFiles = Array.isArray(row.productFiles) ? row.productFiles : [];
         const explodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles : [];
+        const hasVisuals = productFiles.length > 0 || explodedFiles.length > 0;
         container.innerHTML = `
             <div style="max-width:1680px; margin:0 auto;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; margin-bottom:0.85rem;">
@@ -4126,6 +4128,27 @@ const ProductLibraryModule = {
                         <button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button>
                     </div>
                 </div>
+
+                ${hasVisuals ? `
+                    <div style="display:grid; gap:1rem; margin-bottom:1rem;">
+                        ${productFiles.length > 0 ? `
+                            <div class="card-table" style="padding:1rem;">
+                                <div style="font-weight:700; margin-bottom:0.55rem;">Urun Fotografi / Teknik Resim</div>
+                                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
+                                    ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'product', productFiles)}
+                                </div>
+                            </div>
+                        ` : ''}
+                        ${explodedFiles.length > 0 ? `
+                            <div class="card-table" style="padding:1rem;">
+                                <div style="font-weight:700; margin-bottom:0.55rem;">Patlatilmis Resim</div>
+                                <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
+                                    ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'exploded', explodedFiles)}
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                ` : ''}
 
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem;">
                     <div style="display:grid; grid-template-columns:repeat(4, minmax(180px, 1fr)); gap:0.8rem;">
@@ -4141,7 +4164,7 @@ const ProductLibraryModule = {
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns:minmax(0,1.5fr) minmax(360px,0.95fr); gap:1rem; align-items:start;">
+                <div style="display:grid; grid-template-columns:minmax(0,1fr); gap:1rem; align-items:start;">
                     <div class="card-table" style="padding:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.65rem;">
                             <strong>Secilen Kalemler</strong>
@@ -4180,21 +4203,6 @@ const ProductLibraryModule = {
                                 `).join('')}
                             </tbody>
                         </table>
-                    </div>
-
-                    <div style="display:grid; gap:1rem;">
-                        <div class="card-table" style="padding:1rem;">
-                            <div style="font-weight:700; margin-bottom:0.55rem;">Urun Fotografi / Teknik Resim</div>
-                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
-                                ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'product', productFiles)}
-                            </div>
-                        </div>
-                        <div class="card-table" style="padding:1rem;">
-                            <div style="font-weight:700; margin-bottom:0.55rem;">Patlatilmis Resim</div>
-                            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.65rem;">
-                                ${ProductLibraryModule.renderModelStoredFileCards(row.id, 'exploded', explodedFiles)}
-                            </div>
-                        </div>
                     </div>
                 </div>
 

@@ -113,12 +113,15 @@ const ProductLibraryModule = {
         modelDraftTubeColorType: '',
         modelDraftTubeColor: '',
         modelDraftTubeColorCode: '',
+        modelDraftMasterRefs: [],
         modelDraftMasterRef: null,
         modelDraftItems: [],
         modelDraftMontageCard: null,
         modelDraftProductFiles: [],
         modelDraftExplodedFiles: [],
         modelDraftNote: '',
+        modelMasterPickerRowId: '',
+        modelComponentPickerRowId: '',
         componentPickerSource: '',
         masterPickerSource: '',
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
@@ -912,9 +915,17 @@ const ProductLibraryModule = {
 
     cancelComponentPicker: () => {
         const src = String(ProductLibraryModule.state.componentPickerSource || '');
+        const pendingRowId = String(ProductLibraryModule.state.modelComponentPickerRowId || '').trim();
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
-        if (src === 'model-component') {
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
+        if (src === 'model-component' || src === 'model-component-row') {
+            if (src === 'model-component-row' && pendingRowId) {
+                const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
+                ProductLibraryModule.state.modelDraftItems = items.filter((item) =>
+                    String(item?.id || '') !== pendingRowId || String(item?.code || '').trim()
+                );
+            }
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
             ProductLibraryModule.state.modelViewingId = null;
@@ -1819,7 +1830,7 @@ const ProductLibraryModule = {
 
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
-        const isModelComponentPicker = state.componentPickerSource === 'model-component';
+        const isModelComponentPicker = state.componentPickerSource === 'model-component' || state.componentPickerSource === 'model-component-row';
         const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker;
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getComponentCards();
@@ -3052,6 +3063,7 @@ const ProductLibraryModule = {
                         code: String(block?.code || fallbackCode || '').trim().toUpperCase()
                     };
                 };
+                const masterRefs = ProductLibraryModule.normalizeModelMasterRefs(row);
                 return {
                     id: String(row.id || ''),
                     orderIndex: index,
@@ -3061,14 +3073,8 @@ const ProductLibraryModule = {
                     variantCode: variantCodeRaw,
                     productName: String(row.productName || row.name || '').trim(),
                     productGroup: String(row.productGroup || row.group || '').trim(),
-                    masterRef: row.masterRef && typeof row.masterRef === 'object'
-                        ? {
-                            id: String(row.masterRef.id || '').trim(),
-                            code: String(row.masterRef.code || '').trim().toUpperCase(),
-                            name: String(row.masterRef.name || '').trim(),
-                            categoryName: String(row.masterRef.categoryName || '').trim()
-                        }
-                        : null,
+                    masterRefs,
+                    masterRef: masterRefs[0] || null,
                     items: (Array.isArray(row.items) ? row.items : [])
                         .map(item => ({
                             id: String(item?.id || crypto.randomUUID()),
@@ -3119,6 +3125,40 @@ const ProductLibraryModule = {
         return ProductLibraryModule.getCatalogProductVariants().find(row => String(row.id || '') === String(id || '')) || null;
     },
 
+    normalizeModelMasterRefs: (row = {}) => {
+        const raw = Array.isArray(row.masterRefs)
+            ? row.masterRefs
+            : (row.masterRef && typeof row.masterRef === 'object' ? [row.masterRef] : []);
+        return raw
+            .map((item) => ({
+                rowId: String(item?.rowId || item?.id || crypto.randomUUID()),
+                id: String(item?.id || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                categoryName: String(item?.categoryName || '').trim()
+            }))
+            .filter((item) => item.code);
+    },
+
+    getModelMasterRefs: (row = {}) => {
+        return ProductLibraryModule.normalizeModelMasterRefs(row);
+    },
+
+    syncModelDraftPrimaryMasterRef: () => {
+        const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? ProductLibraryModule.state.modelDraftMasterRefs
+            : [];
+        const first = rows.find((item) => String(item?.code || '').trim()) || null;
+        ProductLibraryModule.state.modelDraftMasterRef = first
+            ? {
+                id: String(first.id || '').trim(),
+                code: String(first.code || '').trim().toUpperCase(),
+                name: String(first.name || '').trim(),
+                categoryName: String(first.categoryName || '').trim()
+            }
+            : null;
+    },
+
     buildModelFileSignature: (files) => {
         return (Array.isArray(files) ? files : [])
             .map(file => `${String(file?.name || '').trim().toLowerCase()}|${Number(file?.size || 0)}|${String(file?.data || '').slice(0, 120)}`)
@@ -3127,6 +3167,9 @@ const ProductLibraryModule = {
 
     buildModelVariantSignature: (row = {}) => {
         const colors = row.colors || {};
+        const masterCodes = ProductLibraryModule.getModelMasterRefs(row)
+            .map((item) => ProductLibraryModule.normalizeAsciiUpper(item.code || ''))
+            .join('|');
         return [
             ProductLibraryModule.normalizeAsciiUpper(row.productName || ''),
             ProductLibraryModule.normalizeAsciiUpper(row.productGroup || ''),
@@ -3136,7 +3179,7 @@ const ProductLibraryModule = {
             ProductLibraryModule.normalizeAsciiUpper(colors.accessory?.name || ''),
             ProductLibraryModule.normalizeColorType(colors.tube?.type || ''),
             ProductLibraryModule.normalizeAsciiUpper(colors.tube?.name || ''),
-            ProductLibraryModule.normalizeAsciiUpper(row.masterRef?.code || ''),
+            masterCodes,
             (Array.isArray(row.items) ? row.items : []).map(item => `${String(item?.source || '')}:${ProductLibraryModule.normalizeAsciiUpper(item?.code || '')}`).join('|'),
             ProductLibraryModule.normalizeAsciiUpper(row.montageCard?.cardCode || ''),
             ProductLibraryModule.normalizeAsciiUpper(row.note || ''),
@@ -3209,12 +3252,15 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelDraftTubeColorType = '';
         ProductLibraryModule.state.modelDraftTubeColor = '';
         ProductLibraryModule.state.modelDraftTubeColorCode = '';
+        ProductLibraryModule.state.modelDraftMasterRefs = [];
         ProductLibraryModule.state.modelDraftMasterRef = null;
         ProductLibraryModule.state.modelDraftItems = [];
         ProductLibraryModule.state.modelDraftMontageCard = null;
         ProductLibraryModule.state.modelDraftProductFiles = [];
         ProductLibraryModule.state.modelDraftExplodedFiles = [];
         ProductLibraryModule.state.modelDraftNote = '';
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
         UI.renderCurrentPage();
         setTimeout(() => document.getElementById('model_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
     },
@@ -3237,12 +3283,15 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelDraftTubeColorType = '';
         ProductLibraryModule.state.modelDraftTubeColor = '';
         ProductLibraryModule.state.modelDraftTubeColorCode = '';
+        ProductLibraryModule.state.modelDraftMasterRefs = [];
         ProductLibraryModule.state.modelDraftMasterRef = null;
         ProductLibraryModule.state.modelDraftItems = [];
         ProductLibraryModule.state.modelDraftMontageCard = null;
         ProductLibraryModule.state.modelDraftProductFiles = [];
         ProductLibraryModule.state.modelDraftExplodedFiles = [];
         ProductLibraryModule.state.modelDraftNote = '';
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
         ProductLibraryModule.state.modelFormOpen = !close;
         UI.renderCurrentPage();
     },
@@ -3268,12 +3317,16 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelDraftTubeColorType = String(row.colors?.tube?.type || '');
         ProductLibraryModule.state.modelDraftTubeColor = String(row.colors?.tube?.name || '');
         ProductLibraryModule.state.modelDraftTubeColorCode = String(row.colors?.tube?.code || '');
-        ProductLibraryModule.state.modelDraftMasterRef = row.masterRef ? { ...row.masterRef } : null;
+        ProductLibraryModule.state.modelDraftMasterRefs = ProductLibraryModule.getModelMasterRefs(row)
+            .map((item) => ({ ...item }));
+        ProductLibraryModule.syncModelDraftPrimaryMasterRef();
         ProductLibraryModule.state.modelDraftItems = Array.isArray(row.items) ? row.items.map(item => ({ ...item })) : [];
         ProductLibraryModule.state.modelDraftMontageCard = row.montageCard ? { ...row.montageCard } : null;
         ProductLibraryModule.state.modelDraftProductFiles = Array.isArray(row.productFiles) ? row.productFiles.map(file => ({ ...file })) : [];
         ProductLibraryModule.state.modelDraftExplodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles.map(file => ({ ...file })) : [];
         ProductLibraryModule.state.modelDraftNote = String(row.note || '');
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
         UI.renderCurrentPage();
         setTimeout(() => document.getElementById('model_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
     },
@@ -3392,8 +3445,39 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    openModelMasterPicker: () => {
-        ProductLibraryModule.state.masterPickerSource = 'model-master';
+    addModelMasterDraftRow: (openPicker = false) => {
+        const rowId = crypto.randomUUID();
+        const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? [...ProductLibraryModule.state.modelDraftMasterRefs]
+            : [];
+        rows.push({
+            rowId,
+            id: '',
+            code: '',
+            name: '',
+            categoryName: ''
+        });
+        ProductLibraryModule.state.modelDraftMasterRefs = rows;
+        ProductLibraryModule.syncModelDraftPrimaryMasterRef();
+        if (openPicker) {
+            ProductLibraryModule.openModelMasterPicker(rowId);
+            return;
+        }
+        UI.renderCurrentPage();
+    },
+
+    removeModelMasterDraftRow: (rowId) => {
+        const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? ProductLibraryModule.state.modelDraftMasterRefs
+            : [];
+        ProductLibraryModule.state.modelDraftMasterRefs = rows.filter((row) => String(row?.rowId || '') !== String(rowId || ''));
+        ProductLibraryModule.syncModelDraftPrimaryMasterRef();
+        UI.renderCurrentPage();
+    },
+
+    openModelMasterPicker: (rowId = '') => {
+        ProductLibraryModule.state.masterPickerSource = 'model-master-row';
+        ProductLibraryModule.state.modelMasterPickerRowId = String(rowId || '').trim();
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.masterFormOpen = false;
         ProductLibraryModule.state.masterEditingId = null;
@@ -3401,51 +3485,105 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
-    selectModelMaster: (id) => {
+    selectModelMaster: (id, rowId = '') => {
         const row = ProductLibraryModule.getMasterProductById(id);
         if (!row) return;
-        ProductLibraryModule.state.modelDraftMasterRef = {
+        const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? [...ProductLibraryModule.state.modelDraftMasterRefs]
+            : [];
+        const nextRowId = String(rowId || ProductLibraryModule.state.modelMasterPickerRowId || '').trim() || crypto.randomUUID();
+        const duplicate = rows.find((item) =>
+            String(item?.code || '').trim().toUpperCase() === String(row.code || '').trim().toUpperCase() &&
+            String(item?.rowId || '') !== nextRowId
+        );
+        if (duplicate) {
+            alert('Bu master urun zaten listede var.');
+            return;
+        }
+        const nextRow = {
+            rowId: nextRowId,
             id: String(row.id || ''),
             code: String(row.code || '').trim().toUpperCase(),
             name: String(row.name || '').trim(),
             categoryName: String(row.categoryName || '').trim()
         };
+        const idx = rows.findIndex((item) => String(item?.rowId || '') === nextRowId);
+        if (idx >= 0) rows[idx] = nextRow;
+        else rows.push(nextRow);
+        ProductLibraryModule.state.modelDraftMasterRefs = rows;
+        ProductLibraryModule.syncModelDraftPrimaryMasterRef();
         ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
         ProductLibraryModule.state.workspaceView = 'models';
         ProductLibraryModule.state.modelFormOpen = true;
         ProductLibraryModule.state.modelViewingId = null;
         UI.renderCurrentPage();
     },
 
-    clearModelMaster: () => {
-        ProductLibraryModule.state.modelDraftMasterRef = null;
+    clearModelMaster: (rowId = '') => {
+        if (rowId) {
+            ProductLibraryModule.removeModelMasterDraftRow(rowId);
+            return;
+        }
+        ProductLibraryModule.state.modelDraftMasterRefs = [];
+        ProductLibraryModule.syncModelDraftPrimaryMasterRef();
         UI.renderCurrentPage();
     },
 
-    openModelComponentPicker: () => {
+    addModelComponentDraftRow: (openPicker = false) => {
+        const rowId = crypto.randomUUID();
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? [...ProductLibraryModule.state.modelDraftItems] : [];
+        items.push({
+            id: rowId,
+            source: 'component',
+            refId: '',
+            code: '',
+            name: ''
+        });
+        ProductLibraryModule.state.modelDraftItems = items;
+        if (openPicker) {
+            ProductLibraryModule.openModelComponentPicker(rowId);
+            return;
+        }
+        UI.renderCurrentPage();
+    },
+
+    openModelComponentPicker: (rowId = '') => {
         ProductLibraryModule.state.masterPickerSource = '';
-        ProductLibraryModule.state.componentPickerSource = 'model-component';
+        ProductLibraryModule.state.componentPickerSource = 'model-component-row';
+        ProductLibraryModule.state.modelComponentPickerRowId = String(rowId || '').trim();
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentFormOpen = false;
         ProductLibraryModule.state.workspaceView = 'components';
         UI.renderCurrentPage();
     },
 
-    addModelDraftComponent: (id, render = true) => {
+    addModelDraftComponent: (id, render = true, rowId = '') => {
         const row = ProductLibraryModule.getComponentCardById(id);
         if (!row) return false;
-        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
-        if (items.some(item => String(item?.code || '') === String(row.code || '').trim().toUpperCase())) {
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? [...ProductLibraryModule.state.modelDraftItems] : [];
+        const nextRowId = String(rowId || '').trim();
+        if (items.some(item =>
+            String(item?.code || '') === String(row.code || '').trim().toUpperCase() &&
+            String(item?.id || '') !== nextRowId
+        )) {
             alert('Bu parca zaten secili.');
             return false;
         }
-        items.push({
-            id: crypto.randomUUID(),
+        const nextItem = {
+            id: nextRowId || crypto.randomUUID(),
             source: 'component',
             refId: String(row.id || ''),
             code: String(row.code || '').trim().toUpperCase(),
             name: String(row.name || '').trim()
-        });
+        };
+        if (nextRowId) {
+            const idx = items.findIndex((item) => String(item?.id || '') === nextRowId);
+            if (idx >= 0) items[idx] = nextItem;
+            else items.push(nextItem);
+        } else {
+            items.push(nextItem);
+        }
         ProductLibraryModule.state.modelDraftItems = items;
         if (render) UI.renderCurrentPage();
         return true;
@@ -3505,9 +3643,14 @@ const ProductLibraryModule = {
     },
 
     selectModelComponent: (id) => {
-        const added = ProductLibraryModule.addModelDraftComponent(id, false);
+        const source = String(ProductLibraryModule.state.componentPickerSource || '');
+        const rowId = source === 'model-component-row'
+            ? String(ProductLibraryModule.state.modelComponentPickerRowId || '').trim()
+            : '';
+        const added = ProductLibraryModule.addModelDraftComponent(id, false, rowId);
         if (!added) return;
         ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
         ProductLibraryModule.state.workspaceView = 'models';
         ProductLibraryModule.state.modelFormOpen = true;
         ProductLibraryModule.state.modelViewingId = null;
@@ -3694,7 +3837,15 @@ const ProductLibraryModule = {
                 accessory: ProductLibraryModule.getModelColorDraftValue('accessory'),
                 tube: ProductLibraryModule.getModelColorDraftValue('tube')
             },
-            masterRef: ProductLibraryModule.state.modelDraftMasterRef ? { ...ProductLibraryModule.state.modelDraftMasterRef } : null,
+            masterRefs: (Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs) ? ProductLibraryModule.state.modelDraftMasterRefs : [])
+                .map((item) => ({
+                    rowId: String(item?.rowId || crypto.randomUUID()),
+                    id: String(item?.id || '').trim(),
+                    code: String(item?.code || '').trim().toUpperCase(),
+                    name: String(item?.name || '').trim(),
+                    categoryName: String(item?.categoryName || '').trim()
+                }))
+                .filter((item) => item.code),
             items: (Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [])
                 .map(item => ({
                     id: String(item?.id || crypto.randomUUID()),
@@ -3772,7 +3923,14 @@ const ProductLibraryModule = {
             variantCode = variantCode || `${familyCode}-V01`;
         }
 
-        const normalizedRow = { ...draft, familyId, familyCode, familyName, variantCode };
+        const normalizedRow = {
+            ...draft,
+            familyId,
+            familyCode,
+            familyName,
+            variantCode,
+            masterRef: (Array.isArray(draft.masterRefs) ? draft.masterRefs[0] : null) || null
+        };
         const duplicate = ProductLibraryModule.findDuplicateModelVariant(normalizedRow, asVariant ? '' : editingId);
         if (duplicate) return alert(`Bu varyant zaten mevcut. Varyant ID: ${duplicate.variantCode || '-'}`);
 
@@ -3791,6 +3949,7 @@ const ProductLibraryModule = {
                 variantCode,
                 productName: normalizedRow.productName,
                 productGroup: normalizedRow.productGroup,
+                masterRefs: normalizedRow.masterRefs,
                 masterRef: normalizedRow.masterRef,
                 items: normalizedRow.items,
                 montageCard: normalizedRow.montageCard,
@@ -3811,6 +3970,7 @@ const ProductLibraryModule = {
                 variantCode,
                 productName: normalizedRow.productName,
                 productGroup: normalizedRow.productGroup,
+                masterRefs: normalizedRow.masterRefs,
                 masterRef: normalizedRow.masterRef,
                 items: normalizedRow.items,
                 montageCard: normalizedRow.montageCard,
@@ -3844,6 +4004,7 @@ const ProductLibraryModule = {
 
     renderModelVariantView: (container, row) => {
         const colors = row.colors || {};
+        const masterRows = ProductLibraryModule.getModelMasterRefs(row);
         const componentRows = Array.isArray(row.items) ? row.items : [];
         const productFiles = Array.isArray(row.productFiles) ? row.productFiles : [];
         const explodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles : [];
@@ -3872,20 +4033,13 @@ const ProductLibraryModule = {
                         <div><div style="font-size:0.72rem; color:#64748b;">aksesuar rengi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(colors.accessory?.name || '-')}</div></div>
                         <div><div style="font-size:0.72rem; color:#64748b;">boru rengi</div><div style="font-weight:700;">${ProductLibraryModule.escapeHtml(colors.tube?.name || '-')}</div></div>
                     </div>
-                    <div style="margin-top:1rem;">
-                        <div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kodu</div>
-                        <div style="display:flex; align-items:center; gap:0.65rem; flex-wrap:wrap;">
-                            <div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</div>
-                            <div style="font-weight:600; color:#475569;">${ProductLibraryModule.escapeHtml(row.masterRef?.name || '-')}</div>
-                        </div>
-                    </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:minmax(0,1.5fr) minmax(360px,0.95fr); gap:1rem; align-items:start;">
                     <div class="card-table" style="padding:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.65rem;">
                             <strong>Secilen Kalemler</strong>
-                            <span style="font-size:0.8rem; color:#64748b;">Toplam: ${componentRows.length + (row.masterRef ? 1 : 0)}</span>
+                            <span style="font-size:0.8rem; color:#64748b;">Toplam: ${componentRows.length + masterRows.length}</span>
                         </div>
                         <table style="width:100%; border-collapse:collapse;">
                             <thead>
@@ -3898,20 +4052,20 @@ const ProductLibraryModule = {
                                 </tr>
                             </thead>
                             <tbody>
-                                ${row.masterRef ? `
+                                ${masterRows.map((item, idx) => `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
-                                        <td style="padding:0.45rem;">1</td>
+                                        <td style="padding:0.45rem;">${idx + 1}</td>
                                         <td style="padding:0.45rem;">Master</td>
-                                        <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(row.masterRef?.name || '-')}</td>
-                                        <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getModelMasterColorLabel(row.masterRef))}</td>
-                                        <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.masterRef?.code || '-')}</td>
+                                        <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</td>
+                                        <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getModelMasterColorLabel(item))}</td>
+                                        <td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</td>
                                     </tr>
-                                ` : ''}
-                                ${componentRows.length === 0 ? `
+                                `).join('')}
+                                ${componentRows.length === 0 && masterRows.length === 0 ? `
                                     <tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Parca/bilesen secilmedi.</td></tr>
                                 ` : componentRows.map((item, idx) => `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
-                                        <td style="padding:0.45rem;">${idx + (row.masterRef ? 2 : 1)}</td>
+                                        <td style="padding:0.45rem;">${idx + masterRows.length + 1}</td>
                                         <td style="padding:0.45rem;">Parca</td>
                                         <td style="padding:0.45rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
                                         <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getModelComponentColorLabel(item))}</td>
@@ -4035,29 +4189,43 @@ const ProductLibraryModule = {
                 `;
             }).join('');
 
-        const masterRef = state.modelDraftMasterRef;
+        const masterRows = Array.isArray(state.modelDraftMasterRefs) ? state.modelDraftMasterRefs : [];
         const componentItems = Array.isArray(state.modelDraftItems) ? state.modelDraftItems : [];
         const productFiles = ProductLibraryModule.getModelDraftFiles('product');
         const explodedFiles = ProductLibraryModule.getModelDraftFiles('exploded');
         const montageCard = state.modelDraftMontageCard;
-        const selectedRows = [
-            ...(masterRef ? [{
-                id: `master-${masterRef.id || masterRef.code}`,
-                source: 'Master',
-                name: masterRef.name || '-',
-                code: masterRef.code || '-',
-                linkedType: 'master',
-                linkedId: String(masterRef.id || '').trim()
-            }] : []),
-            ...componentItems.map(item => ({
-                id: item.id,
-                source: 'Parca',
-                name: item.name || '-',
-                code: item.code || '-',
-                linkedType: 'component',
-                linkedId: String(item.refId || '').trim()
-            }))
-        ];
+        const renderModelMasterDraftRows = () => {
+            if (masterRows.length === 0) {
+                return '<div style="padding:0.8rem; border:1px dashed #cbd5e1; border-radius:0.7rem; color:#94a3b8;">Henuz master urun baglanmadi.</div>';
+            }
+            return masterRows.map((row, idx) => `
+                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 82px; gap:0.45rem; align-items:center;">
+                    <div style="font-weight:800; color:#475569;">${idx + 1}</div>
+                    <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
+                        <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(row?.code || 'master secilmedi')}</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(row?.name || 'Master urun secmek icin goruntule butonunu kullanin.')}</div>
+                    </div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">goruntule</button>
+                    <button class="btn-sm" onclick="ProductLibraryModule.removeModelMasterDraftRow('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">sil</button>
+                </div>
+            `).join('');
+        };
+        const renderModelComponentDraftRows = () => {
+            if (componentItems.length === 0) {
+                return '<div style="padding:0.8rem; border:1px dashed #cbd5e1; border-radius:0.7rem; color:#94a3b8;">Henuz parca / bilesen baglanmadi.</div>';
+            }
+            return componentItems.map((item, idx) => `
+                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 82px; gap:0.45rem; align-items:center;">
+                    <div style="font-weight:800; color:#475569;">${idx + 1}</div>
+                    <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
+                        <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(item?.code || 'parca secilmedi')}</div>
+                        <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(item?.name || 'Parca secmek icin goruntule butonunu kullanin.')}</div>
+                    </div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">goruntule</button>
+                    <button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">sil</button>
+                </div>
+            `).join('');
+        };
 
         container.innerHTML = `
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
@@ -4099,9 +4267,30 @@ const ProductLibraryModule = {
                                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">ID kod</label><input disabled value="${ProductLibraryModule.escapeHtml(state.modelDraftVariantCode || '-')}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;"></div>
                                 </div>
                                 <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.7rem;">${ProductLibraryModule.renderModelColorField('plexi')}${ProductLibraryModule.renderModelColorField('accessory')}${ProductLibraryModule.renderModelColorField('tube')}</div>
-                                <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">master urun kutuphanesi hammadde ID kodu</label><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(masterRef?.code || '')}" placeholder="master secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMasterPicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMaster()" style="height:40px; min-width:80px;">sil</button></div></div>
-                                <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">parca ve bilesen ID kodlari</label><div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem;"><input readonly value="${ProductLibraryModule.escapeHtml(componentItems.map(item => item.code).join(', '))}" placeholder="parca/bilesen secimi yok" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelComponentPicker()" style="height:40px; min-width:110px;">goruntule</button></div></div>
-                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.45rem;"><strong style="font-size:0.92rem;">Secilen Kalemler</strong><span style="font-size:0.8rem; color:#64748b;">Toplam: ${selectedRows.length}</span></div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.55rem;">Patlatilmis resimdeki parca numara sirasina gore kalem ekleyin.</div><table style="width:100%; border-collapse:collapse;"><thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;"><th style="padding:0.45rem; text-align:left;">Sira</th><th style="padding:0.45rem; text-align:left;">Kaynak</th><th style="padding:0.45rem; text-align:left;">Urun</th><th style="padding:0.45rem; text-align:left;">ID kod</th><th style="padding:0.45rem; text-align:right;">Islem</th></tr></thead><tbody>${selectedRows.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : selectedRows.map((item, idx) => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.45rem;">${idx + 1}</td><td style="padding:0.45rem;">${item.source}</td><td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td><td style="padding:0.45rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(item.code || '-')}</td><td style="padding:0.45rem; text-align:right;">${item.linkedId ? `<div style="display:flex; gap:0.3rem; justify-content:flex-end;"><button class="btn-sm" onclick='ProductLibraryModule.openModelDraftLinkedRecord(${JSON.stringify(item.linkedType)}, ${JSON.stringify(item.linkedId)}, "view")'>goruntule</button><button class="btn-sm" onclick='ProductLibraryModule.openModelDraftLinkedRecord(${JSON.stringify(item.linkedType)}, ${JSON.stringify(item.linkedId)}, "edit")'>duzenle</button></div>` : '<span style="color:#94a3b8;">-</span>'}</td></tr>`).join('')}</tbody></table></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.55rem;">
+                                        <div>
+                                            <strong style="font-size:0.92rem;">Master Urun Kutuphanesi</strong>
+                                            <div style="font-size:0.78rem; color:#64748b; margin-top:0.18rem;">Bu varyanta baglanacak master urunleri satir bazinda secin.</div>
+                                        </div>
+                                        <button class="btn-primary" onclick="ProductLibraryModule.addModelMasterDraftRow(true)" style="height:40px;">master urun ekle +</button>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                        ${renderModelMasterDraftRows()}
+                                    </div>
+                                </div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.55rem;">
+                                        <div>
+                                            <strong style="font-size:0.92rem;">Parca ve Bilesen Baglantilari</strong>
+                                            <div style="font-size:0.78rem; color:#64748b; margin-top:0.18rem;">Patlatilmis resimdeki parca numara sirasina gore satir ekleyin.</div>
+                                        </div>
+                                        <button class="btn-primary" onclick="ProductLibraryModule.addModelComponentDraftRow(true)" style="height:40px;">parca bilesen ekle +</button>
+                                    </div>
+                                    <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                        ${renderModelComponentDraftRows()}
+                                    </div>
+                                </div>
                             </div>
                             <div style="display:grid; gap:0.9rem;">
                                 <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
@@ -4529,7 +4718,7 @@ const ProductLibraryModule = {
         const selectedId = state.masterSelectedId;
         const isComponentPicker = state.masterPickerSource === 'component';
         const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
-        const isModelMasterPicker = state.masterPickerSource === 'model-master';
+        const isModelMasterPicker = state.masterPickerSource === 'model-master' || state.masterPickerSource === 'model-master-row';
         const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker;
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
@@ -5097,17 +5286,9 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.state.componentFormOpen = true;
             ProductLibraryModule.state.masterPickerSource = '';
-        } else if (ProductLibraryModule.state.masterPickerSource === 'model-master') {
-            ProductLibraryModule.state.modelDraftMasterRef = {
-                id: String(record.id || ''),
-                code: String(record.code || '').trim().toUpperCase(),
-                name: String(record.name || '').trim(),
-                categoryName: String(record.categoryName || '').trim()
-            };
-            ProductLibraryModule.state.masterPickerSource = '';
-            ProductLibraryModule.state.workspaceView = 'models';
-            ProductLibraryModule.state.modelFormOpen = true;
-            ProductLibraryModule.state.modelViewingId = null;
+        } else if (ProductLibraryModule.state.masterPickerSource === 'model-master' || ProductLibraryModule.state.masterPickerSource === 'model-master-row') {
+            ProductLibraryModule.selectModelMaster(id, ProductLibraryModule.state.modelMasterPickerRowId);
+            return;
         } else if (ProductLibraryModule.state.masterPickerSource === 'assembly-master') {
             const added = ProductLibraryModule.addAssemblyDraftItem('master', record.id);
             if (!added) return;
@@ -5122,13 +5303,22 @@ const ProductLibraryModule = {
 
     cancelMasterPicker: () => {
         const src = String(ProductLibraryModule.state.masterPickerSource || '');
+        const pendingRowId = String(ProductLibraryModule.state.modelMasterPickerRowId || '').trim();
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
         if (src === 'assembly-master') {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;
             ProductLibraryModule.state.assemblyViewingId = null;
-        } else if (src === 'model-master') {
+        } else if (src === 'model-master' || src === 'model-master-row') {
+            if (src === 'model-master-row' && pendingRowId) {
+                const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs) ? ProductLibraryModule.state.modelDraftMasterRefs : [];
+                ProductLibraryModule.state.modelDraftMasterRefs = rows.filter((row) =>
+                    String(row?.rowId || '') !== pendingRowId || String(row?.code || '').trim()
+                );
+                ProductLibraryModule.syncModelDraftPrimaryMasterRef();
+            }
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
             ProductLibraryModule.state.modelViewingId = null;

@@ -67,6 +67,7 @@ const ProductLibraryModule = {
         componentViewingId: null,
         componentViewPreviewIndex: 0,
         componentViewReturnContext: null,
+        assemblyViewReturnContext: null,
         componentDraftCode: '',
         componentDraftName: '',
         componentDraftGroup: '',
@@ -166,6 +167,13 @@ const ProductLibraryModule = {
         }
         if (String(ProductLibraryModule.state.workspaceView || '') === 'components' && nextView !== 'components') {
             ProductLibraryModule.state.componentCategoryExpanded = {};
+        }
+        if (nextView === 'components') {
+            ProductLibraryModule.state.componentCategoryExpanded = {};
+            ProductLibraryModule.state.assemblyViewReturnContext = null;
+        }
+        if (nextView === 'assembly') {
+            ProductLibraryModule.state.assemblyViewReturnContext = null;
         }
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
@@ -2406,16 +2414,74 @@ const ProductLibraryModule = {
     openAssemblyGroupView: (id) => {
         ProductLibraryModule.state.assemblyViewingId = String(id || '');
         ProductLibraryModule.state.assemblyFormOpen = false;
+        ProductLibraryModule.state.assemblyViewReturnContext = null;
         UI.renderCurrentPage();
     },
 
     closeAssemblyGroupView: () => {
         ProductLibraryModule.state.assemblyViewingId = null;
+        const returnCtx = ProductLibraryModule.state.assemblyViewReturnContext;
+        ProductLibraryModule.state.assemblyViewReturnContext = null;
+        if (returnCtx?.source === 'components') {
+            ProductLibraryModule.state.workspaceView = 'components';
+            UI.renderCurrentPage();
+            return;
+        }
         UI.renderCurrentPage();
     },
 
     selectAssemblyGroup: (id) => {
+        const isModelComponentPick = String(ProductLibraryModule.state.componentPickerSource || '').startsWith('model-component');
+        if (isModelComponentPick) {
+            ProductLibraryModule.addAssemblyGroupToModelDraft(id);
+            return;
+        }
         ProductLibraryModule.state.assemblySelectedId = String(id || '');
+        UI.renderCurrentPage();
+    },
+
+    addAssemblyGroupToModelDraft: (groupId) => {
+        const group = ProductLibraryModule.getAssemblyGroupById(groupId);
+        if (!group) return alert('Parca grup kaydi bulunamadi.');
+        const items = Array.isArray(group.items) ? group.items : [];
+        if (items.length === 0) return alert('Bu parca grupta kalem yok.');
+
+        const modelItems = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? [...ProductLibraryModule.state.modelDraftItems] : [];
+        const targetRowId = String(ProductLibraryModule.state.modelComponentPickerRowId || '').trim();
+
+        // Eger model formdan geldiysek bos placeholder satiri kaldir
+        const cleaned = targetRowId
+            ? modelItems.filter(item => String(item?.id || '') !== targetRowId)
+            : modelItems;
+
+        const pushComponent = (refRow, source) => {
+            if (!refRow) return;
+            const code = String(refRow.code || '').trim().toUpperCase();
+            if (cleaned.some(i => String(i.code || '') === code)) return; // tekrar ekleme
+            cleaned.push({
+                id: crypto.randomUUID(),
+                source,
+                refId: String(refRow.id || ''),
+                code,
+                name: String(refRow.name || '').trim()
+            });
+        };
+
+        items.forEach(item => {
+            if (item.source === 'component') {
+                const comp = ProductLibraryModule.getComponentCardById(item.refId);
+                pushComponent(comp, 'component');
+            } else if (item.source === 'master') {
+                const master = ProductLibraryModule.getMasterProductById(item.refId);
+                pushComponent(master, 'master');
+            }
+        });
+
+        ProductLibraryModule.state.modelDraftItems = cleaned;
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
+        ProductLibraryModule.state.workspaceView = 'models';
+        ProductLibraryModule.state.componentViewingId = null;
         UI.renderCurrentPage();
     },
 
@@ -2423,12 +2489,14 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.workspaceView = 'assembly';
         ProductLibraryModule.state.assemblyViewingId = String(id || '');
         ProductLibraryModule.state.assemblyFormOpen = false;
+        ProductLibraryModule.state.assemblyViewReturnContext = { source: 'components' };
         UI.renderCurrentPage();
     },
 
     startEditAssemblyGroupFromComponents: (id) => {
         ProductLibraryModule.state.workspaceView = 'assembly';
         ProductLibraryModule.startEditAssemblyGroup(id);
+        ProductLibraryModule.state.assemblyViewReturnContext = { source: 'components' };
     },
 
     setAssemblyDraftItemQty: (code, value) => {

@@ -13,7 +13,8 @@ const MontageLibraryModule = {
         draftExplodedDrawing: null,
         draftComponentIds: [],
         draftComponentInput: '',
-        draftNote: ''
+        draftNote: '',
+        pickerContext: null
     },
 
     resetState: () => {
@@ -31,6 +32,7 @@ const MontageLibraryModule = {
         MontageLibraryModule.state.draftComponentIds = [];
         MontageLibraryModule.state.draftComponentInput = '';
         MontageLibraryModule.state.draftNote = '';
+        MontageLibraryModule.state.pickerContext = null;
     },
 
     ensureData: () => {
@@ -96,6 +98,27 @@ const MontageLibraryModule = {
 
     selectRow: (rowId) => {
         MontageLibraryModule.state.selectedId = rowId;
+        const ctx = MontageLibraryModule.state.pickerContext;
+        const row = (DB.data?.data?.montageCards || []).find(x => x.id === rowId);
+        if (ctx?.source === 'model' && row) {
+            if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
+                ProductLibraryModule.state.modelDraftMontageCard = {
+                    id: row.id,
+                    cardCode: row.cardCode,
+                    productCode: row.productCode,
+                    productName: row.productName
+                };
+                ProductLibraryModule.state.workspaceView = 'models';
+                ProductLibraryModule.state.modelFormOpen = true;
+                ProductLibraryModule.state.modelViewingId = null;
+            }
+            MontageLibraryModule.state.pickerContext = null;
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('products', { fromBack: true });
+            }
+            UI.renderCurrentPage();
+            return;
+        }
         UI.renderCurrentPage();
     },
 
@@ -522,6 +545,10 @@ const MontageLibraryModule = {
             return nameOk && codeOk && idOk;
         });
 
+        const picker = MontageLibraryModule.state.pickerContext;
+        const pickerSelectedId = picker?.source === 'model'
+            ? (ProductLibraryModule?.state?.modelDraftMontageCard?.id || '')
+            : MontageLibraryModule.state.selectedId;
         const showForm = MontageLibraryModule.state.formOpen || !!MontageLibraryModule.state.editingId;
         const activeCode = MontageLibraryModule.state.draftCardCode || MontageLibraryModule.getNextCardCode();
         const canDelete = UnitModule.isSuperAdmin();
@@ -544,6 +571,7 @@ const MontageLibraryModule = {
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    ${picker ? `<div style="background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; border-radius:0.75rem; padding:0.55rem 0.7rem; font-weight:700; margin-bottom:0.65rem;">Montaj karti secim modundasin. Kart secince ${picker.source === 'model' ? 'urun modeli formuna' : 'ilgili ekrana'} geri donecektir.</div>` : ''}
                     <div style="display:flex; gap:0.65rem; margin-bottom:0.8rem; flex-wrap:wrap;">
                         <input id="montage_search_name" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchName || '')}" oninput="MontageLibraryModule.setSearch('name', this.value, 'montage_search_name')" placeholder="isim ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
                         <input id="montage_search_code" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchCode || '')}" oninput="MontageLibraryModule.setSearch('code', this.value, 'montage_search_code')" placeholder="kod ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
@@ -563,13 +591,13 @@ const MontageLibraryModule = {
                             </thead>
                             <tbody>
                                 ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(MontageLibraryModule.state.selectedId === row.id)}">
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(pickerSelectedId === row.id)}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.productCode || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;"><button onclick="MontageLibraryModule.previewRow('${row.id}')" class="btn-sm" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8;">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.startEdit('${row.id}')" class="btn-sm">duzenle</button></td>
-                                        <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(MontageLibraryModule.state.selectedId === row.id)}">sec</button></td>
+                                        <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(pickerSelectedId === row.id)}">sec</button></td>
                                     </tr>
                                 `).join('')}
                             </tbody>

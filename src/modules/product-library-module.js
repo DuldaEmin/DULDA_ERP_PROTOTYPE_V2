@@ -3950,21 +3950,18 @@ const ProductLibraryModule = {
     },
 
     openModelMontagePicker: () => {
-        const rows = ProductLibraryModule.getModelMontageCardOptions();
-        Modal.open('Montaj Islem Karti', `
-            <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:70vh; overflow:auto;">
-                ${rows.length === 0 ? '<div style="color:#94a3b8; text-align:center; padding:1rem;">Kayitli montaj karti yok.</div>' : rows.map(row => `
-                    <div style="display:grid; grid-template-columns:1.4fr 170px 110px; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
-                        <div>
-                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.productName || '-')}</div>
-                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.productCode || '-')}</div>
-                        </div>
-                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(row.cardCode || '-')}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.selectModelMontageCard('${row.id}')">ekle</button>
-                    </div>
-                `).join('')}
-            </div>
-        `, { maxWidth: '860px' });
+        const unitId = UnitModule?.state?.activeUnitId || 'u3';
+        if (typeof MontageLibraryModule !== 'undefined') {
+            MontageLibraryModule.state.pickerContext = { source: 'model' };
+        }
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.openMontageLibrary === 'function') {
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('units', { fromBack: true });
+            }
+            UnitModule.openMontageLibrary(unitId);
+        } else {
+            alert('Montaj kutuphanesi acilamadi.');
+        }
     },
 
     selectModelMontageCard: (id) => {

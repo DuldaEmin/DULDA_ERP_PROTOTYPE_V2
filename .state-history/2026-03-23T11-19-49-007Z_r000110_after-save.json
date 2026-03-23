@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-23T11:21:34.458Z",
+    "updated_at": "2026-03-23T11:19:48.911Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -38,7 +38,7 @@
         "aluminyum babalar"
       ]
     },
-    "revision": 112
+    "revision": 110
   },
   "data": {
     "products": [
@@ -464,12 +464,12 @@
         "updated_at": "2026-03-23T11:07:59.705Z"
       },
       {
-        "id": "746492ef-2cf0-4c52-96d9-b9a35031a94c",
-        "categoryId": "cat3",
-        "category": "Hırdavat & Vida",
+        "id": "9f76892e-5708-40ce-9f42-d52990ff2e60",
+        "categoryId": "cat1",
+        "category": "Alüminyum profil",
         "type": "MASTER",
         "name": "M16 pul",
-        "code": "VID0005",
+        "code": "ALM0003",
         "unitAmount": "",
         "unitAmountType": "adet",
         "suppliers": [],
@@ -497,10 +497,10 @@
           "suppliers": [],
           "supplierLinks": [],
           "supplierProductCode": "",
-          "note": "sıkmalı ankraj için"
+          "note": ""
         },
-        "created_at": "2026-03-23T11:21:34.458Z",
-        "updated_at": "2026-03-23T11:21:34.458Z"
+        "created_at": "2026-03-23T11:19:48.910Z",
+        "updated_at": "2026-03-23T11:19:48.910Z"
       }
     ],
     "customers": [],

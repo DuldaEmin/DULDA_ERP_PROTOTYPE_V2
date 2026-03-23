@@ -2097,36 +2097,6 @@ const ProductLibraryModule = {
                     </table>
                 </div>
 
-                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
-                        <div style="display:flex; align-items:center; gap:0.55rem;">
-                            <h3 style="margin:0; font-size:1.05rem; color:#334155;">Parca Gruplari</h3>
-                            <span style="font-size:0.82rem; color:#64748b;">(${assemblyRows.length})</span>
-                        </div>
-                        <div style="display:flex; gap:0.45rem;">
-                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()">yeni grup ekle +</button>
-                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly')">tumunu goruntule</button>
-                        </div>
-                    </div>
-                    <table style="width:100%; border-collapse:collapse;">
-                        <thead>
-                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
-                                <th style="padding:0.55rem; text-align:left;">parca grup</th>
-                                <th style="padding:0.55rem; text-align:center;">kalem</th>
-                                <th style="padding:0.55rem; text-align:left;">ID kod</th>
-                                <th style="padding:0.55rem; text-align:center;">goruntule</th>
-                                <th style="padding:0.55rem; text-align:center;">duzenle</th>
-                                <th style="padding:0.55rem; text-align:center;">sec</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${assemblyRows.length === 0
-                                ? '<tr><td colspan="6" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli parca grup yok.</td></tr>'
-                                : assemblyRows.map(renderAssemblyRow).join('')}
-                        </tbody>
-                    </table>
-                </div>
-
                 ${state.componentFormOpen && !isAssemblyComponentPicker ? `
                     <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">

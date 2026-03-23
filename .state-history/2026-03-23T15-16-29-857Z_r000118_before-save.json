@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-23T15:16:32.899Z",
+    "updated_at": "2026-03-23T13:23:38.903Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 120
+    "revision": 118
   },
   "data": {
     "products": [
@@ -1922,45 +1922,6 @@
         "sourceCode": "PLN-000003",
         "created_at": "2026-03-23T13:23:38.903Z",
         "updated_at": "2026-03-23T13:23:38.903Z"
-      },
-      {
-        "id": "9aee3aaa-713b-46c4-84cf-514a606e5e87",
-        "workOrderCode": "WO-000005",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "productCode": "DIKMELER",
-        "productName": "aluminyum dikme oluşturma",
-        "lotQty": 50,
-        "dueDate": "2026-03-26",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "21789f82-aa5f-46de-b591-d04d88e289ca",
-            "lineCode": "WO-000005-01",
-            "componentCode": "DIKMELER",
-            "componentName": "DIKMELER",
-            "multiplier": 1,
-            "targetQty": 50,
-            "routes": [
-              {
-                "id": "449b0a87-d228-47b0-8f21-f72aa37a048b",
-                "seq": 1,
-                "stationId": "u3",
-                "stationName": "MONTAJ",
-                "processId": ""
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_STOCK_MODEL",
-        "sourceId": "1d2c7915-5eec-46a3-9262-9261366e9cd1",
-        "sourceCode": "PLN-000004",
-        "created_at": "2026-03-23T15:16:32.899Z",
-        "updated_at": "2026-03-23T15:16:32.899Z"
       }
     ],
     "workOrderTransactions": [
@@ -3107,33 +3068,6 @@
         "workOrderId": "4ad4d89d-dce9-4a27-b3bb-d1237671a701",
         "workOrderCode": "WO-000004",
         "released_at": "2026-03-23T13:23:38.903Z"
-      },
-      {
-        "id": "1d2c7915-5eec-46a3-9262-9261366e9cd1",
-        "demandCode": "PLN-000004",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-23T15:16:29.702Z",
-        "itemType": "MODEL",
-        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-        "componentId": "",
-        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-        "variantCode": "URM-000001-V01",
-        "componentCode": "",
-        "productGroup": "Aluminyum Dikmeler",
-        "productName": "2008 bombeli aluminyum dikme",
-        "productCode": "DIKMELER",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "qty": 50,
-        "dueDate": "2026-03-26",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "updated_at": "2026-03-23T15:16:32.899Z",
-        "workOrderId": "9aee3aaa-713b-46c4-84cf-514a606e5e87",
-        "workOrderCode": "WO-000005",
-        "released_at": "2026-03-23T15:16:32.899Z"
       }
     ]
   }

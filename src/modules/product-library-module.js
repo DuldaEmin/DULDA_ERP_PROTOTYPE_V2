@@ -1385,6 +1385,13 @@ const ProductLibraryModule = {
                 return;
             }
         }
+        if (returnContext?.workspaceView === 'assembly') {
+            ProductLibraryModule.state.workspaceView = 'assembly';
+            ProductLibraryModule.state.assemblyFormOpen = true;
+            UI.renderCurrentPage();
+            setTimeout(() => document.getElementById('assembly_form_anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+            return;
+        }
         if (returnContext?.workspaceView === 'models') {
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
@@ -2379,6 +2386,42 @@ const ProductLibraryModule = {
         UI.renderCurrentPage();
     },
 
+    viewAssemblyDraftItem: (code) => {
+        const list = Array.isArray(ProductLibraryModule.state.assemblyDraftItems) ? ProductLibraryModule.state.assemblyDraftItems : [];
+        const row = list.find(item => String(item?.code || '') === String(code || ''));
+        if (!row) return alert('Kalem bulunamadi.');
+
+        if (row.source === 'component') {
+            const comp = ProductLibraryModule.getComponentCardById(row.refId);
+            if (!comp) return alert('Bagli parca/bilesen karti bulunamadi.');
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.openComponentCardView(comp.id, { workspaceView: 'assembly' });
+            return;
+        }
+
+        const master = ProductLibraryModule.getMasterProductById(row.refId);
+        if (!master) return alert('Bagli master urun kaydi bulunamadi.');
+
+        if (master?.attachment?.data || master?.previewPdf || master?.previewImage) {
+            ProductLibraryModule.previewMasterAttachment(master.id);
+            return;
+        }
+
+        const summaryHtml = `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(master.name || '-')}</div></div>
+                <div><div style="font-size:0.72rem; color:#64748b;">kategori</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(master.categoryName || '-')}</div></div>
+                <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-weight:700; font-family:monospace; color:#0f172a;">${ProductLibraryModule.escapeHtml(master.code || '-')}</div></div>
+                <div><div style="font-size:0.72rem; color:#64748b;">olcu / birim</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml([master.unitAmount, master.unitAmountType].filter(Boolean).join(' ') || master.unit || '-')}</div></div>
+                <div style="grid-column:1 / -1;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155; white-space:pre-wrap;">${ProductLibraryModule.escapeHtml(master.note || 'Not bulunmuyor.')}</div></div>
+            </div>`;
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.open === 'function') {
+            Modal.open('Master urun bilgisi', summaryHtml, { maxWidth: '520px' });
+        } else {
+            alert(`${master.name || 'Master urun'}\n${master.code || ''}`.trim());
+        }
+    },
+
     focusAssemblySource: (source = 'all') => {
         const nextSource = ['all', 'master', 'component'].includes(String(source || '')) ? String(source || '') : 'all';
         if (!ProductLibraryModule.state.assemblySourceFilters || typeof ProductLibraryModule.state.assemblySourceFilters !== 'object') {
@@ -2857,7 +2900,7 @@ const ProductLibraryModule = {
                 </div>
 
                 ${showForm ? `
-                    <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div id="assembly_form_anchor" class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.8rem;">
                             <h3 style="margin:0; font-size:1.3rem; color:#334155;">Parca grup olustur</h3>
                             <div style="display:flex; gap:0.5rem;">
@@ -2914,11 +2957,12 @@ const ProductLibraryModule = {
                                                 <th style="padding:0.45rem; text-align:left;">Urun</th>
                                                 <th style="padding:0.45rem; text-align:left;">ID kod</th>
                                                 <th style="padding:0.45rem; text-align:center;">Adet</th>
+                                                <th style="padding:0.45rem; text-align:center;">Goruntule</th>
                                                 <th style="padding:0.45rem; text-align:right;">Islem</th>
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${draftItems.length === 0 ? '<tr><td colspan="5" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : draftItems.map(item => `
+                                            ${draftItems.length === 0 ? '<tr><td colspan="6" style="padding:0.9rem; color:#94a3b8; text-align:center;">Kalem secilmedi.</td></tr>' : draftItems.map(item => `
                                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                                     <td style="padding:0.45rem;">${item.source === 'master' ? 'Master' : 'Parca'}</td>
                                                     <td style="padding:0.45rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(item.name || '-')}</td>
@@ -2926,6 +2970,7 @@ const ProductLibraryModule = {
                                                     <td style="padding:0.45rem; text-align:center;">
                                                         <input type="number" min="1" step="1" value="${Number(item.qty || 1)}" onchange="ProductLibraryModule.setAssemblyDraftItemQty('${ProductLibraryModule.escapeHtml(item.code || '')}', this.value)" style="width:80px; height:34px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; text-align:center;">
                                                     </td>
+                                                    <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.viewAssemblyDraftItem('${ProductLibraryModule.escapeHtml(item.code || '')}')">goruntule</button></td>
                                                     <td style="padding:0.45rem; text-align:right;"><button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyDraftItem('${ProductLibraryModule.escapeHtml(item.code || '')}')">sil</button></td>
                                                 </tr>
                                             `).join('')}

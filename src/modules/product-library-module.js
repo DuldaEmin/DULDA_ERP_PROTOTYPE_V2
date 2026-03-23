@@ -138,6 +138,12 @@ const ProductLibraryModule = {
         ProductLibraryModule.ensureComponentDefaults();
         ProductLibraryModule.ensureAssemblyDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
+        if (view === 'assembly') {
+            // Parça grup özelliği devre dışı: assembly görünümünü komponent listesine yönlendir.
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.renderComponentsPage(container);
+            return;
+        }
         if (view === 'master') {
             ProductLibraryModule.renderMasterPage(container);
             return;
@@ -162,7 +168,8 @@ const ProductLibraryModule = {
     },
 
     openWorkspace: (view) => {
-        const nextView = String(view || 'menu');
+        const candidate = String(view || 'menu');
+        const nextView = candidate === 'assembly' ? 'components' : candidate; // assembly devre dışı
         if (String(ProductLibraryModule.state.workspaceView || '') === 'models' && nextView !== 'models') {
             ProductLibraryModule.resetModelAccordionState();
         }
@@ -2066,19 +2073,18 @@ const ProductLibraryModule = {
                                         ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${qColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
                                     </select>
                                 </div>
-                                <div style="background:${qColorType ? 'white' : '#f8fafc'};">
-                                    <select id="cmp_filter_sub" ${qColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setComponentFilter('subGroup', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${qColorType ? '#111827' : '#94a3b8'};">
-                                        <option value="">renk sec</option>
-                                        ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${String(filters.subGroup || '') === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
-                                    </select>
-                                </div>
-                            </div>
+                        <div style="background:${qColorType ? 'white' : '#f8fafc'};">
+                            <select id="cmp_filter_sub" ${qColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setComponentFilter('subGroup', this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.55rem; font-weight:700; color:${qColorType ? '#111827' : '#94a3b8'};">
+                                <option value="">renk sec</option>
+                                ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.name || '')}" ${String(filters.subGroup || '') === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.name || '')}</option>`).join('')}
+                            </select>
                         </div>
-                        <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
-                        <button class="btn-primary" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : (isComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()')}" style="height:42px; min-width:135px;">${isComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
-                        <button class="btn-primary" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()" ${isComponentPicker ? 'disabled' : ''} style="height:42px; min-width:160px; ${isComponentPicker ? 'opacity:0.5; cursor:not-allowed;' : ''}">parca grup ekle +</button>
                     </div>
                 </div>
+                <input id="cmp_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setComponentFilter('code', this.value, 'cmp_filter_code')" placeholder="ID kod ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-weight:600;">
+                <button class="btn-primary" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : (isComponentPicker ? 'ProductLibraryModule.cancelComponentPicker()' : 'ProductLibraryModule.openComponentForm()')}" style="height:42px; min-width:135px;">${isComponentPicker ? 'vazgec' : 'urun ekle +'}</button>
+            </div>
+        </div>
 
                 <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
                     <table style="width:100%; border-collapse:collapse;">
@@ -2973,7 +2979,6 @@ const ProductLibraryModule = {
                     <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.7rem; align-items:center;">
                         <input id="asm_filter_name" value="${ProductLibraryModule.escapeHtml(filters.name || '')}" oninput="ProductLibraryModule.setAssemblyFilter('name', this.value, 'asm_filter_name')" placeholder="parca grup adi ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; font-weight:600;">
                         <input id="asm_filter_code" value="${ProductLibraryModule.escapeHtml(filters.code || '')}" oninput="ProductLibraryModule.setAssemblyFilter('code', this.value, 'asm_filter_code')" placeholder="ID kod ile ara" style="height:42px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.7rem; font-weight:600;">
-                        <button class="btn-primary" onclick="ProductLibraryModule.openAssemblyForm()" style="height:42px; min-width:160px;">parca grup ekle +</button>
                     </div>
                 </div>
 

@@ -2246,6 +2246,11 @@ const UnitModule = {
         const waitingQty = rows.reduce((sum, r) => sum + Number(r.metrics?.availableQty || 0), 0);
         const inProcessQty = rows.reduce((sum, r) => sum + Number(r.metrics?.inProcessQty || 0), 0);
         const doneQty = rows.reduce((sum, r) => sum + Number(r.metrics?.doneQty || 0), 0);
+        const processOptions = Array.from(new Set(
+            rows
+                .map(r => String(r?.metrics?.processId || '').trim().toUpperCase())
+                .filter(Boolean)
+        )).sort((a, b) => a.localeCompare(b, 'tr'));
         const renderTabBtn = (id, label, count, options = {}) => {
             const active = tab === id;
             const highlight = !!options.highlight && Number(count || 0) > 0;
@@ -2261,6 +2266,14 @@ const UnitModule = {
                     <span style="display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:999px; padding:0 0.4rem; font-size:0.68rem; font-weight:800; ${badgeStyle}">${Number(count || 0)}</span>
                 </button>
             `;
+        };
+        const getWorkOrderTabDescription = (tabKey) => {
+            if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis ve uzerinde calisilan isleri gosterir.';
+            if (tabKey === 'BEKLEYEN') return 'Bu sayfa, atolyenin teslim alabilecegi isleri listeler.';
+            if (tabKey === 'HAVUZ') return 'Bu sayfa, an itibariyla bu atolye icin gelecek is emirlerini gosterir.';
+            if (tabKey === 'ISTATISTIK') return 'Bu sayfa, birimin gunluk/haftalik/aylik uretim istatistiklerini gosterir.';
+            if (tabKey === 'ARSIV') return 'Bu sayfa, tamamlanan veya kismi teslim edilen islerin gecmis kaydini gosterir.';
+            return 'Bu sayfa, atolye is emirlerini ve durumlarini gosterir.';
         };
 
         if (tab === 'ISTATISTIK') {
@@ -2348,6 +2361,9 @@ const UnitModule = {
                         </div>
                         <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                     </div>
+                    <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
+                        ${UnitModule.escapeHtml(getWorkOrderTabDescription('ISTATISTIK'))}
+                    </div>
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:0.85rem; display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
                         <select onchange="UnitModule.setWorkOrderStatsFilter('range', this.value)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.5rem 0.6rem; font-weight:700;">
                             <option value="DAY" ${statsRange === 'DAY' ? 'selected' : ''}>Gunluk</option>
@@ -2374,6 +2390,72 @@ const UnitModule = {
                                 <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">${statsGroup === 'PERSONNEL' ? 'Personel' : 'Atolye'}</th><th style="padding:0.55rem; text-align:center;">Toplam adet</th><th style="padding:0.55rem; text-align:center;">Tamamlanan is</th><th style="padding:0.55rem; text-align:center;">Ort. gunluk</th></tr></thead>
                                 <tbody>
                                     ${statsRows.length === 0 ? `<tr><td colspan="4" style="padding:1rem; text-align:center; color:#94a3b8;">Secilen filtre icin kayit yok.</td></tr>` : statsRows.map(row => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.label)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#0f172a;">${Number(row.totalQty || 0)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#1d4ed8;">${Number(row.doneCount || 0)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${Number(row.avgDaily || 0)}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
+
+        if (tab === 'ARSIV') {
+            const getArchiveDate = (row) => {
+                const entries = txns
+                    .filter(txn => String(txn?.workOrderId || '') === String(row?.order?.id || '')
+                        && String(txn?.lineId || '') === String(row?.line?.id || '')
+                        && String(txn?.stationId || '') === String(row?.metrics?.stationId || '')
+                        && String(txn?.type || '').toUpperCase() === 'COMPLETE')
+                    .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0));
+                return entries[0]?.created_at ? String(entries[0].created_at).slice(0, 10) : '-';
+            };
+            container.innerHTML = `
+                <div style="max-width:1380px; margin:0 auto;">
+                    <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                                <i data-lucide="arrow-left" width="18"></i>
+                            </button>
+                            <div>
+                                <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                    <i data-lucide="clipboard-list" color="#1d4ed8"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Is Emri Planlama
+                                </h2>
+                                <div style="font-size:0.82rem; color:#64748b;">Arsiv ekrani</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                            ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
+                            ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
+                            ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
+                            ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', doneQty)}
+                            ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
+                        </div>
+                        <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
+                        ${UnitModule.escapeHtml(getWorkOrderTabDescription('ARSIV'))}
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri / satir</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:center;">Planlanan</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Durum</th><th style="padding:0.55rem; text-align:left;">Son islem tarihi</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
+                                <tbody>
+                                    ${archiveRows.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Arsivde kayit yok.</td></tr>` : archiveRows.map(row => {
+                const done = Number(row?.metrics?.doneQty || 0);
+                const target = Number(row?.targetQty || 0);
+                const doneAll = done >= target && target > 0;
+                const statusChip = doneAll
+                    ? 'background:#ecfdf5; color:#047857; border:1px solid #bbf7d0;'
+                    : 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;';
+                const statusText = doneAll ? 'Tamamlandi' : 'Kismi teslim';
+                const isSingle = String(row?.order?.productCode || '').trim().toUpperCase() === String(row?.line?.componentCode || '').trim().toUpperCase()
+                    && String(row?.order?.productName || '').trim().toLowerCase() === String(row?.line?.componentName || '').trim().toLowerCase();
+                const productTitle = isSingle ? 'Parca Uretimi' : UnitModule.escapeHtml(row?.order?.productName || '-');
+                const productCode = isSingle ? 'Tek parca is emri' : UnitModule.escapeHtml(row?.order?.productCode || '-');
+                return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${target}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${done}</td><td style="padding:0.55rem;"><span style="display:inline-block; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusChip}">${statusText}</span></td><td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(getArchiveDate(row))}</td><td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${row.order.id}','${row.line.id}','${row.metrics.stationId}')">Goruntule</button></td></tr>`;
+            }).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -2418,7 +2500,7 @@ const UnitModule = {
                 </div>
 
                 <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
-                    Bu sayfa, an itibariyla bu atolye icin gelecek is emirlerini gosterir.
+                    ${UnitModule.escapeHtml(getWorkOrderTabDescription(tab))}
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">

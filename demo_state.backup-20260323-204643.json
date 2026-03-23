@@ -1728,8 +1728,353 @@
         "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
-    "workOrders": [],
-    "workOrderTransactions": [],
+    "workOrders": [
+      {
+        "id": "0e903166-6035-4889-81cd-af29f2edf5ba",
+        "workOrderCode": "WO-000001",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "productCode": "DIKMELER",
+        "productName": "aluminyum dikme oluşturma",
+        "lotQty": 12,
+        "dueDate": "2026-03-19",
+        "priority": "NORMAL",
+        "note": "hfgthfgh",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "dc233440-2f68-45ea-81dd-810903422bf9",
+            "lineCode": "WO-000001-01",
+            "componentCode": "DIKMELER",
+            "componentName": "DIKMELER",
+            "multiplier": 1,
+            "targetQty": 12,
+            "routes": [
+              {
+                "id": "61a01ecc-ff0a-4e75-ae91-749faac82614",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "ffbb1bd7-c44d-4c5a-bcc8-decb4c0866e0",
+        "sourceCode": "PLN-000001",
+        "created_at": "2026-03-16T17:28:09.402Z",
+        "updated_at": "2026-03-16T17:28:09.402Z"
+      },
+      {
+        "id": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "workOrderCode": "WO-000002",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000007",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "lotQty": 20,
+        "dueDate": "2026-03-19",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+            "lineCode": "WO-000002-01",
+            "componentCode": "PRC-000007",
+            "componentName": "2008 bombeli 40 lık dikme pleksi",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "0e59e275-8ee9-4e38-8b3f-d3f7141ff6dc",
+                "seq": 1,
+                "stationId": "u2",
+                "stationName": "EKSTRUDER ATOLYESI",
+                "processId": "EKS-000001"
+              },
+              {
+                "id": "f04c8011-3482-43f7-9b13-fd97d210ccc7",
+                "seq": 2,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000001"
+              },
+              {
+                "id": "9cd91da0-7457-4d89-a982-23bc8aebd742",
+                "seq": 3,
+                "stationId": "u5",
+                "stationName": "PLEKSI POLISAJ ATOLYESI",
+                "processId": "PLSJ-000001"
+              },
+              {
+                "id": "f2004d43-93bd-4ba4-bba2-376987b62b5c",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "ANA DEPO",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {
+              "u1": {
+                "queueOrder": 0,
+                "targetDate": "",
+                "machine": "fgsdfg",
+                "personnel": "ghdfgh",
+                "note": "gfddsfg",
+                "updatedAt": "2026-03-16T17:52:22.918Z"
+              },
+              "u2": {
+                "queueOrder": 2,
+                "targetDate": "2026-03-16",
+                "machine": "sfddsf",
+                "personnel": "hfghg",
+                "note": "hgfgh",
+                "updatedAt": "2026-03-23T15:18:07.446Z"
+              }
+            }
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_COMPONENT",
+        "sourceId": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
+        "sourceCode": "PLN-000002",
+        "created_at": "2026-03-16T17:31:42.323Z",
+        "updated_at": "2026-03-23T15:18:07.446Z"
+      },
+      {
+        "id": "1e03d261-8117-4a91-ab04-5fb00d1f566f",
+        "workOrderCode": "WO-000003",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "productCode": "DIKMELER",
+        "productName": "aluminyum dikme oluşturma",
+        "lotQty": 100,
+        "dueDate": "2026-03-19",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "d39db5d3-ef08-44b7-bf63-f881b7a56fd7",
+            "lineCode": "WO-000003-01",
+            "componentCode": "DIKMELER",
+            "componentName": "DIKMELER",
+            "multiplier": 1,
+            "targetQty": 100,
+            "routes": [
+              {
+                "id": "e5274d5e-409f-49c1-ab3c-bb525ae5090f",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "u1",
+        "sourceType": "",
+        "sourceId": "",
+        "sourceCode": "",
+        "created_at": "2026-03-16T18:49:33.299Z",
+        "updated_at": "2026-03-16T18:49:33.299Z"
+      },
+      {
+        "id": "4ad4d89d-dce9-4a27-b3bb-d1237671a701",
+        "workOrderCode": "WO-000004",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "productCode": "DIKMELER",
+        "productName": "aluminyum dikme oluşturma",
+        "lotQty": 10,
+        "dueDate": "2026-03-26",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "f94cc95a-606f-4e6c-a973-b1ffb12da7c8",
+            "lineCode": "WO-000004-01",
+            "componentCode": "DIKMELER",
+            "componentName": "DIKMELER",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "cebcbf66-aaae-4a30-9945-f9ac482eea4e",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "c64d99a4-fb05-4b2e-9e5c-e9fb8cd8628a",
+        "sourceCode": "PLN-000003",
+        "created_at": "2026-03-23T13:23:38.903Z",
+        "updated_at": "2026-03-23T13:23:38.903Z"
+      },
+      {
+        "id": "9aee3aaa-713b-46c4-84cf-514a606e5e87",
+        "workOrderCode": "WO-000005",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "productCode": "DIKMELER",
+        "productName": "aluminyum dikme oluşturma",
+        "lotQty": 50,
+        "dueDate": "2026-03-26",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "21789f82-aa5f-46de-b591-d04d88e289ca",
+            "lineCode": "WO-000005-01",
+            "componentCode": "DIKMELER",
+            "componentName": "DIKMELER",
+            "multiplier": 1,
+            "targetQty": 50,
+            "routes": [
+              {
+                "id": "449b0a87-d228-47b0-8f21-f72aa37a048b",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "1d2c7915-5eec-46a3-9262-9261366e9cd1",
+        "sourceCode": "PLN-000004",
+        "created_at": "2026-03-23T15:16:32.899Z",
+        "updated_at": "2026-03-23T15:16:32.899Z"
+      }
+    ],
+    "workOrderTransactions": [
+      {
+        "id": "dea1230b-2a9e-4812-bf2b-3dedfc0af98c",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u2",
+        "type": "TAKE",
+        "qty": 20,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T17:54:25.992Z"
+      },
+      {
+        "id": "c71f34ba-ecdc-4937-93de-2eb3c2e762fd",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u2",
+        "type": "COMPLETE",
+        "qty": 15,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T17:54:39.280Z"
+      },
+      {
+        "id": "9fc6f9a6-88ed-496d-a695-2719de2e25ac",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u2",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T17:54:48.844Z"
+      },
+      {
+        "id": "2b0cf9f9-2913-4d7b-8a80-95c6f5ce0e87",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u1",
+        "type": "TAKE",
+        "qty": 20,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T17:55:19.252Z"
+      },
+      {
+        "id": "bcae8242-b99a-408c-b3b6-7a0c874ee12f",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u1",
+        "type": "COMPLETE",
+        "qty": 19,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T18:49:54.284Z"
+      },
+      {
+        "id": "6a4283b0-5860-47a5-8d74-f849d2679fce",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u1",
+        "type": "COMPLETE",
+        "qty": 1,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T18:50:01.519Z"
+      },
+      {
+        "id": "7c4ebe11-0111-4755-b580-7e621e3f34f8",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u5",
+        "type": "TAKE",
+        "qty": 20,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T19:03:15.964Z"
+      },
+      {
+        "id": "bbbac669-2d4a-4645-8037-60eb7fe71f04",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u5",
+        "type": "COMPLETE",
+        "qty": 20,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T19:03:26.584Z"
+      },
+      {
+        "id": "fe458e9a-687f-463d-a9fe-4fd23fa14f46",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u_dtm",
+        "type": "TAKE",
+        "qty": 20,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T19:03:53.394Z"
+      },
+      {
+        "id": "198a68f7-4bca-4974-8de6-f469d4755ad5",
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "lineId": "840ab1bd-bcac-4163-9213-61e3a86d781c",
+        "stationId": "u_dtm",
+        "type": "COMPLETE",
+        "qty": 20,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-03-16T19:03:59.416Z"
+      }
+    ],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
     "depoRoutes": [],
@@ -2703,9 +3048,11 @@
         "dueDate": "2026-03-19",
         "priority": "NORMAL",
         "note": "hfgthfgh",
-        "status": "OPEN",
+        "status": "RELEASED",
         "updated_at": "2026-03-16T17:28:09.402Z",
-        "workOrderCode": ""
+        "workOrderId": "0e903166-6035-4889-81cd-af29f2edf5ba",
+        "workOrderCode": "WO-000001",
+        "released_at": "2026-03-16T17:28:09.402Z"
       },
       {
         "id": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
@@ -2728,9 +3075,11 @@
         "dueDate": "2026-03-19",
         "priority": "NORMAL",
         "note": "",
-        "status": "OPEN",
+        "status": "RELEASED",
         "updated_at": "2026-03-16T17:31:42.323Z",
-        "workOrderCode": ""
+        "workOrderId": "263b4db0-37db-4b53-932d-b62c6cb3adaa",
+        "workOrderCode": "WO-000002",
+        "released_at": "2026-03-16T17:31:42.323Z"
       },
       {
         "id": "c64d99a4-fb05-4b2e-9e5c-e9fb8cd8628a",
@@ -2753,9 +3102,11 @@
         "dueDate": "2026-03-26",
         "priority": "NORMAL",
         "note": "",
-        "status": "OPEN",
+        "status": "RELEASED",
         "updated_at": "2026-03-23T13:23:38.903Z",
-        "workOrderCode": ""
+        "workOrderId": "4ad4d89d-dce9-4a27-b3bb-d1237671a701",
+        "workOrderCode": "WO-000004",
+        "released_at": "2026-03-23T13:23:38.903Z"
       },
       {
         "id": "1d2c7915-5eec-46a3-9262-9261366e9cd1",
@@ -2778,9 +3129,11 @@
         "dueDate": "2026-03-26",
         "priority": "NORMAL",
         "note": "",
-        "status": "OPEN",
+        "status": "RELEASED",
         "updated_at": "2026-03-23T15:16:32.899Z",
-        "workOrderCode": ""
+        "workOrderId": "9aee3aaa-713b-46c4-84cf-514a606e5e87",
+        "workOrderCode": "WO-000005",
+        "released_at": "2026-03-23T15:16:32.899Z"
       }
     ]
   }

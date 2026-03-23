@@ -90,8 +90,11 @@ const UnitModule = {
         depoTaskDraftCode: '',
         depoTaskDraftName: '',
         depoTaskDraftNote: '',
-        workOrderTab: 'BEKLEYEN',
+        workOrderTab: 'AKTIF',
         workOrderSearch: '',
+        workOrderStatsRange: 'WEEK',
+        workOrderStatsGroup: 'UNIT',
+        workOrderStatsProcess: '',
         workOrderFormOpen: false,
         workOrderDraftMontageId: '',
         workOrderDraftLotQty: '100',
@@ -318,7 +321,7 @@ const UnitModule = {
         UnitModule.state.activeUnitId = id || null;
         UnitModule.state.view = 'workOrderPlanning';
         UnitModule.state.workOrderFormOpen = false;
-        if (!UnitModule.state.workOrderTab) UnitModule.state.workOrderTab = 'BEKLEYEN';
+        UnitModule.state.workOrderTab = 'AKTIF';
         if (!UnitModule.state.workOrderDraftLotQty) UnitModule.state.workOrderDraftLotQty = '100';
         if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
         UI.renderCurrentPage();
@@ -1623,11 +1626,19 @@ const UnitModule = {
         `;
     },
     setWorkOrderTab: (tab) => {
-        UnitModule.state.workOrderTab = String(tab || 'BEKLEYEN');
+        const normalized = String(tab || 'AKTIF').toUpperCase();
+        const validTabs = ['AKTIF', 'BEKLEYEN', 'HAVUZ', 'ISTATISTIK', 'ARSIV'];
+        UnitModule.state.workOrderTab = validTabs.includes(normalized) ? normalized : 'AKTIF';
         UI.renderCurrentPage();
     },
     setWorkOrderSearch: (value) => {
         UnitModule.state.workOrderSearch = String(value || '');
+        UI.renderCurrentPage();
+    },
+    setWorkOrderStatsFilter: (field, value) => {
+        if (field === 'range') UnitModule.state.workOrderStatsRange = String(value || 'WEEK').toUpperCase();
+        if (field === 'group') UnitModule.state.workOrderStatsGroup = String(value || 'UNIT').toUpperCase();
+        if (field === 'process') UnitModule.state.workOrderStatsProcess = String(value || '').trim().toUpperCase();
         UI.renderCurrentPage();
     },
     openWorkOrderCreateForm: () => {
@@ -1907,6 +1918,71 @@ const UnitModule = {
         if (hasTxn) return 'IN_PROGRESS';
         return 'OPEN';
     },
+    getWorkOrderPriorityMeta: (priorityRaw) => {
+        const normalized = String(priorityRaw || 'P3').trim().toUpperCase();
+        const key = normalized === 'URGENT' ? 'P1'
+            : normalized === 'HIGH' ? 'P2'
+                : normalized === 'LOW' ? 'P3'
+                    : normalized === 'NORMAL' ? 'P3'
+                        : normalized;
+        if (key === 'P1') {
+            return {
+                label: 'P1',
+                rank: 0,
+                style: 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;'
+            };
+        }
+        if (key === 'P2') {
+            return {
+                label: 'P2',
+                rank: 1,
+                style: 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;'
+            };
+        }
+        return {
+            label: 'P3',
+            rank: 2,
+            style: 'background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;'
+        };
+    },
+    getWorkOrderPlanningRowsForUnit: (unitId) => {
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const rows = [];
+        orders.forEach(order => {
+            const status = UnitModule.getWorkOrderComputedStatus(order, txns);
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            lines.forEach(line => {
+                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
+                if (!metrics) return;
+                const plan = (line.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
+                const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
+                const targetQty = Math.max(0, Number(line?.targetQty || 0));
+                const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+                const upcomingQty = Math.max(0, targetQty - takenQty - Number(metrics?.availableQty || 0));
+                rows.push({
+                    order,
+                    line,
+                    status,
+                    metrics,
+                    plan: plan && typeof plan === 'object' ? plan : null,
+                    takenQty,
+                    targetQty,
+                    remainingQty,
+                    upcomingQty
+                });
+            });
+        });
+        return rows.sort((a, b) => {
+            const pa = UnitModule.getWorkOrderPriorityMeta(a.order?.priority).rank;
+            const pb = UnitModule.getWorkOrderPriorityMeta(b.order?.priority).rank;
+            if (pa !== pb) return pa - pb;
+            const da = String(a.order?.dueDate || '9999-12-31');
+            const db = String(b.order?.dueDate || '9999-12-31');
+            if (da !== db) return da.localeCompare(db);
+            return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
+        });
+    },
     addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '') => {
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
         const cleanQty = Number(qty || 0);
@@ -1958,6 +2034,82 @@ const UnitModule = {
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
         if (qty > metrics.inProcessQty) return alert(`Maksimum girilebilir miktar: ${metrics.inProcessQty}`);
         await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'COMPLETE', qty, 'Istasyon tamamlandi');
+    },
+    takeAllWorkOrderQty: async (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        const qty = Math.floor(Number(metrics?.availableQty || 0));
+        if (!metrics || qty <= 0) return alert('Alinabilir miktar yok.');
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon tumunu teslim aldi');
+    },
+    openWorkOrderProcessPreviewForLine: (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
+        if (!line) return;
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        const route = routes.find(r => String(r?.stationId || '') === String(stationId || ''));
+        const processId = String(route?.processId || '').trim().toUpperCase();
+        if (!processId) return alert('Islem kodu bulunamadi.');
+        UnitModule.openWorkOrderProcessPreview(stationId, processId, stationId);
+    },
+    openWorkOrderExecutionDetail: (workOrderId, lineId, stationId) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
+        if (!line) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        if (!metrics) return;
+        const targetQty = Math.max(0, Number(line?.targetQty || 0));
+        const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+        const canTake = Number(metrics?.availableQty || 0) > 0;
+        const canComplete = Number(metrics?.inProcessQty || 0) > 0;
+        const plan = (line.plans && typeof line.plans === 'object') ? (line.plans[String(stationId || '')] || null) : null;
+        const processCode = String(metrics?.processId || '').trim().toUpperCase();
+        const priorityMeta = UnitModule.getWorkOrderPriorityMeta(order?.priority);
+        Modal.open(`Is Emri Detay - ${UnitModule.escapeHtml(order?.workOrderCode || '-')}`, `
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Parca/Bilesen</div>
+                        <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(line?.componentName || '-')}</div>
+                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(line?.componentCode || '-')}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Rota / Islem</div>
+                        <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(UnitModule.getRouteStationName(stationId) || '-')}</div>
+                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(processCode || '-')}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Termin / Oncelik</div>
+                        <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(order?.dueDate || '-')}</div>
+                        <span style="display:inline-block; margin-top:0.25rem; border-radius:999px; padding:0.1rem 0.48rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0.5rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Planlanan</div><div style="font-size:1rem; font-weight:800; color:#0f172a;">${targetQty}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Teslim alinan</div><div style="font-size:1rem; font-weight:800; color:#334155;">${Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Yapilan</div><div style="font-size:1rem; font-weight:800; color:#047857;">${Number(metrics?.doneQty || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Kalan</div><div style="font-size:1rem; font-weight:800; color:#b45309;">${remainingQty}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Alinabilir</div><div style="font-size:1rem; font-weight:800; color:#1d4ed8;">${Number(metrics?.availableQty || 0)}</div></div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.55rem; font-size:0.78rem; color:#475569;">
+                    Plan: ${plan ? `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}` : '-'}
+                </div>
+                <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderComponentPreview('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Parca kutuphanesi</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderProcessPreviewForLine('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Islem kutuphanesi</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderPlanModal('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Planla</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.takeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Aldim</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.completeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Adet gir</button>
+                </div>
+            </div>
+        `, { maxWidth: '1080px' });
     },
     openWorkOrderPlanModal: (workOrderId, lineId, stationId) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
@@ -2028,7 +2180,7 @@ const UnitModule = {
         }
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
-        const tab = String(UnitModule.state.workOrderTab || 'BEKLEYEN');
+        const tab = String(UnitModule.state.workOrderTab || 'AKTIF').toUpperCase();
         const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
         const rows = [];
 
@@ -2039,7 +2191,19 @@ const UnitModule = {
                 const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
                 if (!metrics) return;
                 const plan = (line.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
-                rows.push({ order, line, status, metrics, plan: plan && typeof plan === 'object' ? plan : null });
+                const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
+                const targetQty = Math.max(0, Number(line?.targetQty || 0));
+                const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+                rows.push({
+                    order,
+                    line,
+                    status,
+                    metrics,
+                    plan: plan && typeof plan === 'object' ? plan : null,
+                    takenQty,
+                    targetQty,
+                    remainingQty
+                });
             });
         });
 
@@ -2067,22 +2231,157 @@ const UnitModule = {
                 if (pa !== pb) return pa - pb;
                 return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
             });
+        const waitingRows = filtered.filter(r => Number(r?.metrics?.availableQty || 0) > 0);
+        const activeRows = filtered.filter(r => Number(r?.takenQty || 0) > 0 && Number(r?.remainingQty || 0) > 0);
+        const poolRows = filtered.filter(r => Number(r?.remainingQty || 0) > 0);
+        const archiveRows = filtered.filter(r => Number(r?.metrics?.doneQty || 0) > 0);
         const visible = filtered.filter(r => {
-            if (tab === 'BEKLEYEN') return r.metrics.availableQty > 0;
-            if (tab === 'ISLEMDE') return r.metrics.inProcessQty > 0;
-            if (tab === 'TAMAMLANAN') return r.metrics.doneQty > 0;
+            if (tab === 'BEKLEYEN') return Number(r?.metrics?.availableQty || 0) > 0;
+            if (tab === 'AKTIF') return Number(r?.takenQty || 0) > 0 && Number(r?.remainingQty || 0) > 0;
+            if (tab === 'HAVUZ') return Number(r?.remainingQty || 0) > 0;
+            if (tab === 'ARSIV') return Number(r?.metrics?.doneQty || 0) > 0;
             return true;
         });
         const totalOrders = new Set(rows.map(r => String(r.order?.id || ''))).size;
         const waitingQty = rows.reduce((sum, r) => sum + Number(r.metrics?.availableQty || 0), 0);
         const inProcessQty = rows.reduce((sum, r) => sum + Number(r.metrics?.inProcessQty || 0), 0);
         const doneQty = rows.reduce((sum, r) => sum + Number(r.metrics?.doneQty || 0), 0);
-        const montageCards = (DB.data.data.montageCards || []).slice().sort((a, b) => String(a?.productName || '').localeCompare(String(b?.productName || ''), 'tr'));
-        const renderTabBtn = (id, label) => `
-            <button onclick="UnitModule.setWorkOrderTab('${id}')" class="btn-sm" style="${tab === id ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">
-                ${label}
-            </button>
-        `;
+        const renderTabBtn = (id, label, count, options = {}) => {
+            const active = tab === id;
+            const highlight = !!options.highlight && Number(count || 0) > 0;
+            const style = active
+                ? 'background:#0f172a; color:#fff; border-color:#0f172a;'
+                : (highlight ? 'background:#ecfdf5; color:#047857; border-color:#86efac;' : '');
+            const badgeStyle = active
+                ? 'background:rgba(255,255,255,0.2); color:#fff;'
+                : (highlight ? 'background:#16a34a; color:#fff;' : 'background:#e2e8f0; color:#334155;');
+            return `
+                <button onclick="UnitModule.setWorkOrderTab('${id}')" class="btn-sm" style="${style} display:inline-flex; gap:0.35rem; align-items:center;">
+                    ${label}
+                    <span style="display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; border-radius:999px; padding:0 0.4rem; font-size:0.68rem; font-weight:800; ${badgeStyle}">${Number(count || 0)}</span>
+                </button>
+            `;
+        };
+
+        if (tab === 'ISTATISTIK') {
+            const statsRange = String(UnitModule.state.workOrderStatsRange || 'WEEK').toUpperCase();
+            const statsGroup = String(UnitModule.state.workOrderStatsGroup || 'UNIT').toUpperCase();
+            const statsProcess = String(UnitModule.state.workOrderStatsProcess || '').trim().toUpperCase();
+            const rangeStart = new Date();
+            let rangeDays = 7;
+            if (statsRange === 'DAY') {
+                rangeDays = 1;
+                rangeStart.setHours(0, 0, 0, 0);
+            } else if (statsRange === 'WEEK') {
+                rangeDays = 7;
+                rangeStart.setDate(rangeStart.getDate() - 6);
+                rangeStart.setHours(0, 0, 0, 0);
+            } else {
+                rangeDays = 30;
+                rangeStart.setDate(rangeStart.getDate() - 29);
+                rangeStart.setHours(0, 0, 0, 0);
+            }
+            const statsTxns = txns
+                .filter(txn => String(txn?.stationId || '') === String(unitId || '') && String(txn?.type || '').toUpperCase() === 'COMPLETE')
+                .map(txn => {
+                    const order = orders.find(o => String(o?.id || '') === String(txn?.workOrderId || ''));
+                    const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(txn?.lineId || '')) : null;
+                    const route = Array.isArray(line?.routes) ? line.routes.find(r => String(r?.stationId || '') === String(unitId || '')) : null;
+                    return { txn, order, line, processId: String(route?.processId || '').trim().toUpperCase() };
+                })
+                .filter(entry => {
+                    if (!entry?.order || !entry?.line) return false;
+                    const d = new Date(entry?.txn?.created_at || 0);
+                    if (Number.isNaN(d.getTime()) || d < rangeStart) return false;
+                    if (statsProcess && entry.processId !== statsProcess) return false;
+                    return true;
+                });
+            const statsTotalQty = statsTxns.reduce((sum, entry) => sum + Number(entry?.txn?.qty || 0), 0);
+            const statsLineKeys = new Set(statsTxns.map(entry => `${entry.txn?.workOrderId}::${entry.txn?.lineId}`));
+            const statsDoneCount = statsLineKeys.size;
+            const statsRows = (() => {
+                if (statsGroup === 'PERSONNEL') {
+                    const map = new Map();
+                    statsTxns.forEach(entry => {
+                        const key = String(entry?.txn?.user || 'Bilinmeyen').trim() || 'Bilinmeyen';
+                        if (!map.has(key)) map.set(key, { label: key, totalQty: 0, lineKeys: new Set() });
+                        const bucket = map.get(key);
+                        bucket.totalQty += Number(entry?.txn?.qty || 0);
+                        bucket.lineKeys.add(`${entry.txn?.workOrderId}::${entry.txn?.lineId}`);
+                    });
+                    return Array.from(map.values()).map(bucket => ({
+                        label: bucket.label,
+                        totalQty: bucket.totalQty,
+                        doneCount: bucket.lineKeys.size,
+                        avgDaily: rangeDays > 0 ? Number((bucket.totalQty / rangeDays).toFixed(1)) : bucket.totalQty
+                    })).sort((a, b) => b.totalQty - a.totalQty);
+                }
+                return [{
+                    label: UnitModule.getRouteStationName(unitId) || 'Atolye',
+                    totalQty: statsTotalQty,
+                    doneCount: statsDoneCount,
+                    avgDaily: rangeDays > 0 ? Number((statsTotalQty / rangeDays).toFixed(1)) : statsTotalQty
+                }];
+            })();
+            container.innerHTML = `
+                <div style="max-width:1380px; margin:0 auto;">
+                    <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                                <i data-lucide="arrow-left" width="18"></i>
+                            </button>
+                            <div>
+                                <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                    <i data-lucide="clipboard-list" color="#1d4ed8"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Is Emri Planlama
+                                </h2>
+                                <div style="font-size:0.82rem; color:#64748b;">Birim istatistikleri</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                            ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
+                            ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
+                            ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
+                            ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', statsRows.length)}
+                            ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
+                        </div>
+                        <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:0.85rem; display:flex; gap:0.6rem; flex-wrap:wrap; align-items:center;">
+                        <select onchange="UnitModule.setWorkOrderStatsFilter('range', this.value)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.5rem 0.6rem; font-weight:700;">
+                            <option value="DAY" ${statsRange === 'DAY' ? 'selected' : ''}>Gunluk</option>
+                            <option value="WEEK" ${statsRange === 'WEEK' ? 'selected' : ''}>Haftalik</option>
+                            <option value="MONTH" ${statsRange === 'MONTH' ? 'selected' : ''}>Aylik</option>
+                        </select>
+                        <select onchange="UnitModule.setWorkOrderStatsFilter('group', this.value)" style="border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.5rem 0.6rem; font-weight:700;">
+                            <option value="UNIT" ${statsGroup === 'UNIT' ? 'selected' : ''}>Atolye bazli</option>
+                            <option value="PERSONNEL" ${statsGroup === 'PERSONNEL' ? 'selected' : ''}>Personel bazli</option>
+                        </select>
+                        <select onchange="UnitModule.setWorkOrderStatsFilter('process', this.value)" style="min-width:220px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.5rem 0.6rem; font-weight:700;">
+                            <option value="">Islem kutuphanesinden sec</option>
+                            ${processOptions.map(code => `<option value="${UnitModule.escapeHtml(code)}" ${statsProcess === code ? 'selected' : ''}>${UnitModule.escapeHtml(code)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.72rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Toplam uretilen</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${statsTotalQty}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.72rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Net adet</div><div style="font-size:1.1rem; font-weight:800; color:#047857;">${statsTotalQty}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.72rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Tamamlanan is</div><div style="font-size:1.1rem; font-weight:800; color:#1d4ed8;">${statsDoneCount}</div></div>
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">${statsGroup === 'PERSONNEL' ? 'Personel' : 'Atolye'}</th><th style="padding:0.55rem; text-align:center;">Toplam adet</th><th style="padding:0.55rem; text-align:center;">Tamamlanan is</th><th style="padding:0.55rem; text-align:center;">Ort. gunluk</th></tr></thead>
+                                <tbody>
+                                    ${statsRows.length === 0 ? `<tr><td colspan="4" style="padding:1rem; text-align:center; color:#94a3b8;">Secilen filtre icin kayit yok.</td></tr>` : statsRows.map(row => `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.label)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#0f172a;">${Number(row.totalQty || 0)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#1d4ed8;">${Number(row.doneCount || 0)}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${Number(row.avgDaily || 0)}</td></tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
 
         container.innerHTML = `
             <div style="max-width:1380px; margin:0 auto;">
@@ -2095,7 +2394,7 @@ const UnitModule = {
                             <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
                                 <i data-lucide="clipboard-list" color="#1d4ed8"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Is Emri Planlama
                             </h2>
-                            <div style="font-size:0.82rem; color:#64748b;">Lot bazli takip, kismi devir alma ve kismi tamamlama</div>
+                            <div style="font-size:0.82rem; color:#64748b;">Lot bazli takip, kismi teslim alma ve gunluk uretim girisi</div>
                         </div>
                     </div>
                 </div>
@@ -2109,12 +2408,17 @@ const UnitModule = {
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
                     <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                        ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler')}
-                        ${renderTabBtn('ISLEMDE', 'Islemde')}
-                        ${renderTabBtn('TAMAMLANAN', 'Tamamlanan')}
-                        ${renderTabBtn('PLANLAMA', 'Planlama')}
+                        ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
+                        ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
+                        ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
+                        ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', doneQty)}
+                        ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
                     </div>
                     <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                </div>
+
+                <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
+                    Bu sayfa, an itibariyla bu atolye icin gelecek is emirlerini gosterir.
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
@@ -2123,11 +2427,18 @@ const UnitModule = {
                             <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
                             <tbody>
                                 ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map(r => {
-                                    const priority = String(r.order?.priority || 'NORMAL').toUpperCase();
-                                    const priorityStyle = priority === 'URGENT' ? 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;' : priority === 'HIGH' ? 'background:#ffedd5; color:#c2410c; border:1px solid #fed7aa;' : priority === 'LOW' ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;' : 'background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;';
+                                    const priorityMeta = UnitModule.getWorkOrderPriorityMeta(r.order?.priority);
                                     const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
                                     const canTake = r.metrics.availableQty > 0;
                                     const canComplete = r.metrics.inProcessQty > 0;
+                                    const todayDoneQty = getTodayDoneQty(r);
+                                    const isWaitingTab = tab === 'BEKLEYEN';
+                                    const isActiveTab = tab === 'AKTIF';
+                                    const isArchiveTab = tab === 'ARSIV';
+                                    const showTakeAction = isWaitingTab;
+                                    const showCompleteAction = isActiveTab;
+                                    const showPlanAction = !isArchiveTab;
+                                    const primaryActionLabel = isWaitingTab ? 'Teslim al' : (isActiveTab ? 'Adet gir' : 'Goruntule');
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
                                     const processCode = String(r.metrics.processId || '').trim().toUpperCase();
                                     const processPreviewAction = `UnitModule.openWorkOrderProcessPreview('${r.metrics.stationId}','${processCode}','${unitId}')`;
@@ -2141,7 +2452,7 @@ const UnitModule = {
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
-                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div><div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityStyle}">${UnitModule.escapeHtml(priority)}</span></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button><button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Al</button><button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Yaptim</button></div></td></tr>`;
+                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div><div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span><div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">Bugun: ${todayDoneQty}</div></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}')">Goruntule</button>${showPlanAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" style=\"border-color:#cbd5e1;\">Planla</button>` : ''}${showTakeAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canTake ? '' : 'disabled'} style=\"${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}\">${primaryActionLabel}</button><button class=\"btn-sm\" onclick=\"UnitModule.takeAllWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canTake ? '' : 'disabled'} style=\"${canTake ? 'border-color:#93c5fd; color:#1e3a8a; background:#dbeafe;' : 'opacity:0.45; cursor:not-allowed;'}\">Tamamini al</button>` : ''}${showCompleteAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canComplete ? '' : 'disabled'} style=\"${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}\">${primaryActionLabel}</button>` : ''}</div></td></tr>`;
                                 }).join('')}
                             </tbody>
                         </table>

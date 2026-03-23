@@ -336,7 +336,7 @@ const MontageLibraryModule = {
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem; flex-wrap:wrap; margin-bottom:0.35rem;">
                     <div style="font-size:0.8rem; font-weight:700; color:#334155;">${title}</div>
                     <div style="display:flex; gap:0.35rem;">
-                        <button onclick="MontageLibraryModule.openFile('${rowId}', '${kind}', false)" class="btn-sm">yeni sekmede gor</button>
+                        <button onclick="MontageLibraryModule.openFile('${rowId}', '${kind}', false)" class="btn-sm">yeni sekmede goruntule</button>
                         <button onclick="MontageLibraryModule.openFile('${rowId}', '${kind}', true)" class="btn-sm">indir</button>
                     </div>
                 </div>

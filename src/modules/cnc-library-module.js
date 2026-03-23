@@ -178,7 +178,7 @@ const CncLibraryModule = {
                                             <td style="padding:0.4rem;"><div style="font-weight:700;">${CncLibraryModule.escape(op.name || '-')}</div><div style="font-size:0.74rem; color:#64748b;">${CncLibraryModule.escape(op.note || '-')}</div></td>
                                             <td style="padding:0.4rem;">${CncLibraryModule.escape(op.machineType || '-')}</td>
                                             <td style="padding:0.4rem; text-align:center; font-weight:700;">${Number(op.durationSec || 0)}</td>
-                                            <td style="padding:0.4rem; text-align:center;"><button onclick="CncLibraryModule.viewDraftOperation('${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Gor</button> <button onclick="CncLibraryModule.downloadDraftOperation('${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Indir</button></td>
+                                            <td style="padding:0.4rem; text-align:center;"><button onclick="CncLibraryModule.viewDraftOperation('${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">goruntule</button> <button onclick="CncLibraryModule.downloadDraftOperation('${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Indir</button></td>
                                             <td style="padding:0.4rem; text-align:right;"><button onclick="CncLibraryModule.moveDraftOperation('${op.id}', -1)" ${idx === 0 ? 'disabled' : ''} style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.3rem; cursor:pointer;">↑</button> <button onclick="CncLibraryModule.moveDraftOperation('${op.id}', 1)" ${idx === ops.length - 1 ? 'disabled' : ''} style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.3rem; cursor:pointer;">↓</button> <button onclick="CncLibraryModule.openOperationModal('${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.3rem; cursor:pointer;">duzenle</button> <button onclick="CncLibraryModule.removeDraftOperation('${op.id}')" style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.3rem; padding:0.1rem 0.3rem; cursor:pointer;">sil</button></td>
                                         </tr>
                                     `).join('')}
@@ -271,7 +271,7 @@ const CncLibraryModule = {
                         </div>
                         <div style="font-size:0.8rem; color:#64748b; margin-bottom:0.35rem;">${CncLibraryModule.escape(op.note || '-')}</div>
                         <div style="display:flex; gap:0.35rem;">
-                            <button onclick="CncLibraryModule.viewSavedOperation('${card.id}','${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.15rem 0.45rem; cursor:pointer;">G kodu gor</button>
+                            <button onclick="CncLibraryModule.viewSavedOperation('${card.id}','${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.15rem 0.45rem; cursor:pointer;">G kodu goruntuleuntule</button>
                             <button onclick="CncLibraryModule.downloadSavedOperation('${card.id}','${op.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.15rem 0.45rem; cursor:pointer;">G kodu indir</button>
                         </div>
                     </div>
@@ -290,7 +290,7 @@ const CncLibraryModule = {
                         <div style="font-size:0.82rem; color:#64748b; font-weight:700;">Teknik resim (PDF) onizleme</div>
                         <div style="display:flex; gap:0.35rem;">
                             ${card.technicalDrawing?.dataUrl
-                                ? `<button onclick="CncLibraryModule.previewSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">Yeni sekmede gor</button>
+                                ? `<button onclick="CncLibraryModule.previewSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">Yeni sekmede goruntuleuntule</button>
                                    <button onclick="CncLibraryModule.downloadSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">PDF indir</button>`
                                 : ''
                             }

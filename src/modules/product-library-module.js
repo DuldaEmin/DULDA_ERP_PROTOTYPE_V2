@@ -127,6 +127,7 @@ const ProductLibraryModule = {
         componentPickerSource: '',
         masterPickerSource: '',
         planningPickerSource: '',
+        assemblyFormModalOpen: false,
         workspaceView: 'menu' // menu | models | components | assembly | master | colors
     },
 
@@ -759,7 +760,7 @@ const ProductLibraryModule = {
                                             <td style="padding:0.55rem; color:#334155;">${ProductLibraryModule.escapeHtml(row.name || '-')}</td>
                                             <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(row.note || '-')}</td>
                                             <td style="padding:0.55rem; font-family:monospace; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row.code || '-')}</td>
-                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewColorLibraryItem('${row.id}')">gor</button></td>
+                                            <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewColorLibraryItem('${row.id}')">goruntule</button></td>
                                             <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditColorLibraryItem('${row.id}')">duzenle</button></td>
                                             <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectColorLibraryItem('${row.id}')" style="${String(state.colorSelectedId || '') === String(row.id || '') ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${String(state.colorSelectedId || '') === String(row.id || '') ? 'secili' : 'sec'}</button></td>
                                             <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteColorLibraryItem('${row.id}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button></td>
@@ -1853,7 +1854,7 @@ const ProductLibraryModule = {
                                     <div style="font-size:0.86rem; color:#334155; font-weight:${idx === previewIndex ? '700' : '600'};">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
                                     <div style="display:flex; gap:0.4rem;">
                                         <button class="btn-sm" onclick="ProductLibraryModule.selectComponentViewFile(${idx})" style="${idx === previewIndex ? 'background:#dbeafe; border-color:#93c5fd; color:#1d4ed8;' : ''}">onizle</button>
-                                        <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">gor</button>
+                                        <button class="btn-sm" onclick="ProductLibraryModule.previewComponentCardFile('${row.id}', ${idx})">goruntule</button>
                                     </div>
                                 </div>
                             `).join('')}
@@ -1992,7 +1993,7 @@ const ProductLibraryModule = {
                 <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.group || '-')}</td>
                 <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</td>
                 <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
-                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">gor</button></td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">goruntule</button></td>
                 <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
                 <td style="padding:0.55rem; text-align:center;">
                     ${isComponentPicker
@@ -2104,7 +2105,7 @@ const ProductLibraryModule = {
                         </div>
                         <div style="display:flex; gap:0.45rem;">
                             <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()">yeni grup ekle +</button>
-                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly')">tumunu gor</button>
+                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly')">tumunu goruntule</button>
                         </div>
                     </div>
                     <table style="width:100%; border-collapse:collapse;">
@@ -2214,7 +2215,7 @@ const ProductLibraryModule = {
                                         <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;">
                                             <div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
                                             <div style="display:flex; gap:0.35rem;">
-                                                <button class="btn-sm" onclick="ProductLibraryModule.previewComponentDraftFile(${idx})">gor</button>
+                                                <button class="btn-sm" onclick="ProductLibraryModule.previewComponentDraftFile(${idx})">goruntule</button>
                                                 <button class="btn-sm" onclick="ProductLibraryModule.removeComponentDraftFile(${idx})">kaldir</button>
                                             </div>
                                         </div>
@@ -2335,6 +2336,7 @@ const ProductLibraryModule = {
     openAssemblyForm: () => {
         ProductLibraryModule.state.assemblyViewingId = null;
         ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyFormModalOpen = false;
         ProductLibraryModule.state.assemblyEditingId = null;
         ProductLibraryModule.state.componentRoutePicker = null;
         ProductLibraryModule.state.masterPickerSource = '';
@@ -2364,6 +2366,10 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.assemblyDraftFiles = [];
         ProductLibraryModule.state.assemblySourceFilters = { source: 'all', name: '', code: '' };
         if (close) ProductLibraryModule.state.assemblyFormOpen = false;
+        if (ProductLibraryModule.state.assemblyFormModalOpen && typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') {
+            Modal.close();
+        }
+        ProductLibraryModule.state.assemblyFormModalOpen = false;
         UI.renderCurrentPage();
     },
 
@@ -2372,6 +2378,7 @@ const ProductLibraryModule = {
         if (!row) return;
         ProductLibraryModule.state.assemblyViewingId = null;
         ProductLibraryModule.state.assemblyFormOpen = true;
+        ProductLibraryModule.state.assemblyFormModalOpen = false;
         ProductLibraryModule.state.assemblyEditingId = row.id;
         ProductLibraryModule.state.assemblySelectedId = row.id;
         ProductLibraryModule.state.componentRoutePicker = null;
@@ -2938,7 +2945,7 @@ const ProductLibraryModule = {
                             ${files.map((file, idx) => `
                                 <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.45rem 0.6rem;">
                                     <div style="font-size:0.86rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
-                                    <button class="btn-sm" onclick="ProductLibraryModule.previewAssemblyGroupFile('${row.id}', ${idx})">gor</button>
+                                    <button class="btn-sm" onclick="ProductLibraryModule.previewAssemblyGroupFile('${row.id}', ${idx})">goruntule</button>
                                 </div>
                             `).join('')}
                         </div>
@@ -3138,7 +3145,7 @@ const ProductLibraryModule = {
                                             <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;">
                                                 <div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
                                                 <div style="display:flex; gap:0.35rem;">
-                                                    <button class="btn-sm" onclick="ProductLibraryModule.previewAssemblyDraftFile(${idx})">gor</button>
+                                                    <button class="btn-sm" onclick="ProductLibraryModule.previewAssemblyDraftFile(${idx})">goruntule</button>
                                                     <button class="btn-sm" onclick="ProductLibraryModule.removeAssemblyDraftFile(${idx})">kaldir</button>
                                                 </div>
                                             </div>
@@ -5371,7 +5378,7 @@ const ProductLibraryModule = {
                             <input type="file" accept=".pdf,image/*" onchange="ProductLibraryModule.handleMasterAttachment(this)" style="font-size:0.82rem;">
                             <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(state.masterDraftAttachment?.name || 'Dosya secilmedi')}</div>
                             <div style="display:flex; gap:0.4rem; margin-top:0.45rem;">
-                                <button class="btn-sm" onclick="ProductLibraryModule.previewMasterDraftAttachment()" ${state.masterDraftAttachment ? '' : 'disabled'}>gor</button>
+                                <button class="btn-sm" onclick="ProductLibraryModule.previewMasterDraftAttachment()" ${state.masterDraftAttachment ? '' : 'disabled'}>goruntule</button>
                                 <button class="btn-sm" onclick="ProductLibraryModule.clearMasterAttachment()" ${state.masterDraftAttachment ? '' : 'disabled'}>kaldir</button>
                             </div>
                         </div>

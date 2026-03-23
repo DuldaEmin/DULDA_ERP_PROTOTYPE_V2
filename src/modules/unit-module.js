@@ -1520,7 +1520,7 @@ const UnitModule = {
                             <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
                                 <i data-lucide="warehouse" color="#059669"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Birim Deposu
                             </h2>
-                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri gor, isleme al ve tamamlananlari sonraki rotaya hazir tut.</div>
+                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri goruntule, isleme al ve tamamlananlari sonraki rotaya hazir tut.</div>
                         </div>
                     </div>
                     <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">

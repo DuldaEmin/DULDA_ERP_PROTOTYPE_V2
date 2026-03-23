@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-23T17:48:02.224Z",
+    "updated_at": "2026-03-23T15:18:07.446Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 126
+    "revision": 122
   },
   "data": {
     "products": [
@@ -2681,6 +2681,107 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": []
+    "planningDemands": [
+      {
+        "id": "ffbb1bd7-c44d-4c5a-bcc8-decb4c0866e0",
+        "demandCode": "PLN-000001",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-16T17:28:09.399Z",
+        "itemType": "MODEL",
+        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+        "componentId": "",
+        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+        "variantCode": "URM-000001-V01",
+        "componentCode": "",
+        "productGroup": "Aluminyum Dikmeler",
+        "productName": "2008 bombeli aluminyum dikme",
+        "productCode": "DIKMELER",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 12,
+        "dueDate": "2026-03-19",
+        "priority": "NORMAL",
+        "note": "hfgthfgh",
+        "status": "OPEN",
+        "updated_at": "2026-03-16T17:28:09.402Z",
+        "workOrderCode": ""
+      },
+      {
+        "id": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
+        "demandCode": "PLN-000002",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-16T17:31:42.322Z",
+        "itemType": "COMPONENT",
+        "variantId": "",
+        "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+        "familyId": "",
+        "variantCode": "",
+        "componentCode": "PRC-000007",
+        "productGroup": "dikme pleksileri",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "productCode": "PRC-000007",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "qty": 20,
+        "dueDate": "2026-03-19",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "updated_at": "2026-03-16T17:31:42.323Z",
+        "workOrderCode": ""
+      },
+      {
+        "id": "c64d99a4-fb05-4b2e-9e5c-e9fb8cd8628a",
+        "demandCode": "PLN-000003",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-23T13:23:38.901Z",
+        "itemType": "MODEL",
+        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+        "componentId": "",
+        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+        "variantCode": "URM-000001-V01",
+        "componentCode": "",
+        "productGroup": "Aluminyum Dikmeler",
+        "productName": "2008 bombeli aluminyum dikme",
+        "productCode": "DIKMELER",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 10,
+        "dueDate": "2026-03-26",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "updated_at": "2026-03-23T13:23:38.903Z",
+        "workOrderCode": ""
+      },
+      {
+        "id": "1d2c7915-5eec-46a3-9262-9261366e9cd1",
+        "demandCode": "PLN-000004",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-23T15:16:29.702Z",
+        "itemType": "MODEL",
+        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+        "componentId": "",
+        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+        "variantCode": "URM-000001-V01",
+        "componentCode": "",
+        "productGroup": "Aluminyum Dikmeler",
+        "productName": "2008 bombeli aluminyum dikme",
+        "productCode": "DIKMELER",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 50,
+        "dueDate": "2026-03-26",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "updated_at": "2026-03-23T15:16:32.899Z",
+        "workOrderCode": ""
+      }
+    ]
   }
 }

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-23T15:18:07.446Z",
+    "updated_at": "2026-03-23T15:17:52.012Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 122
+    "revision": 121
   },
   "data": {
     "products": [
@@ -1833,7 +1833,7 @@
                 "machine": "sfddsf",
                 "personnel": "hfghg",
                 "note": "hgfgh",
-                "updatedAt": "2026-03-23T15:18:07.446Z"
+                "updatedAt": "2026-03-23T15:17:52.012Z"
               }
             }
           }
@@ -1843,7 +1843,7 @@
         "sourceId": "5eb6b2fd-4a68-46ef-b045-800cccc16409",
         "sourceCode": "PLN-000002",
         "created_at": "2026-03-16T17:31:42.323Z",
-        "updated_at": "2026-03-23T15:18:07.446Z"
+        "updated_at": "2026-03-23T15:17:52.012Z"
       },
       {
         "id": "1e03d261-8117-4a91-ab04-5fb00d1f566f",

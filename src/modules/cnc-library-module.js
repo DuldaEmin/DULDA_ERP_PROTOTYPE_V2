@@ -76,7 +76,7 @@ const CncLibraryModule = {
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${CncLibraryModule.escape(unit?.name || '')}</div>
                         </div>
                     </div>
-                    <button onclick="CncLibraryModule.startCreate()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">Urun ekle +</button>
+                    <button onclick="CncLibraryModule.startCreate()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">Islem ekle +</button>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">

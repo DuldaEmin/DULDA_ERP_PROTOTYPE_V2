@@ -6920,7 +6920,7 @@ const ProductLibraryModule = {
                     <div style="text-align:left;">
                         <h1 style="font-size:2rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300; margin:0;">sarf & <span style="font-weight:700">genel malzeme</span></h1>
                     </div>
-                    <button onclick="ProductLibraryModule.toggleConsumableForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                    <button onclick="ProductLibraryModule.toggleConsumableForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Islem ekle +'}</button>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
@@ -7289,7 +7289,7 @@ const ProductLibraryModule = {
                     <div style="text-align:left;">
                         <h1 style="font-size:2rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300; margin:0;">koli <span style="font-weight:700">kutuphanesi</span></h1>
                     </div>
-                    <button onclick="ProductLibraryModule.toggleBoxForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                    <button onclick="ProductLibraryModule.toggleBoxForm()" class="btn-primary" style="padding:0.8rem 1.4rem; border-radius:0.9rem;">${showForm ? 'Vazgec' : 'Islem ekle +'}</button>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">

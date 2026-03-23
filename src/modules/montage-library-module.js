@@ -181,7 +181,7 @@ const MontageLibraryModule = {
             ? MontageLibraryModule.state.draftTechDrawing
             : MontageLibraryModule.state.draftExplodedDrawing;
         if (!file?.dataUrl) return;
-        window.open(file.dataUrl, '_blank', 'noopener,noreferrer');
+        MontageLibraryModule.previewFileAttachment(file, kind === 'tech' ? 'Montaj teknik resim' : 'Patlatilmis teknik resim');
     },
 
     save: async (unitId) => {
@@ -266,7 +266,7 @@ const MontageLibraryModule = {
         const file = kind === 'tech' ? row.techDrawing : row.explodedDrawing;
         if (!file?.dataUrl) return;
         if (!isDownload) {
-            window.open(file.dataUrl, '_blank', 'noopener,noreferrer');
+            MontageLibraryModule.previewFileAttachment(file, kind === 'tech' ? 'Montaj teknik resim' : 'Patlatilmis teknik resim');
             return;
         }
         const a = document.createElement('a');
@@ -275,6 +275,26 @@ const MontageLibraryModule = {
         document.body.appendChild(a);
         a.click();
         a.remove();
+    },
+
+    previewFileAttachment: (file, title = 'Dosya onizleme') => {
+        const isPdf = String(file?.mimeType || file?.name || '').toLowerCase().includes('pdf')
+            || String(file?.name || '').toLowerCase().endsWith('.pdf');
+        const html = isPdf
+            ? `<iframe src="${file.dataUrl}" style="width:100%; height:72vh; border:none; border-radius:0.6rem; background:white;"></iframe>`
+            : `<div style="text-align:center; background:white; border-radius:0.6rem; padding:0.4rem;"><img src="${file.dataUrl}" alt="${UnitModule.escapeHtml(file?.name || 'dosya')}" style="max-width:100%; max-height:72vh; object-fit:contain;"></div>`;
+
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.open === 'function') {
+            Modal.open(title, html, { maxWidth: '980px' });
+            return;
+        }
+        const popup = window.open('', '_blank');
+        if (popup) {
+            popup.document.write(html);
+            popup.document.close();
+        } else {
+            window.open(file.dataUrl, '_blank');
+        }
     },
 
     renderFilePreview: (rowId, kind, file) => {
@@ -520,7 +540,7 @@ const MontageLibraryModule = {
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${UnitModule.escapeHtml(unit?.name || 'MONTAJ')}</div>
                         </div>
                     </div>
-                    <button onclick="MontageLibraryModule.toggleForm()" class="btn-primary" style="padding:0.55rem 1.2rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Urun ekle +'}</button>
+                    <button onclick="MontageLibraryModule.toggleForm()" class="btn-primary" style="padding:0.55rem 1.2rem; border-radius:0.75rem;">${showForm ? 'Vazgec' : 'Islem ekle +'}</button>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">

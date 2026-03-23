@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="920" viewBox="0 0 1600 920">
+  <defs>
+    <style>
+      .title { font: 700 34px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #475569; }
+      .label { font: 700 14px 'Segoe UI', Arial, sans-serif; fill: #1e293b; }
+      .small { font: 500 12px 'Segoe UI', Arial, sans-serif; fill: #64748b; }
+      .cardTitle { font: 700 13px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+      .cardMeta { font: 600 11px 'Segoe UI', Arial, sans-serif; fill: #334155; }
+      .chipText { font: 700 12px 'Segoe UI', Arial, sans-serif; fill: #0f172a; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="920" fill="#f3f6fb"/>
+
+  <rect x="32" y="22" width="1536" height="74" rx="14" fill="#ffffff" stroke="#dbe2ef"/>
+  <text x="56" y="66" class="title">Uretim Izleme Ekrani (Kontrol Kulesi)</text>
+  <text x="950" y="66" class="subtitle">Tarih: 23.03.2026  |  Vardiya: GUNDUZ  |  Toplam aktif lot: 12</text>
+
+  <rect x="32" y="112" width="1536" height="56" rx="12" fill="#ffffff" stroke="#dbe2ef"/>
+  <text x="56" y="146" class="label">Lot Renkleri:</text>
+  <rect x="180" y="128" width="130" height="26" rx="13" fill="#bfdbfe"/><text x="215" y="146" class="chipText">MAVI / LOT-001</text>
+  <rect x="322" y="128" width="140" height="26" rx="13" fill="#fecaca"/><text x="354" y="146" class="chipText">KIRMIZI / LOT-002</text>
+  <rect x="474" y="128" width="120" height="26" rx="13" fill="#e9d5ff"/><text x="506" y="146" class="chipText">MOR / LOT-003</text>
+  <rect x="606" y="128" width="145" height="26" rx="13" fill="#fde68a"/><text x="640" y="146" class="chipText">SARI / LOT-004</text>
+  <text x="980" y="146" class="small">Kart renkleri ayni siparisin tum adimlarinda ortak gorunur.</text>
+
+  <rect x="32" y="184" width="1536" height="44" rx="10" fill="#e2e8f0"/>
+  <text x="250" y="212" class="label">BEKLEYEN</text>
+  <text x="760" y="212" class="label">YAPILIYOR</text>
+  <text x="1245" y="212" class="label">BITEN</text>
+
+  <!-- Row 1 -->
+  <rect x="32" y="238" width="1536" height="118" rx="12" fill="#ffffff" stroke="#dbe2ef"/>
+  <rect x="46" y="252" width="150" height="90" rx="10" fill="#f8fafc" stroke="#dbe2ef"/>
+  <text x="74" y="304" class="label">CNC ATOLYESI</text>
+
+  <rect x="220" y="252" width="430" height="90" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="236" y="278" class="cardTitle">LOT-001 | 2008 Dikme | 50 Adet</text>
+  <text x="236" y="300" class="cardMeta">Is: CNC kesim / Kod: WO-00021</text>
+  <text x="236" y="322" class="cardMeta">Termin: 2026-03-24</text>
+
+  <rect x="680" y="252" width="430" height="90" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="696" y="278" class="cardTitle">LOT-004 | 35 lik ankraj | 120 Adet</text>
+  <text x="696" y="300" class="cardMeta">Is: CNC delme / Kod: WO-00024</text>
+  <text x="696" y="322" class="cardMeta">Kalan: 70</text>
+
+  <rect x="1140" y="252" width="412" height="90" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="1156" y="278" class="cardTitle">LOT-002 | 40 lik dikme pleksi</text>
+  <text x="1156" y="300" class="cardMeta">WO-00019 tamamlandi</text>
+  <text x="1156" y="322" class="cardMeta">Saat: 11:42</text>
+
+  <!-- Row 2 -->
+  <rect x="32" y="366" width="1536" height="118" rx="12" fill="#ffffff" stroke="#dbe2ef"/>
+  <rect x="46" y="380" width="150" height="90" rx="10" fill="#f8fafc" stroke="#dbe2ef"/>
+  <text x="64" y="432" class="label">PLEKSI</text>
+
+  <rect x="220" y="380" width="430" height="90" rx="10" fill="#fef2f2" stroke="#fca5a5"/>
+  <text x="236" y="406" class="cardTitle">LOT-002 | 40 lik dikme pleksi | 20 Adet</text>
+  <text x="236" y="428" class="cardMeta">Bekliyor: Malzeme onayi</text>
+  <text x="236" y="450" class="cardMeta">Kod: WO-00022</text>
+
+  <rect x="680" y="380" width="430" height="90" rx="10" fill="#f3e8ff" stroke="#d8b4fe"/>
+  <text x="696" y="406" class="cardTitle">LOT-003 | 2008 Dikme aksesuar | 10 Adet</text>
+  <text x="696" y="428" class="cardMeta">Durum: Isleniyor / Kod: WO-00023</text>
+  <rect x="934" y="435" width="160" height="24" rx="6" fill="#ffffff" stroke="#cbd5e1"/>
+  <text x="976" y="452" class="small">Not Ekle</text>
+
+  <rect x="1140" y="380" width="412" height="90" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="1156" y="406" class="cardTitle">LOT-001 | 2008 Dikme | 50 Adet</text>
+  <text x="1156" y="428" class="cardMeta">WO-00020 tamamlandi</text>
+  <text x="1156" y="450" class="cardMeta">Saat: 10:18</text>
+
+  <!-- Row 3 -->
+  <rect x="32" y="494" width="1536" height="118" rx="12" fill="#ffffff" stroke="#dbe2ef"/>
+  <rect x="46" y="508" width="150" height="90" rx="10" fill="#f8fafc" stroke="#dbe2ef"/>
+  <text x="66" y="560" class="label">ELOKSAL</text>
+
+  <rect x="220" y="508" width="430" height="90" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="236" y="534" class="cardTitle">LOT-001 | 2008 Dikme | 50 Adet</text>
+  <text x="236" y="556" class="cardMeta">Bekliyor: Onceki istasyon bitisi</text>
+  <text x="236" y="578" class="cardMeta">Kod: WO-00025</text>
+
+  <rect x="680" y="508" width="430" height="90" rx="10" fill="#fff7ed" stroke="#fdba74"/>
+  <text x="696" y="534" class="cardTitle">LOT-004 | 35 lik ankraj | 120 Adet</text>
+  <text x="696" y="556" class="cardMeta">Yapiliyor / Kod: WO-00026</text>
+  <text x="696" y="578" class="cardMeta">Kalan: 90</text>
+
+  <rect x="1140" y="508" width="412" height="90" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="1156" y="534" class="cardTitle">LOT-002 | 40 lik dikme pleksi</text>
+  <text x="1156" y="556" class="cardMeta">WO-00018 tamamlandi</text>
+  <text x="1156" y="578" class="cardMeta">Saat: 09:37</text>
+
+  <!-- Row 4 -->
+  <rect x="32" y="622" width="1536" height="118" rx="12" fill="#ffffff" stroke="#dbe2ef"/>
+  <rect x="46" y="636" width="150" height="90" rx="10" fill="#f8fafc" stroke="#dbe2ef"/>
+  <text x="66" y="688" class="label">MONTAJ</text>
+
+  <rect x="220" y="636" width="430" height="90" rx="10" fill="#fefce8" stroke="#fde047"/>
+  <text x="236" y="662" class="cardTitle">LOT-004 | 35 lik ankraj | 120 Adet</text>
+  <text x="236" y="684" class="cardMeta">Bekliyor / Kod: WO-00027</text>
+  <text x="236" y="706" class="cardMeta">Oncelik: YUKSEK</text>
+
+  <rect x="680" y="636" width="430" height="90" rx="10" fill="#eff6ff" stroke="#93c5fd"/>
+  <text x="696" y="662" class="cardTitle">LOT-001 | 2008 Dikme | 50 Adet</text>
+  <text x="696" y="684" class="cardMeta">Yapiliyor / Kod: WO-00028</text>
+  <text x="696" y="706" class="cardMeta">Kalan: 12</text>
+
+  <rect x="1140" y="636" width="412" height="90" rx="10" fill="#f0fdf4" stroke="#86efac"/>
+  <text x="1156" y="662" class="cardTitle">LOT-003 | 2008 Dikme aksesuar</text>
+  <text x="1156" y="684" class="cardMeta">WO-00017 tamamlandi</text>
+  <text x="1156" y="706" class="cardMeta">Saat: 08:52</text>
+
+  <text x="32" y="784" class="small">Not: Kart tiklandiginda detay paneli acilir (not yaz, sorun bildir, gecmis goruntule).</text>
+  <text x="32" y="805" class="small">Bu wireframe: "renkli lot takibi + tum atolyelerde bekleyen/yapiliyor/biten" mantigini gosterir.</text>
+</svg>

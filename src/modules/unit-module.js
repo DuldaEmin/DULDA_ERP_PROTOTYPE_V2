@@ -477,10 +477,10 @@ const UnitModule = {
         UnitModule.state.extruderDraftNote = '';
         UI.renderCurrentPage();
     },
-    openMontageLibrary: (id) => {
+    openMontageLibrary: (id, preserveState = false) => {
         UnitModule.state.activeUnitId = id;
         UnitModule.state.view = 'montageLibrary';
-        if (typeof MontageLibraryModule !== 'undefined' && MontageLibraryModule && typeof MontageLibraryModule.resetState === 'function') {
+        if (!preserveState && typeof MontageLibraryModule !== 'undefined' && MontageLibraryModule && typeof MontageLibraryModule.resetState === 'function') {
             MontageLibraryModule.resetState();
         }
         UI.renderCurrentPage();

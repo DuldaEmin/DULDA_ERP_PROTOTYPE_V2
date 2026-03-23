@@ -2454,7 +2454,7 @@ const ProductLibraryModule = {
             ? modelItems.filter(item => String(item?.id || '') !== targetRowId)
             : modelItems;
 
-        const pushComponent = (refRow, source) => {
+        const pushComponent = (refRow, source, qty = 1) => {
             if (!refRow) return;
             const code = String(refRow.code || '').trim().toUpperCase();
             if (cleaned.some(i => String(i.code || '') === code)) return; // tekrar ekleme
@@ -2463,17 +2463,18 @@ const ProductLibraryModule = {
                 source,
                 refId: String(refRow.id || ''),
                 code,
-                name: String(refRow.name || '').trim()
+                name: String(refRow.name || '').trim(),
+                qty: Math.max(1, Number(qty || 1))
             });
         };
 
         items.forEach(item => {
             if (item.source === 'component') {
                 const comp = ProductLibraryModule.getComponentCardById(item.refId);
-                pushComponent(comp, 'component');
+                pushComponent(comp, 'component', item.qty);
             } else if (item.source === 'master') {
                 const master = ProductLibraryModule.getMasterProductById(item.refId);
-                pushComponent(master, 'master');
+                pushComponent(master, 'master', item.qty);
             }
         });
 
@@ -3382,7 +3383,8 @@ const ProductLibraryModule = {
                 id: String(item?.id || '').trim(),
                 code: String(item?.code || '').trim().toUpperCase(),
                 name: String(item?.name || '').trim(),
-                categoryName: String(item?.categoryName || '').trim()
+                categoryName: String(item?.categoryName || '').trim(),
+                qty: Math.max(1, Number(item?.qty || 1))
             }))
             .filter((item) => item.code);
     },
@@ -3565,9 +3567,11 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelDraftTubeColor = String(row.colors?.tube?.name || '');
         ProductLibraryModule.state.modelDraftTubeColorCode = String(row.colors?.tube?.code || '');
         ProductLibraryModule.state.modelDraftMasterRefs = ProductLibraryModule.getModelMasterRefs(row)
-            .map((item) => ({ ...item }));
+            .map((item) => ({ ...item, qty: Math.max(1, Number(item?.qty || 1)) }));
         ProductLibraryModule.syncModelDraftPrimaryMasterRef();
-        ProductLibraryModule.state.modelDraftItems = Array.isArray(row.items) ? row.items.map(item => ({ ...item })) : [];
+        ProductLibraryModule.state.modelDraftItems = Array.isArray(row.items)
+            ? row.items.map(item => ({ ...item, qty: Math.max(1, Number(item?.qty || 1)) }))
+            : [];
         ProductLibraryModule.state.modelDraftMontageCard = row.montageCard ? { ...row.montageCard } : null;
         ProductLibraryModule.state.modelDraftProductFiles = Array.isArray(row.productFiles) ? row.productFiles.map(file => ({ ...file })) : [];
         ProductLibraryModule.state.modelDraftExplodedFiles = Array.isArray(row.explodedFiles) ? row.explodedFiles.map(file => ({ ...file })) : [];
@@ -3704,7 +3708,8 @@ const ProductLibraryModule = {
             id: '',
             code: '',
             name: '',
-            categoryName: ''
+            categoryName: '',
+            qty: 1
         });
         ProductLibraryModule.state.modelDraftMasterRefs = rows;
         ProductLibraryModule.syncModelDraftPrimaryMasterRef();
@@ -3723,6 +3728,17 @@ const ProductLibraryModule = {
         if (!ProductLibraryModule.confirmDestructiveAction()) return;
         ProductLibraryModule.state.modelDraftMasterRefs = rows.filter((row) => String(row?.rowId || '') !== String(rowId || ''));
         ProductLibraryModule.syncModelDraftPrimaryMasterRef();
+        UI.renderCurrentPage();
+    },
+
+    setModelMasterQty: (rowId, value) => {
+        const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? ProductLibraryModule.state.modelDraftMasterRefs
+            : [];
+        const row = rows.find((r) => String(r?.rowId || '') === String(rowId || ''));
+        if (!row) return;
+        const qty = Math.max(1, Math.floor(Number(value || 1) || 1));
+        row.qty = qty;
         UI.renderCurrentPage();
     },
 
@@ -3756,7 +3772,8 @@ const ProductLibraryModule = {
             id: String(row.id || ''),
             code: String(row.code || '').trim().toUpperCase(),
             name: String(row.name || '').trim(),
-            categoryName: String(row.categoryName || '').trim()
+            categoryName: String(row.categoryName || '').trim(),
+            qty: 1
         };
         const idx = rows.findIndex((item) => String(item?.rowId || '') === nextRowId);
         if (idx >= 0) rows[idx] = nextRow;
@@ -3789,7 +3806,8 @@ const ProductLibraryModule = {
             source: 'component',
             refId: '',
             code: '',
-            name: ''
+            name: '',
+            qty: 1
         });
         ProductLibraryModule.state.modelDraftItems = items;
         if (openPicker) {
@@ -3821,12 +3839,14 @@ const ProductLibraryModule = {
             alert('Bu parca zaten secili.');
             return false;
         }
+        const existing = items.find(i => String(i.id || '') === nextRowId);
         const nextItem = {
             id: nextRowId || crypto.randomUUID(),
             source: 'component',
             refId: String(row.id || ''),
             code: String(row.code || '').trim().toUpperCase(),
-            name: String(row.name || '').trim()
+            name: String(row.name || '').trim(),
+            qty: Math.max(1, Number(existing?.qty || 1))
         };
         if (nextRowId) {
             const idx = items.findIndex((item) => String(item?.id || '') === nextRowId);
@@ -3838,6 +3858,15 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.modelDraftItems = items;
         if (render) UI.renderCurrentPage();
         return true;
+    },
+
+    setModelComponentQty: (id, value) => {
+        const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
+        const row = items.find((item) => String(item?.id || '') === String(id || ''));
+        if (!row) return;
+        const qty = Math.max(1, Math.floor(Number(value || 1) || 1));
+        row.qty = qty;
+        UI.renderCurrentPage();
     },
 
     removeModelDraftItem: (id) => {
@@ -3958,7 +3987,7 @@ const ProductLibraryModule = {
             if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
                 Router.navigate('units', { fromBack: true });
             }
-            UnitModule.openMontageLibrary(unitId);
+            UnitModule.openMontageLibrary(unitId, true);
         } else {
             alert('Montaj kutuphanesi acilamadi.');
         }
@@ -4135,7 +4164,8 @@ const ProductLibraryModule = {
                     id: String(item?.id || '').trim(),
                     code: String(item?.code || '').trim().toUpperCase(),
                     name: String(item?.name || '').trim(),
-                    categoryName: String(item?.categoryName || '').trim()
+                    categoryName: String(item?.categoryName || '').trim(),
+                    qty: Math.max(1, Number(item?.qty || 1))
                 }))
                 .filter((item) => item.code),
             items: (Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [])
@@ -4144,7 +4174,8 @@ const ProductLibraryModule = {
                     source: String(item?.source || 'component'),
                     refId: String(item?.refId || ''),
                     code: String(item?.code || '').trim().toUpperCase(),
-                    name: String(item?.name || '').trim()
+                    name: String(item?.name || '').trim(),
+                    qty: Math.max(1, Number(item?.qty || 1))
                 }))
                 .filter(item => item.code),
             montageCard: ProductLibraryModule.state.modelDraftMontageCard ? { ...ProductLibraryModule.state.modelDraftMontageCard } : null,
@@ -4499,13 +4530,14 @@ const ProductLibraryModule = {
                 return '<div style="padding:0.8rem; border:1px dashed #cbd5e1; border-radius:0.7rem; color:#94a3b8;">Henuz master urun baglanmadi.</div>';
             }
             return masterRows.map((row, idx) => `
-                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 82px; gap:0.45rem; align-items:center;">
+                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 90px 82px; gap:0.45rem; align-items:center;">
                     <div style="font-weight:800; color:#475569;">${idx + 1}</div>
                     <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
                         <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(row?.code || 'master secilmedi')}</div>
                         <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(row?.name || 'Master urun secmek icin sec butonunu kullanin.')}</div>
                     </div>
-                    <button class="btn-sm" onclick="${row?.id ? `ProductLibraryModule.previewModelDraftLinkedRecord('master', '${ProductLibraryModule.escapeHtml(row.id || '')}')` : `ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')`}" style="height:40px;">${row?.id ? 'gor' : 'sec'}</button>
+                    <button class="btn-sm" onclick="${row?.id ? `ProductLibraryModule.previewModelDraftLinkedRecord('master', '${ProductLibraryModule.escapeHtml(row.id || '')}')` : `ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')`}" style="height:40px;">${row?.id ? 'goruntule' : 'sec'}</button>
+                    <input type="number" min="1" step="1" value="${Number(row?.qty || 1)}" onchange="ProductLibraryModule.setModelMasterQty('${ProductLibraryModule.escapeHtml(row.rowId || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelMasterDraftRow('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');
@@ -4515,13 +4547,14 @@ const ProductLibraryModule = {
                 return '<div style="padding:0.8rem; border:1px dashed #cbd5e1; border-radius:0.7rem; color:#94a3b8;">Henuz parca / bilesen baglanmadi.</div>';
             }
             return componentItems.map((item, idx) => `
-                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 82px; gap:0.45rem; align-items:center;">
+                <div style="display:grid; grid-template-columns:52px minmax(0,1fr) 130px 90px 82px; gap:0.45rem; align-items:center;">
                     <div style="font-weight:800; color:#475569;">${idx + 1}</div>
                     <div style="min-width:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#f8fafc; padding:0.58rem 0.7rem;">
                         <div style="font-family:monospace; color:#0f172a; font-weight:800;">${ProductLibraryModule.escapeHtml(item?.code || 'parca secilmedi')}</div>
                         <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(item?.name || 'Parca secmek icin sec butonunu kullanin.')}</div>
                     </div>
-                    <button class="btn-sm" onclick="${item?.refId ? `ProductLibraryModule.previewModelDraftLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item.refId || '')}')` : `ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')`}" style="height:40px;">${item?.refId ? 'gor' : 'sec'}</button>
+                    <button class="btn-sm" onclick="${item?.refId ? `ProductLibraryModule.previewModelDraftLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item.refId || '')}')` : `ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')`}" style="height:40px;">${item?.refId ? 'goruntule' : 'sec'}</button>
+                    <input type="number" min="1" step="1" value="${Number(item?.qty || 1)}" onchange="ProductLibraryModule.setModelComponentQty('${ProductLibraryModule.escapeHtml(item.id || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');
@@ -4599,7 +4632,7 @@ const ProductLibraryModule = {
                                 </div>
                             </div>
                             <div style="display:grid; gap:0.9rem;">
-                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px;">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;"><div style="font-weight:700; margin-bottom:0.45rem;">Montaj Islem Karti</div><div style="display:grid; grid-template-columns:1fr auto auto; gap:0.45rem; align-items:center;"><input readonly value="${ProductLibraryModule.escapeHtml(montageCard?.cardCode || '')}" placeholder="montaj karti secilmedi" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; font-family:monospace; background:#f8fafc;"><button class="btn-sm" onclick="ProductLibraryModule.openModelMontagePicker()" style="height:40px; min-width:110px; ${montageCard ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.clearModelMontageCard()" style="height:40px; min-width:80px;">sil</button></div>${montageCard ? `<div style="font-size:0.8rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(montageCard.productCode || '-')} / ${ProductLibraryModule.escapeHtml(montageCard.productName || '-')}</div>` : ''}</div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem;">
                                     <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun fotografi/ teknik resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('product', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${productFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : productFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('product', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('product', ${idx})">kaldir</button></div></div>`).join('')}</div></div>
                                     <div style="border:1px solid #0f172a; border-radius:1rem; padding:0.75rem; min-height:320px;"><div style="font-weight:700; margin-bottom:0.45rem;">urun patlatilmis resim</div><div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">resim/pdf dosya + ekle</div><input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleModelFiles('exploded', this)" style="width:100%;"><div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.35rem; max-height:210px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>' : explodedFiles.map((file, idx) => `<div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.35rem 0.45rem;"><div style="font-size:0.8rem; color:#334155; margin-bottom:0.3rem;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div><div style="display:flex; gap:0.35rem;"><button class="btn-sm" onclick="ProductLibraryModule.previewModelDraftFile('exploded', ${idx})">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftFile('exploded', ${idx})">kaldir</button></div></div>`).join('')}</div></div>

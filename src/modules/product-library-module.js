@@ -164,6 +164,9 @@ const ProductLibraryModule = {
         if (String(ProductLibraryModule.state.workspaceView || '') === 'models' && nextView !== 'models') {
             ProductLibraryModule.resetModelAccordionState();
         }
+        if (String(ProductLibraryModule.state.workspaceView || '') === 'components' && nextView !== 'components') {
+            ProductLibraryModule.state.componentCategoryExpanded = {};
+        }
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
         if (nextView !== 'components') ProductLibraryModule.state.componentPickerSource = '';
@@ -173,11 +176,16 @@ const ProductLibraryModule = {
 
     goWorkspaceMenu: () => {
         ProductLibraryModule.resetModelAccordionState();
+        ProductLibraryModule.state.componentCategoryExpanded = {};
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
-        UI.renderCurrentPage();
+        if (typeof Router !== 'undefined' && Router && typeof Router.back === 'function') {
+            Router.back();
+        } else {
+            UI.renderCurrentPage();
+        }
     },
 
     openPlanningPicker: (kind) => {
@@ -1959,6 +1967,17 @@ const ProductLibraryModule = {
         const componentExpandedMap = (state.componentCategoryExpanded && typeof state.componentCategoryExpanded === 'object')
             ? state.componentCategoryExpanded
             : {};
+        const assemblyRows = ProductLibraryModule.getAssemblyGroups();
+        const renderAssemblyRow = (row) => `
+            <tr style="border-bottom:1px solid #f1f5f9; ${state.assemblySelectedId === row.id ? 'background:#fff7ed;' : ''}">
+                <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
+                <td style="padding:0.55rem; text-align:center; font-weight:700;">${Array.isArray(row?.items) ? row.items.length : 0}</td>
+                <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openAssemblyGroupFromComponents('${row.id}')">goruntule</button></td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditAssemblyGroupFromComponents('${row.id}')">duzenle</button></td>
+                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectAssemblyGroup('${row.id}')" style="${state.assemblySelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
+            </tr>
+        `;
         const renderComponentRow = (row) => `
             <tr style="border-bottom:1px solid #f1f5f9;">
                 <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
@@ -2066,6 +2085,36 @@ const ProductLibraryModule = {
                             </tr>
                         </thead>
                         <tbody>${rowsHtml}</tbody>
+                    </table>
+                </div>
+
+                <div class="card-table" style="padding:1rem; margin-bottom:1rem; border:2px solid #0f172a; border-radius:1rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.6rem;">
+                        <div style="display:flex; align-items:center; gap:0.55rem;">
+                            <h3 style="margin:0; font-size:1.05rem; color:#334155;">Parca Gruplari</h3>
+                            <span style="font-size:0.82rem; color:#64748b;">(${assemblyRows.length})</span>
+                        </div>
+                        <div style="display:flex; gap:0.45rem;">
+                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly'); ProductLibraryModule.openAssemblyForm()">yeni grup ekle +</button>
+                            <button class="btn-sm" onclick="ProductLibraryModule.openWorkspace('assembly')">tumunu gor</button>
+                        </div>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.75rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">parca grup</th>
+                                <th style="padding:0.55rem; text-align:center;">kalem</th>
+                                <th style="padding:0.55rem; text-align:left;">ID kod</th>
+                                <th style="padding:0.55rem; text-align:center;">goruntule</th>
+                                <th style="padding:0.55rem; text-align:center;">duzenle</th>
+                                <th style="padding:0.55rem; text-align:center;">sec</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${assemblyRows.length === 0
+                                ? '<tr><td colspan="6" style="padding:0.95rem; color:#94a3b8; text-align:center;">Kayitli parca grup yok.</td></tr>'
+                                : assemblyRows.map(renderAssemblyRow).join('')}
+                        </tbody>
                     </table>
                 </div>
 
@@ -2368,6 +2417,18 @@ const ProductLibraryModule = {
     selectAssemblyGroup: (id) => {
         ProductLibraryModule.state.assemblySelectedId = String(id || '');
         UI.renderCurrentPage();
+    },
+
+    openAssemblyGroupFromComponents: (id) => {
+        ProductLibraryModule.state.workspaceView = 'assembly';
+        ProductLibraryModule.state.assemblyViewingId = String(id || '');
+        ProductLibraryModule.state.assemblyFormOpen = false;
+        UI.renderCurrentPage();
+    },
+
+    startEditAssemblyGroupFromComponents: (id) => {
+        ProductLibraryModule.state.workspaceView = 'assembly';
+        ProductLibraryModule.startEditAssemblyGroup(id);
     },
 
     setAssemblyDraftItemQty: (code, value) => {
@@ -2889,7 +2950,7 @@ const ProductLibraryModule = {
                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</td>
                                     <td style="padding:0.55rem; text-align:center; font-weight:700;">${Array.isArray(row?.items) ? row.items.length : 0}</td>
                                     <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
-                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openAssemblyGroupView('${row.id}')">gor</button></td>
+                                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openAssemblyGroupView('${row.id}')">goruntule</button></td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditAssemblyGroup('${row.id}')">duzenle</button></td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectAssemblyGroup('${row.id}')" style="${state.assemblySelectedId === row.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">sec</button></td>
                                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteAssemblyGroup('${row.id}')">sil</button></td>

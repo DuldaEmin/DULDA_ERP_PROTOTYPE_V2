@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-24T15:56:01.555Z",
+    "updated_at": "2026-03-24T15:51:56.881Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 136
+    "revision": 134
   },
   "data": {
     "products": [
@@ -2916,30 +2916,7 @@
         "priority": "NORMAL",
         "note": "",
         "status": "OPEN",
-        "updated_at": "2026-03-24T15:55:26.097Z",
-        "items": [
-          {
-            "id": "5f828874-2cea-46fd-b716-5249273d4ff7",
-            "itemType": "SEMI",
-            "qty": 25,
-            "variantId": "",
-            "componentId": "",
-            "semiFinishedId": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "",
-            "semiFinishedCode": "YRM-000001",
-            "productGroup": "aluminyum dikme aksesuarları",
-            "productName": "mafsal cnc de işlenmiş polisaja hazır",
-            "productCode": "YRM-000001",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "workOrderId": "",
-        "workOrderCode": "",
-        "workOrderIds": [],
-        "workOrderCodes": []
+        "updated_at": "2026-03-24T15:31:34.571Z"
       },
       {
         "id": "5129c04a-10c6-4d5a-bf4d-27b8accb942b",
@@ -3086,72 +3063,6 @@
         ],
         "updated_at": "2026-03-24T15:51:56.881Z",
         "released_at": "2026-03-24T15:51:56.881Z"
-      },
-      {
-        "id": "dfcb0005-1f51-4581-95fc-32610a80f877",
-        "demandCode": "PLN-000004",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-24T15:56:01.555Z",
-        "items": [
-          {
-            "id": "27097e03-d3a5-4a4b-9df0-6ec44c24b73c",
-            "itemType": "MODEL",
-            "qty": 44,
-            "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-            "componentId": "",
-            "semiFinishedId": "",
-            "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-            "variantCode": "URM-000001-V01",
-            "componentCode": "",
-            "semiFinishedCode": "",
-            "productGroup": "Aluminyum Dikmeler",
-            "productName": "2008 bombeli aluminyum dikme",
-            "productCode": "DIKMELER",
-            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-            "montageCardCode": "MON-000001"
-          },
-          {
-            "id": "b59f268d-a3bf-4d01-aacd-1f758f8c154d",
-            "itemType": "MODEL",
-            "qty": 55,
-            "variantId": "e3c525c8-eecf-488c-ad1f-fe5c715002b6",
-            "componentId": "",
-            "semiFinishedId": "",
-            "familyId": "aa175ad1-eaac-492b-b842-17ba2a3f428e",
-            "variantCode": "URM-000002-V01",
-            "componentCode": "",
-            "semiFinishedCode": "",
-            "productGroup": "ankrajlar",
-            "productName": "35 lik sıkmalı ankraj",
-            "productCode": "0064",
-            "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
-            "montageCardCode": "MON-000002"
-          }
-        ],
-        "itemType": "MODEL",
-        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-        "componentId": "",
-        "semiFinishedId": "",
-        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-        "variantCode": "URM-000001-V01",
-        "componentCode": "",
-        "semiFinishedCode": "",
-        "productGroup": "2 kalem",
-        "productName": "Coklu stok talebi (2 urun)",
-        "productCode": "MIXED",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "qty": 99,
-        "dueDate": "2026-03-27",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "workOrderId": "",
-        "workOrderCode": "",
-        "workOrderIds": [],
-        "workOrderCodes": [],
-        "updated_at": "2026-03-24T15:56:01.555Z"
       }
     ],
     "semiFinishedCards": [

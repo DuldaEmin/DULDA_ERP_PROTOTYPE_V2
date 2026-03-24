@@ -8,13 +8,13 @@ if (-not (Test-Path $backupScript)) {
 }
 
 $taskName = "DULDA_GitAutoBackup_15Min"
-$taskCommand = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File `"$backupScript`""
+$taskCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$backupScript`""
 
-schtasks /Create /TN $taskName /SC MINUTE /MO 15 /TR $taskCommand /F | Out-Null
+schtasks /Create /TN $taskName /SC MINUTE /MO 30 /TR $taskCommand /F | Out-Null
 if ($LASTEXITCODE -ne 0) {
     throw "Zamanlanmis gorev olusturulamadi."
 }
 
 Write-Output "Olusturuldu: $taskName"
 Write-Output "Komut: $taskCommand"
-Write-Output "Periyot: 15 dakika"
+Write-Output "Periyot: 30 dakika"

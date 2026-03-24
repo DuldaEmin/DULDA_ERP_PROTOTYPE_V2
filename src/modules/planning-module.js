@@ -42,6 +42,12 @@ const PlanningModule = {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;'),
 
+    escapeJsString: (value) => String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n'),
+
     ensureData: () => {
         if (!Array.isArray(DB.data?.data?.planningDemands)) DB.data.data.planningDemands = [];
         if (!Array.isArray(DB.data?.data?.catalogProductVariants)) DB.data.data.catalogProductVariants = [];
@@ -89,6 +95,106 @@ const PlanningModule = {
     getDemands: () => {
         PlanningModule.ensureData();
         return DB.data.data.planningDemands;
+    },
+
+    getDemandItems: (demand) => {
+        if (Array.isArray(demand?.items) && demand.items.length) {
+            return demand.items
+                .map((item) => ({
+                    id: String(item?.id || crypto.randomUUID()),
+                    itemType: PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL'),
+                    variantId: String(item?.variantId || ''),
+                    componentId: String(item?.componentId || ''),
+                    semiFinishedId: String(item?.semiFinishedId || ''),
+                    productName: String(item?.productName || ''),
+                    productCode: String(item?.productCode || ''),
+                    variantCode: String(item?.variantCode || ''),
+                    componentCode: String(item?.componentCode || ''),
+                    semiFinishedCode: String(item?.semiFinishedCode || ''),
+                    productGroup: String(item?.productGroup || ''),
+                    qty: Number(item?.qty || 0) > 0 ? Number(item.qty) : 1
+                }))
+                .filter((item) => item.variantId || item.componentId || item.semiFinishedId || item.productCode || item.variantCode || item.componentCode || item.semiFinishedCode);
+        }
+
+        const fallbackType = PlanningModule.normalizeDraftItemKind(demand?.itemType || 'MODEL');
+        return [{
+            id: crypto.randomUUID(),
+            itemType: fallbackType,
+            variantId: String(demand?.variantId || ''),
+            componentId: String(demand?.componentId || ''),
+            semiFinishedId: String(demand?.semiFinishedId || ''),
+            productName: String(demand?.productName || ''),
+            productCode: String(demand?.productCode || ''),
+            variantCode: String(demand?.variantCode || ''),
+            componentCode: String(demand?.componentCode || ''),
+            semiFinishedCode: String(demand?.semiFinishedCode || ''),
+            productGroup: String(demand?.productGroup || ''),
+            qty: Number(demand?.qty || 0) > 0 ? Number(demand.qty) : 1
+        }];
+    },
+
+    openReadOnlyCodeModal: (code) => {
+        const raw = String(code || '').trim();
+        if (!raw) return alert('ID kod bulunamadi.');
+        if (typeof ReadOnlyViewer === 'undefined' || !ReadOnlyViewer || typeof ReadOnlyViewer.openByCode !== 'function') {
+            return alert('Goruntuleme modulu hazir degil.');
+        }
+        ReadOnlyViewer.openByCode(raw);
+    },
+
+    openDemandView: (demandId) => {
+        const row = PlanningModule.getDemands().find((item) => String(item?.id || '') === String(demandId || ''));
+        if (!row) return alert('Talep kaydi bulunamadi.');
+        const items = PlanningModule.getDemandItems(row);
+        const totalQty = items.reduce((sum, item) => sum + Number(item?.qty || 0), 0);
+        const demandCode = String(row?.demandCode || '-');
+        const html = `
+            <div style="display:grid; gap:0.75rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
+                        <div><div style="font-size:0.72rem; color:#64748b;">Talep ID</div><div style="font-weight:800; font-family:monospace; color:#1d4ed8;">${PlanningModule.escapeHtml(demandCode)}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">Durum</div><div style="font-weight:700;">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:700;">${PlanningModule.escapeHtml(String(totalQty))}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">Termin</div><div style="font-weight:700;">${PlanningModule.escapeHtml(row?.dueDate || '-')}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">Oncelik</div><div style="font-weight:700;">${PlanningModule.escapeHtml(PlanningModule.getPriorityValue(row?.priority || 'NORMAL'))}</div></div>
+                        <div><div style="font-size:0.72rem; color:#64748b;">Is emri</div><div style="font-weight:700; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</div></div>
+                    </div>
+                    <div style="margin-top:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155;">${PlanningModule.escapeHtml(row?.note || '-')}</div></div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
+                    <div style="font-size:0.85rem; color:#64748b; margin-bottom:0.45rem;">Talep kalemleri (${items.length})</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.45rem; text-align:left;">#</th>
+                                <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                <th style="padding:0.45rem; text-align:left;">Tip</th>
+                                <th style="padding:0.45rem; text-align:left;">ID kod</th>
+                                <th style="padding:0.45rem; text-align:center;">Adet</th>
+                                <th style="padding:0.45rem; text-align:right;">Islem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((item, idx) => {
+                                const code = String(item?.productCode || item?.variantCode || item?.componentCode || item?.semiFinishedCode || '').trim();
+                                return `
+                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                        <td style="padding:0.45rem;">${idx + 1}</td>
+                                        <td style="padding:0.45rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(item?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b;">${PlanningModule.escapeHtml(item?.productGroup || '-')}</div></td>
+                                        <td style="padding:0.45rem;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(item?.itemType || 'MODEL'))}</td>
+                                        <td style="padding:0.45rem; font-family:monospace; color:#1d4ed8;">${PlanningModule.escapeHtml(code || '-')}</td>
+                                        <td style="padding:0.45rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(item?.qty || 0))}</td>
+                                        <td style="padding:0.45rem; text-align:right;">${code ? `<button class="btn-sm" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(code)}')">goruntule</button>` : ''}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        Modal.open(`Talep Goruntule - ${PlanningModule.escapeHtml(demandCode)}`, html, { maxWidth: '1080px' });
     },
 
     getVariants: () => {
@@ -713,7 +819,7 @@ const PlanningModule = {
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayWorkOrder)}</td>
-                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">${released ? '' : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeHtml(row?.id || '')}')">duzenle</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeHtml(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeHtml(row?.id || '')}')">sil</button>`}</div></td>
+                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>${released ? '' : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>`}</div></td>
                 </tr>
             `;
         }).join('');
@@ -740,8 +846,9 @@ const PlanningModule = {
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</td>
                     <td style="padding:0.6rem; text-align:right;">
                         <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                            <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeHtml(row?.id || '')}')">duzenle</button>
-                            <button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeHtml(row?.id || '')}')">sil</button>
+                            <button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>
+                            <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button>
+                            <button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>
                         </div>
                     </td>
                 </tr>

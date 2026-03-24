@@ -48,3 +48,11 @@ node .\serve.js 5500
 - Sadece statik hosting (yalnizca HTML/CSS/JS) tek basina yeterli degildir.
 - GitHub otomatik yedekleme gorevi 15 dakikada bir degisiklik varsa commit+push yapar.
 - UI kaidesi: Urun/varlik ekleme-duzenleme formlari her zaman kayitli satirlarin USTUNDE acilir; acildiginda liste satirlari asagi itilir. Bu prensip tum yeni modullerde zorunludur.
+
+## 5) Isleyis ve Gelistirme Takibi
+- `ISLEYIS.md`: Programin ne ise yaradigini, modullerin ne yaptigini aciklar.
+- `GELISTIRME_GUNLUGU.md`: Yapilan her gelistirmenin ne ve neden yapildigini kaydeder.
+- `DOKUMAN_HARITASI.md`: Hangi sorunun cevabi hangi dokumanda, tek giris noktasi.
+- `KULLANICI_EL_KITABI.md`: Yeni kullanicinin programi calistirip kullanmasi icin operasyon rehberi.
+- `YENIDEN_YAZIM_SPESIFIKASYONU.md`: Sistemi sifirdan tekrar yazmak icin fonksiyonel teknik plan.
+- `VERI_SOZLESMESI.md`: Veri modeli, zorunlu alanlar ve baglanti kurallari.

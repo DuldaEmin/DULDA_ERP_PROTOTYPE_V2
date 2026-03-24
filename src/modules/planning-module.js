@@ -308,6 +308,17 @@ const PlanningModule = {
         UI.renderCurrentPage();
     },
 
+    openDraftItemPreview: (draftItemId) => {
+        const targetId = String(draftItemId || '').trim();
+        if (!targetId) return alert('Kayit bulunamadi.');
+        const row = PlanningModule.getResolvedStockDraftItems()
+            .find((item) => String(item?.id || '') === targetId);
+        if (!row || !row.valid) return alert('Bu satirdaki kayit gecersiz. Once gecerli bir urun seciniz.');
+        const code = String(row?.code || '').trim();
+        if (!code) return alert('Bu kayit icin ID kod bulunamadi.');
+        PlanningModule.openReadOnlyCodeModal(code);
+    },
+
     getResolvedStockDraftItems: () => {
         const rows = Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [];
         return rows.map((item) => {
@@ -1009,9 +1020,9 @@ const PlanningModule = {
                                     <tbody>
                                         ${draftItems.length
                                             ? draftItems.map((item, idx) => {
-                                                const rowPickerKind = item.itemType === 'COMPONENT' ? 'component' : (item.itemType === 'SEMI' ? 'semi' : 'model');
                                                 const typeLabel = PlanningModule.getItemTypeLabel(item.itemType);
                                                 const infoLine = `${String(item.code || '-')} / ${String(item.info || '-')}`;
+                                                const canPreview = item.valid && String(item.code || '').trim().length > 0;
                                                 return `
                                                     <tr style="border-bottom:1px solid #f1f5f9; ${item.valid ? '' : 'background:#fff7ed;'}">
                                                         <td style="padding:0.45rem; text-align:center; font-weight:700;">${idx + 1}</td>
@@ -1020,7 +1031,10 @@ const PlanningModule = {
                                                             <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(infoLine)}</div>
                                                         </td>
                                                         <td style="padding:0.45rem; text-align:center;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.12rem 0.55rem; font-size:0.72rem; font-weight:700; color:#334155;">${PlanningModule.escapeHtml(typeLabel)}</span></td>
-                                                        <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.openItemPicker('${rowPickerKind}')">goruntule</button></td>
+                                                        <td style="padding:0.45rem; text-align:center;">${canPreview
+                                                            ? `<button class="btn-sm" onclick="PlanningModule.openDraftItemPreview('${PlanningModule.escapeJsString(item.id)}')">goruntule</button>`
+                                                            : `<span style="display:inline-block; min-width:68px; padding:0.25rem 0.45rem; border:1px solid #e2e8f0; border-radius:0.45rem; color:#94a3b8; font-size:0.76rem;">yok</span>`
+                                                        }</td>
                                                         <td style="padding:0.45rem; text-align:center;"><input type="number" min="1" value="${PlanningModule.escapeHtml(String(item.qty || 1))}" onchange="PlanningModule.setStockDraftItemQty('${PlanningModule.escapeHtml(item.id)}', this.value)" style="width:84px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700; text-align:center;"></td>
                                                         <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.removeStockDraftItem('${PlanningModule.escapeHtml(item.id)}')">sil</button></td>
                                                     </tr>

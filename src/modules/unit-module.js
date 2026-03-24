@@ -1782,6 +1782,8 @@ const UnitModule = {
     createWorkOrderFromComponentCard: (options = {}) => {
         if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
         const componentId = String(options?.componentId || '').trim();
+        const componentLibraryRaw = String(options?.componentLibrary || 'PART').trim().toUpperCase();
+        const componentLibrary = componentLibraryRaw === 'SEMI' ? 'SEMI' : 'PART';
         const lotQty = Number(options?.lotQty || 0);
         const dueDate = String(options?.dueDate || '').trim();
         const priorityRaw = String(options?.priority || 'NORMAL').trim().toUpperCase();
@@ -1793,9 +1795,11 @@ const UnitModule = {
         const sourceCode = String(options?.sourceCode || '').trim().toUpperCase();
         if (!componentId) throw new Error('Lutfen parca/bilesen seciniz.');
         if (!Number.isFinite(lotQty) || lotQty <= 0) throw new Error('Lot miktari 0 dan buyuk olmali.');
-        const componentCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        const componentCards = componentLibrary === 'SEMI'
+            ? (Array.isArray(DB.data?.data?.semiFinishedCards) ? DB.data.data.semiFinishedCards : [])
+            : (Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : []);
         const comp = componentCards.find(x => String(x?.id || '') === componentId);
-        if (!comp) throw new Error('Parca/bilesen karti bulunamadi.');
+        if (!comp) throw new Error(componentLibrary === 'SEMI' ? 'Yari mamul karti bulunamadi.' : 'Parca/bilesen karti bulunamadi.');
         const routesRaw = Array.isArray(comp?.routes) ? comp.routes : [];
         const routes = routesRaw
             .map((r, idx) => {

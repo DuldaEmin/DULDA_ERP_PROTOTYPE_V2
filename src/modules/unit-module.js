@@ -616,27 +616,20 @@ const UnitModule = {
         const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
         const componentCode = String(line?.componentCode || '').trim().toUpperCase();
         if (!componentCode) return alert('Parca kodu bulunamadi.');
-        const component = (DB.data?.data?.partComponentCards || []).find(x => String(x?.code || '').trim().toUpperCase() === componentCode);
-        if (!component) return alert('Parca/bilesen karti bulunamadi.');
-        const returnPage = String(unitId || '') === 'u_dtm' && String(typeof Router !== 'undefined' ? Router.currentPage || '' : '') === 'stock'
-            ? 'stock'
-            : 'units';
-        if (typeof Router !== 'undefined') Router.navigate('products');
-        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
-            ProductLibraryModule.state.workspaceView = 'components';
-            ProductLibraryModule.openComponentCardView(component.id, {
-                page: returnPage,
-                view: 'workOrderPlanning',
-                unitId: String(unitId || UnitModule.state.activeUnitId || '')
-            });
-            return;
+        if (typeof ReadOnlyViewer !== 'undefined' && ReadOnlyViewer && typeof ReadOnlyViewer.openByCode === 'function') {
+            const opened = ReadOnlyViewer.openByCode(componentCode, { silentNotFound: true });
+            if (opened) return;
         }
-        UI.renderCurrentPage();
+        return alert(`Bu parca kodu icin goruntuleme karti bulunamadi: ${componentCode}`);
     },
     openWorkOrderProcessPreview: (stationId, processId, unitId = '') => {
         const normalizedStationId = String(stationId || '').trim();
         const code = String(processId || '').trim().toUpperCase();
         if (!normalizedStationId || !code) return alert('Islem kaydi bulunamadi.');
+        if (typeof ReadOnlyViewer !== 'undefined' && ReadOnlyViewer && typeof ReadOnlyViewer.openByCode === 'function') {
+            const opened = ReadOnlyViewer.openByCode(code, { silentNotFound: true });
+            if (opened) return;
+        }
         const unit = (DB.data?.data?.units || []).find(u => String(u?.id || '') === normalizedStationId);
         const unitName = String(unit?.name || '').toUpperCase();
 
@@ -700,14 +693,7 @@ const UnitModule = {
                 return;
             }
         }
-        UnitModule.state.libraryReturnContext = {
-            view: 'workOrderPlanning',
-            unitId: String(unitId || UnitModule.state.activeUnitId || '')
-        };
-        UnitModule.openUnitLibrary(normalizedStationId);
-        const found = UnitModule.applyProcessSelectionForStation(normalizedStationId, code);
-        UI.renderCurrentPage();
-        if (!found) alert('Ilgili islem kutuphane kaydi bulunamadi.');
+        return alert(`Bu islem kodu icin goruntuleme karti bulunamadi: ${code}`);
     },
     getActiveComponentRoutePicker: () => {
         const moduleRef = typeof ProductLibraryModule !== 'undefined' ? ProductLibraryModule : null;

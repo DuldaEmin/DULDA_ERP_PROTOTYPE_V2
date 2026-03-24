@@ -134,6 +134,13 @@ const PlanningModule = {
         }];
     },
 
+    getDemandItemCode: (item) => {
+        const kind = PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL');
+        if (kind === 'COMPONENT') return String(item?.componentCode || item?.productCode || '').trim();
+        if (kind === 'SEMI') return String(item?.semiFinishedCode || item?.productCode || '').trim();
+        return String(item?.variantCode || item?.productCode || '').trim();
+    },
+
     openReadOnlyCodeModal: (code) => {
         const raw = String(code || '').trim();
         if (!raw) return alert('ID kod bulunamadi.');
@@ -177,7 +184,7 @@ const PlanningModule = {
                         </thead>
                         <tbody>
                             ${items.map((item, idx) => {
-                                const code = String(item?.productCode || item?.variantCode || item?.componentCode || item?.semiFinishedCode || '').trim();
+                                const code = PlanningModule.getDemandItemCode(item);
                                 return `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
                                         <td style="padding:0.45rem;">${idx + 1}</td>
@@ -845,7 +852,7 @@ const PlanningModule = {
             const displayName = itemCount > 1 ? `${row?.productName || 'Coklu stok talebi'} (${itemCount} kalem)` : String(row?.productName || '-');
             const displayCode = itemCount > 1
                 ? `MIXED / ${itemCount} kalem`
-                : String(row?.productCode || row?.variantCode || row?.componentCode || row?.semiFinishedCode || '-');
+                : String(row?.variantCode || row?.componentCode || row?.semiFinishedCode || row?.productCode || '-');
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div></td>

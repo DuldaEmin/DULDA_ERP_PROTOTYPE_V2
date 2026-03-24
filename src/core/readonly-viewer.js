@@ -197,9 +197,39 @@ const ReadOnlyViewer = {
         Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.code || '-')}`, html, { maxWidth: '920px' });
     },
 
-    openByCode: (rawCode) => {
+    openVariantCandidatesModal: (searchedCode, candidates) => {
+        const list = Array.isArray(candidates) ? candidates : [];
+        if (!list.length) return false;
+        const html = `
+            <div style="display:grid; gap:0.55rem;">
+                <div style="font-size:0.84rem; color:#64748b;">
+                    <strong>${ReadOnlyViewer.escapeHtml(searchedCode)}</strong> kodu birden fazla urun varyantina bagli.
+                    Lutfen acmak istediginiz varyanti secin.
+                </div>
+                <div style="display:grid; gap:0.45rem; max-height:58vh; overflow:auto;">
+                    ${list.map((row) => `
+                        <button class="btn-sm" style="display:flex; justify-content:space-between; align-items:center; gap:0.55rem; width:100%; text-align:left; padding:0.55rem 0.6rem;" onclick="ReadOnlyViewer.openByCode('${ReadOnlyViewer.escapeJsString(row?.variantCode || '')}');">
+                            <span style="display:flex; flex-direction:column; gap:0.08rem;">
+                                <span style="font-weight:700; color:#0f172a;">${ReadOnlyViewer.escapeHtml(row?.productName || '-')}</span>
+                                <span style="font-size:0.76rem; color:#64748b;">${ReadOnlyViewer.escapeHtml(row?.productGroup || '-')}</span>
+                            </span>
+                            <span style="font-family:monospace; color:#1d4ed8; font-weight:700;">${ReadOnlyViewer.escapeHtml(row?.variantCode || '-')}</span>
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        Modal.open(`ID Secimi - ${ReadOnlyViewer.escapeHtml(searchedCode)}`, html, { maxWidth: '820px' });
+        return true;
+    },
+
+    openByCode: (rawCode, options = {}) => {
         const code = ReadOnlyViewer.normalizeCode(rawCode);
-        if (!code) return alert('ID kod bos olamaz.');
+        const silent = !!options?.silentNotFound;
+        if (!code) {
+            if (!silent) alert('ID kod bos olamaz.');
+            return false;
+        }
         const d = ReadOnlyViewer.getData();
         const unitModule = ReadOnlyViewer.getGlobalModule('UnitModule');
         const cncModule = ReadOnlyViewer.getGlobalModule('CncLibraryModule');
@@ -207,58 +237,108 @@ const ReadOnlyViewer = {
 
         const part = (Array.isArray(d.partComponentCards) ? d.partComponentCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
-        if (part) return ReadOnlyViewer.openComponentModal(part, 'Parca & Bilesen');
+        if (part) {
+            ReadOnlyViewer.openComponentModal(part, 'Parca & Bilesen');
+            return true;
+        }
 
         const semi = (Array.isArray(d.semiFinishedCards) ? d.semiFinishedCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
-        if (semi) return ReadOnlyViewer.openComponentModal(semi, 'Yari Mamul Kutuphanesi');
+        if (semi) {
+            ReadOnlyViewer.openComponentModal(semi, 'Yari Mamul Kutuphanesi');
+            return true;
+        }
 
-        const variant = (Array.isArray(d.catalogProductVariants) ? d.catalogProductVariants : [])
+        const variants = (Array.isArray(d.catalogProductVariants) ? d.catalogProductVariants : []);
+        const variant = variants
             .find((row) => ReadOnlyViewer.normalizeCode(row?.variantCode) === code);
-        if (variant) return ReadOnlyViewer.openModelModal(variant);
+        if (variant) {
+            ReadOnlyViewer.openModelModal(variant);
+            return true;
+        }
+
+        const variantByMontageProductCode = variants
+            .filter((row) => ReadOnlyViewer.normalizeCode(row?.montageCard?.productCode) === code);
+        if (variantByMontageProductCode.length === 1) {
+            ReadOnlyViewer.openModelModal(variantByMontageProductCode[0]);
+            return true;
+        }
+        if (variantByMontageProductCode.length > 1) {
+            return ReadOnlyViewer.openVariantCandidatesModal(code, variantByMontageProductCode);
+        }
 
         const master = (Array.isArray(d.products) ? d.products : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code && String(row?.type || '').toUpperCase() === 'MASTER');
-        if (master) return ReadOnlyViewer.openMasterModal(master);
+        if (master) {
+            ReadOnlyViewer.openMasterModal(master);
+            return true;
+        }
 
         const cnc = (Array.isArray(d.cncCards) ? d.cncCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cncId) === code);
-        if (cnc && cncModule && typeof cncModule.viewCardOperations === 'function') return cncModule.viewCardOperations(cnc.id);
+        if (cnc && cncModule && typeof cncModule.viewCardOperations === 'function') {
+            cncModule.viewCardOperations(cnc.id);
+            return true;
+        }
 
         const depoTask = (Array.isArray(d.depoTransferTasks) ? d.depoTransferTasks : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.taskCode) === code);
-        if (depoTask && unitModule && typeof unitModule.previewDepoTask === 'function') return unitModule.previewDepoTask(depoTask.id);
+        if (depoTask && unitModule && typeof unitModule.previewDepoTask === 'function') {
+            unitModule.previewDepoTask(depoTask.id);
+            return true;
+        }
 
         const saw = (Array.isArray(d.sawCutOrders) ? d.sawCutOrders : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
-        if (saw && unitModule && typeof unitModule.previewSawRow === 'function') return unitModule.previewSawRow(saw.id);
+        if (saw && unitModule && typeof unitModule.previewSawRow === 'function') {
+            unitModule.previewSawRow(saw.id);
+            return true;
+        }
 
         const ext = (Array.isArray(d.extruderLibraryCards) ? d.extruderLibraryCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code);
-        if (ext && unitModule && typeof unitModule.previewExtruderRow === 'function') return unitModule.previewExtruderRow(ext.id);
+        if (ext && unitModule && typeof unitModule.previewExtruderRow === 'function') {
+            unitModule.previewExtruderRow(ext.id);
+            return true;
+        }
 
         const pvd = (Array.isArray(d.pvdCards) ? d.pvdCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code);
-        if (pvd && unitModule && typeof unitModule.previewPvdRow === 'function') return unitModule.previewPvdRow(pvd.id);
+        if (pvd && unitModule && typeof unitModule.previewPvdRow === 'function') {
+            unitModule.previewPvdRow(pvd.id);
+            return true;
+        }
 
         const elx = (Array.isArray(d.eloksalCards) ? d.eloksalCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code);
-        if (elx && unitModule && typeof unitModule.previewEloksalRow === 'function') return unitModule.previewEloksalRow(elx.id);
+        if (elx && unitModule && typeof unitModule.previewEloksalRow === 'function') {
+            unitModule.previewEloksalRow(elx.id);
+            return true;
+        }
 
         const ips = (Array.isArray(d.ibrahimPolishCards) ? d.ibrahimPolishCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code);
-        if (ips && unitModule && typeof unitModule.previewPolishRow === 'function') return unitModule.previewPolishRow(ips.id);
+        if (ips && unitModule && typeof unitModule.previewPolishRow === 'function') {
+            unitModule.previewPolishRow(ips.id);
+            return true;
+        }
 
         const plx = (Array.isArray(d.plexiPolishCards) ? d.plexiPolishCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code);
-        if (plx && unitModule && typeof unitModule.previewPlexiRow === 'function') return unitModule.previewPlexiRow(plx.id);
+        if (plx && unitModule && typeof unitModule.previewPlexiRow === 'function') {
+            unitModule.previewPlexiRow(plx.id);
+            return true;
+        }
 
         const montage = (Array.isArray(d.montageCards) ? d.montageCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.cardCode) === code || ReadOnlyViewer.normalizeCode(row?.productCode) === code);
-        if (montage && montageModule && typeof montageModule.previewRow === 'function') return montageModule.previewRow(montage.id);
+        if (montage && montageModule && typeof montageModule.previewRow === 'function') {
+            montageModule.previewRow(montage.id);
+            return true;
+        }
 
-        alert(`Bu ID kod icin goruntuleme kaydi bulunamadi: ${code}`);
-        return null;
+        if (!silent) alert(`Bu ID kod icin goruntuleme kaydi bulunamadi: ${code}`);
+        return false;
     }
 };
 

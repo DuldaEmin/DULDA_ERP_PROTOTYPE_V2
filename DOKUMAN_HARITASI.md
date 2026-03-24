@@ -58,5 +58,8 @@ Her anlamli degisiklikte en az bu iki adim zorunludur:
 - Veri alani degisti -> `VERI_SOZLESMESI.md`
 - Yeni modul/ekran geldi -> `YENIDEN_YAZIM_SPESIFIKASYONU.md`
 
-Bu kural uygulanmazsa dokuman guvenilirligini kaybeder.
+3. Belirsiz gereksinim kurali
+- Anlasilmayan ozellikte once kullaniciya soru sorulur, sonra gelistirme yapilir.
+- Yeni gelistirmede "neden" bilgisi kullanicidan netlestirilir ve gunluge yazilir.
 
+Bu kural uygulanmazsa dokuman guvenilirligini kaybeder.

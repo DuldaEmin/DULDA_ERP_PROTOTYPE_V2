@@ -14,6 +14,11 @@ Zorunlu:
 - Sadece "ne degisti" degil, "neden degisti" mutlaka yazilacak.
 - Is akis veya veri degistiyse ilgili ana dokumana da referans verilecek.
 
+Iletisim protokolu:
+- Belirsiz veya tam anlasilmayan bir ozellikte degisiklik yapmadan once kullaniciya sorulur.
+- Yeni bir degisiklikte "neden yapiyoruz?" sorusu netlestirilir.
+- Netlesen "neden" bilgisi ilgili kayitta bu dosyaya yazilir.
+
 ## 2) Kayit Formati (Sablon)
 
 ### [Tarih] - [Baslik]
@@ -24,6 +29,20 @@ Zorunlu:
 - Risk/Not:
 
 ## 3) Kayitlar
+
+### 2026-03-24 - Kullanici Onayi ve Neden Kaydi Protokolu Eklendi
+- Ne degisti:
+  - Gelistirme gunlugune zorunlu iletisim protokolu eklendi.
+- Neden degisti:
+  - Belirsiz gereksinimde yanlis implementasyon riskini azaltmak.
+  - Her yeni ozellikte karar gerekcesini kalici hale getirmek.
+- Etkilenen ekran/modul:
+  - Dokumantasyon akisi.
+- Beklenen sonuc:
+  - Once soru sonra implementasyon disiplini.
+  - Her degisiklikte neden kaydi standartlasmasi.
+- Risk/Not:
+  - Hizli degisikliklerde bu adim atlanmamali.
 
 ### 2026-03-24 - Kalici Dokuman Sistemi Kuruldu (Onboarding + Rebuild)
 - Ne degisti:

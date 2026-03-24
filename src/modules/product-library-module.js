@@ -1,4 +1,4 @@
-﻿const ProductLibraryModule = {
+const ProductLibraryModule = {
     state: {
         activeCategory: null,
         extruderTab: 'ROD', // ROD | PIPE

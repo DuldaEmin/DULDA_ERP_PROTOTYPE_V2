@@ -62,6 +62,7 @@ const ProductLibraryModule = {
         colorDraftNote: '',
         componentFilters: { name: '', group: '', colorType: '', subGroup: '', code: '' },
         componentCategoryExpanded: {},
+        componentLibraryKind: 'PART',
         componentFormOpen: false,
         componentEditingId: null,
         componentViewingId: null,
@@ -128,7 +129,7 @@ const ProductLibraryModule = {
         masterPickerSource: '',
         planningPickerSource: '',
         assemblyFormModalOpen: false,
-        workspaceView: 'menu' // menu | models | components | assembly | master | colors
+        workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors
     },
 
     render: (container) => {

@@ -4,6 +4,7 @@ const PlanningModule = {
         stockDraftFormOpen: false,
         stockDraftEditingId: '',
         stockDraftSourceKind: 'MODEL',
+        stockDraftItems: [],
         stockDraftVariantId: '',
         stockDraftComponentId: '',
         stockDraftSemiFinishedId: '',
@@ -73,6 +74,7 @@ const PlanningModule = {
         PlanningModule.state.stockDraftFormOpen = false;
         PlanningModule.state.stockDraftEditingId = '';
         PlanningModule.state.stockDraftSourceKind = 'MODEL';
+        PlanningModule.state.stockDraftItems = [];
         PlanningModule.state.stockDraftVariantId = '';
         PlanningModule.state.stockDraftComponentId = '';
         PlanningModule.state.stockDraftSemiFinishedId = '';
@@ -138,6 +140,114 @@ const PlanningModule = {
     findComponentById: (componentId) => PlanningModule.getComponents().find((row) => String(row?.id || '') === String(componentId || '')) || null,
     findSemiFinishedById: (semiId) => PlanningModule.getSemiFinished().find((row) => String(row?.id || '') === String(semiId || '')) || null,
 
+    normalizeDraftItemKind: (kind) => {
+        const raw = String(kind || '').trim().toUpperCase();
+        return ['MODEL', 'COMPONENT', 'SEMI'].includes(raw) ? raw : 'MODEL';
+    },
+
+    createDraftItem: (kind, refId, qty = 1) => {
+        const safeKind = PlanningModule.normalizeDraftItemKind(kind);
+        const id = String(refId || '').trim();
+        const parsedQty = Number(qty || 0);
+        return {
+            id: crypto.randomUUID(),
+            itemType: safeKind,
+            variantId: safeKind === 'MODEL' ? id : '',
+            componentId: safeKind === 'COMPONENT' ? id : '',
+            semiFinishedId: safeKind === 'SEMI' ? id : '',
+            qty: Number.isFinite(parsedQty) && parsedQty > 0 ? parsedQty : 1
+        };
+    },
+
+    getDraftItemRefId: (item) => {
+        if (!item || typeof item !== 'object') return '';
+        const kind = PlanningModule.normalizeDraftItemKind(item.itemType);
+        if (kind === 'COMPONENT') return String(item.componentId || '');
+        if (kind === 'SEMI') return String(item.semiFinishedId || '');
+        return String(item.variantId || '');
+    },
+
+    upsertStockDraftItem: (kind, refId) => {
+        const safeKind = PlanningModule.normalizeDraftItemKind(kind);
+        const id = String(refId || '').trim();
+        if (!id) return;
+        if (!Array.isArray(PlanningModule.state.stockDraftItems)) PlanningModule.state.stockDraftItems = [];
+        const existing = PlanningModule.state.stockDraftItems.find((row) =>
+            PlanningModule.normalizeDraftItemKind(row?.itemType) === safeKind
+            && PlanningModule.getDraftItemRefId(row) === id
+        );
+        if (existing) {
+            existing.qty = Number(existing.qty || 0) + 1;
+        } else {
+            PlanningModule.state.stockDraftItems.push(PlanningModule.createDraftItem(safeKind, id, 1));
+        }
+    },
+
+    removeStockDraftItem: (draftItemId) => {
+        const targetId = String(draftItemId || '').trim();
+        if (!targetId) return;
+        PlanningModule.state.stockDraftItems = (Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [])
+            .filter((row) => String(row?.id || '') !== targetId);
+        UI.renderCurrentPage();
+    },
+
+    setStockDraftItemQty: (draftItemId, value) => {
+        const targetId = String(draftItemId || '').trim();
+        if (!targetId) return;
+        const row = (Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [])
+            .find((item) => String(item?.id || '') === targetId);
+        if (!row) return;
+        const num = Number(value || 0);
+        row.qty = Number.isFinite(num) && num > 0 ? num : 1;
+        UI.renderCurrentPage();
+    },
+
+    getResolvedStockDraftItems: () => {
+        const rows = Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [];
+        return rows.map((item) => {
+            const kind = PlanningModule.normalizeDraftItemKind(item?.itemType);
+            const qty = Number(item?.qty || 0) > 0 ? Number(item.qty) : 1;
+            if (kind === 'COMPONENT') {
+                const row = PlanningModule.findComponentById(item?.componentId || '');
+                return {
+                    id: String(item?.id || ''),
+                    itemType: 'COMPONENT',
+                    qty,
+                    valid: !!row,
+                    title: String(row?.name || ''),
+                    code: String(row?.code || ''),
+                    info: String(row?.group || ''),
+                    refId: String(item?.componentId || '')
+                };
+            }
+            if (kind === 'SEMI') {
+                const row = PlanningModule.findSemiFinishedById(item?.semiFinishedId || '');
+                return {
+                    id: String(item?.id || ''),
+                    itemType: 'SEMI',
+                    qty,
+                    valid: !!row,
+                    title: String(row?.name || ''),
+                    code: String(row?.code || ''),
+                    info: String(row?.group || ''),
+                    refId: String(item?.semiFinishedId || '')
+                };
+            }
+            const row = PlanningModule.findVariantById(item?.variantId || '');
+            const montage = PlanningModule.findMontageCardForVariant(row);
+            return {
+                id: String(item?.id || ''),
+                itemType: 'MODEL',
+                qty,
+                valid: !!row && !!montage?.id,
+                title: String(row?.productName || ''),
+                code: String(row?.variantCode || ''),
+                info: String(montage?.productCode || montage?.cardCode || ''),
+                refId: String(item?.variantId || '')
+            };
+        });
+    },
+
     findMontageCardForVariant: (variant) => {
         if (!variant) return null;
         const montageCards = Array.isArray(DB.data?.data?.montageCards) ? DB.data.data.montageCards : [];
@@ -183,6 +293,7 @@ const PlanningModule = {
     applyPickedModel: (id) => {
         PlanningModule.state.stockDraftFormOpen = true;
         PlanningModule.state.stockDraftSourceKind = 'MODEL';
+        PlanningModule.upsertStockDraftItem('MODEL', id);
         PlanningModule.state.stockDraftVariantId = String(id || '');
         PlanningModule.state.stockDraftComponentId = '';
         PlanningModule.state.stockDraftSemiFinishedId = '';
@@ -193,6 +304,7 @@ const PlanningModule = {
     applyPickedComponent: (id) => {
         PlanningModule.state.stockDraftFormOpen = true;
         PlanningModule.state.stockDraftSourceKind = 'COMPONENT';
+        PlanningModule.upsertStockDraftItem('COMPONENT', id);
         PlanningModule.state.stockDraftComponentId = String(id || '');
         PlanningModule.state.stockDraftVariantId = '';
         PlanningModule.state.stockDraftSemiFinishedId = '';
@@ -203,6 +315,7 @@ const PlanningModule = {
     applyPickedSemiFinished: (id) => {
         PlanningModule.state.stockDraftFormOpen = true;
         PlanningModule.state.stockDraftSourceKind = 'SEMI';
+        PlanningModule.upsertStockDraftItem('SEMI', id);
         PlanningModule.state.stockDraftSemiFinishedId = String(id || '');
         PlanningModule.state.stockDraftVariantId = '';
         PlanningModule.state.stockDraftComponentId = '';
@@ -231,12 +344,28 @@ const PlanningModule = {
         if (String(row?.status || 'OPEN').toUpperCase() !== 'OPEN') return alert('Sadece bekleyen talepler duzenlenebilir.');
         PlanningModule.state.stockDraftFormOpen = true;
         PlanningModule.state.stockDraftEditingId = String(row.id || '');
-        const itemType = String(row.itemType || 'MODEL').toUpperCase();
-        PlanningModule.state.stockDraftSourceKind = ['MODEL', 'COMPONENT', 'SEMI'].includes(itemType) ? itemType : 'MODEL';
+        const legacyType = PlanningModule.normalizeDraftItemKind(row.itemType || 'MODEL');
+        const draftItems = Array.isArray(row?.items) && row.items.length
+            ? row.items.map((item) => ({
+                id: String(item?.id || crypto.randomUUID()),
+                itemType: PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL'),
+                variantId: String(item?.variantId || ''),
+                componentId: String(item?.componentId || ''),
+                semiFinishedId: String(item?.semiFinishedId || ''),
+                qty: Number(item?.qty || 0) > 0 ? Number(item.qty) : 1
+            }))
+            : [PlanningModule.createDraftItem(
+                legacyType,
+                legacyType === 'COMPONENT' ? String(row.componentId || '') : (legacyType === 'SEMI' ? String(row.semiFinishedId || '') : String(row.variantId || '')),
+                Number(row.qty || 1)
+            )];
+        PlanningModule.state.stockDraftItems = draftItems.filter((item) => PlanningModule.getDraftItemRefId(item));
+        const firstType = PlanningModule.state.stockDraftItems[0]?.itemType || legacyType;
+        PlanningModule.state.stockDraftSourceKind = PlanningModule.normalizeDraftItemKind(firstType);
         PlanningModule.state.stockDraftVariantId = String(row.variantId || '');
         PlanningModule.state.stockDraftComponentId = String(row.componentId || '');
         PlanningModule.state.stockDraftSemiFinishedId = String(row.semiFinishedId || '');
-        PlanningModule.state.stockDraftQty = String(row.qty || '10');
+        PlanningModule.state.stockDraftQty = String(PlanningModule.state.stockDraftItems[0]?.qty || row.qty || '10');
         PlanningModule.state.stockDraftDueDate = String(row.dueDate || '');
         PlanningModule.state.stockDraftPriority = PlanningModule.getPriorityValue(row.priority || 'NORMAL');
         PlanningModule.state.stockDraftNote = String(row.note || '');
@@ -267,64 +396,105 @@ const PlanningModule = {
     },
 
     clearStockDraftSelection: () => {
-        const sourceKind = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase();
-        if (sourceKind === 'COMPONENT') PlanningModule.state.stockDraftComponentId = '';
-        else if (sourceKind === 'SEMI') PlanningModule.state.stockDraftSemiFinishedId = '';
-        else PlanningModule.state.stockDraftVariantId = '';
+        PlanningModule.state.stockDraftItems = [];
+        PlanningModule.state.stockDraftVariantId = '';
+        PlanningModule.state.stockDraftComponentId = '';
+        PlanningModule.state.stockDraftSemiFinishedId = '';
         UI.renderCurrentPage();
     },
 
     getStockDraftSelectedSource: () => {
-        const sourceKindRaw = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase();
-        const sourceKind = ['MODEL', 'COMPONENT', 'SEMI'].includes(sourceKindRaw) ? sourceKindRaw : 'MODEL';
-        if (sourceKind === 'COMPONENT') {
-            const row = PlanningModule.findComponentById(PlanningModule.state.stockDraftComponentId);
-            if (!row) return { kind: 'COMPONENT', row: null, title: '', code: '', info: '' };
-            return {
-                kind: 'COMPONENT',
-                row,
-                title: String(row.name || ''),
-                code: String(row.code || ''),
-                info: String(row.group || '')
-            };
-        }
-        if (sourceKind === 'SEMI') {
-            const row = PlanningModule.findSemiFinishedById(PlanningModule.state.stockDraftSemiFinishedId);
-            if (!row) return { kind: 'SEMI', row: null, title: '', code: '', info: '' };
-            return {
-                kind: 'SEMI',
-                row,
-                title: String(row.name || ''),
-                code: String(row.code || ''),
-                info: String(row.group || '')
-            };
-        }
-        const row = PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId);
-        const montage = PlanningModule.findMontageCardForVariant(row);
-        if (!row) return { kind: 'MODEL', row: null, title: '', code: '', info: '' };
+        const first = PlanningModule.getResolvedStockDraftItems()[0] || null;
+        if (!first) return { kind: 'MODEL', row: null, title: '', code: '', info: '' };
         return {
-            kind: 'MODEL',
-            row,
-            title: String(row.productName || ''),
-            code: String(row.variantCode || ''),
-            info: String(montage?.productCode || montage?.cardCode || '')
+            kind: first.itemType || 'MODEL',
+            row: first.valid ? first : null,
+            title: String(first.title || ''),
+            code: String(first.code || ''),
+            info: String(first.info || '')
+        };
+    },
+
+    buildDemandItemFromDraftItem: (item) => {
+        const kind = PlanningModule.normalizeDraftItemKind(item?.itemType);
+        const qty = Number(item?.qty || 0);
+        if (!Number.isFinite(qty) || qty <= 0) return null;
+        if (kind === 'COMPONENT') {
+            const component = PlanningModule.findComponentById(item?.componentId || '');
+            if (!component) return null;
+            return {
+                id: String(item?.id || crypto.randomUUID()),
+                itemType: 'COMPONENT',
+                qty,
+                variantId: '',
+                componentId: String(component.id || ''),
+                semiFinishedId: '',
+                familyId: '',
+                variantCode: '',
+                componentCode: String(component.code || ''),
+                semiFinishedCode: '',
+                productGroup: String(component.group || ''),
+                productName: String(component.name || ''),
+                productCode: String(component.code || ''),
+                montageCardId: '',
+                montageCardCode: ''
+            };
+        }
+        if (kind === 'SEMI') {
+            const semi = PlanningModule.findSemiFinishedById(item?.semiFinishedId || '');
+            if (!semi) return null;
+            return {
+                id: String(item?.id || crypto.randomUUID()),
+                itemType: 'SEMI',
+                qty,
+                variantId: '',
+                componentId: '',
+                semiFinishedId: String(semi.id || ''),
+                familyId: '',
+                variantCode: '',
+                componentCode: '',
+                semiFinishedCode: String(semi.code || ''),
+                productGroup: String(semi.group || ''),
+                productName: String(semi.name || ''),
+                productCode: String(semi.code || ''),
+                montageCardId: '',
+                montageCardCode: ''
+            };
+        }
+        const variant = PlanningModule.findVariantById(item?.variantId || '');
+        const montage = PlanningModule.findMontageCardForVariant(variant);
+        if (!variant || !montage?.id) return null;
+        return {
+            id: String(item?.id || crypto.randomUUID()),
+            itemType: 'MODEL',
+            qty,
+            variantId: String(variant.id || ''),
+            componentId: '',
+            semiFinishedId: '',
+            familyId: String(variant.familyId || ''),
+            variantCode: String(variant.variantCode || ''),
+            componentCode: '',
+            semiFinishedCode: '',
+            productGroup: String(variant.productGroup || ''),
+            productName: String(variant.productName || ''),
+            productCode: String(montage.productCode || montage.cardCode || ''),
+            montageCardId: String(montage.id || ''),
+            montageCardCode: String(montage.cardCode || '')
         };
     },
 
     saveStockDemand: async (releaseNow = false) => {
         PlanningModule.ensureData();
-        const sourceKindRaw = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase();
-        const sourceKind = ['MODEL', 'COMPONENT', 'SEMI'].includes(sourceKindRaw) ? sourceKindRaw : 'MODEL';
-        const variant = sourceKind === 'MODEL' ? PlanningModule.findVariantById(PlanningModule.state.stockDraftVariantId) : null;
-        const component = sourceKind === 'COMPONENT' ? PlanningModule.findComponentById(PlanningModule.state.stockDraftComponentId) : null;
-        const semiFinished = sourceKind === 'SEMI' ? PlanningModule.findSemiFinishedById(PlanningModule.state.stockDraftSemiFinishedId) : null;
-        const qty = Number(PlanningModule.state.stockDraftQty || 0);
-        if (sourceKind === 'MODEL' && !variant) return alert('Lutfen urun varyanti seciniz.');
-        if (sourceKind === 'COMPONENT' && !component) return alert('Lutfen parca/bilesen seciniz.');
-        if (sourceKind === 'SEMI' && !semiFinished) return alert('Lutfen yari mamul seciniz.');
-        if (!Number.isFinite(qty) || qty <= 0) return alert('Uretim adedi 0 dan buyuk olmali.');
-        const montageCard = sourceKind === 'MODEL' ? PlanningModule.findMontageCardForVariant(variant) : null;
-        if (sourceKind === 'MODEL' && !montageCard?.id) return alert('Bu varyanta bagli montaj karti bulunamadi.');
+        const draftItems = Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [];
+        if (!draftItems.length) return alert('Lutfen en az bir urun ekleyiniz.');
+        const demandItems = draftItems
+            .map((item) => PlanningModule.buildDemandItemFromDraftItem(item))
+            .filter(Boolean);
+        if (demandItems.length !== draftItems.length) {
+            return alert('Eklenen urunlerden biri gecersiz veya silinmis. Lutfen listeyi kontrol ediniz.');
+        }
+        const totalQty = demandItems.reduce((sum, row) => sum + Number(row?.qty || 0), 0);
+        if (!Number.isFinite(totalQty) || totalQty <= 0) return alert('Toplam uretim adedi 0 dan buyuk olmali.');
 
         const all = PlanningModule.getDemands();
         const now = new Date().toISOString();
@@ -343,30 +513,33 @@ const PlanningModule = {
             all.push(demand);
         }
 
-        demand.itemType = sourceKind;
-        demand.variantId = sourceKind === 'MODEL' ? String(variant.id || '') : '';
-        demand.componentId = sourceKind === 'COMPONENT' ? String(component.id || '') : '';
-        demand.semiFinishedId = sourceKind === 'SEMI' ? String(semiFinished.id || '') : '';
-        demand.familyId = sourceKind === 'MODEL' ? String(variant.familyId || '') : '';
-        demand.variantCode = sourceKind === 'MODEL' ? String(variant.variantCode || '') : '';
-        demand.componentCode = sourceKind === 'COMPONENT' ? String(component.code || '') : '';
-        demand.semiFinishedCode = sourceKind === 'SEMI' ? String(semiFinished.code || '') : '';
-        demand.productGroup = sourceKind === 'MODEL'
-            ? String(variant.productGroup || '')
-            : (sourceKind === 'COMPONENT' ? String(component.group || '') : String(semiFinished.group || ''));
-        demand.productName = sourceKind === 'MODEL'
-            ? String(variant.productName || '')
-            : (sourceKind === 'COMPONENT' ? String(component.name || '') : String(semiFinished.name || ''));
-        demand.productCode = sourceKind === 'MODEL'
-            ? String(montageCard.productCode || montageCard.cardCode || '')
-            : (sourceKind === 'COMPONENT' ? String(component.code || '') : String(semiFinished.code || ''));
-        demand.montageCardId = sourceKind === 'MODEL' ? String(montageCard.id || '') : '';
-        demand.montageCardCode = sourceKind === 'MODEL' ? String(montageCard.cardCode || '') : '';
-        demand.qty = Number(qty);
+        const first = demandItems[0] || {};
+        const uniqueKinds = Array.from(new Set(demandItems.map((item) => PlanningModule.normalizeDraftItemKind(item.itemType))));
+        demand.items = demandItems.map((item) => ({ ...item }));
+        demand.itemType = demandItems.length > 1
+            ? (uniqueKinds.length === 1 ? uniqueKinds[0] : 'MIXED')
+            : String(first.itemType || 'MODEL');
+        demand.variantId = String(first.variantId || '');
+        demand.componentId = String(first.componentId || '');
+        demand.semiFinishedId = String(first.semiFinishedId || '');
+        demand.familyId = String(first.familyId || '');
+        demand.variantCode = String(first.variantCode || '');
+        demand.componentCode = String(first.componentCode || '');
+        demand.semiFinishedCode = String(first.semiFinishedCode || '');
+        demand.productGroup = demandItems.length > 1 ? `${demandItems.length} kalem` : String(first.productGroup || '');
+        demand.productName = demandItems.length > 1 ? `Coklu stok talebi (${demandItems.length} urun)` : String(first.productName || '');
+        demand.productCode = demandItems.length > 1 ? 'MIXED' : String(first.productCode || '');
+        demand.montageCardId = String(first.montageCardId || '');
+        demand.montageCardCode = String(first.montageCardCode || '');
+        demand.qty = Number(totalQty);
         demand.dueDate = String(PlanningModule.state.stockDraftDueDate || '').trim();
         demand.priority = PlanningModule.getPriorityValue(PlanningModule.state.stockDraftPriority || 'NORMAL');
         demand.note = String(PlanningModule.state.stockDraftNote || '').trim();
         demand.status = 'OPEN';
+        demand.workOrderId = '';
+        demand.workOrderCode = '';
+        demand.workOrderIds = [];
+        demand.workOrderCodes = [];
         demand.updated_at = now;
 
         if (!releaseNow) {
@@ -395,37 +568,81 @@ const PlanningModule = {
         if (String(demand?.status || 'OPEN').toUpperCase() === 'RELEASED' && demand?.workOrderId) {
             throw new Error('Bu talep zaten is emrine donusmus.');
         }
-        const itemTypeRaw = String(demand?.itemType || 'MODEL').toUpperCase();
-        const itemType = ['MODEL', 'COMPONENT', 'SEMI'].includes(itemTypeRaw) ? itemTypeRaw : 'MODEL';
-        const order = (itemType === 'COMPONENT' || itemType === 'SEMI')
-            ? UnitModule.createWorkOrderFromComponentCard({
-                componentId: itemType === 'SEMI' ? String(demand.semiFinishedId || '') : String(demand.componentId || ''),
-                componentLibrary: itemType === 'SEMI' ? 'SEMI' : 'PART',
-                lotQty: Number(demand.qty || 0),
-                dueDate: String(demand.dueDate || ''),
-                priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
-                note: String(demand.note || '').trim(),
-                sourceType: itemType === 'SEMI' ? 'PLAN_STOCK_SEMI' : 'PLAN_STOCK_COMPONENT',
-                sourceId: String(demand.id || ''),
-                sourceCode: String(demand.demandCode || '')
-            })
-            : UnitModule.createWorkOrderFromMontageCard({
-                montageId: String(demand.montageCardId || ''),
-                lotQty: Number(demand.qty || 0),
+        const sourceId = String(demand.id || '');
+        const sourceCode = String(demand.demandCode || '');
+        const demandItems = Array.isArray(demand?.items) && demand.items.length
+            ? demand.items
+            : [{
+                id: crypto.randomUUID(),
+                itemType: PlanningModule.normalizeDraftItemKind(demand.itemType || 'MODEL'),
+                variantId: String(demand.variantId || ''),
+                componentId: String(demand.componentId || ''),
+                semiFinishedId: String(demand.semiFinishedId || ''),
+                qty: Number(demand.qty || 0),
+                montageCardId: String(demand.montageCardId || '')
+            }];
+
+        const validateDemandItem = (item) => {
+            const kind = PlanningModule.normalizeDraftItemKind(item?.itemType);
+            const qty = Number(item?.qty || 0);
+            if (!Number.isFinite(qty) || qty <= 0) throw new Error('Talep satirinda gecersiz adet var.');
+            if (kind === 'COMPONENT') {
+                if (!PlanningModule.findComponentById(item?.componentId || '')) throw new Error('Parca/bilesen karti bulunamadi.');
+                return;
+            }
+            if (kind === 'SEMI') {
+                if (!PlanningModule.findSemiFinishedById(item?.semiFinishedId || '')) throw new Error('Yari mamul karti bulunamadi.');
+                return;
+            }
+            const montageId = String(item?.montageCardId || '');
+            if (!montageId) throw new Error('Urun modeli satirinda montaj karti bulunamadi.');
+            const montage = (Array.isArray(DB.data?.data?.montageCards) ? DB.data.data.montageCards : [])
+                .find((row) => String(row?.id || '') === montageId);
+            if (!montage) throw new Error('Urun modeli satirinda montaj karti bulunamadi.');
+        };
+
+        demandItems.forEach(validateDemandItem);
+
+        const orders = demandItems.map((item) => {
+            const kind = PlanningModule.normalizeDraftItemKind(item?.itemType);
+            const qty = Number(item?.qty || 0);
+            if (kind === 'COMPONENT' || kind === 'SEMI') {
+                return UnitModule.createWorkOrderFromComponentCard({
+                    componentId: kind === 'SEMI' ? String(item.semiFinishedId || '') : String(item.componentId || ''),
+                    componentLibrary: kind === 'SEMI' ? 'SEMI' : 'PART',
+                    lotQty: qty,
+                    dueDate: String(demand.dueDate || ''),
+                    priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
+                    note: String(demand.note || '').trim(),
+                    sourceType: kind === 'SEMI' ? 'PLAN_STOCK_SEMI' : 'PLAN_STOCK_COMPONENT',
+                    sourceId,
+                    sourceCode
+                });
+            }
+            return UnitModule.createWorkOrderFromMontageCard({
+                montageId: String(item.montageCardId || demand.montageCardId || ''),
+                lotQty: qty,
                 dueDate: String(demand.dueDate || ''),
                 priority: PlanningModule.getPriorityValue(demand.priority || 'NORMAL'),
                 note: String(demand.note || '').trim(),
                 sourceType: 'PLAN_STOCK_MODEL',
-                sourceId: String(demand.id || ''),
-                sourceCode: String(demand.demandCode || '')
+                sourceId,
+                sourceCode
             });
+        });
+
+        const primaryOrder = orders[0] || null;
         const now = new Date().toISOString();
         demand.status = 'RELEASED';
-        demand.workOrderId = String(order.id || '');
-        demand.workOrderCode = String(order.workOrderCode || '');
+        demand.workOrderId = String(primaryOrder?.id || '');
+        demand.workOrderIds = orders.map((order) => String(order?.id || '')).filter(Boolean);
+        demand.workOrderCodes = orders.map((order) => String(order?.workOrderCode || '')).filter(Boolean);
+        demand.workOrderCode = demand.workOrderCodes.length > 1
+            ? `${demand.workOrderCodes[0]} +${demand.workOrderCodes.length - 1}`
+            : String(demand.workOrderCodes[0] || '');
         demand.released_at = now;
         demand.updated_at = now;
-        return order;
+        return primaryOrder;
     },
 
     releaseDemand: async (demandId) => {
@@ -469,6 +686,7 @@ const PlanningModule = {
         const kind = String(value || '').toUpperCase();
         if (kind === 'COMPONENT') return 'Parca & Bilesen';
         if (kind === 'SEMI') return 'Yari Mamul';
+        if (kind === 'MIXED') return 'Coklu Karma';
         return 'Urun Modeli';
     },
 
@@ -478,15 +696,23 @@ const PlanningModule = {
         }
         return rows.map((row) => {
             const released = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
+            const itemCount = Array.isArray(row?.items) ? row.items.length : 0;
+            const displayName = itemCount > 1 ? `${row?.productName || 'Coklu stok talebi'} (${itemCount} kalem)` : String(row?.productName || '-');
+            const displayCode = itemCount > 1
+                ? `MIXED / ${itemCount} kalem`
+                : String(row?.variantCode || row?.componentCode || row?.semiFinishedCode || '-');
+            const displayWorkOrder = Array.isArray(row?.workOrderCodes) && row.workOrderCodes.length
+                ? (row.workOrderCodes.length > 1 ? `${row.workOrderCodes[0]} +${row.workOrderCodes.length - 1}` : row.workOrderCodes[0])
+                : String(row?.workOrderCode || '-');
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(row?.sourceLabel || 'Stok Uretimi')}</div></td>
-                    <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(row?.productName || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div><div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(row?.variantCode || row?.componentCode || row?.semiFinishedCode || '-')}</div></td>
+                    <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(displayName)}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div><div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(displayCode)}</div></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.productCode || '-')}</td>
                     <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
-                    <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</td>
+                    <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayWorkOrder)}</td>
                     <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">${released ? '' : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeHtml(row?.id || '')}')">duzenle</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeHtml(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeHtml(row?.id || '')}')">sil</button>`}</div></td>
                 </tr>
             `;
@@ -497,23 +723,30 @@ const PlanningModule = {
         if (!rows.length) {
             return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">${PlanningModule.escapeHtml(emptyMessage || 'Kayit yok.')}</td></tr>`;
         }
-        return rows.map((row) => `
-            <tr style="border-bottom:1px solid #f1f5f9;">
-                <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div></td>
-                <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(row?.productName || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div></td>
-                <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.productCode || row?.variantCode || row?.componentCode || row?.semiFinishedCode || '-')}</td>
-                <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
-                <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
-                <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
-                <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</td>
-                <td style="padding:0.6rem; text-align:right;">
-                    <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                        <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeHtml(row?.id || '')}')">duzenle</button>
-                        <button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeHtml(row?.id || '')}')">sil</button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+        return rows.map((row) => {
+            const itemCount = Array.isArray(row?.items) ? row.items.length : 0;
+            const displayName = itemCount > 1 ? `${row?.productName || 'Coklu stok talebi'} (${itemCount} kalem)` : String(row?.productName || '-');
+            const displayCode = itemCount > 1
+                ? `MIXED / ${itemCount} kalem`
+                : String(row?.productCode || row?.variantCode || row?.componentCode || row?.semiFinishedCode || '-');
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div></td>
+                    <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(displayName)}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div></td>
+                    <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayCode)}</td>
+                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
+                    <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
+                    <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
+                    <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</td>
+                    <td style="padding:0.6rem; text-align:right;">
+                        <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeHtml(row?.id || '')}')">duzenle</button>
+                            <button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeHtml(row?.id || '')}')">sil</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     },
 
     renderMenuLayout: () => {
@@ -556,6 +789,8 @@ const PlanningModule = {
         const sourceLabel = sourceKind === 'COMPONENT' ? 'Parca/bilesen' : (sourceKind === 'SEMI' ? 'Yari mamul' : 'Urun model');
         const addLabel = sourceKind === 'COMPONENT' ? 'parca bilesen ekle +' : (sourceKind === 'SEMI' ? 'yari mamul ekle +' : 'urun modeli ekle +');
         const isFormOpen = !!PlanningModule.state.stockDraftFormOpen;
+        const draftItems = PlanningModule.getResolvedStockDraftItems();
+        const totalDraftQty = draftItems.reduce((sum, row) => sum + Number(row?.qty || 0), 0);
         const stockRows = PlanningModule.getDemands()
             .filter((row) => String(row?.sourceType || '').toUpperCase() === 'STOCK')
             .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN')
@@ -601,10 +836,6 @@ const PlanningModule = {
             `;
         }
 
-        const selectedSource = PlanningModule.getStockDraftSelectedSource();
-        const selectedInfoLine = selectedSource.row
-            ? `${String(selectedSource.code || '-')} / ${String(selectedSource.info || '-')}`
-            : '';
         const demandCode = PlanningModule.getStockDraftDemandCode();
         const isEditing = !!String(PlanningModule.state.stockDraftEditingId || '').trim();
 
@@ -646,43 +877,56 @@ const PlanningModule = {
                         <div style="border:1px solid #cbd5e1; border-radius:0.95rem; background:white; padding:0.85rem;">
                             <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-bottom:0.65rem;">
                                 <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-                                    <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','MODEL')" style="${sourceKind === 'MODEL' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Urun model</button>
-                                    <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','COMPONENT')" style="${sourceKind === 'COMPONENT' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Parca/bilesen</button>
-                                    <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','SEMI')" style="${sourceKind === 'SEMI' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Yari mamul</button>
-                                </div>
+                                <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','MODEL')" style="${sourceKind === 'MODEL' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Urun model</button>
+                                <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','COMPONENT')" style="${sourceKind === 'COMPONENT' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Parca/bilesen</button>
+                                <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','SEMI')" style="${sourceKind === 'SEMI' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Yari mamul</button>
+                            </div>
+                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                                <button class="btn-sm" onclick="PlanningModule.clearStockDraftSelection()">tumunu temizle</button>
                                 <button class="btn-primary" onclick="PlanningModule.openItemPicker('${pickerKind}')">${PlanningModule.escapeHtml(addLabel)}</button>
                             </div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-bottom:0.5rem;">${PlanningModule.escapeHtml(sourceLabel)} baglantilari</div>
-                            <div class="card-table" style="padding:0.4rem 0.45rem;">
-                                <table style="width:100%; border-collapse:collapse;">
-                                    <thead>
+                        </div>
+                        <div style="font-size:0.75rem; color:#64748b; margin-bottom:0.5rem;">${PlanningModule.escapeHtml(sourceLabel)} baglantilari</div>
+                        <div class="card-table" style="padding:0.4rem 0.45rem;">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
                                         <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
                                             <th style="padding:0.45rem; width:44px; text-align:center;">#</th>
                                             <th style="padding:0.45rem; text-align:left;">Bagli kayit</th>
+                                            <th style="padding:0.45rem; width:120px; text-align:center;">tip</th>
                                             <th style="padding:0.45rem; width:110px; text-align:center;">islem</th>
-                                            <th style="padding:0.45rem; width:90px; text-align:center;">adet</th>
+                                            <th style="padding:0.45rem; width:110px; text-align:center;">adet</th>
                                             <th style="padding:0.45rem; width:70px; text-align:center;">sil</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${selectedSource.row
-                                            ? `
-                                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                                    <td style="padding:0.45rem; text-align:center; font-weight:700;">1</td>
-                                                    <td style="padding:0.45rem;">
-                                                        <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(selectedSource.title || '-')}</div>
-                                                        <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(selectedInfoLine)}</div>
-                                                    </td>
-                                                    <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.openItemPicker('${pickerKind}')">goruntule</button></td>
-                                                    <td style="padding:0.45rem; text-align:center;"><input type="number" min="1" value="${PlanningModule.escapeHtml(PlanningModule.state.stockDraftQty || '10')}" oninput="PlanningModule.state.stockDraftQty=this.value" onchange="PlanningModule.state.stockDraftQty=this.value" style="width:72px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700; text-align:center;"></td>
-                                                    <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.clearStockDraftSelection()">sil</button></td>
-                                                </tr>
-                                            `
-                                            : `<tr><td colspan="5" style="padding:0.85rem; color:#94a3b8;">Henuz ${PlanningModule.escapeHtml(sourceLabel.toLowerCase())} baglanmadi.</td></tr>`}
+                                        ${draftItems.length
+                                            ? draftItems.map((item, idx) => {
+                                                const rowPickerKind = item.itemType === 'COMPONENT' ? 'component' : (item.itemType === 'SEMI' ? 'semi' : 'model');
+                                                const typeLabel = PlanningModule.getItemTypeLabel(item.itemType);
+                                                const infoLine = `${String(item.code || '-')} / ${String(item.info || '-')}`;
+                                                return `
+                                                    <tr style="border-bottom:1px solid #f1f5f9; ${item.valid ? '' : 'background:#fff7ed;'}">
+                                                        <td style="padding:0.45rem; text-align:center; font-weight:700;">${idx + 1}</td>
+                                                        <td style="padding:0.45rem;">
+                                                            <div style="font-weight:700; color:${item.valid ? '#334155' : '#b45309'};">${PlanningModule.escapeHtml(item.title || 'Gecersiz kayit')}</div>
+                                                            <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(infoLine)}</div>
+                                                        </td>
+                                                        <td style="padding:0.45rem; text-align:center;"><span style="display:inline-block; border:1px solid #cbd5e1; border-radius:999px; padding:0.12rem 0.55rem; font-size:0.72rem; font-weight:700; color:#334155;">${PlanningModule.escapeHtml(typeLabel)}</span></td>
+                                                        <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.openItemPicker('${rowPickerKind}')">goruntule</button></td>
+                                                        <td style="padding:0.45rem; text-align:center;"><input type="number" min="1" value="${PlanningModule.escapeHtml(String(item.qty || 1))}" onchange="PlanningModule.setStockDraftItemQty('${PlanningModule.escapeHtml(item.id)}', this.value)" style="width:84px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700; text-align:center;"></td>
+                                                        <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.removeStockDraftItem('${PlanningModule.escapeHtml(item.id)}')">sil</button></td>
+                                                    </tr>
+                                                `;
+                                            }).join('')
+                                            : `<tr><td colspan="6" style="padding:0.85rem; color:#94a3b8;">Henuz urun baglanmadi.</td></tr>`}
                                     </tbody>
                                 </table>
                             </div>
-                            <div style="font-size:0.72rem; color:#94a3b8; margin-top:0.45rem;">+ butonu ilgili kutuphane ekranina gider, secilen kayit bu alana eklenir.</div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-top:0.45rem; flex-wrap:wrap;">
+                                <div style="font-size:0.72rem; color:#94a3b8;">+ butonu ilgili kutuphane ekranina gider, secilen kayit bu alana eklenir.</div>
+                                <div style="font-size:0.78rem; color:#334155; font-weight:700;">Toplam kalem: ${draftItems.length} | Toplam adet: ${PlanningModule.escapeHtml(String(totalDraftQty))}</div>
+                            </div>
                         </div>
 
                         <div style="border:1px solid #cbd5e1; border-radius:0.95rem; background:white; padding:0.85rem;">

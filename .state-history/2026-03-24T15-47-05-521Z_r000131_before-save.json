@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-24T15:47:05.420Z",
+    "updated_at": "2026-03-24T15:32:17.820Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 132
+    "revision": 131
   },
   "data": {
     "products": [
@@ -2733,106 +2733,6 @@
         "note": "",
         "status": "OPEN",
         "updated_at": "2026-03-24T15:32:17.820Z"
-      },
-      {
-        "id": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
-        "demandCode": "PLN-000003",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-24T15:47:05.420Z",
-        "items": [
-          {
-            "id": "74ab02fa-43e9-40c6-84b1-42aa8a19aae0",
-            "itemType": "MODEL",
-            "qty": 66,
-            "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-            "componentId": "",
-            "semiFinishedId": "",
-            "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-            "variantCode": "URM-000001-V01",
-            "componentCode": "",
-            "semiFinishedCode": "",
-            "productGroup": "Aluminyum Dikmeler",
-            "productName": "2008 bombeli aluminyum dikme",
-            "productCode": "DIKMELER",
-            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-            "montageCardCode": "MON-000001"
-          },
-          {
-            "id": "8309fc9b-6a0e-4414-ba94-1568ab55f727",
-            "itemType": "MODEL",
-            "qty": 55,
-            "variantId": "e3c525c8-eecf-488c-ad1f-fe5c715002b6",
-            "componentId": "",
-            "semiFinishedId": "",
-            "familyId": "aa175ad1-eaac-492b-b842-17ba2a3f428e",
-            "variantCode": "URM-000002-V01",
-            "componentCode": "",
-            "semiFinishedCode": "",
-            "productGroup": "ankrajlar",
-            "productName": "35 lik sıkmalı ankraj",
-            "productCode": "0064",
-            "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
-            "montageCardCode": "MON-000002"
-          },
-          {
-            "id": "554f9cc8-299b-4fc2-aea8-03f23cbc3f0c",
-            "itemType": "COMPONENT",
-            "qty": 1,
-            "variantId": "",
-            "componentId": "3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
-            "semiFinishedId": "",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "PRC-000009",
-            "semiFinishedCode": "",
-            "productGroup": "borular",
-            "productName": "aluminyum dikme alt borusu 200 mm sarı",
-            "productCode": "PRC-000009",
-            "montageCardId": "",
-            "montageCardCode": ""
-          },
-          {
-            "id": "d715c1ac-5c4a-4d75-a9de-3597c16c26b9",
-            "itemType": "SEMI",
-            "qty": 1,
-            "variantId": "",
-            "componentId": "",
-            "semiFinishedId": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "",
-            "semiFinishedCode": "YRM-000001",
-            "productGroup": "aluminyum dikme aksesuarları",
-            "productName": "mafsal cnc de işlenmiş polisaja hazır",
-            "productCode": "YRM-000001",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "itemType": "MIXED",
-        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-        "componentId": "",
-        "semiFinishedId": "",
-        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-        "variantCode": "URM-000001-V01",
-        "componentCode": "",
-        "semiFinishedCode": "",
-        "productGroup": "4 kalem",
-        "productName": "Coklu stok talebi (4 urun)",
-        "productCode": "MIXED",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "qty": 123,
-        "dueDate": "2026-03-27",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "workOrderId": "",
-        "workOrderCode": "",
-        "workOrderIds": [],
-        "workOrderCodes": [],
-        "updated_at": "2026-03-24T15:47:05.420Z"
       }
     ],
     "semiFinishedCards": [

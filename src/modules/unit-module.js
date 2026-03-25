@@ -1760,6 +1760,10 @@ const UnitModule = {
         const sourceType = String(options?.sourceType || '').trim().toUpperCase();
         const sourceId = String(options?.sourceId || '').trim();
         const sourceCode = String(options?.sourceCode || '').trim().toUpperCase();
+        const sourceItemKey = String(options?.sourceItemKey || '').trim();
+        const sourceItemName = String(options?.sourceItemName || '').trim();
+        const sourceItemCode = String(options?.sourceItemCode || '').trim().toUpperCase();
+        const sourceItemQty = Number(options?.sourceItemQty || 0);
         if (!montageId) throw new Error('Lutfen montaj karti seciniz.');
         if (!Number.isFinite(lotQty) || lotQty <= 0) throw new Error('Lot miktari 0 dan buyuk olmali.');
         const montage = (DB.data.data.montageCards || []).find(x => String(x?.id || '') === montageId);
@@ -1784,6 +1788,10 @@ const UnitModule = {
             sourceType,
             sourceId,
             sourceCode,
+            sourceItemKey,
+            sourceItemName,
+            sourceItemCode,
+            sourceItemQty: Number.isFinite(sourceItemQty) && sourceItemQty > 0 ? sourceItemQty : Number(lotQty),
             created_at: now,
             updated_at: now
         };
@@ -1804,6 +1812,10 @@ const UnitModule = {
         const sourceType = String(options?.sourceType || '').trim().toUpperCase();
         const sourceId = String(options?.sourceId || '').trim();
         const sourceCode = String(options?.sourceCode || '').trim().toUpperCase();
+        const sourceItemKey = String(options?.sourceItemKey || '').trim();
+        const sourceItemName = String(options?.sourceItemName || '').trim();
+        const sourceItemCode = String(options?.sourceItemCode || '').trim().toUpperCase();
+        const sourceItemQty = Number(options?.sourceItemQty || 0);
         if (!componentId) throw new Error('Lutfen parca/bilesen seciniz.');
         if (!Number.isFinite(lotQty) || lotQty <= 0) throw new Error('Lot miktari 0 dan buyuk olmali.');
         const componentCards = componentLibrary === 'SEMI'
@@ -1854,6 +1866,10 @@ const UnitModule = {
             sourceType,
             sourceId,
             sourceCode,
+            sourceItemKey,
+            sourceItemName,
+            sourceItemCode,
+            sourceItemQty: Number.isFinite(sourceItemQty) && sourceItemQty > 0 ? sourceItemQty : Number(lotQty),
             created_at: now,
             updated_at: now
         };

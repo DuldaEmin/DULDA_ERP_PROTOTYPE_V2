@@ -210,6 +210,7 @@ const PlanningModule = {
         const stockAvailableQty = PlanningModule.parseQty(row?.stockAvailableQty, 0);
         const semiAvailableQty = PlanningModule.parseQty(row?.semiAvailableQty, 0);
         const useEnabled = !!row?.useEnabled;
+        const approved = !!row?.approved;
         const useStockQty = useEnabled ? PlanningModule.clampQty(row?.useStockQty, 0, stockAvailableQty) : 0;
         const semiMaxByRemain = Math.max(0, requiredQty - useStockQty);
         const useSemiQty = useEnabled
@@ -224,6 +225,7 @@ const PlanningModule = {
             stockAvailableQty,
             semiAvailableQty,
             useEnabled,
+            approved,
             useStockQty,
             useSemiQty,
             minNetQty,
@@ -257,6 +259,7 @@ const PlanningModule = {
             stockAvailableQty,
             semiAvailableQty,
             useEnabled,
+            approved: false,
             useStockQty,
             useSemiQty,
             netQty: useEnabled ? Math.max(0, qty - useStockQty - useSemiQty) : qty
@@ -523,6 +526,16 @@ const PlanningModule = {
         if (key === 'useStockQty') target.useStockQty = value;
         if (key === 'useSemiQty') target.useSemiQty = value;
         if (key === 'netQty') target.netQty = value;
+        const normalized = PlanningModule.normalizePoolRow(target);
+        Object.assign(target, normalized);
+        UI.renderCurrentPage();
+    },
+
+    setPlanningPoolRowApproved: (demandId, rowKey, checked) => {
+        const rows = PlanningModule.getPlanningPoolRows(demandId);
+        const target = rows.find((row) => String(row?.key || '') === String(rowKey || ''));
+        if (!target) return;
+        target.approved = !!checked;
         const normalized = PlanningModule.normalizePoolRow(target);
         Object.assign(target, normalized);
         UI.renderCurrentPage();
@@ -1256,20 +1269,25 @@ const PlanningModule = {
             alert('Bu talepte patlatma satiri bulunamadi.');
             return;
         }
-        const invalidLow = rows.find((row) => PlanningModule.parseQty(row?.netQty, 0) < PlanningModule.parseQty(row?.minNetQty, 0));
+        const approvedRows = rows.filter((row) => !!row?.approved);
+        if (!approvedRows.length) {
+            alert('Lutfen is emrine donecek satirlari onay kutusundan seciniz.');
+            return;
+        }
+        const invalidLow = approvedRows.find((row) => PlanningModule.parseQty(row?.netQty, 0) < PlanningModule.parseQty(row?.minNetQty, 0));
         if (invalidLow) {
             alert(`Eksik uretim girilemez: ${invalidLow.name || invalidLow.code}`);
             return;
         }
-        const overRows = rows.filter((row) => PlanningModule.parseQty(row?.netQty, 0) > PlanningModule.parseQty(row?.requiredQty, 0));
+        const overRows = approvedRows.filter((row) => PlanningModule.parseQty(row?.netQty, 0) > PlanningModule.parseQty(row?.requiredQty, 0));
         if (overRows.length > 0) {
             const preview = overRows.slice(0, 4).map((row) => `${row.code || '-'} (${row.netQty}/${row.requiredQty})`).join(', ');
             const msg = `Bazi satirlarda fazla uretim var: ${preview}${overRows.length > 4 ? ' ...' : ''}. Onayliyor musunuz?`;
             if (!confirm(msg)) return;
         }
-        const nonZeroRows = rows.filter((row) => PlanningModule.parseQty(row?.netQty, 0) > 0);
+        const nonZeroRows = approvedRows.filter((row) => PlanningModule.parseQty(row?.netQty, 0) > 0);
         if (!nonZeroRows.length) {
-            alert('Tum satirlar 0 oldugu icin is emri olusturulamadi.');
+            alert('Secili satirlarda uretilecek net 0 oldugu icin is emri olusturulamadi.');
             return;
         }
         try {
@@ -1706,7 +1724,9 @@ const PlanningModule = {
                     ? (hasOverProduction ? 'Fazla kontrolu' : 'Analiz hazir')
                     : 'Analiz bekliyor';
                 const priorityBadge = PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL');
-                const canConvert = analysisReady && summary.netQty > 0;
+                const approvedRows = poolRows.filter((poolRow) => !!poolRow?.approved);
+                const approvedNetQty = approvedRows.reduce((sum, poolRow) => sum + PlanningModule.parseQty(poolRow?.netQty, 0), 0);
+                const canConvert = analysisReady && approvedRows.length > 0 && approvedNetQty > 0;
                 const itemGroups = PlanningModule.getPlanningPoolItemGroups(row);
                 const expandedItemMap = (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object')
                     ? PlanningModule.state.planningPoolExpandedItemByDemand
@@ -1717,10 +1737,11 @@ const PlanningModule = {
 
                 const renderItemRows = (groupRows) => {
                     if (!Array.isArray(groupRows) || !groupRows.length) {
-                        return `<tr><td colspan="8" style="padding:0.75rem; color:#94a3b8; text-align:center;">Bu kalem icin patlatma listesi bulunamadi.</td></tr>`;
+                        return `<tr><td colspan="9" style="padding:0.75rem; color:#94a3b8; text-align:center;">Bu kalem icin patlatma listesi bulunamadi.</td></tr>`;
                     }
                     return groupRows.map((poolRow) => {
                         const key = PlanningModule.escapeJsString(poolRow.key || '');
+                        const code = String(poolRow?.code || '').trim();
                         const overStyle = PlanningModule.parseQty(poolRow?.netQty, 0) > PlanningModule.parseQty(poolRow?.requiredQty, 0)
                             ? 'background:#fff1f2; border:1px solid #fecdd3; color:#b91c1c;'
                             : 'background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;';
@@ -1729,7 +1750,11 @@ const PlanningModule = {
                             <tr style="border-bottom:1px solid #f1f5f9;">
                                 <td style="padding:0.5rem;">
                                     <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(poolRow?.name || '-')}</div>
-                                    <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(poolRow?.code || '-')}</div>
+                                    <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">
+                                        ${code
+                                            ? `<button class="btn-sm" style="padding:0.1rem 0.45rem; min-height:24px;" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(code)}')">${PlanningModule.escapeHtml(code)}</button>`
+                                            : '-'}
+                                    </div>
                                 </td>
                                 <td style="padding:0.5rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(poolRow?.requiredQty || 0))}</td>
                                 <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(poolRow?.stockAvailableQty || 0))}</td>
@@ -1745,6 +1770,9 @@ const PlanningModule = {
                                 </td>
                                 <td style="padding:0.5rem; text-align:center;">
                                     <input type="number" min="${PlanningModule.escapeHtml(String(poolRow?.minNetQty || 0))}" value="${PlanningModule.escapeHtml(String(poolRow?.netQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','netQty', this.value)" style="width:112px; height:32px; border-radius:0.45rem; text-align:center; font-weight:800; ${overStyle}">
+                                </td>
+                                <td style="padding:0.5rem; text-align:center;">
+                                    <input type="checkbox" ${poolRow.approved ? 'checked' : ''} onchange="PlanningModule.setPlanningPoolRowApproved('${PlanningModule.escapeJsString(demandId)}','${key}', this.checked)">
                                 </td>
                             </tr>
                         `;
@@ -1762,7 +1790,12 @@ const PlanningModule = {
                                 <div style="padding:0.55rem 0.65rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:${isItemExpanded ? '1px solid #bfdbfe' : '1px solid #dbeafe'};">
                                     <div>
                                         <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(group?.itemName || '-')} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
-                                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(group?.itemCode || '-')} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
+                                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">
+                                            ${String(group?.itemCode || '').trim()
+                                                ? `<button class="btn-sm" style="padding:0.1rem 0.45rem; min-height:24px;" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(String(group?.itemCode || '').trim())}')">${PlanningModule.escapeHtml(String(group?.itemCode || '').trim())}</button>`
+                                                : '-'}
+                                            / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}
+                                        </div>
                                     </div>
                                     <button class="btn-sm" onclick="PlanningModule.togglePlanningPoolItemExpand('${PlanningModule.escapeJsString(demandId)}','${PlanningModule.escapeJsString(groupKey)}')" style="${isItemExpanded ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : 'border-color:#cbd5e1;'}">${isItemExpanded ? 'kapat' : 'planla'}</button>
                                 </div>
@@ -1780,6 +1813,7 @@ const PlanningModule = {
                                                         <th style="padding:0.5rem; text-align:center;">Yari mamul kullan</th>
                                                         <th style="padding:0.5rem; text-align:center;">Kullan</th>
                                                         <th style="padding:0.5rem; text-align:center;">Uretilecek net</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Onay</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>${renderItemRows(group.rows || [])}</tbody>

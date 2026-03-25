@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-25T13:16:45.068Z",
+    "updated_at": "2026-03-25T13:16:35.252Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 156
+    "revision": 152
   },
   "data": {
     "products": [
@@ -801,8 +801,8 @@
         "personCode": "PER-000003",
         "fullName": "ALIRIZA DEMIR",
         "title": "Bolum Yetkilisi",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "tam_yetkili",
         "assignedUnitIds": [
           "u1"
@@ -926,8 +926,8 @@
         "personCode": "PER-000004",
         "fullName": "MUHAMMET BILECI",
         "title": "Operator",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "operator",
         "assignedUnitIds": [
           "u1"

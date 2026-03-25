@@ -476,12 +476,6 @@ const PlanningModule = {
         PlanningModule.state.planningPoolExpandedDemandId = isSame ? '' : key;
         if (PlanningModule.state.planningPoolExpandedDemandId) {
             PlanningModule.ensurePlanningPoolRows(PlanningModule.state.planningPoolExpandedDemandId);
-            const demand = PlanningModule.getDemands().find((row) => String(row?.id || '') === key);
-            const groups = PlanningModule.getPlanningPoolItemGroups(demand || { id: key });
-            const currentItemKey = String(PlanningModule.state.planningPoolExpandedItemByDemand[key] || '').trim();
-            if (!currentItemKey && groups.length > 0) {
-                PlanningModule.state.planningPoolExpandedItemByDemand[key] = String(groups[0].itemKey || '');
-            }
         } else {
             delete PlanningModule.state.planningPoolExpandedItemByDemand[key];
         }
@@ -495,8 +489,11 @@ const PlanningModule = {
         if (!PlanningModule.state.planningPoolExpandedItemByDemand || typeof PlanningModule.state.planningPoolExpandedItemByDemand !== 'object') {
             PlanningModule.state.planningPoolExpandedItemByDemand = {};
         }
-        const current = String(PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] || '').trim();
-        PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] = current === key ? '' : key;
+        const current = (PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] && typeof PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] === 'object')
+            ? { ...PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] }
+            : {};
+        current[key] = !current[key];
+        PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] = current;
         UI.renderCurrentPage();
     },
 
@@ -1714,7 +1711,9 @@ const PlanningModule = {
                 const expandedItemMap = (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object')
                     ? PlanningModule.state.planningPoolExpandedItemByDemand
                     : {};
-                const activeItemKey = String(expandedItemMap[demandId] || '').trim() || String(itemGroups[0]?.itemKey || '');
+                const expandedItemSet = (expandedItemMap[demandId] && typeof expandedItemMap[demandId] === 'object')
+                    ? expandedItemMap[demandId]
+                    : {};
 
                 const renderItemRows = (groupRows) => {
                     if (!Array.isArray(groupRows) || !groupRows.length) {
@@ -1756,13 +1755,13 @@ const PlanningModule = {
                     ? `<div style="margin-top:0.65rem; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.7rem; color:#94a3b8;">Bu talep icin kalem bulunamadi.</div>`
                     : itemGroups.map((group, index) => {
                         const groupKey = String(group?.itemKey || `item-${index + 1}`).trim();
-                        const isItemExpanded = itemGroups.length === 1 ? true : activeItemKey === groupKey;
+                        const isItemExpanded = !!expandedItemSet[groupKey];
                         const groupSummary = PlanningModule.getPlanningPoolSummary(group.rows || []);
                         return `
-                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.55rem'}; border:1px solid #dbeafe; border-radius:0.75rem; background:#f8fbff;">
-                                <div style="padding:0.55rem 0.65rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap;">
+                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.7rem'}; border:2px solid ${isItemExpanded ? '#60a5fa' : '#93c5fd'}; border-radius:0.75rem; background:${isItemExpanded ? '#eff6ff' : '#f8fbff'};">
+                                <div style="padding:0.55rem 0.65rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:${isItemExpanded ? '1px solid #bfdbfe' : '1px solid #dbeafe'};">
                                     <div>
-                                        <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(group?.itemName || '-')} <span style="font-family:monospace; color:#64748b;">(${PlanningModule.escapeHtml(String(group?.itemQty || 0))})</span></div>
+                                        <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(group?.itemName || '-')} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
                                         <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(group?.itemCode || '-')} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
                                     </div>
                                     <button class="btn-sm" onclick="PlanningModule.togglePlanningPoolItemExpand('${PlanningModule.escapeJsString(demandId)}','${PlanningModule.escapeJsString(groupKey)}')" style="${isItemExpanded ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : 'border-color:#cbd5e1;'}">${isItemExpanded ? 'kapat' : 'planla'}</button>

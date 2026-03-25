@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-25T13:16:45.068Z",
+    "updated_at": "2026-03-25T12:33:12.048Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 156
+    "revision": 145
   },
   "data": {
     "products": [
@@ -505,46 +505,7 @@
       }
     ],
     "customers": [],
-    "suppliers": [
-      {
-        "id": "sup1",
-        "name": "AKPA ALUMINYUM",
-        "entityType": "company",
-        "tags": [
-          "Hammadde"
-        ],
-        "notes": "",
-        "contact": {
-          "person": "Ahmet Yilmaz",
-          "phone": "0532 111 22 33",
-          "email": "",
-          "web": "",
-          "tax": "1234567890",
-          "address": "OSB Mah.",
-          "city": "Istanbul",
-          "country": "Turkiye"
-        }
-      },
-      {
-        "id": "sup2",
-        "name": "TEKIN ELOKSAL",
-        "entityType": "company",
-        "tags": [
-          "Kaplama"
-        ],
-        "notes": "",
-        "contact": {
-          "person": "Mehmet Demir",
-          "phone": "0555 444 55 66",
-          "email": "",
-          "web": "",
-          "tax": "0987654321",
-          "address": "Sanayi Sit.",
-          "city": "Istanbul",
-          "country": "Turkiye"
-        }
-      }
-    ],
+    "suppliers": [],
     "personnel": [
       {
         "id": "0710f02a-955c-4873-9852-7d7536a059d7",
@@ -801,8 +762,8 @@
         "personCode": "PER-000003",
         "fullName": "ALIRIZA DEMIR",
         "title": "Bolum Yetkilisi",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "tam_yetkili",
         "assignedUnitIds": [
           "u1"
@@ -926,8 +887,8 @@
         "personCode": "PER-000004",
         "fullName": "MUHAMMET BILECI",
         "title": "Operator",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "operator",
         "assignedUnitIds": [
           "u1"
@@ -1051,8 +1012,8 @@
         "personCode": "PER-000005",
         "fullName": "EMIN KAYA",
         "title": "operatör",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "operator",
         "username": "eminkaya",
         "password": "emin1641",
@@ -1176,8 +1137,8 @@
         "personCode": "PER-000006",
         "fullName": "ALI VELI",
         "title": "ortacı",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "operator",
         "username": "aliveli",
         "password": "1234",
@@ -1301,8 +1262,8 @@
         "personCode": "PER-000007",
         "fullName": "MEHMET YILMAZ",
         "title": "operatör",
-        "status": "pasif",
-        "isActive": false,
+        "status": "aktif",
+        "isActive": true,
         "rolePreset": "tam_yetkili",
         "username": "mehmetyılmaz",
         "password": "",
@@ -2822,7 +2783,6 @@
         "created_at": "2026-03-24T15:29:40.154Z",
         "updated_at": "2026-03-24T15:29:40.154Z"
       }
-    ],
-    "requests": []
+    ]
   }
 }

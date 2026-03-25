@@ -3692,10 +3692,16 @@ const ProductLibraryModule = {
     },
 
     openModelVariantView: (id) => {
-        ProductLibraryModule.state.modelViewingId = String(id || '');
-        ProductLibraryModule.state.modelFormOpen = false;
-        ProductLibraryModule.state.modelEditingId = null;
-        UI.renderCurrentPage();
+        const row = ProductLibraryModule.getCatalogVariantById(id);
+        if (!row) return alert('Urun varyanti bulunamadi.');
+        const code = String(row?.variantCode || '').trim();
+        if (!code) return alert('Varyant ID kodu bulunamadi.');
+        ProductLibraryModule.state.modelViewingId = null;
+        if (typeof ReadOnlyViewer !== 'undefined' && ReadOnlyViewer && typeof ReadOnlyViewer.openByCode === 'function') {
+            const opened = ReadOnlyViewer.openByCode(code, { silentNotFound: true });
+            if (opened) return;
+        }
+        alert(`Bu varyant icin goruntuleme kaydi bulunamadi: ${code}`);
     },
 
     closeModelVariantView: () => {
@@ -4548,11 +4554,7 @@ const ProductLibraryModule = {
     renderModelsPage: (container) => {
         const state = ProductLibraryModule.state;
         const isPlanningModelPicker = String(state.planningPickerSource || '') === 'model';
-        const viewRow = state.modelViewingId ? ProductLibraryModule.getCatalogVariantById(state.modelViewingId) : null;
-        if (viewRow && !isPlanningModelPicker) {
-            ProductLibraryModule.renderModelVariantView(container, viewRow);
-            return;
-        }
+        if (state.modelViewingId && !isPlanningModelPicker) state.modelViewingId = null;
 
         const filters = state.modelFilters || { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
         const groupOptions = ProductLibraryModule.getModelGroupOptions();

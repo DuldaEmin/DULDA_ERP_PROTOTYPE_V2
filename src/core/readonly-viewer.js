@@ -1,4 +1,6 @@
 const ReadOnlyViewer = {
+    fileRegistry: {},
+
     escapeHtml: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -45,8 +47,48 @@ const ReadOnlyViewer = {
     openFile: (dataUrl) => {
         const url = String(dataUrl || '').trim();
         if (!url) return alert('Goruntulenecek dosya bulunamadi.');
-        const win = window.open(url, '_blank');
+        let targetUrl = url;
+        if (url.startsWith('data:')) {
+            try {
+                const commaIndex = url.indexOf(',');
+                const header = url.slice(0, commaIndex);
+                const payload = url.slice(commaIndex + 1);
+                const mimeMatch = header.match(/^data:([^;]+)(;base64)?/i);
+                const mime = mimeMatch?.[1] || 'application/octet-stream';
+                const binary = header.toLowerCase().includes(';base64')
+                    ? atob(payload)
+                    : decodeURIComponent(payload);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+                const blob = new Blob([bytes], { type: mime });
+                targetUrl = URL.createObjectURL(blob);
+            } catch (_) {
+                targetUrl = url;
+            }
+        }
+        const win = window.open(targetUrl, '_blank');
         if (!win) alert('Tarayici popup engelliyor olabilir.');
+        if (targetUrl.startsWith('blob:')) {
+            setTimeout(() => {
+                try { URL.revokeObjectURL(targetUrl); } catch (_) { }
+            }, 60_000);
+        }
+    },
+
+    openFileByToken: (token) => {
+        const key = String(token || '').trim();
+        if (!key) return alert('Dosya anahtari bulunamadi.');
+        const file = ReadOnlyViewer.fileRegistry?.[key];
+        if (!file?.data) return alert('Goruntulenecek dosya bulunamadi.');
+        ReadOnlyViewer.openFile(file.data);
+    },
+
+    downloadFileByToken: (token) => {
+        const key = String(token || '').trim();
+        if (!key) return alert('Dosya anahtari bulunamadi.');
+        const file = ReadOnlyViewer.fileRegistry?.[key];
+        if (!file?.data) return alert('Indirilecek dosya bulunamadi.');
+        ReadOnlyViewer.downloadFile(file.data, file.name || 'dosya');
     },
 
     downloadFile: (dataUrl, fileName = 'dosya') => {
@@ -74,21 +116,31 @@ const ReadOnlyViewer = {
     renderFilesCard: (files) => {
         const safeFiles = Array.isArray(files) ? files.filter((f) => f && typeof f === 'object' && String(f.data || '').trim()) : [];
         if (safeFiles.length === 0) return '<div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.8rem; color:#94a3b8;">Dosya bulunamadi.</div>';
-        const first = safeFiles[0];
+        ReadOnlyViewer.fileRegistry = {};
+        const stamped = Date.now();
+        const filesWithToken = safeFiles.map((file, idx) => {
+            const token = `rvf_${stamped}_${idx}_${Math.random().toString(36).slice(2, 8)}`;
+            ReadOnlyViewer.fileRegistry[token] = {
+                data: String(file?.data || ''),
+                name: String(file?.name || 'dosya')
+            };
+            return { ...file, token };
+        });
+        const first = filesWithToken[0];
         return `
             <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; margin-bottom:0.5rem; flex-wrap:wrap;">
-                    <div style="font-size:0.84rem; color:#64748b;">Dosyalar (${safeFiles.length})</div>
+                    <div style="font-size:0.84rem; color:#64748b;">Dosyalar (${filesWithToken.length})</div>
                     <div style="font-size:0.8rem; color:#334155; font-weight:700;">Onizleme: ${ReadOnlyViewer.escapeHtml(first.name || 'dosya')}</div>
                 </div>
                 <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.15fr); gap:0.7rem;">
                     <div style="display:flex; flex-direction:column; gap:0.4rem; max-height:360px; overflow:auto;">
-                        ${safeFiles.map((file) => `
+                        ${filesWithToken.map((file) => `
                             <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.45rem 0.55rem; background:#f8fafc;">
                                 <div style="font-size:0.82rem; color:#334155; margin-bottom:0.35rem;">${ReadOnlyViewer.escapeHtml(file.name || 'dosya')}</div>
                                 <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-                                    <button class="btn-sm" onclick="ReadOnlyViewer.openFile('${ReadOnlyViewer.escapeJsString(file.data || '')}')">yeni sekmede goruntule</button>
-                                    <button class="btn-sm" onclick="ReadOnlyViewer.downloadFile('${ReadOnlyViewer.escapeJsString(file.data || '')}','${ReadOnlyViewer.escapeJsString(file.name || 'dosya')}')">indir</button>
+                                    <button class="btn-sm" onclick="ReadOnlyViewer.openFileByToken('${ReadOnlyViewer.escapeJsString(file.token || '')}')">yeni sekmede goruntule</button>
+                                    <button class="btn-sm" onclick="ReadOnlyViewer.downloadFileByToken('${ReadOnlyViewer.escapeJsString(file.token || '')}')">indir</button>
                                 </div>
                             </div>
                         `).join('')}
@@ -159,6 +211,14 @@ const ReadOnlyViewer = {
             ...(Array.isArray(row?.productFiles) ? row.productFiles : []),
             ...(Array.isArray(row?.explodedFiles) ? row.explodedFiles : [])
         ];
+        const linkedItems = (Array.isArray(row?.items) ? row.items : [])
+            .map((item) => ({
+                name: String(item?.name || '').trim(),
+                code: String(item?.code || '').trim(),
+                source: String(item?.source || '').trim().toUpperCase()
+            }))
+            .filter((item) => item.name || item.code);
+        const components = linkedItems.filter((item) => item.source !== 'MASTER');
         const html = `
             <div style="display:grid; gap:0.7rem;">
                 <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
@@ -171,6 +231,31 @@ const ReadOnlyViewer = {
                         <div><div style="font-size:0.72rem; color:#64748b;">Montaj urun kodu</div><div style="font-weight:700; font-family:monospace;">${ReadOnlyViewer.escapeHtml(row?.montageCard?.productCode || '-')}</div></div>
                     </div>
                     <div style="margin-top:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Not</div><div style="color:#334155;">${ReadOnlyViewer.escapeHtml(row?.note || '-')}</div></div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem;">
+                    <div style="font-size:0.84rem; color:#64748b; margin-bottom:0.45rem;">Bilesenler (${components.length})</div>
+                    ${components.length
+                ? `
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                        <th style="padding:0.42rem; text-align:left;">#</th>
+                                        <th style="padding:0.42rem; text-align:left;">Bilesen adi</th>
+                                        <th style="padding:0.42rem; text-align:left;">ID kod</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${components.map((item, idx) => `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.42rem;">${idx + 1}</td>
+                                            <td style="padding:0.42rem; font-weight:700; color:#334155;">${ReadOnlyViewer.escapeHtml(item?.name || '-')}</td>
+                                            <td style="padding:0.42rem; font-family:monospace; color:#1d4ed8;">${ReadOnlyViewer.escapeHtml(item?.code || '-')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        `
+                : `<div style="color:#94a3b8;">Bu modelde bagli bilesen kaydi bulunamadi.</div>`}
                 </div>
                 ${ReadOnlyViewer.renderFilesCard(files)}
             </div>

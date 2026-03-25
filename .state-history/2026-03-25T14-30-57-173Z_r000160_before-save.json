@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-25T14:31:23.604Z",
+    "updated_at": "2026-03-25T13:58:31.180Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 162
+    "revision": 160
   },
   "data": {
     "products": [
@@ -2565,70 +2565,6 @@
         "sourceCode": "PLN-000002",
         "created_at": "2026-03-25T13:43:52.812Z",
         "updated_at": "2026-03-25T13:43:52.812Z"
-      },
-      {
-        "id": "fedc2c60-8534-48ee-981b-4abdacfe6f1b",
-        "workOrderCode": "WO-000015",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "lotQty": 1,
-        "dueDate": "2026-03-28",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "e9e3da1f-35fb-45d0-9325-c110f639739f",
-            "lineCode": "WO-000015-01",
-            "componentCode": "PRC-000007",
-            "componentName": "2008 bombeli 40 lık dikme pleksi",
-            "multiplier": 1,
-            "targetQty": 1,
-            "routes": [
-              {
-                "id": "f9b2d6d6-3f40-44cf-9358-987f44bdb103",
-                "seq": 1,
-                "stationId": "u2",
-                "stationName": "EKSTRUDER ATOLYESI",
-                "processId": "EKS-000001"
-              },
-              {
-                "id": "223988b0-0e9a-4e49-bb73-a65c12c103b6",
-                "seq": 2,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000001"
-              },
-              {
-                "id": "9a161bd4-eab2-46c3-8711-e66f2e422409",
-                "seq": 3,
-                "stationId": "u5",
-                "stationName": "PLEKSI POLISAJ ATOLYESI",
-                "processId": "PLSJ-000001"
-              },
-              {
-                "id": "54a9150e-76ba-4c5c-b2ae-103fa623745b",
-                "seq": 4,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000004"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "67ff442f-29b8-49a7-b163-b3caabf3ba39",
-        "sourceCode": "PLN-000004",
-        "sourceItemKey": "a71f3299-823f-4473-869e-5570a787b310",
-        "sourceItemName": "2008 bombeli 40 lık dikme pleksi",
-        "sourceItemCode": "PRC-000007",
-        "sourceItemQty": 1,
-        "created_at": "2026-03-25T14:31:23.604Z",
-        "updated_at": "2026-03-25T14:31:23.604Z"
       }
     ],
     "workOrderTransactions": [],
@@ -3976,81 +3912,6 @@
         "workOrderIds": [],
         "workOrderCodes": [],
         "updated_at": "2026-03-25T13:58:31.179Z"
-      },
-      {
-        "id": "67ff442f-29b8-49a7-b163-b3caabf3ba39",
-        "demandCode": "PLN-000004",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-25T14:30:57.054Z",
-        "items": [
-          {
-            "id": "a71f3299-823f-4473-869e-5570a787b310",
-            "itemType": "COMPONENT",
-            "qty": 1,
-            "variantId": "",
-            "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-            "semiFinishedId": "",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "PRC-000007",
-            "semiFinishedCode": "",
-            "productGroup": "dikme pleksileri",
-            "productName": "2008 bombeli 40 lık dikme pleksi",
-            "productCode": "PRC-000007",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "itemType": "COMPONENT",
-        "variantId": "",
-        "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-        "semiFinishedId": "",
-        "familyId": "",
-        "variantCode": "",
-        "componentCode": "PRC-000007",
-        "semiFinishedCode": "",
-        "productGroup": "dikme pleksileri",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "productCode": "PRC-000007",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "qty": 1,
-        "dueDate": "2026-03-28",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "workOrderId": "fedc2c60-8534-48ee-981b-4abdacfe6f1b",
-        "workOrderCode": "WO-000015",
-        "workOrderIds": [
-          "fedc2c60-8534-48ee-981b-4abdacfe6f1b"
-        ],
-        "workOrderCodes": [
-          "WO-000015"
-        ],
-        "updated_at": "2026-03-25T14:31:23.604Z",
-        "poolAnalysis": {
-          "rows": [
-            {
-              "key": "a71f3299-823f-4473-869e-5570a787b310::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "itemKey": "a71f3299-823f-4473-869e-5570a787b310",
-              "itemName": "2008 bombeli 40 lık dikme pleksi",
-              "itemCode": "PRC-000007",
-              "itemQty": 1,
-              "code": "PRC-000007",
-              "name": "2008 bombeli 40 lık dikme pleksi",
-              "componentLibrary": "PART",
-              "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "requiredQty": 1,
-              "useEnabled": false,
-              "useStockQty": 0,
-              "useSemiQty": 0,
-              "netQty": 1
-            }
-          ],
-          "converted_at": "2026-03-25T14:31:23.604Z"
-        },
-        "released_at": "2026-03-25T14:31:23.604Z"
       }
     ],
     "semiFinishedCards": [

@@ -1246,6 +1246,10 @@ const PlanningModule = {
             ? {
                 rows: poolRows.map((row) => ({
                     key: String(row?.key || ''),
+                    itemKey: String(row?.itemKey || ''),
+                    itemName: String(row?.itemName || ''),
+                    itemCode: String(row?.itemCode || ''),
+                    itemQty: PlanningModule.parseQty(row?.itemQty, 0),
                     code: String(row?.code || ''),
                     name: String(row?.name || ''),
                     componentLibrary: String(row?.componentLibrary || 'PART'),
@@ -1343,6 +1347,12 @@ const PlanningModule = {
             delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demandId || '')];
         }
         if (String(PlanningModule.state.stockDraftEditingId || '') === String(demandId || '')) PlanningModule.resetStockDraft();
+        if (String(PlanningModule.state.releasedExpandedDemandId || '') === String(demandId || '')) {
+            PlanningModule.state.releasedExpandedDemandId = '';
+        }
+        if (PlanningModule.state.releasedExpandedItemByDemand && typeof PlanningModule.state.releasedExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.releasedExpandedItemByDemand[String(demandId || '')];
+        }
         await DB.save();
         UI.renderCurrentPage();
     },
@@ -1402,6 +1412,12 @@ const PlanningModule = {
         }
         if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
             delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demandId || '')];
+        }
+        if (String(PlanningModule.state.releasedExpandedDemandId || '') === String(demandId || '')) {
+            PlanningModule.state.releasedExpandedDemandId = '';
+        }
+        if (PlanningModule.state.releasedExpandedItemByDemand && typeof PlanningModule.state.releasedExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.releasedExpandedItemByDemand[String(demandId || '')];
         }
 
         await DB.save();

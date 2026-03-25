@@ -2362,8 +2362,8 @@ const PlanningModule = {
                             ? 'Montaji bekliyor'
                             : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(', ') : 'Istasyon bekliyor');
                         return `
-                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:2px solid ${group?.isFinished ? '#86efac' : '#fca5a5'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
-                                <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
+                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:3px solid ${group?.isFinished ? '#4ade80' : '#f87171'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
+                                <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:2px solid #d1d5db;">
                                     <div>
                                         <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(String(group?.itemName || '-'))} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
                                         <div style="margin-top:0.12rem; font-size:0.74rem; color:#1d4ed8; font-family:monospace;">${PlanningModule.renderLiveCodeButton(String(group?.itemCode || ''))} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
@@ -2379,7 +2379,7 @@ const PlanningModule = {
                                         <div class="card-table" style="margin-top:0.25rem;">
                                             <table style="width:100%; border-collapse:collapse;">
                                                 <thead>
-                                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                                    <tr style="border-bottom:2px solid #cbd5e1; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
                                                         <th style="padding:0.5rem; text-align:left;">Is emri</th>
                                                         <th style="padding:0.5rem; text-align:left;">Parca / unsur</th>
                                                         <th style="padding:0.5rem; text-align:center;">Gereken</th>
@@ -2398,12 +2398,12 @@ const PlanningModule = {
                             </div>
                         `;
                     }).join('')
-                    : `<div style="margin-top:0.65rem; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.75rem; color:#94a3b8;">Bu talep icin takip satiri bulunamadi.</div>`;
+                    : `<div style="margin-top:0.65rem; border:2px solid #cbd5e1; border-radius:0.65rem; padding:0.75rem; color:#94a3b8;">Bu talep icin takip satiri bulunamadi.</div>`;
 
                 const expandedHtml = !isExpanded ? '' : `
                     <tr style="background:#f8fbff;">
                         <td colspan="7" style="padding:0.85rem 0.9rem 1rem 0.9rem;">
-                            <div style="border:1px solid #bfdbfe; border-radius:0.95rem; background:#ffffff; padding:0.85rem;">
+                            <div style="border:2px solid #93c5fd; border-radius:0.95rem; background:#ffffff; padding:0.85rem;">
                                 <div style="font-weight:800; color:#1e3a8a;">Talep Takip Detayi - ${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div>
                                 <div style="font-size:0.76rem; color:#64748b; margin-top:0.2rem;">Kalem bazli acilir yapi: biten kalem yesil, devam eden kalem kirmizi gorunur. Rota adimlari pasif / aktif / siradaki olarak izlenir.</div>
                                 ${groupSectionsHtml}
@@ -2413,9 +2413,9 @@ const PlanningModule = {
                 `;
 
                 return `
-                    <tr style="border-bottom:1px solid #f1f5f9; background:${statusMeta.done ? '#f8fffb' : '#fffef8'};">
+                    <tr style="border-bottom:2px solid #cbd5e1; background:${statusMeta.done ? '#f8fffb' : '#fffef8'};">
                         <td style="padding:0.6rem;">
-                            <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div>
+                            <div><button class="btn-sm" style="padding:0.12rem 0.5rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(demandId)}')">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</button></div>
                             <div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(String(demand?.sourceLabel || 'Stok Uretimi'))}</div>
                         </td>
                         <td style="padding:0.6rem;">
@@ -2426,7 +2426,7 @@ const PlanningModule = {
                         <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(String(demand?.dueDate || '-'))}</div><div style="margin-top:0.2rem;">${PlanningModule.renderPriorityBadge(demand?.priority || 'NORMAL')}</div></td>
                         <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span></td>
                         <td style="padding:0.6rem; font-family:monospace; color:#1e40af; font-weight:700;">${PlanningModule.escapeHtml(workOrderText)}</td>
-                        <td style="padding:0.6rem; text-align:right;"><button class="btn-sm" onclick="PlanningModule.toggleReleasedDemandExpand('${PlanningModule.escapeJsString(demandId)}')" style="${isExpanded ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">${isExpanded ? 'kapat' : 'planla'}</button></td>
+                        <td style="padding:0.6rem; text-align:right;"><button class="btn-sm" onclick="PlanningModule.toggleReleasedDemandExpand('${PlanningModule.escapeJsString(demandId)}')" style="${isExpanded ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">${isExpanded ? 'kapat' : 'durumu goruntule'}</button></td>
                     </tr>
                     ${expandedHtml}
                 `;
@@ -2435,7 +2435,7 @@ const PlanningModule = {
 
         return `
             <section style="max-width:1680px; margin:0 auto;">
-                <div style="background:rgba(255,255,255,0.72); border:1px solid #cbd5e1; border-radius:1.8rem; padding:1.2rem;">
+                <div style="background:rgba(255,255,255,0.72); border:2px solid #94a3b8; border-radius:1.8rem; padding:1.2rem;">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.85rem; margin-bottom:0.85rem; flex-wrap:wrap;">
                         <div>
                             <h2 class="page-title" style="margin:0;">planlama / is emrine donusenler</h2>
@@ -2447,16 +2447,16 @@ const PlanningModule = {
                         </div>
                     </div>
                     <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.65rem; margin-bottom:0.9rem;">
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Talep kaydi</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${trackingRows.length}</div></div>
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(totalQty))}</div></div>
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Biten talep</div><div style="font-size:1.05rem; font-weight:800; color:#047857;">${doneCount}</div></div>
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Devam eden talep</div><div style="font-size:1.05rem; font-weight:800; color:#b91c1c;">${inProgressCount}</div></div>
+                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Talep kaydi</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${trackingRows.length}</div></div>
+                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(totalQty))}</div></div>
+                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Biten talep</div><div style="font-size:1.05rem; font-weight:800; color:#047857;">${doneCount}</div></div>
+                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Devam eden talep</div><div style="font-size:1.05rem; font-weight:800; color:#b91c1c;">${inProgressCount}</div></div>
                     </div>
-                    <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:1rem; padding:0.75rem;">
+                    <div style="background:#ffffff; border:2px solid #334155; border-radius:1rem; padding:0.75rem;">
                         <div class="card-table">
                             <table style="width:100%; border-collapse:collapse;">
                                 <thead>
-                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <tr style="border-bottom:2px solid #cbd5e1; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
                                         <th style="padding:0.6rem; text-align:left;">Talep</th>
                                         <th style="padding:0.6rem; text-align:left;">Urun</th>
                                         <th style="padding:0.6rem; text-align:center;">Adet</th>

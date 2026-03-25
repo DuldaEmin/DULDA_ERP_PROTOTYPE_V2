@@ -13,6 +13,7 @@ const PlanningModule = {
         stockDraftPriority: 'NORMAL',
         stockDraftNote: '',
         planningPoolExpandedDemandId: '',
+        planningPoolExpandedItemByDemand: {},
         planningPoolRowsByDemand: {}
     },
 
@@ -230,7 +231,7 @@ const PlanningModule = {
         };
     },
 
-    buildPoolRow: ({ key, code, name, sourceType, componentLibrary, componentId, requiredQty }) => {
+    buildPoolRow: ({ key, code, name, sourceType, componentLibrary, componentId, requiredQty, itemKey, itemName, itemCode, itemQty, itemType }) => {
         const safeCode = String(code || '').trim().toUpperCase();
         const qty = PlanningModule.parseQty(requiredQty, 0);
         const isSemi = String(componentLibrary || '').toUpperCase() === 'SEMI';
@@ -242,6 +243,11 @@ const PlanningModule = {
         const useSemiQty = useEnabled ? Math.min(semiAvailableQty, Math.max(0, qty - useStockQty)) : 0;
         return PlanningModule.normalizePoolRow({
             key: String(key || crypto.randomUUID()),
+            itemKey: String(itemKey || '').trim(),
+            itemName: String(itemName || '').trim(),
+            itemCode: String(itemCode || '').trim(),
+            itemQty: PlanningModule.parseQty(itemQty, 0),
+            itemType: PlanningModule.normalizeDraftItemKind(itemType || 'MODEL'),
             code: safeCode,
             name: String(name || safeCode || '-').trim(),
             sourceType: String(sourceType || 'COMPONENT'),
@@ -273,16 +279,32 @@ const PlanningModule = {
         };
 
         const demandItems = PlanningModule.getDemandItems(demand);
-        demandItems.forEach((item) => {
+        demandItems.forEach((item, index) => {
             const kind = PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL');
             const qty = PlanningModule.parseQty(item?.qty, 0);
             if (qty <= 0) return;
+            const itemKey = String(item?.id || `item-${index + 1}`).trim();
+            const itemName = String(item?.productName || '-').trim();
+            const itemCode = String(PlanningModule.getDemandItemCode(item) || item?.productCode || '').trim();
+            const itemQty = qty;
+            const createRow = (base) => {
+                const mergedKey = `${itemKey}::${String(base?.key || '').trim()}`;
+                return {
+                    ...base,
+                    key: mergedKey,
+                    itemKey,
+                    itemName,
+                    itemCode,
+                    itemQty,
+                    itemType: kind
+                };
+            };
 
             if (kind === 'COMPONENT') {
                 const component = PlanningModule.findComponentById(item?.componentId || '')
                     || PlanningModule.findComponentCardByCodeOrId(item?.componentCode || item?.productCode || '', item?.componentId || '');
                 if (!component) return;
-                addOrMerge({
+                addOrMerge(createRow({
                     key: `PART:${String(component.id || '')}`,
                     code: String(component.code || ''),
                     name: String(component.name || component.code || ''),
@@ -290,7 +312,7 @@ const PlanningModule = {
                     componentLibrary: 'PART',
                     componentId: String(component.id || ''),
                     requiredQty: qty
-                });
+                }));
                 return;
             }
 
@@ -298,7 +320,7 @@ const PlanningModule = {
                 const semi = PlanningModule.findSemiFinishedById(item?.semiFinishedId || '')
                     || PlanningModule.findSemiCardByCodeOrId(item?.semiFinishedCode || item?.productCode || '', item?.semiFinishedId || '');
                 if (!semi) return;
-                addOrMerge({
+                addOrMerge(createRow({
                     key: `SEMI:${String(semi.id || '')}`,
                     code: String(semi.code || ''),
                     name: String(semi.name || semi.code || ''),
@@ -306,7 +328,7 @@ const PlanningModule = {
                     componentLibrary: 'SEMI',
                     componentId: String(semi.id || ''),
                     requiredQty: qty
-                });
+                }));
                 return;
             }
 
@@ -323,7 +345,7 @@ const PlanningModule = {
                 if (likelySemi) {
                     const semi = PlanningModule.findSemiFinishedById(refId) || PlanningModule.findSemiCardByCodeOrId(refCode, refId);
                     if (!semi) return;
-                    addOrMerge({
+                    addOrMerge(createRow({
                         key: `SEMI:${String(semi.id || '')}`,
                         code: String(semi.code || ''),
                         name: String(semi.name || semi.code || ''),
@@ -331,12 +353,12 @@ const PlanningModule = {
                         componentLibrary: 'SEMI',
                         componentId: String(semi.id || ''),
                         requiredQty: targetQty
-                    });
+                    }));
                     return;
                 }
                 const component = PlanningModule.findComponentById(refId) || PlanningModule.findComponentCardByCodeOrId(refCode, refId);
                 if (!component) return;
-                addOrMerge({
+                addOrMerge(createRow({
                     key: `PART:${String(component.id || '')}`,
                     code: String(component.code || ''),
                     name: String(component.name || component.code || ''),
@@ -344,7 +366,7 @@ const PlanningModule = {
                     componentLibrary: 'PART',
                     componentId: String(component.id || ''),
                     requiredQty: targetQty
-                });
+                }));
             });
         });
 
@@ -375,6 +397,12 @@ const PlanningModule = {
         }
         const cached = PlanningModule.state.planningPoolRowsByDemand[key];
         if (Array.isArray(cached) && cached.length > 0) {
+            const legacyRows = cached.some((row) => !String(row?.itemKey || '').trim());
+            if (legacyRows) {
+                const rebuilt = PlanningModule.buildPlanningPoolRowsForDemand(demand);
+                PlanningModule.state.planningPoolRowsByDemand[key] = rebuilt;
+                return rebuilt;
+            }
             const synced = PlanningModule.syncPlanningPoolRowsWithAvailability(cached);
             PlanningModule.state.planningPoolRowsByDemand[key] = synced;
             return synced;
@@ -391,12 +419,84 @@ const PlanningModule = {
         return Array.isArray(rows) ? rows : [];
     },
 
+    getPlanningPoolItemGroups: (demand) => {
+        const demandId = String(demand?.id || '').trim();
+        if (!demandId) return [];
+        const rows = PlanningModule.getPlanningPoolRows(demandId);
+        const demandItems = PlanningModule.getDemandItems(demand);
+        const orderMap = {};
+        const groups = new Map();
+
+        demandItems.forEach((item, index) => {
+            const itemKey = String(item?.id || `item-${index + 1}`).trim();
+            orderMap[itemKey] = index;
+            groups.set(itemKey, {
+                itemKey,
+                itemIndex: index,
+                itemName: String(item?.productName || '-'),
+                itemCode: String(PlanningModule.getDemandItemCode(item) || item?.productCode || '-'),
+                itemQty: PlanningModule.parseQty(item?.qty, 0),
+                itemType: PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL'),
+                rows: []
+            });
+        });
+
+        rows.forEach((row) => {
+            const itemKey = String(row?.itemKey || '').trim();
+            if (!itemKey) return;
+            if (!groups.has(itemKey)) {
+                groups.set(itemKey, {
+                    itemKey,
+                    itemIndex: Number.MAX_SAFE_INTEGER,
+                    itemName: String(row?.itemName || '-'),
+                    itemCode: String(row?.itemCode || '-'),
+                    itemQty: PlanningModule.parseQty(row?.itemQty, 0),
+                    itemType: PlanningModule.normalizeDraftItemKind(row?.itemType || 'MODEL'),
+                    rows: []
+                });
+            }
+            groups.get(itemKey).rows.push(row);
+        });
+
+        return Array.from(groups.values())
+            .filter((group) => group.rows.length > 0 || group.itemQty > 0)
+            .sort((a, b) => {
+                const ai = Number.isFinite(orderMap[a.itemKey]) ? orderMap[a.itemKey] : a.itemIndex;
+                const bi = Number.isFinite(orderMap[b.itemKey]) ? orderMap[b.itemKey] : b.itemIndex;
+                return ai - bi;
+            });
+    },
+
     togglePlanningPoolExpand: (demandId) => {
         const key = String(demandId || '').trim();
-        PlanningModule.state.planningPoolExpandedDemandId = String(PlanningModule.state.planningPoolExpandedDemandId || '') === key ? '' : key;
+        if (!PlanningModule.state.planningPoolExpandedItemByDemand || typeof PlanningModule.state.planningPoolExpandedItemByDemand !== 'object') {
+            PlanningModule.state.planningPoolExpandedItemByDemand = {};
+        }
+        const isSame = String(PlanningModule.state.planningPoolExpandedDemandId || '') === key;
+        PlanningModule.state.planningPoolExpandedDemandId = isSame ? '' : key;
         if (PlanningModule.state.planningPoolExpandedDemandId) {
             PlanningModule.ensurePlanningPoolRows(PlanningModule.state.planningPoolExpandedDemandId);
+            const demand = PlanningModule.getDemands().find((row) => String(row?.id || '') === key);
+            const groups = PlanningModule.getPlanningPoolItemGroups(demand || { id: key });
+            const currentItemKey = String(PlanningModule.state.planningPoolExpandedItemByDemand[key] || '').trim();
+            if (!currentItemKey && groups.length > 0) {
+                PlanningModule.state.planningPoolExpandedItemByDemand[key] = String(groups[0].itemKey || '');
+            }
+        } else {
+            delete PlanningModule.state.planningPoolExpandedItemByDemand[key];
         }
+        UI.renderCurrentPage();
+    },
+
+    togglePlanningPoolItemExpand: (demandId, itemKey) => {
+        const demandKey = String(demandId || '').trim();
+        const key = String(itemKey || '').trim();
+        if (!demandKey || !key) return;
+        if (!PlanningModule.state.planningPoolExpandedItemByDemand || typeof PlanningModule.state.planningPoolExpandedItemByDemand !== 'object') {
+            PlanningModule.state.planningPoolExpandedItemByDemand = {};
+        }
+        const current = String(PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] || '').trim();
+        PlanningModule.state.planningPoolExpandedItemByDemand[demandKey] = current === key ? '' : key;
         UI.renderCurrentPage();
     },
 
@@ -709,6 +809,7 @@ const PlanningModule = {
         }
         if (PlanningModule.state.workspaceView !== 'planning-pool') {
             PlanningModule.state.planningPoolExpandedDemandId = '';
+            PlanningModule.state.planningPoolExpandedItemByDemand = {};
         }
         if (PlanningModule.state.workspaceView === 'stock-production' && !PlanningModule.state.stockDraftDueDate) {
             PlanningModule.resetStockDraft();
@@ -978,6 +1079,9 @@ const PlanningModule = {
         if (PlanningModule.state.planningPoolRowsByDemand && typeof PlanningModule.state.planningPoolRowsByDemand === 'object') {
             delete PlanningModule.state.planningPoolRowsByDemand[String(demand.id || '')];
         }
+        if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demand.id || '')];
+        }
 
         if (!releaseNow) {
             await DB.save();
@@ -1127,6 +1231,9 @@ const PlanningModule = {
         if (String(PlanningModule.state.planningPoolExpandedDemandId || '') === String(demand.id || '')) {
             PlanningModule.state.planningPoolExpandedDemandId = '';
         }
+        if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demand.id || '')];
+        }
         return primaryOrder;
     },
 
@@ -1191,6 +1298,9 @@ const PlanningModule = {
         if (String(PlanningModule.state.planningPoolExpandedDemandId || '') === String(demandId || '')) {
             PlanningModule.state.planningPoolExpandedDemandId = '';
         }
+        if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demandId || '')];
+        }
         if (String(PlanningModule.state.stockDraftEditingId || '') === String(demandId || '')) PlanningModule.resetStockDraft();
         await DB.save();
         UI.renderCurrentPage();
@@ -1248,6 +1358,9 @@ const PlanningModule = {
         }
         if (String(PlanningModule.state.planningPoolExpandedDemandId || '') === String(demandId || '')) {
             PlanningModule.state.planningPoolExpandedDemandId = '';
+        }
+        if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
+            delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demandId || '')];
         }
 
         await DB.save();
@@ -1597,6 +1710,90 @@ const PlanningModule = {
                     : 'Analiz bekliyor';
                 const priorityBadge = PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL');
                 const canConvert = analysisReady && summary.netQty > 0;
+                const itemGroups = PlanningModule.getPlanningPoolItemGroups(row);
+                const expandedItemMap = (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object')
+                    ? PlanningModule.state.planningPoolExpandedItemByDemand
+                    : {};
+                const activeItemKey = String(expandedItemMap[demandId] || '').trim() || String(itemGroups[0]?.itemKey || '');
+
+                const renderItemRows = (groupRows) => {
+                    if (!Array.isArray(groupRows) || !groupRows.length) {
+                        return `<tr><td colspan="8" style="padding:0.75rem; color:#94a3b8; text-align:center;">Bu kalem icin patlatma listesi bulunamadi.</td></tr>`;
+                    }
+                    return groupRows.map((poolRow) => {
+                        const key = PlanningModule.escapeJsString(poolRow.key || '');
+                        const overStyle = PlanningModule.parseQty(poolRow?.netQty, 0) > PlanningModule.parseQty(poolRow?.requiredQty, 0)
+                            ? 'background:#fff1f2; border:1px solid #fecdd3; color:#b91c1c;'
+                            : 'background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;';
+                        const disabledInput = poolRow.useEnabled ? '' : 'disabled';
+                        return `
+                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                <td style="padding:0.5rem;">
+                                    <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(poolRow?.name || '-')}</div>
+                                    <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(poolRow?.code || '-')}</div>
+                                </td>
+                                <td style="padding:0.5rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(poolRow?.requiredQty || 0))}</td>
+                                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(poolRow?.stockAvailableQty || 0))}</td>
+                                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(poolRow?.semiAvailableQty || 0))}</td>
+                                <td style="padding:0.5rem; text-align:center;">
+                                    <input type="number" min="0" ${disabledInput} value="${PlanningModule.escapeHtml(String(poolRow?.useStockQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','useStockQty', this.value)" style="width:96px; height:32px; border:1px solid #67e8f9; border-radius:0.45rem; background:#ecfeff; text-align:center; font-weight:700; ${poolRow.useEnabled ? '' : 'opacity:0.5; cursor:not-allowed;'}">
+                                </td>
+                                <td style="padding:0.5rem; text-align:center;">
+                                    <input type="number" min="0" ${disabledInput} value="${PlanningModule.escapeHtml(String(poolRow?.useSemiQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','useSemiQty', this.value)" style="width:112px; height:32px; border:1px solid #67e8f9; border-radius:0.45rem; background:#ecfeff; text-align:center; font-weight:700; ${poolRow.useEnabled ? '' : 'opacity:0.5; cursor:not-allowed;'}">
+                                </td>
+                                <td style="padding:0.5rem; text-align:center;">
+                                    <input type="checkbox" ${poolRow.useEnabled ? 'checked' : ''} onchange="PlanningModule.setPlanningPoolRowUseEnabled('${PlanningModule.escapeJsString(demandId)}','${key}', this.checked)">
+                                </td>
+                                <td style="padding:0.5rem; text-align:center;">
+                                    <input type="number" min="${PlanningModule.escapeHtml(String(poolRow?.minNetQty || 0))}" value="${PlanningModule.escapeHtml(String(poolRow?.netQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','netQty', this.value)" style="width:112px; height:32px; border-radius:0.45rem; text-align:center; font-weight:800; ${overStyle}">
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                };
+
+                const itemSectionsHtml = !itemGroups.length
+                    ? `<div style="margin-top:0.65rem; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.7rem; color:#94a3b8;">Bu talep icin kalem bulunamadi.</div>`
+                    : itemGroups.map((group, index) => {
+                        const groupKey = String(group?.itemKey || `item-${index + 1}`).trim();
+                        const isItemExpanded = itemGroups.length === 1 ? true : activeItemKey === groupKey;
+                        const groupSummary = PlanningModule.getPlanningPoolSummary(group.rows || []);
+                        return `
+                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.55rem'}; border:1px solid #dbeafe; border-radius:0.75rem; background:#f8fbff;">
+                                <div style="padding:0.55rem 0.65rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap;">
+                                    <div>
+                                        <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(group?.itemName || '-')} <span style="font-family:monospace; color:#64748b;">(${PlanningModule.escapeHtml(String(group?.itemQty || 0))})</span></div>
+                                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(group?.itemCode || '-')} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
+                                    </div>
+                                    <button class="btn-sm" onclick="PlanningModule.togglePlanningPoolItemExpand('${PlanningModule.escapeJsString(demandId)}','${PlanningModule.escapeJsString(groupKey)}')" style="${isItemExpanded ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : 'border-color:#cbd5e1;'}">${isItemExpanded ? 'kapat' : 'planla'}</button>
+                                </div>
+                                ${!isItemExpanded ? '' : `
+                                    <div style="padding:0 0.6rem 0.6rem 0.6rem;">
+                                        <div class="card-table" style="margin-top:0.2rem;">
+                                            <table style="width:100%; border-collapse:collapse;">
+                                                <thead>
+                                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                                        <th style="padding:0.5rem; text-align:left;">Kalem</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Gereken</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Stokta var</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Yari mamul var</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Stoktan kullan</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Yari mamul kullan</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Kullan</th>
+                                                        <th style="padding:0.5rem; text-align:center;">Uretilecek net</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>${renderItemRows(group.rows || [])}</tbody>
+                                            </table>
+                                        </div>
+                                        <div style="margin-top:0.5rem; border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.45rem 0.6rem; background:#ffffff;">
+                                            <div style="font-size:0.78rem; color:#334155; font-weight:700;">Kalem ozeti: Gereken ${groupSummary.requiredQty} | Karsilanan ${groupSummary.consumedQty} | Net ${groupSummary.netQty}</div>
+                                        </div>
+                                    </div>
+                                `}
+                            </div>
+                        `;
+                    }).join('');
 
                 const expandedHtml = !isExpanded ? '' : `
                     <tr style="background:#f8fbff;">
@@ -1604,56 +1801,7 @@ const PlanningModule = {
                             <div style="border:1px solid #bfdbfe; border-radius:0.95rem; background:#ffffff; padding:0.85rem;">
                                 <div style="font-weight:800; color:#1e3a8a;">Urun Agaci / Patlatma Detayi - ${PlanningModule.escapeHtml(row?.demandCode || '-')}</div>
                                 <div style="font-size:0.76rem; color:#64748b; margin-top:0.2rem;">Kullan secili ise stok/yari mamul dusulur, kalan net uretime gider. Eksik uretim girilemez.</div>
-                                <div class="card-table" style="margin-top:0.65rem;">
-                                    <table style="width:100%; border-collapse:collapse;">
-                                        <thead>
-                                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                                <th style="padding:0.5rem; text-align:left;">Kalem</th>
-                                                <th style="padding:0.5rem; text-align:center;">Gereken</th>
-                                                <th style="padding:0.5rem; text-align:center;">Stokta var</th>
-                                                <th style="padding:0.5rem; text-align:center;">Yari mamul var</th>
-                                                <th style="padding:0.5rem; text-align:center;">Stoktan kullan</th>
-                                                <th style="padding:0.5rem; text-align:center;">Yari mamul kullan</th>
-                                                <th style="padding:0.5rem; text-align:center;">Kullan</th>
-                                                <th style="padding:0.5rem; text-align:center;">Uretilecek net</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${poolRows.length === 0
-                                                ? `<tr><td colspan="8" style="padding:0.75rem; color:#94a3b8; text-align:center;">Bu talep icin patlatma listesi bulunamadi.</td></tr>`
-                                                : poolRows.map((poolRow) => {
-                                                    const key = PlanningModule.escapeJsString(poolRow.key || '');
-                                                    const overStyle = PlanningModule.parseQty(poolRow?.netQty, 0) > PlanningModule.parseQty(poolRow?.requiredQty, 0)
-                                                        ? 'background:#fff1f2; border:1px solid #fecdd3; color:#b91c1c;'
-                                                        : 'background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;';
-                                                    const disabledInput = poolRow.useEnabled ? '' : 'disabled';
-                                                    return `
-                                                        <tr style="border-bottom:1px solid #f1f5f9;">
-                                                            <td style="padding:0.5rem;">
-                                                                <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(poolRow?.name || '-')}</div>
-                                                                <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(poolRow?.code || '-')}</div>
-                                                            </td>
-                                                            <td style="padding:0.5rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(poolRow?.requiredQty || 0))}</td>
-                                                            <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(poolRow?.stockAvailableQty || 0))}</td>
-                                                            <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(poolRow?.semiAvailableQty || 0))}</td>
-                                                            <td style="padding:0.5rem; text-align:center;">
-                                                                <input type="number" min="0" ${disabledInput} value="${PlanningModule.escapeHtml(String(poolRow?.useStockQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','useStockQty', this.value)" style="width:96px; height:32px; border:1px solid #67e8f9; border-radius:0.45rem; background:#ecfeff; text-align:center; font-weight:700; ${poolRow.useEnabled ? '' : 'opacity:0.5; cursor:not-allowed;'}">
-                                                            </td>
-                                                            <td style="padding:0.5rem; text-align:center;">
-                                                                <input type="number" min="0" ${disabledInput} value="${PlanningModule.escapeHtml(String(poolRow?.useSemiQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','useSemiQty', this.value)" style="width:112px; height:32px; border:1px solid #67e8f9; border-radius:0.45rem; background:#ecfeff; text-align:center; font-weight:700; ${poolRow.useEnabled ? '' : 'opacity:0.5; cursor:not-allowed;'}">
-                                                            </td>
-                                                            <td style="padding:0.5rem; text-align:center;">
-                                                                <input type="checkbox" ${poolRow.useEnabled ? 'checked' : ''} onchange="PlanningModule.setPlanningPoolRowUseEnabled('${PlanningModule.escapeJsString(demandId)}','${key}', this.checked)">
-                                                            </td>
-                                                            <td style="padding:0.5rem; text-align:center;">
-                                                                <input type="number" min="${PlanningModule.escapeHtml(String(poolRow?.minNetQty || 0))}" value="${PlanningModule.escapeHtml(String(poolRow?.netQty || 0))}" onchange="PlanningModule.setPlanningPoolRowQty('${PlanningModule.escapeJsString(demandId)}','${key}','netQty', this.value)" style="width:112px; height:32px; border-radius:0.45rem; text-align:center; font-weight:800; ${overStyle}">
-                                                            </td>
-                                                        </tr>
-                                                    `;
-                                                }).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                ${itemSectionsHtml}
                                 <div style="margin-top:0.65rem; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem 0.7rem; background:#f8fafc;">
                                     <div style="font-size:0.8rem; color:#334155; font-weight:700;">Ozet: Toplam gereken ${summary.requiredQty} | Stok+Yari mamul karsilanan ${summary.consumedQty} | Uretilecek net ${summary.netQty}</div>
                                     <div style="font-size:0.74rem; color:#64748b; margin-top:0.2rem;">Uretilecek net gerekenin altina dusmez. Gerekenin ustu icin donusumde onay istenir.</div>

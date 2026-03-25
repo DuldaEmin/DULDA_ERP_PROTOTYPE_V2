@@ -567,6 +567,12 @@ const PlanningModule = {
         ReadOnlyViewer.openByCode(raw);
     },
 
+    renderLiveCodeButton: (code) => {
+        const raw = String(code || '').trim();
+        if (!raw) return '-';
+        return `<button class="btn-sm" style="padding:0.1rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(raw)}')">${PlanningModule.escapeHtml(raw)}</button>`;
+    },
+
     openDemandView: (demandId) => {
         const row = PlanningModule.getDemands().find((item) => String(item?.id || '') === String(demandId || ''));
         if (!row) return alert('Talep kaydi bulunamadi.');
@@ -1750,10 +1756,8 @@ const PlanningModule = {
                             <tr style="border-bottom:1px solid #f1f5f9;">
                                 <td style="padding:0.5rem;">
                                     <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(poolRow?.name || '-')}</div>
-                                    <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">
-                                        ${code
-                                            ? `<button class="btn-sm" style="padding:0.1rem 0.45rem; min-height:24px;" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(code)}')">${PlanningModule.escapeHtml(code)}</button>`
-                                            : '-'}
+                                    <div style="font-size:0.74rem; color:#1d4ed8; font-family:monospace;">
+                                        ${PlanningModule.renderLiveCodeButton(code)}
                                     </div>
                                 </td>
                                 <td style="padding:0.5rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(poolRow?.requiredQty || 0))}</td>
@@ -1790,10 +1794,8 @@ const PlanningModule = {
                                 <div style="padding:0.55rem 0.65rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:${isItemExpanded ? '1px solid #bfdbfe' : '1px solid #dbeafe'};">
                                     <div>
                                         <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(group?.itemName || '-')} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
-                                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">
-                                            ${String(group?.itemCode || '').trim()
-                                                ? `<button class="btn-sm" style="padding:0.1rem 0.45rem; min-height:24px;" onclick="PlanningModule.openReadOnlyCodeModal('${PlanningModule.escapeJsString(String(group?.itemCode || '').trim())}')">${PlanningModule.escapeHtml(String(group?.itemCode || '').trim())}</button>`
-                                                : '-'}
+                                        <div style="font-size:0.74rem; color:#1d4ed8; font-family:monospace;">
+                                            ${PlanningModule.renderLiveCodeButton(String(group?.itemCode || '').trim())}
                                             / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}
                                         </div>
                                     </div>

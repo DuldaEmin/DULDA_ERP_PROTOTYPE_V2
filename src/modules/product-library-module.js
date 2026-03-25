@@ -226,6 +226,7 @@ const ProductLibraryModule = {
     openPlanningPicker: (kind) => {
         const raw = String(kind || '').trim().toLowerCase();
         const normalized = raw === 'component' ? 'component' : (raw === 'semi' ? 'semi' : 'model');
+        ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.planningPickerSource = normalized;
@@ -238,6 +239,7 @@ const ProductLibraryModule = {
     },
 
     cancelPlanningPicker: () => {
+        ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         Router.navigate('planlama', { fromBack: true });
@@ -246,6 +248,12 @@ const ProductLibraryModule = {
     resetModelAccordionState: () => {
         ProductLibraryModule.state.modelGroupExpanded = {};
         ProductLibraryModule.state.modelFamilyExpanded = {};
+    },
+
+    resetLibraryAccordionState: () => {
+        ProductLibraryModule.resetModelAccordionState();
+        ProductLibraryModule.state.componentCategoryExpanded = {};
+        ProductLibraryModule.state.masterCategoryExpanded = {};
     },
 
     renderWorkspaceMenu: (container) => {
@@ -4078,6 +4086,7 @@ const ProductLibraryModule = {
     selectPlanningModel: (id) => {
         const row = ProductLibraryModule.getCatalogVariantById(id);
         if (!row || typeof PlanningModule?.applyPickedModel !== 'function') return;
+        ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
         PlanningModule.applyPickedModel(id);
@@ -4085,6 +4094,7 @@ const ProductLibraryModule = {
     selectPlanningComponent: (id) => {
         const row = ProductLibraryModule.getComponentCardById(id);
         if (!row || typeof PlanningModule?.applyPickedComponent !== 'function') return;
+        ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.componentLibraryKind = 'PART';
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
@@ -4093,6 +4103,7 @@ const ProductLibraryModule = {
     selectPlanningSemiFinished: (id) => {
         const row = ProductLibraryModule.getSemiFinishedCardById(id);
         if (!row || typeof PlanningModule?.applyPickedSemiFinished !== 'function') return;
+        ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.componentLibraryKind = 'SEMI';
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';

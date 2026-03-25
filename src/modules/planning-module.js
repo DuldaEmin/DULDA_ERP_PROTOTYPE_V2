@@ -1196,6 +1196,64 @@ const PlanningModule = {
         UI.renderCurrentPage();
     },
 
+    getDemandLinkedWorkOrderIds: (demand) => {
+        const linked = new Set();
+        if (!demand) return linked;
+        const demandId = String(demand?.id || '').trim();
+        const demandCode = String(demand?.demandCode || '').trim();
+        const directIds = Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : [];
+        directIds.forEach((id) => {
+            const key = String(id || '').trim();
+            if (key) linked.add(key);
+        });
+        const single = String(demand?.workOrderId || '').trim();
+        if (single) linked.add(single);
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        orders.forEach((order) => {
+            const orderId = String(order?.id || '').trim();
+            if (!orderId) return;
+            const sourceId = String(order?.sourceId || '').trim();
+            const sourceCode = String(order?.sourceCode || '').trim();
+            if ((demandId && sourceId === demandId) || (demandCode && sourceCode === demandCode)) {
+                linked.add(orderId);
+            }
+        });
+        return linked;
+    },
+
+    deleteReleasedDemand: async (demandId) => {
+        const all = PlanningModule.getDemands();
+        const demand = all.find((item) => String(item?.id || '') === String(demandId || ''));
+        if (!demand) return;
+        if (String(demand?.status || 'OPEN').toUpperCase() !== 'RELEASED') {
+            return PlanningModule.deleteDemand(demandId);
+        }
+        const linkedIds = PlanningModule.getDemandLinkedWorkOrderIds(demand);
+        const workOrderCount = linkedIds.size;
+        const demandCode = String(demand?.demandCode || '-');
+        const confirmText = `Bu kayit tamamen silinecek.\nTalep: ${demandCode}\nBagli is emri: ${workOrderCount}\nEmin misiniz?`;
+        if (!confirm(confirmText)) return;
+
+        DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
+
+        if (Array.isArray(DB.data?.data?.workOrders)) {
+            DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '')));
+        }
+        if (Array.isArray(DB.data?.data?.workOrderTransactions)) {
+            DB.data.data.workOrderTransactions = DB.data.data.workOrderTransactions.filter((txn) => !linkedIds.has(String(txn?.workOrderId || '')));
+        }
+
+        if (PlanningModule.state.planningPoolRowsByDemand && typeof PlanningModule.state.planningPoolRowsByDemand === 'object') {
+            delete PlanningModule.state.planningPoolRowsByDemand[String(demandId || '')];
+        }
+        if (String(PlanningModule.state.planningPoolExpandedDemandId || '') === String(demandId || '')) {
+            PlanningModule.state.planningPoolExpandedDemandId = '';
+        }
+
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
     renderPriorityBadge: (priority) => {
         const value = PlanningModule.getPriorityValue(priority);
         const style = value === 'URGENT'
@@ -1239,7 +1297,7 @@ const PlanningModule = {
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayWorkOrder)}</td>
-                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>${released ? '' : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button>`}${released ? '' : `<button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>`}</div></td>
+                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>${released ? `<button class="btn-sm" onclick="PlanningModule.deleteReleasedDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#fecaca; color:#b91c1c; background:#fff1f2;">sil</button>` : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button><button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button><button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>`}</div></td>
                 </tr>
             `;
         }).join('');
@@ -1627,7 +1685,12 @@ const PlanningModule = {
                         <td style="padding:0.55rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
                         <td style="padding:0.55rem; font-family:monospace; color:#1e40af; font-weight:700;">${PlanningModule.escapeHtml(workOrderCode)}</td>
                         <td style="padding:0.55rem;">${PlanningModule.escapeHtml(row?.released_at ? String(row.released_at).slice(0, 10) : '-')}</td>
-                        <td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button></td>
+                        <td style="padding:0.55rem; text-align:right;">
+                            <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                <button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>
+                                <button class="btn-sm" onclick="PlanningModule.deleteReleasedDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#fecaca; color:#b91c1c; background:#fff1f2;">sil</button>
+                            </div>
+                        </td>
                     </tr>
                 `;
             }).join('');

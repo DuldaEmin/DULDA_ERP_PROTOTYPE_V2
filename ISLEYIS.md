@@ -69,7 +69,15 @@ Bu rota parca kartinda saklandigi icin, ayni parca tekrar secildiginde sistem su
 - Kart: standart tanim
 - Is emri/hareket: gunluk operasyon
 
-## 5) Kullanim Notu
+## 5) Montaja Hazir Kurali (Net)
+
+- Kural: Yari mamul haric bir urunun rotasi bittiginde ve son adim `DEPO TRANSFER` istasyonunda `Aldim` yapildiginda, tamamlanan adet kadar satir `Montaja Hazir` olur.
+- Tek tetik: `Montaja Hazir` durumuna gecis sadece "son rota + DEPO TRANSFER + Aldim" ile olur.
+- Kismi adet: Is emri 500 ise ve 120 adet son adimda alindiysa, sadece 120 adet `Montaja Hazir` gorunur.
+- Yari mamul: Rota bitse bile `Montaja Hazir` olmaz; kendi akisinda/depoda bekler.
+- Depo yerlestirme: DEPO TRANSFER urunu ANA DEPO veya diger uygun depoya yerlestirebilir; urun kaydinda hangi depoda oldugu gorunur.
+
+## 6) Kullanim Notu
 
 Bu dosya sistemin "ne yaptigini" anlatir.
 Detayli dokuman haritasi icin `DOKUMAN_HARITASI.md` dosyasina bakilir.

@@ -30,6 +30,22 @@ Iletisim protokolu:
 
 ## 3) Kayitlar
 
+### 2026-03-25 - Montaja Hazir Kurali Dokumante Edildi
+- Ne degisti:
+  - `ISLEYIS.md` icine "Montaja Hazir Kurali (Net)" bolumu eklendi.
+  - "Son rota + DEPO TRANSFER + Aldim" tetik kurali ve kismi adet davranisi yazildi.
+  - Yari mamulun montaja otomatik dusmeyecegi netlestirildi.
+- Neden degisti:
+  - Planlama ve atelye akisinda ekiplerin ayni kurali kullanmasi.
+  - "Ne zaman montaja hazir sayilir?" sorusunda karisiklik olusmamasi.
+- Etkilenen ekran/modul:
+  - Is akis kurali (dokumantasyon katmani; kod degisikligi bu kayitta yok).
+- Beklenen sonuc:
+  - Atelye, depo transfer ve planlama ekipleri tek kuralla ilerler.
+  - Kismi adet uretimde montaja gecis miktari net izlenir.
+- Risk/Not:
+  - Kural kodda uygulanirken ayni tetigin korunmasi gerekir; alternatif kisa yollar eklenmemeli.
+
 ### 2026-03-24 - Kullanici Onayi ve Neden Kaydi Protokolu Eklendi
 - Ne degisti:
   - Gelistirme gunlugune zorunlu iletisim protokolu eklendi.

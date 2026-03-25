@@ -1297,7 +1297,7 @@ const PlanningModule = {
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayWorkOrder)}</td>
-                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>${released ? `<button class="btn-sm" onclick="PlanningModule.deleteReleasedDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#fecaca; color:#b91c1c; background:#fff1f2;">sil</button>` : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button><button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button><button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>`}</div></td>
+                    <td style="padding:0.6rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>${released ? `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')" disabled style="opacity:0.45; cursor:not-allowed;">duzenle</button>` : `<button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button><button class="btn-sm" onclick="PlanningModule.releaseDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">is emrine cevir</button><button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>`}</div></td>
                 </tr>
             `;
         }).join('');
@@ -1313,6 +1313,7 @@ const PlanningModule = {
             const displayCode = itemCount > 1
                 ? `MIXED / ${itemCount} kalem`
                 : String(row?.variantCode || row?.componentCode || row?.semiFinishedCode || row?.productCode || '-');
+            const released = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div></td>
@@ -1325,8 +1326,8 @@ const PlanningModule = {
                     <td style="padding:0.6rem; text-align:right;">
                         <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                             <button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>
-                            <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')">duzenle</button>
-                            <button class="btn-sm" onclick="PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')">sil</button>
+                            <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')" ${released ? 'disabled' : ''} style="${released ? 'opacity:0.45; cursor:not-allowed;' : ''}">duzenle</button>
+                            <button class="btn-sm" onclick="${released ? `PlanningModule.deleteReleasedDemand('${PlanningModule.escapeJsString(row?.id || '')}')` : `PlanningModule.deleteDemand('${PlanningModule.escapeJsString(row?.id || '')}')`}">sil</button>
                         </div>
                     </td>
                 </tr>
@@ -1378,9 +1379,10 @@ const PlanningModule = {
         const totalDraftQty = draftItems.reduce((sum, row) => sum + Number(row?.qty || 0), 0);
         const stockRows = PlanningModule.getDemands()
             .filter((row) => String(row?.sourceType || '').toUpperCase() === 'STOCK')
-            .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN')
             .slice()
             .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
+        const openStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN');
+        const releasedStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED');
 
         if (!isFormOpen) {
             return `
@@ -1393,10 +1395,10 @@ const PlanningModule = {
                             </div>
                             <button class="btn-primary" onclick="PlanningModule.openStockDemandForm(true)" style="min-width:170px;">yeni talep +</button>
                         </div>
-                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem;">
+                        <div style="background:white; border:2px solid #fca5a5; border-radius:0.95rem; padding:0.9rem; margin-bottom:0.75rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
-                                <strong>Son stok talepleri</strong>
-                                <button class="btn-sm" onclick="PlanningModule.openWorkspace('released-orders')">donusenleri goruntule</button>
+                                <strong style="color:#b91c1c;">Planlama havuzunda bekleyenler</strong>
+                                <span style="font-size:0.78rem; color:#b91c1c; font-weight:700;">${PlanningModule.escapeHtml(String(openStockRows.length))} kayit</span>
                             </div>
                             <div class="card-table">
                                 <table style="width:100%; border-collapse:collapse;">
@@ -1412,7 +1414,31 @@ const PlanningModule = {
                                             <th style="padding:0.6rem; text-align:right;">Islem</th>
                                         </tr>
                                     </thead>
-                                    <tbody>${PlanningModule.renderStockDemandRows(stockRows, 'Henuz stok icin uretim talebi acilmadi.')}</tbody>
+                                    <tbody>${PlanningModule.renderStockDemandRows(openStockRows, 'Planlamada bekleyen stok talebi yok.')}</tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div style="background:white; border:2px solid #86efac; border-radius:0.95rem; padding:0.9rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
+                                <strong style="color:#047857;">Is emrine donusenler</strong>
+                                <span style="font-size:0.78rem; color:#047857; font-weight:700;">${PlanningModule.escapeHtml(String(releasedStockRows.length))} kayit</span>
+                            </div>
+                            <div class="card-table">
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                            <th style="padding:0.6rem; text-align:left;">Talep</th>
+                                            <th style="padding:0.6rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.6rem; text-align:left;">Kod</th>
+                                            <th style="padding:0.6rem; text-align:center;">Adet</th>
+                                            <th style="padding:0.6rem; text-align:left;">Termin / Oncelik</th>
+                                            <th style="padding:0.6rem; text-align:left;">Durum</th>
+                                            <th style="padding:0.6rem; text-align:left;">Is emri</th>
+                                            <th style="padding:0.6rem; text-align:right;">Islem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${PlanningModule.renderStockDemandRows(releasedStockRows, 'Henuz is emrine donusen stok talebi yok.')}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -1688,7 +1714,7 @@ const PlanningModule = {
                         <td style="padding:0.55rem; text-align:right;">
                             <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                 <button class="btn-sm" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(row?.id || '')}')">goruntule</button>
-                                <button class="btn-sm" onclick="PlanningModule.deleteReleasedDemand('${PlanningModule.escapeJsString(row?.id || '')}')" style="border-color:#fecaca; color:#b91c1c; background:#fff1f2;">sil</button>
+                                <button class="btn-sm" onclick="PlanningModule.startDemandEdit('${PlanningModule.escapeJsString(row?.id || '')}')" disabled style="opacity:0.45; cursor:not-allowed;">duzenle</button>
                             </div>
                         </td>
                     </tr>

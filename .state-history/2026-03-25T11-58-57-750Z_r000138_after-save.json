@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-25T12:10:38.089Z",
+    "updated_at": "2026-03-25T11:58:57.608Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 144
+    "revision": 138
   },
   "data": {
     "products": [
@@ -1728,7 +1728,217 @@
         "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
-    "workOrders": [],
+    "workOrders": [
+      {
+        "id": "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705",
+        "workOrderCode": "WO-000001",
+        "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+        "montageCardCode": "MON-000002",
+        "productCode": "0064",
+        "productName": "35 lik sıkmalı ankraj",
+        "lotQty": 500,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "be3c02de-eaaa-41aa-9670-8bf365075171",
+            "lineCode": "WO-000001-01",
+            "componentCode": "0064",
+            "componentName": "0064",
+            "multiplier": 1,
+            "targetQty": 500,
+            "routes": [
+              {
+                "id": "30c7d102-8549-4fa7-b056-47ee63c4fcd5",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "5129c04a-10c6-4d5a-bf4d-27b8accb942b",
+        "sourceCode": "PLN-000002",
+        "created_at": "2026-03-24T15:51:54.534Z",
+        "updated_at": "2026-03-24T15:51:54.534Z"
+      },
+      {
+        "id": "0d79f1d9-9243-4319-89bc-012551e63dd4",
+        "workOrderCode": "WO-000002",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "productCode": "DIKMELER",
+        "productName": "aluminyum dikme oluşturma",
+        "lotQty": 66,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "f352b474-9d95-4b3f-96e6-ee0d79da5301",
+            "lineCode": "WO-000002-01",
+            "componentCode": "DIKMELER",
+            "componentName": "DIKMELER",
+            "multiplier": 1,
+            "targetQty": 66,
+            "routes": [
+              {
+                "id": "fc9cc3fd-faae-451e-ae4e-694472268ff5",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
+        "sourceCode": "PLN-000003",
+        "created_at": "2026-03-24T15:51:56.880Z",
+        "updated_at": "2026-03-24T15:51:56.880Z"
+      },
+      {
+        "id": "b31cae75-fb2e-45de-8025-c79b6305dd5d",
+        "workOrderCode": "WO-000003",
+        "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+        "montageCardCode": "MON-000002",
+        "productCode": "0064",
+        "productName": "35 lik sıkmalı ankraj",
+        "lotQty": 55,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "85d6d289-b31e-4d5e-afb4-dead6a460639",
+            "lineCode": "WO-000003-01",
+            "componentCode": "0064",
+            "componentName": "0064",
+            "multiplier": 1,
+            "targetQty": 55,
+            "routes": [
+              {
+                "id": "83a6f6c5-2f16-4514-be8d-70eabe8c4405",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
+        "sourceCode": "PLN-000003",
+        "created_at": "2026-03-24T15:51:56.880Z",
+        "updated_at": "2026-03-24T15:51:56.880Z"
+      },
+      {
+        "id": "4556b7f8-0508-472c-90d0-0ab101c3ceca",
+        "workOrderCode": "WO-000004",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000009",
+        "productName": "aluminyum dikme alt borusu 200 mm sarı",
+        "lotQty": 1,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "8c2940ba-5f82-45d9-957a-aad782c8f912",
+            "lineCode": "WO-000004-01",
+            "componentCode": "PRC-000009",
+            "componentName": "aluminyum dikme alt borusu 200 mm sarı",
+            "multiplier": 1,
+            "targetQty": 1,
+            "routes": [
+              {
+                "id": "a8f9e470-a43f-4e6f-b98d-ea1a0d6984ea",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000002"
+              },
+              {
+                "id": "bd167602-8af0-4380-aceb-049d0d8b3221",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_COMPONENT",
+        "sourceId": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
+        "sourceCode": "PLN-000003",
+        "created_at": "2026-03-24T15:51:56.880Z",
+        "updated_at": "2026-03-24T15:51:56.880Z"
+      },
+      {
+        "id": "4dfa81d3-62f7-4c34-8f2f-f4e5f44b3bd5",
+        "workOrderCode": "WO-000005",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "YRM-000001",
+        "productName": "mafsal cnc de işlenmiş polisaja hazır",
+        "lotQty": 1,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "d66acccc-3b87-4bb0-969d-a86fedd07e2e",
+            "lineCode": "WO-000005-01",
+            "componentCode": "YRM-000001",
+            "componentName": "mafsal cnc de işlenmiş polisaja hazır",
+            "multiplier": 1,
+            "targetQty": 1,
+            "routes": [
+              {
+                "id": "2743d0b0-6491-4946-8fb6-005e672ff975",
+                "seq": 1,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000002"
+              },
+              {
+                "id": "21ac8faf-b791-4932-bcc1-dba7bc28bd5f",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_SEMI",
+        "sourceId": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
+        "sourceCode": "PLN-000003",
+        "created_at": "2026-03-24T15:51:56.881Z",
+        "updated_at": "2026-03-24T15:51:56.881Z"
+      }
+    ],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
@@ -2681,7 +2891,203 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [],
+    "planningDemands": [
+      {
+        "id": "88490537-9443-4663-ac5b-4a39633e8e48",
+        "demandCode": "PLN-000001",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-24T15:31:34.571Z",
+        "itemType": "SEMI",
+        "variantId": "",
+        "componentId": "",
+        "semiFinishedId": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",
+        "familyId": "",
+        "variantCode": "",
+        "componentCode": "",
+        "semiFinishedCode": "YRM-000001",
+        "productGroup": "aluminyum dikme aksesuarları",
+        "productName": "mafsal cnc de işlenmiş polisaja hazır",
+        "productCode": "YRM-000001",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "qty": 25,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "updated_at": "2026-03-24T15:55:26.097Z",
+        "items": [
+          {
+            "id": "5f828874-2cea-46fd-b716-5249273d4ff7",
+            "itemType": "SEMI",
+            "qty": 25,
+            "variantId": "",
+            "componentId": "",
+            "semiFinishedId": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",
+            "familyId": "",
+            "variantCode": "",
+            "componentCode": "",
+            "semiFinishedCode": "YRM-000001",
+            "productGroup": "aluminyum dikme aksesuarları",
+            "productName": "mafsal cnc de işlenmiş polisaja hazır",
+            "productCode": "YRM-000001",
+            "montageCardId": "",
+            "montageCardCode": ""
+          }
+        ],
+        "workOrderId": "",
+        "workOrderCode": "",
+        "workOrderIds": [],
+        "workOrderCodes": []
+      },
+      {
+        "id": "5129c04a-10c6-4d5a-bf4d-27b8accb942b",
+        "demandCode": "PLN-000002",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-24T15:32:17.820Z",
+        "itemType": "MODEL",
+        "variantId": "e3c525c8-eecf-488c-ad1f-fe5c715002b6",
+        "componentId": "",
+        "semiFinishedId": "",
+        "familyId": "aa175ad1-eaac-492b-b842-17ba2a3f428e",
+        "variantCode": "URM-000002-V01",
+        "componentCode": "",
+        "semiFinishedCode": "",
+        "productGroup": "ankrajlar",
+        "productName": "35 lik sıkmalı ankraj",
+        "productCode": "0064",
+        "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+        "montageCardCode": "MON-000002",
+        "qty": 500,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "RELEASED",
+        "updated_at": "2026-03-24T15:51:54.534Z",
+        "workOrderId": "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705",
+        "workOrderIds": [
+          "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705"
+        ],
+        "workOrderCodes": [
+          "WO-000001"
+        ],
+        "workOrderCode": "WO-000001",
+        "released_at": "2026-03-24T15:51:54.534Z"
+      },
+      {
+        "id": "5aa2dfc4-e5b5-4e5a-b352-a6d09c2552a3",
+        "demandCode": "PLN-000003",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-24T15:47:05.420Z",
+        "items": [
+          {
+            "id": "74ab02fa-43e9-40c6-84b1-42aa8a19aae0",
+            "itemType": "MODEL",
+            "qty": 66,
+            "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+            "componentId": "",
+            "semiFinishedId": "",
+            "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+            "variantCode": "URM-000001-V01",
+            "componentCode": "",
+            "semiFinishedCode": "",
+            "productGroup": "Aluminyum Dikmeler",
+            "productName": "2008 bombeli aluminyum dikme",
+            "productCode": "DIKMELER",
+            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+            "montageCardCode": "MON-000001"
+          },
+          {
+            "id": "8309fc9b-6a0e-4414-ba94-1568ab55f727",
+            "itemType": "MODEL",
+            "qty": 55,
+            "variantId": "e3c525c8-eecf-488c-ad1f-fe5c715002b6",
+            "componentId": "",
+            "semiFinishedId": "",
+            "familyId": "aa175ad1-eaac-492b-b842-17ba2a3f428e",
+            "variantCode": "URM-000002-V01",
+            "componentCode": "",
+            "semiFinishedCode": "",
+            "productGroup": "ankrajlar",
+            "productName": "35 lik sıkmalı ankraj",
+            "productCode": "0064",
+            "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+            "montageCardCode": "MON-000002"
+          },
+          {
+            "id": "554f9cc8-299b-4fc2-aea8-03f23cbc3f0c",
+            "itemType": "COMPONENT",
+            "qty": 1,
+            "variantId": "",
+            "componentId": "3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
+            "semiFinishedId": "",
+            "familyId": "",
+            "variantCode": "",
+            "componentCode": "PRC-000009",
+            "semiFinishedCode": "",
+            "productGroup": "borular",
+            "productName": "aluminyum dikme alt borusu 200 mm sarı",
+            "productCode": "PRC-000009",
+            "montageCardId": "",
+            "montageCardCode": ""
+          },
+          {
+            "id": "d715c1ac-5c4a-4d75-a9de-3597c16c26b9",
+            "itemType": "SEMI",
+            "qty": 1,
+            "variantId": "",
+            "componentId": "",
+            "semiFinishedId": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",
+            "familyId": "",
+            "variantCode": "",
+            "componentCode": "",
+            "semiFinishedCode": "YRM-000001",
+            "productGroup": "aluminyum dikme aksesuarları",
+            "productName": "mafsal cnc de işlenmiş polisaja hazır",
+            "productCode": "YRM-000001",
+            "montageCardId": "",
+            "montageCardCode": ""
+          }
+        ],
+        "itemType": "MIXED",
+        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
+        "componentId": "",
+        "semiFinishedId": "",
+        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
+        "variantCode": "URM-000001-V01",
+        "componentCode": "",
+        "semiFinishedCode": "",
+        "productGroup": "4 kalem",
+        "productName": "Coklu stok talebi (4 urun)",
+        "productCode": "MIXED",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 123,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "RELEASED",
+        "workOrderId": "0d79f1d9-9243-4319-89bc-012551e63dd4",
+        "workOrderCode": "WO-000002 +3",
+        "workOrderIds": [
+          "0d79f1d9-9243-4319-89bc-012551e63dd4",
+          "b31cae75-fb2e-45de-8025-c79b6305dd5d",
+          "4556b7f8-0508-472c-90d0-0ab101c3ceca",
+          "4dfa81d3-62f7-4c34-8f2f-f4e5f44b3bd5"
+        ],
+        "workOrderCodes": [
+          "WO-000002",
+          "WO-000003",
+          "WO-000004",
+          "WO-000005"
+        ],
+        "updated_at": "2026-03-24T15:51:56.881Z",
+        "released_at": "2026-03-24T15:51:56.881Z"
+      }
+    ],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

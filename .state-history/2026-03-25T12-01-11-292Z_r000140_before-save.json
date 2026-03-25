@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-25T12:10:38.089Z",
+    "updated_at": "2026-03-25T11:59:04.200Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 144
+    "revision": 140
   },
   "data": {
     "products": [
@@ -1728,7 +1728,47 @@
         "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
-    "workOrders": [],
+    "workOrders": [
+      {
+        "id": "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705",
+        "workOrderCode": "WO-000001",
+        "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+        "montageCardCode": "MON-000002",
+        "productCode": "0064",
+        "productName": "35 lik sıkmalı ankraj",
+        "lotQty": 500,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "be3c02de-eaaa-41aa-9670-8bf365075171",
+            "lineCode": "WO-000001-01",
+            "componentCode": "0064",
+            "componentName": "0064",
+            "multiplier": 1,
+            "targetQty": 500,
+            "routes": [
+              {
+                "id": "30c7d102-8549-4fa7-b056-47ee63c4fcd5",
+                "seq": 1,
+                "stationId": "u3",
+                "stationName": "MONTAJ",
+                "processId": ""
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_STOCK_MODEL",
+        "sourceId": "5129c04a-10c6-4d5a-bf4d-27b8accb942b",
+        "sourceCode": "PLN-000002",
+        "created_at": "2026-03-24T15:51:54.534Z",
+        "updated_at": "2026-03-24T15:51:54.534Z"
+      }
+    ],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
@@ -2681,7 +2721,43 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [],
+    "planningDemands": [
+      {
+        "id": "5129c04a-10c6-4d5a-bf4d-27b8accb942b",
+        "demandCode": "PLN-000002",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-24T15:32:17.820Z",
+        "itemType": "MODEL",
+        "variantId": "e3c525c8-eecf-488c-ad1f-fe5c715002b6",
+        "componentId": "",
+        "semiFinishedId": "",
+        "familyId": "aa175ad1-eaac-492b-b842-17ba2a3f428e",
+        "variantCode": "URM-000002-V01",
+        "componentCode": "",
+        "semiFinishedCode": "",
+        "productGroup": "ankrajlar",
+        "productName": "35 lik sıkmalı ankraj",
+        "productCode": "0064",
+        "montageCardId": "4de90a13-6b4d-48f7-a837-6371311356a8",
+        "montageCardCode": "MON-000002",
+        "qty": 500,
+        "dueDate": "2026-03-27",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "RELEASED",
+        "updated_at": "2026-03-24T15:51:54.534Z",
+        "workOrderId": "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705",
+        "workOrderIds": [
+          "c6f3ec59-cf3d-4cfa-aec2-d84c6e9fe705"
+        ],
+        "workOrderCodes": [
+          "WO-000001"
+        ],
+        "workOrderCode": "WO-000001",
+        "released_at": "2026-03-24T15:51:54.534Z"
+      }
+    ],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

@@ -420,6 +420,10 @@ const DB = {
         if (loaded) DB.data = loaded;
         DB.normalizeData();
         DB.baseRevision = Number(DB.data?.meta?.revision || 0);
+        // localStorage kazandiysa, ilk disk kaydini diskteki revizyona gore yap.
+        if (loaded && DB.storageMode === "localStorage" && diskState) {
+            DB.baseRevision = stateRevision(diskState);
+        }
         const repairedMojibake = MojibakeFix.sanitizeObjectStrings(DB.data);
         if (repairedMojibake) {
             console.warn("Mojibake metinler bulundu ve otomatik duzeltildi.");
@@ -434,13 +438,17 @@ const DB = {
         else console.log(`Data loaded from ${DB.storageMode}`);
     },
 
-    saveToDisk: async (state = DB.data) => {
+    saveToDisk: async (state = DB.data, options = {}) => {
+        const overrideRevision = Number(options?.baseRevision);
+        const baseRevision = Number.isInteger(overrideRevision) && overrideRevision >= 0
+            ? overrideRevision
+            : DB.baseRevision;
         const resp = await fetch("/api/state", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 state,
-                baseRevision: DB.baseRevision,
+                baseRevision,
                 sessionId: DB.clientSessionId
             })
         });
@@ -457,6 +465,36 @@ const DB = {
             throw error;
         }
         return payload;
+    },
+
+    resolveConflictAndSaveLatest: async (snapshot, conflictPayload = null) => {
+        let currentRevision = Number(conflictPayload?.currentRevision);
+        if (!Number.isInteger(currentRevision) || currentRevision < 0) {
+            const resp = await fetch("/api/state", { cache: "no-store" });
+            if (!resp.ok) throw new Error("state_read_failed");
+            const payload = await resp.json();
+            const revision = Number(payload?.state?.meta?.revision);
+            if (!Number.isInteger(revision) || revision < 0) throw new Error("invalid_revision");
+            currentRevision = revision;
+        }
+
+        const latestSnapshot = JSON.parse(JSON.stringify(snapshot || DB.data || {}));
+        if (!latestSnapshot.meta || typeof latestSnapshot.meta !== "object") latestSnapshot.meta = {};
+        latestSnapshot.meta.updated_at = new Date().toISOString();
+
+        const result = await DB.saveToDisk(latestSnapshot, { baseRevision: currentRevision });
+        const nextRevision = Number(result?.revision);
+        if (Number.isInteger(nextRevision) && nextRevision >= 0) {
+            DB.baseRevision = nextRevision;
+            latestSnapshot.meta.revision = nextRevision;
+        }
+        DB.data = latestSnapshot;
+        DB.storageMode = "disk";
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
+        localStorage.removeItem(CONFLICT_DRAFT_KEY);
+        UI.updateStatus("🟢 Otomatik Kayit");
+        console.warn("Save conflict auto-resolved with latest snapshot.");
+        return result;
     },
 
     save: async () => {
@@ -489,11 +527,15 @@ const DB = {
                 } catch (diskError) {
                     if (diskError?.code === "save_conflict") {
                         try {
-                            localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
-                        } catch (_) { }
-                        UI.updateStatus("🟠 Kayit cakismasi - veri korunuyor");
-                        console.warn("Save conflict prevented.", diskError?.payload || diskError);
-                        alert("Kayit cakismasi algilandi. Bu sekmedeki veri diskteki daha yeni kaydin ustune yazilmadi. Lutfen sayfayi yenileyin.");
+                            await DB.resolveConflictAndSaveLatest(snapshot, diskError?.payload || null);
+                        } catch (retryError) {
+                            try {
+                                localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
+                            } catch (_) { }
+                            UI.updateStatus("🟠 Kayit cakismasi - veri korunuyor");
+                            console.warn("Save conflict could not be auto-resolved.", retryError);
+                            alert("Kayit cakismasi otomatik cozulmedi. Lutfen sayfayi yenileyin.");
+                        }
                     } else {
                         try {
                             localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));

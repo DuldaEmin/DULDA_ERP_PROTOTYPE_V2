@@ -143,7 +143,7 @@ const UnitModule = {
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
-                { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
+                { id: 'u_dtm', name: 'DEPO TRANSFER', type: 'internal' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
                 { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
@@ -152,15 +152,40 @@ const UnitModule = {
         }
 
 
-        // System unit: keep Ana Depo in internal units.
+        // System unit: keep Depo Transfer in internal units.
         const mainDepotUnit = (DB.data.data.units || []).find(u => u.id === 'u_dtm');
         if (!mainDepotUnit) {
-            DB.data.data.units.push({ id: 'u_dtm', name: 'ANA DEPO', type: 'internal' });
+            DB.data.data.units.push({ id: 'u_dtm', name: 'DEPO TRANSFER', type: 'internal' });
             DB.markDirty();
-        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'ANA DEPO') {
-            mainDepotUnit.name = 'ANA DEPO';
+        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'DEPO TRANSFER') {
+            mainDepotUnit.name = 'DEPO TRANSFER';
             DB.markDirty();
         }
+        // Legacy adlari yeni isimlendirmeye tasir.
+        let depoNamingChanged = false;
+        (Array.isArray(DB.data.data.depoTransferTasks) ? DB.data.data.depoTransferTasks : []).forEach((task) => {
+            const rawName = String(task?.taskName || '');
+            if (!rawName) return;
+            let nextName = rawName;
+            if (/ana depoya/gi.test(nextName)) nextName = nextName.replace(/ana depoya/gi, 'depo transfere');
+            if (/ana depo/gi.test(nextName)) nextName = nextName.replace(/ana depo/gi, 'depo transfer');
+            if (nextName !== rawName) {
+                task.taskName = nextName;
+                depoNamingChanged = true;
+            }
+        });
+        (Array.isArray(DB.data.data.workOrders) ? DB.data.data.workOrders : []).forEach((order) => {
+            (Array.isArray(order?.lines) ? order.lines : []).forEach((line) => {
+                (Array.isArray(line?.routes) ? line.routes : []).forEach((route) => {
+                    if (String(route?.stationId || '') !== 'u_dtm') return;
+                    const stationName = String(route?.stationName || '');
+                    if (!stationName || !/ana depo/gi.test(stationName)) return;
+                    route.stationName = 'DEPO TRANSFER';
+                    depoNamingChanged = true;
+                });
+            });
+        });
+        if (depoNamingChanged) DB.markDirty();
         // Punta atolyesi artik kullanilmiyor; eski kayitlardan da temizle.
         const puntaIds = (DB.data.data.units || [])
             .filter(u => String(u?.name || '').toUpperCase().includes('PUNTA AT'))
@@ -916,7 +941,7 @@ const UnitModule = {
             && String(StockModule?.state?.workspaceView || '') === 'operation-library';
         const currentUnitId = String(isStockOperationLibrary ? 'u_dtm' : (UnitModule.state.view === 'depoTransfer' ? 'u_dtm' : (UnitModule.state.activeUnitId || '')));
         const activeUnitName = isStockOperationLibrary
-            ? 'ANA DEPO / ISLEM KUTUPHANESI'
+            ? 'DEPO TRANSFER / ISLEM KUTUPHANESI'
             : (units.find(u => String(u?.id || '') === currentUnitId)?.name || '-');
         const targetUnitName = units.find(u => String(u?.id || '') === String(picker.stationId || ''))?.name || picker.stationId;
         const sameUnit = currentUnitId === String(picker.stationId || '');
@@ -1601,7 +1626,7 @@ const UnitModule = {
                                         <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.line?.componentCode || '-')}</div></td>
                                         <td style="padding:0.55rem; text-align:center; font-weight:800; color:#047857;">${Number(row.metrics?.doneQty || 0)}</td>
                                         <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.nextRoute?.stationName || 'ROTA SONU')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.nextRoute?.processId || (row.nextRoute ? '-' : 'son adim'))}</div></td>
-                                        <td style="padding:0.55rem; color:#475569;">${row.nextRoute ? 'Bu adet sonraki istasyonda bekleyen olarak gorunur.' : 'Son adim tamamlandi; sevk veya ana depo akisina hazir.'}</td>
+                                        <td style="padding:0.55rem; color:#475569;">${row.nextRoute ? 'Bu adet sonraki istasyonda bekleyen olarak gorunur.' : 'Son adim tamamlandi; sevk veya depo transfer akisina hazir.'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -2566,8 +2591,8 @@ const UnitModule = {
                         <i data-lucide="arrow-left" width="18" height="18"></i>
                     </button>
                     <div>
-                        <h2 class="page-title" style="margin:0;">Ana Depo Islem Kutuphanesi</h2>
-                        <div style="font-size:0.85rem; color:#64748b;">Route icin secilecek ana depo komutlarini burada tanimlayin.</div>
+                        <h2 class="page-title" style="margin:0;">Depo Transfer Islem Kutuphanesi</h2>
+                        <div style="font-size:0.85rem; color:#64748b;">Route icin secilecek depo transfer komutlarini burada tanimlayin.</div>
                     </div>
                 </div>
                 <div style="display:flex; gap:0.6rem; flex-wrap:wrap;">

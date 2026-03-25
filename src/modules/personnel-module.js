@@ -32,7 +32,7 @@ const PersonnelModule = {
         { id: 'u3', name: 'MONTAJ' },
         { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI' },
         { id: 'u7', name: 'TESTERE ATOLYESI' },
-        { id: 'u_dtm', name: 'ANA DEPO' }
+        { id: 'u_dtm', name: 'DEPO TRANSFER' }
     ],
 
     escapeHtml: (value) => String(value ?? '')

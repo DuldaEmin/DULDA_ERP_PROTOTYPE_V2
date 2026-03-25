@@ -1411,7 +1411,7 @@
       },
       {
         "id": "u_dtm",
-        "name": "DEPO TRANSFER",
+        "name": "ANA DEPO",
         "type": "internal"
       },
       {
@@ -1721,7 +1721,7 @@
       },
       {
         "id": "7afd8e57-79bd-41fc-9999-24c9256d6cb1",
-        "taskName": "depo transfere alma",
+        "taskName": "ana depoya alma",
         "taskCode": "DTR-000004",
         "note": "deneme",
         "created_at": "2026-03-13T10:57:47.318Z",
@@ -1878,7 +1878,7 @@
                 "id": "bd167602-8af0-4380-aceb-049d0d8b3221",
                 "seq": 2,
                 "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
+                "stationName": "ANA DEPO",
                 "processId": "DTR-000004"
               }
             ],
@@ -1924,7 +1924,7 @@
                 "id": "21ac8faf-b791-4932-bcc1-dba7bc28bd5f",
                 "seq": 2,
                 "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
+                "stationName": "ANA DEPO",
                 "processId": "DTR-000002"
               }
             ],

@@ -163,7 +163,7 @@ const StockModule = {
                 { id: 'u3', name: 'MONTAJ', type: 'internal' },
                 { id: 'u5', name: 'PLEKSI POLISAJ ATOLYESI', type: 'internal' },
                 { id: 'u7', name: 'TESTERE ATOLYESI', type: 'internal' },
-                { id: 'u_dtm', name: 'ANA DEPO', type: 'internal' },
+                { id: 'u_dtm', name: 'DEPO TRANSFER', type: 'internal' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
                 { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
@@ -173,12 +173,34 @@ const StockModule = {
 
         const mainDepotUnit = (DB.data.data.units || []).find((row) => String(row?.id || '') === 'u_dtm');
         if (!mainDepotUnit) {
-            DB.data.data.units.push({ id: 'u_dtm', name: 'ANA DEPO', type: 'internal' });
+            DB.data.data.units.push({ id: 'u_dtm', name: 'DEPO TRANSFER', type: 'internal' });
             changed = true;
-        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'ANA DEPO') {
-            mainDepotUnit.name = 'ANA DEPO';
+        } else if (String(mainDepotUnit.name || '').trim().toUpperCase() !== 'DEPO TRANSFER') {
+            mainDepotUnit.name = 'DEPO TRANSFER';
             changed = true;
         }
+        (Array.isArray(DB.data.data.depoTransferTasks) ? DB.data.data.depoTransferTasks : []).forEach((task) => {
+            const rawName = String(task?.taskName || '');
+            if (!rawName) return;
+            let nextName = rawName;
+            if (/ana depoya/gi.test(nextName)) nextName = nextName.replace(/ana depoya/gi, 'depo transfere');
+            if (/ana depo/gi.test(nextName)) nextName = nextName.replace(/ana depo/gi, 'depo transfer');
+            if (nextName !== rawName) {
+                task.taskName = nextName;
+                changed = true;
+            }
+        });
+        (Array.isArray(DB.data.data.workOrders) ? DB.data.data.workOrders : []).forEach((order) => {
+            (Array.isArray(order?.lines) ? order.lines : []).forEach((line) => {
+                (Array.isArray(line?.routes) ? line.routes : []).forEach((route) => {
+                    if (String(route?.stationId || '') !== 'u_dtm') return;
+                    const stationName = String(route?.stationName || '');
+                    if (!stationName || !/ana depo/gi.test(stationName)) return;
+                    route.stationName = 'DEPO TRANSFER';
+                    changed = true;
+                });
+            });
+        });
 
         const packageIds = (DB.data.data.units || [])
             .filter((row) => String(row?.id || '') === 'u4' || String(row?.name || '').toUpperCase().includes('PAKETLEME'))

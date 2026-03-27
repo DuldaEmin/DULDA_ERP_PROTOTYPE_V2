@@ -1934,15 +1934,20 @@ const UnitModule = {
         const idx = routes.findIndex(r => String(r?.stationId || '') === String(unitId || ''));
         if (idx < 0) return null;
         const route = routes[idx];
+        const nextRoute = idx < routes.length - 1 ? routes[idx + 1] : null;
         const prevTarget = idx === 0
             ? Number(line?.targetQty || 0)
             : UnitModule.getWorkTxnQty(txns, order?.id, line?.id, routes[idx - 1]?.stationId, 'COMPLETE');
         const stepTarget = Math.max(0, Number(prevTarget || 0));
         const taken = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'TAKE');
         const completed = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'COMPLETE');
+        const nextTaken = nextRoute
+            ? UnitModule.getWorkTxnQty(txns, order?.id, line?.id, nextRoute.stationId, 'TAKE')
+            : 0;
         const availableQty = Math.max(0, stepTarget - taken);
         const inProcessQty = Math.max(0, taken - completed);
         const doneQty = Math.max(0, completed);
+        const transferPendingQty = nextRoute ? Math.max(0, doneQty - nextTaken) : 0;
         return {
             routeSeq: idx + 1,
             routeCount: routes.length,
@@ -1953,7 +1958,11 @@ const UnitModule = {
             availableQty,
             inProcessQty,
             doneQty,
-            isFinalStep: idx === routes.length - 1
+            isFinalStep: idx === routes.length - 1,
+            nextStationId: String(nextRoute?.stationId || ''),
+            nextTakenQty: nextTaken,
+            transferPendingQty,
+            isTransferPending: transferPendingQty > 0
         };
     },
     getWorkOrderComputedStatus: (order, txns) => {
@@ -2072,7 +2081,7 @@ const UnitModule = {
         if (qty > metrics.availableQty) return alert(`Maksimum alinabilir miktar: ${metrics.availableQty}`);
         await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon devir aldi');
     },
-    completeWorkOrderQty: async (workOrderId, lineId, stationId) => {
+    completeWorkOrderQty: async (workOrderId, lineId, stationId, presetQty = null, options = {}) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
@@ -2080,13 +2089,26 @@ const UnitModule = {
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
         if (!metrics || metrics.inProcessQty <= 0) return alert('Islemde miktar yok.');
-        const suggested = Math.max(1, Math.floor(metrics.inProcessQty));
-        const raw = prompt('Bugun kac adet yapildi?', String(suggested));
-        if (raw === null) return;
-        const qty = Number(raw);
+        const suggested = Math.max(1, Math.floor(metrics.inProcessQty || 0));
+        const skipPrompt = !!(options && options.skipPrompt);
+        let qty = Number(presetQty);
+        if (!skipPrompt) {
+            const raw = prompt('Tamamlanan adet kac?', String(suggested));
+            if (raw === null) return;
+            qty = Number(raw);
+        }
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
+        if (!Number.isInteger(qty)) return alert('Miktar tam sayi olmali.');
         if (qty > metrics.inProcessQty) return alert(`Maksimum girilebilir miktar: ${metrics.inProcessQty}`);
         await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'COMPLETE', qty, 'Istasyon tamamlandi');
+    },
+    completeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId) => {
+        const input = document.getElementById(String(inputId || '').trim());
+        if (!input) return alert('Adet giris kutusu bulunamadi.');
+        const raw = String(input.value || '').trim();
+        if (!raw) return alert('Lutfen tamamlanan adet giriniz.');
+        const qty = Number(raw);
+        await UnitModule.completeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true });
     },
     takeAllWorkOrderQty: async (workOrderId, lineId, stationId) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
@@ -2159,7 +2181,7 @@ const UnitModule = {
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderProcessPreviewForLine('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Islem kutuphanesi</button>
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderPlanModal('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Planla</button>
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.takeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Aldim</button>
-                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.completeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Adet gir</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.completeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamlanan Adedi Gir</button>
                 </div>
             </div>
         `, { maxWidth: '1080px' });
@@ -2361,13 +2383,15 @@ const UnitModule = {
                 if (pa !== pb) return pa - pb;
                 return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
             });
+        const isTransferPendingRow = (row) => Number(row?.metrics?.transferPendingQty || 0) > 0;
+        const isActiveRow = (row) => Number(row?.metrics?.inProcessQty || 0) > 0 || isTransferPendingRow(row);
         const waitingRows = filtered.filter(r => Number(r?.metrics?.availableQty || 0) > 0);
-        const activeRows = filtered.filter(r => Number(r?.takenQty || 0) > 0 && Number(r?.remainingQty || 0) > 0);
+        const activeRows = filtered.filter((r) => isActiveRow(r));
         const poolRows = filtered.filter(r => Number(r?.remainingQty || 0) > 0);
         const archiveRows = filtered.filter(r => Number(r?.metrics?.doneQty || 0) > 0);
         const visible = filtered.filter(r => {
             if (tab === 'BEKLEYEN') return Number(r?.metrics?.availableQty || 0) > 0;
-            if (tab === 'AKTIF') return Number(r?.takenQty || 0) > 0 && Number(r?.remainingQty || 0) > 0;
+            if (tab === 'AKTIF') return isActiveRow(r);
             if (tab === 'HAVUZ') return Number(r?.remainingQty || 0) > 0;
             if (tab === 'ARSIV') return Number(r?.metrics?.doneQty || 0) > 0;
             return true;

@@ -1935,6 +1935,39 @@ const UnitModule = {
             return sum + Number(t?.qty || 0);
         }, 0);
     },
+    getWorkTxnTime: (txns, workOrderId, lineId, stationId, type, mode = 'last') => {
+        if (!Array.isArray(txns)) return '';
+        const keyOrder = String(workOrderId || '');
+        const keyLine = String(lineId || '');
+        const keyStation = String(stationId || '');
+        const keyType = String(type || '').toUpperCase();
+        const hits = txns
+            .filter((t) => String(t?.workOrderId || '') === keyOrder
+                && String(t?.lineId || '') === keyLine
+                && String(t?.stationId || '') === keyStation
+                && String(t?.type || '').toUpperCase() === keyType
+                && String(t?.created_at || '').trim())
+            .map((t) => ({ at: String(t.created_at || ''), ms: new Date(String(t.created_at || '')).getTime() }))
+            .filter((row) => Number.isFinite(row.ms));
+        if (hits.length === 0) return '';
+        const pick = mode === 'first'
+            ? hits.reduce((best, row) => (row.ms < best.ms ? row : best), hits[0])
+            : hits.reduce((best, row) => (row.ms > best.ms ? row : best), hits[0]);
+        return pick.at;
+    },
+    formatDateTimeShort: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return '-';
+        const d = new Date(raw);
+        if (!Number.isFinite(d.getTime())) return raw;
+        return new Intl.DateTimeFormat('tr-TR', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(d);
+    },
     computeWorkLineUnitMetrics: (order, line, unitId, txns) => {
         const routes = Array.isArray(line?.routes) ? line.routes : [];
         const idx = routes.findIndex(r => String(r?.stationId || '') === String(unitId || ''));
@@ -2163,6 +2196,10 @@ const UnitModule = {
             : 'Son adim (depo/sevk asamasi)';
         const transferPendingQty = Math.max(0, Number(metrics?.transferPendingQty || 0));
         const showTransferFollowup = !!nextRoute && transferPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
+        const takeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'TAKE', 'first');
+        const completeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'COMPLETE', 'last');
+        const takeAtLabel = UnitModule.formatDateTimeShort(takeAt);
+        const completeAtLabel = UnitModule.formatDateTimeShort(completeAt);
         Modal.open(`Is Emri Detay - ${UnitModule.escapeHtml(order?.workOrderCode || '-')}`, `
             <div style="display:flex; flex-direction:column; gap:0.75rem;">
                 <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
@@ -2190,6 +2227,16 @@ const UnitModule = {
                     <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
                         <div style="font-size:0.7rem; color:#64748b;">Nereye gidecek</div>
                         <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(toStationName)}</div>
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.5rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Teslim alindigi zaman</div>
+                        <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(takeAtLabel)}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Teslim edildigi zaman</div>
+                        <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(completeAtLabel)}</div>
                     </div>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0.5rem;">

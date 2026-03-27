@@ -947,7 +947,7 @@ const UnitModule = {
     },
     cancelComponentRouteProcessPick: () => {
         if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof ProductLibraryModule.cancelComponentRouteProcessPicker !== 'function') {
-            Router.navigate('products', { fromBack: true });
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
             return;
         }
         ProductLibraryModule.cancelComponentRouteProcessPicker();

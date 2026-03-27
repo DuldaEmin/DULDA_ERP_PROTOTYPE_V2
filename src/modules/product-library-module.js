@@ -235,7 +235,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.workspaceView = normalized === 'model'
             ? 'models'
             : (normalized === 'semi' ? 'semi-components' : 'components');
-        Router.navigate('products', { fromBack: true });
+        Router.navigate('products', { fromBack: true, preserveProductsState: true });
     },
 
     cancelPlanningPicker: () => {
@@ -254,6 +254,36 @@ const ProductLibraryModule = {
         ProductLibraryModule.resetModelAccordionState();
         ProductLibraryModule.state.componentCategoryExpanded = {};
         ProductLibraryModule.state.masterCategoryExpanded = {};
+    },
+
+    resetWorkspaceEntryUiState: () => {
+        ProductLibraryModule.resetLibraryAccordionState();
+        ProductLibraryModule.state.workspaceView = 'menu';
+
+        ProductLibraryModule.state.masterFormOpen = false;
+        ProductLibraryModule.state.masterEditingId = null;
+
+        ProductLibraryModule.state.componentFormOpen = false;
+        ProductLibraryModule.state.componentEditingId = null;
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentViewReturnContext = null;
+
+        ProductLibraryModule.state.assemblyFormOpen = false;
+        ProductLibraryModule.state.assemblyEditingId = null;
+        ProductLibraryModule.state.assemblyViewingId = null;
+        ProductLibraryModule.state.assemblyViewReturnContext = null;
+        ProductLibraryModule.state.assemblyFormModalOpen = false;
+
+        ProductLibraryModule.state.modelFormOpen = false;
+        ProductLibraryModule.state.modelViewingId = null;
+        ProductLibraryModule.state.modelEditingId = null;
+        ProductLibraryModule.state.modelMasterPickerRowId = '';
+        ProductLibraryModule.state.modelComponentPickerRowId = '';
+
+        ProductLibraryModule.state.componentRoutePicker = null;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = '';
     },
 
     renderWorkspaceMenu: (container) => {
@@ -1603,7 +1633,7 @@ const ProductLibraryModule = {
         }
 
         if (typeof Router !== 'undefined') {
-            Router.navigate('products', { fromBack: true });
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
         } else {
             UI.renderCurrentPage();
         }
@@ -1626,7 +1656,7 @@ const ProductLibraryModule = {
         }
 
         if (typeof Router !== 'undefined') {
-            Router.navigate('products', { fromBack: true });
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
         } else {
             UI.renderCurrentPage();
         }

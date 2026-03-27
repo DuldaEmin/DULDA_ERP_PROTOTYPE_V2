@@ -645,9 +645,16 @@ const Router = {
             UnitModule.state.view = 'list';
             UnitModule.state.activeUnitId = null;
         }
-        // Fresh open rule: entering Product workspace starts from menu.
-        if (pageId === 'products' && Router.currentPage !== 'products' && !fromBack) {
-            ProductLibraryModule.state.workspaceView = 'menu';
+        // Fresh open rule: entering Product workspace resets open panels/forms unless caller explicitly preserves UI state.
+        if (pageId === 'products' && Router.currentPage !== 'products') {
+            const preserveProductsState = !!options.preserveProductsState;
+            if (!preserveProductsState) {
+                if (typeof ProductLibraryModule?.resetWorkspaceEntryUiState === 'function') {
+                    ProductLibraryModule.resetWorkspaceEntryUiState();
+                } else {
+                    ProductLibraryModule.state.workspaceView = 'menu';
+                }
+            }
         }
         // Fresh open rule: entering Stock workspace starts from menu.
         if (pageId === 'stock' && Router.currentPage !== 'stock' && !fromBack) {

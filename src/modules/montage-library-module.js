@@ -114,7 +114,7 @@ const MontageLibraryModule = {
             }
             MontageLibraryModule.state.pickerContext = null;
             if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
-                Router.navigate('products', { fromBack: true });
+                Router.navigate('products', { fromBack: true, preserveProductsState: true });
             }
             UI.renderCurrentPage();
             return;

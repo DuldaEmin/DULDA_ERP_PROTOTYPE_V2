@@ -2440,7 +2440,7 @@ const UnitModule = {
             `;
         };
         const getWorkOrderTabDescription = (tabKey) => {
-            if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis ve uzerinde calisilan isleri gosterir.';
+            if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis islemleri ve tamamlanip bir sonraki istasyona devir bekleyen satirlari gosterir.';
             if (tabKey === 'BEKLEYEN') return 'Bu sayfa, atolyenin teslim alabilecegi isleri listeler.';
             if (tabKey === 'HAVUZ') return 'Bu sayfa, an itibariyla bu atolye icin gelecek is emirlerini gosterir.';
             if (tabKey === 'ISTATISTIK') return 'Bu sayfa, birimin gunluk/haftalik/aylik uretim istatistiklerini gosterir.';
@@ -2680,11 +2680,11 @@ const UnitModule = {
                         <table style="width:100%; border-collapse:collapse;">
                             <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
                             <tbody>
-                                ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map(r => {
+                                ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map((r) => {
                                     const priorityMeta = UnitModule.getWorkOrderPriorityMeta(r.order?.priority);
                                     const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
-                                    const canTake = r.metrics.availableQty > 0;
-                                    const canComplete = r.metrics.inProcessQty > 0;
+                                    const canTake = Number(r.metrics?.availableQty || 0) > 0;
+                                    const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
                                     const todayDoneQty = getTodayDoneQty(r);
                                     const isWaitingTab = tab === 'BEKLEYEN';
                                     const isActiveTab = tab === 'AKTIF';
@@ -2692,7 +2692,8 @@ const UnitModule = {
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
                                     const showPlanAction = !isArchiveTab;
-                                    const primaryActionLabel = isWaitingTab ? 'Teslim al' : (isActiveTab ? 'Adet gir' : 'Goruntule');
+                                    const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
+                                    const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
                                     const processCode = String(r.metrics.processId || '').trim().toUpperCase();
                                     const processPreviewAction = `UnitModule.openWorkOrderProcessPreview('${r.metrics.stationId}','${processCode}','${unitId}')`;
@@ -2706,7 +2707,67 @@ const UnitModule = {
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
-                                    return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div><div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div><div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div>${componentNameHtml}</div><div>${componentCodeHtml}</div></td><td style="padding:0.55rem;"><div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div><div>${processCodeHtml}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td><td style="padding:0.55rem;"><div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span><div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">Bugun: ${todayDoneQty}</div></td><td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td><td style="padding:0.55rem; text-align:right;"><div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;"><button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}')">Goruntule</button>${showPlanAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" style=\"border-color:#cbd5e1;\">Planla</button>` : ''}${showTakeAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canTake ? '' : 'disabled'} style=\"${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}\">${primaryActionLabel}</button><button class=\"btn-sm\" onclick=\"UnitModule.takeAllWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canTake ? '' : 'disabled'} style=\"${canTake ? 'border-color:#93c5fd; color:#1e3a8a; background:#dbeafe;' : 'opacity:0.45; cursor:not-allowed;'}\">Tamamini al</button>` : ''}${showCompleteAction ? `<button class=\"btn-sm\" onclick=\"UnitModule.completeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')\" ${canComplete ? '' : 'disabled'} style=\"${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}\">${primaryActionLabel}</button>` : ''}</div></td></tr>`;
+                                    const qtySummary = `${Number(r.metrics?.inProcessQty || 0)}/${Number(r.metrics?.doneQty || 0)}`;
+                                    const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+                                    const completeInputDefault = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
+                                    const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
+                                    const completeActionBlock = showCompleteAction ? `
+                                        <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
+                                            <div style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.7rem; color:#64748b;">
+                                                <span>Islemde/Tamamlanan</span>
+                                                <span style="display:inline-flex; align-items:center; justify-content:center; min-width:54px; height:24px; border:1px solid #d1d5db; border-radius:0.45rem; background:#f8fafc; color:#0f172a; font-weight:800;">${UnitModule.escapeHtml(qtySummary)}</span>
+                                            </div>
+                                            ${canComplete ? `
+                                                <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    <button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>
+                                                </div>
+                                            ` : ''}
+                                            ${showTransferPendingBadge
+                                                ? `<span style="display:inline-block; border-radius:999px; padding:0.16rem 0.58rem; font-size:0.72rem; font-weight:700; background:#ffedd5; color:#9a3412; border:1px solid #fed7aa;">Tamamlandi - Devir Bekliyor</span>`
+                                                : ''
+                                            }
+                                        </div>
+                                    ` : '';
+                                    return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.55rem;">
+                                                <div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div>
+                                                <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div>
+                                                <div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div>
+                                                <div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div>
+                                            </td>
+                                            <td style="padding:0.55rem;">
+                                                <div style="font-weight:700; color:#334155;">${productTitle}</div>
+                                                <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div>
+                                            </td>
+                                            <td style="padding:0.55rem;">
+                                                <div>${componentNameHtml}</div>
+                                                <div>${componentCodeHtml}</div>
+                                            </td>
+                                            <td style="padding:0.55rem;">
+                                                <div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div>
+                                                <div>${processCodeHtml}</div>
+                                            </td>
+                                            <td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td>
+                                            <td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td>
+                                            <td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td>
+                                            <td style="padding:0.55rem;">
+                                                <div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div>
+                                                <span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span>
+                                                <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">Bugun: ${todayDoneQty}</div>
+                                            </td>
+                                            <td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td>
+                                            <td style="padding:0.55rem; text-align:right;">
+                                                <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}')">Goruntule</button>
+                                                    ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
+                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button><button class="btn-sm" onclick="UnitModule.takeAllWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#93c5fd; color:#1e3a8a; background:#dbeafe;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamini al</button>` : ''}
+                                                </div>
+                                                ${completeActionBlock}
+                                            </td>
+                                        </tr>
+                                    `;
                                 }).join('')}
                             </tbody>
                         </table>

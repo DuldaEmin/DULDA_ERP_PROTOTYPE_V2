@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T13:02:15.654Z",
+    "updated_at": "2026-03-27T13:00:56.686Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 223
+    "revision": 222
   },
   "data": {
     "products": [
@@ -2370,14 +2370,6 @@
                 "personnel": "MUHAMMET BİLECİ",
                 "note": "İYİ İŞLE",
                 "updatedAt": "2026-03-27T12:51:25.447Z"
-              },
-              "u10": {
-                "queueOrder": 0,
-                "targetDate": "",
-                "machine": "",
-                "personnel": "",
-                "note": "",
-                "updatedAt": "2026-03-27T13:02:15.654Z"
               }
             }
           }
@@ -2391,7 +2383,7 @@
         "sourceItemCode": "PRC-000013",
         "sourceItemQty": 5,
         "created_at": "2026-03-27T12:44:33.792Z",
-        "updated_at": "2026-03-27T13:02:15.654Z"
+        "updated_at": "2026-03-27T13:00:56.686Z"
       }
     ],
     "workOrderTransactions": [

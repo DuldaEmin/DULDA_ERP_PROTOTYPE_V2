@@ -469,15 +469,23 @@ const DB = {
         const baseRevision = Number.isInteger(overrideRevision) && overrideRevision >= 0
             ? overrideRevision
             : DB.baseRevision;
-        const resp = await fetch("/api/state", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                state,
-                baseRevision,
-                sessionId: DB.clientSessionId
-            })
-        });
+        let resp;
+        try {
+            resp = await fetch("/api/state", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    state,
+                    baseRevision,
+                    sessionId: DB.clientSessionId
+                })
+            });
+        } catch (networkErr) {
+            const error = new Error("state_service_unreachable");
+            error.code = "state_service_unreachable";
+            error.cause = networkErr;
+            throw error;
+        }
         let payload = null;
         try {
             payload = await resp.json();
@@ -562,13 +570,19 @@ const DB = {
                         }
                     } else {
                         const draftSaved = DB.storeConflictDraft(snapshot);
+                        const serviceDown = diskError?.code === "state_service_unreachable";
                         if (draftSaved) {
                             UI.updateStatus("🟡 Gecici yedek alindi");
+                            if (serviceDown) {
+                                alert("Kayit sunucusuna ulasilamadi. Uygulamayi acik olan porttan tekrar acin.");
+                            }
                             console.warn("Disk save failed, stored local recovery draft.", diskError);
                         } else {
                             UI.updateStatus("🔴 Disk kaydi ve yerel yedek basarisiz");
                             console.error("Save failed", diskError);
-                            alert("Kayit basarisiz. Lutfen tekrar deneyin.");
+                            alert(serviceDown
+                                ? "Kayit sunucusuna ulasilamadi ve yerel yedek de alinamadi. Uygulamayi acik olan porttan tekrar acin."
+                                : "Kayit basarisiz. Lutfen tekrar deneyin.");
                         }
                     }
                 }

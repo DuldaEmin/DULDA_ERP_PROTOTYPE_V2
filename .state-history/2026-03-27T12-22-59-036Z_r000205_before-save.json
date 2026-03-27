@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:28:56.775Z",
+    "updated_at": "2026-03-27T12:21:59.063Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -26,8 +26,7 @@
         "mafsallar",
         "borular",
         "aluminyum dikme aksesuarları",
-        "dikme pleksileri",
-        "aluminyum baba aksesuarları"
+        "dikme pleksileri"
       ],
       "partSubGroups": [
         "Genel"
@@ -40,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 208
+    "revision": 205
   },
   "data": {
     "products": [
@@ -2862,15 +2861,6 @@
         "code": "CLR-PLX-0003",
         "created_at": "2026-03-13T12:28:38.077Z",
         "updated_at": "2026-03-13T12:28:38.077Z"
-      },
-      {
-        "id": "8fe8cd50-4ba5-488e-a255-786b3d2fc1b8",
-        "type": "pleksi",
-        "name": "difizör",
-        "note": "numuneye bak",
-        "code": "CLR-PLX-0004",
-        "created_at": "2026-03-27T12:22:58.933Z",
-        "updated_at": "2026-03-27T12:22:58.933Z"
       }
     ],
     "partWorkOrders": [],
@@ -3002,17 +2992,6 @@
         "note": "45 derece zaviyeli kesilecek.",
         "code": "TST-000004",
         "created_at": "2026-03-23T11:11:14.089Z"
-      },
-      {
-        "id": "9431fa09-8554-4a9d-80a8-399c10cb9279",
-        "unitId": "u7",
-        "processName": "67 mm kesmre",
-        "lengthMm": 67,
-        "cutLengthMm": 67,
-        "hasChamfer": false,
-        "note": "",
-        "code": "TST-000005",
-        "created_at": "2026-03-27T12:28:56.775Z"
       }
     ],
     "cncCategories": [

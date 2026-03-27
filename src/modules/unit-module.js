@@ -2164,6 +2164,55 @@ const UnitModule = {
             </div>
         `, { maxWidth: '1080px' });
     },
+    getWorkOrderPlanMachineOptions: (stationId) => {
+        const unitId = String(stationId || '').trim();
+        if (!unitId) return [];
+        const rows = Array.isArray(DB.data?.data?.machines) ? DB.data.data.machines : [];
+        return rows
+            .filter((machine) => String(machine?.unitId || '') === unitId)
+            .map((machine) => {
+                const name = String(machine?.name || '').trim();
+                const status = String(machine?.status || '').trim().toUpperCase();
+                const statusLabel = status ? ` (${status})` : '';
+                return {
+                    value: name,
+                    label: `${name}${statusLabel}`
+                };
+            })
+            .filter((row) => row.value)
+            .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'tr'));
+    },
+    getWorkOrderPlanPersonnelUnitIds: (person) => {
+        if (!person || typeof person !== 'object') return [];
+        if (Array.isArray(person.assignedUnitIds) && person.assignedUnitIds.length > 0) {
+            return Array.from(new Set(
+                person.assignedUnitIds
+                    .map((id) => String(id || '').trim())
+                    .filter(Boolean)
+            ));
+        }
+        if (person.unitId) return [String(person.unitId || '').trim()].filter(Boolean);
+        return [];
+    },
+    getWorkOrderPlanPersonnelOptions: (stationId) => {
+        const unitId = String(stationId || '').trim();
+        if (!unitId) return [];
+        const rows = Array.isArray(DB.data?.data?.personnel) ? DB.data.data.personnel : [];
+        const mapByName = new Map();
+        rows.forEach((person) => {
+            if (!person || typeof person !== 'object') return;
+            const status = String(person?.status || 'aktif').trim().toLowerCase();
+            if (person.isActive === false || status === 'pasif') return;
+            const unitIds = UnitModule.getWorkOrderPlanPersonnelUnitIds(person);
+            if (!unitIds.includes(unitId)) return;
+            const name = String(person?.fullName || person?.name || '').trim();
+            if (!name) return;
+            const title = String(person?.title || '').trim();
+            const label = title ? `${name} - ${title}` : name;
+            if (!mapByName.has(name)) mapByName.set(name, { value: name, label });
+        });
+        return Array.from(mapByName.values()).sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'tr'));
+    },
     openWorkOrderPlanModal: (workOrderId, lineId, stationId) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
@@ -2172,6 +2221,12 @@ const UnitModule = {
         const plan = (line.plans && typeof line.plans === 'object')
             ? (line.plans[String(stationId || '')] || {})
             : {};
+        const machineOptions = UnitModule.getWorkOrderPlanMachineOptions(stationId);
+        const personnelOptions = UnitModule.getWorkOrderPlanPersonnelOptions(stationId);
+        const machineValues = new Set(machineOptions.map((row) => String(row.value || '').trim()));
+        const personnelValues = new Set(personnelOptions.map((row) => String(row.value || '').trim()));
+        const selectedMachine = machineValues.has(String(plan?.machine || '').trim()) ? String(plan.machine || '').trim() : '';
+        const selectedPersonnel = personnelValues.has(String(plan?.personnel || '').trim()) ? String(plan.personnel || '').trim() : '';
         Modal.open('Planlama Satiri', `
             <div style="display:flex; flex-direction:column; gap:0.75rem;">
                 <div style="font-weight:700; color:#334155; font-size:0.92rem;">${UnitModule.escapeHtml(order.workOrderCode || '-')} / ${UnitModule.escapeHtml(line.lineCode || '-')}</div>
@@ -2186,11 +2241,25 @@ const UnitModule = {
                     </div>
                     <div>
                         <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Makine</label>
-                        <input id="wo_plan_machine" value="${UnitModule.escapeHtml(plan.machine || '')}" placeholder="or: CNC-1" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                        <select id="wo_plan_machine" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;" ${machineOptions.length === 0 ? 'disabled' : ''}>
+                            <option value="">Makine secin</option>
+                            ${machineOptions.map((option) => `<option value="${UnitModule.escapeHtml(option.value || '')}" ${String(selectedMachine || '') === String(option.value || '') ? 'selected' : ''}>${UnitModule.escapeHtml(option.label || option.value || '')}</option>`).join('')}
+                        </select>
+                        ${machineOptions.length > 0
+                            ? `<div style="margin-top:0.25rem; font-size:0.72rem; color:#64748b;">Bu birimden ${machineOptions.length} makine listelendi.</div>`
+                            : `<div style="margin-top:0.25rem; font-size:0.72rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:0.45rem; padding:0.32rem 0.45rem;">Bu birime tanimli makine yok.</div>`
+                        }
                     </div>
                     <div>
                         <label style="display:block; font-size:0.75rem; color:#64748b; margin-bottom:0.25rem;">Personel</label>
-                        <input id="wo_plan_personnel" value="${UnitModule.escapeHtml(plan.personnel || '')}" placeholder="or: Ali" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                        <select id="wo_plan_personnel" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem;" ${personnelOptions.length === 0 ? 'disabled' : ''}>
+                            <option value="">Personel secin</option>
+                            ${personnelOptions.map((option) => `<option value="${UnitModule.escapeHtml(option.value || '')}" ${String(selectedPersonnel || '') === String(option.value || '') ? 'selected' : ''}>${UnitModule.escapeHtml(option.label || option.value || '')}</option>`).join('')}
+                        </select>
+                        ${personnelOptions.length > 0
+                            ? `<div style="margin-top:0.25rem; font-size:0.72rem; color:#64748b;">Bu birimden ${personnelOptions.length} personel listelendi.</div>`
+                            : `<div style="margin-top:0.25rem; font-size:0.72rem; color:#b45309; background:#fffbeb; border:1px solid #fde68a; border-radius:0.45rem; padding:0.32rem 0.45rem;">Bu birime tanimli personel yok.</div>`
+                        }
                     </div>
                 </div>
                 <div>
@@ -2212,6 +2281,14 @@ const UnitModule = {
         const machine = String(document.getElementById('wo_plan_machine')?.value || '').trim();
         const personnel = String(document.getElementById('wo_plan_personnel')?.value || '').trim();
         const note = String(document.getElementById('wo_plan_note')?.value || '').trim();
+        const machineSet = new Set(UnitModule.getWorkOrderPlanMachineOptions(stationId).map((row) => String(row.value || '').trim()));
+        const personnelSet = new Set(UnitModule.getWorkOrderPlanPersonnelOptions(stationId).map((row) => String(row.value || '').trim()));
+        if (machine && !machineSet.has(machine)) {
+            return alert('Secilen makine bu birime tanimli guncel listede yok. Lutfen listeden seciniz.');
+        }
+        if (personnel && !personnelSet.has(personnel)) {
+            return alert('Secilen personel bu birime tanimli guncel listede yok. Lutfen listeden seciniz.');
+        }
         line.plans[String(stationId || '')] = {
             queueOrder: Number.isFinite(queueOrder) ? queueOrder : 0,
             targetDate,

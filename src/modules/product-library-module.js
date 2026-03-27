@@ -3440,7 +3440,8 @@ const ProductLibraryModule = {
                             source: String(item?.source || 'component'),
                             refId: String(item?.refId || ''),
                             code: String(item?.code || '').trim().toUpperCase(),
-                            name: String(item?.name || '').trim()
+                            name: String(item?.name || '').trim(),
+                            qty: Math.max(1, Number(item?.qty || 1))
                         }))
                         .filter(item => item.code),
                     montageCard: row.montageCard && typeof row.montageCard === 'object'
@@ -3856,7 +3857,6 @@ const ProductLibraryModule = {
         if (!row) return;
         const qty = Math.max(1, Math.floor(Number(value || 1) || 1));
         row.qty = qty;
-        UI.renderCurrentPage();
     },
 
     openModelMasterPicker: (rowId = '') => {
@@ -3984,7 +3984,32 @@ const ProductLibraryModule = {
         if (!row) return;
         const qty = Math.max(1, Math.floor(Number(value || 1) || 1));
         row.qty = qty;
-        UI.renderCurrentPage();
+    },
+
+    syncModelDraftQtyFromDom: () => {
+        const masterRows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs)
+            ? ProductLibraryModule.state.modelDraftMasterRefs
+            : [];
+        const componentRows = Array.isArray(ProductLibraryModule.state.modelDraftItems)
+            ? ProductLibraryModule.state.modelDraftItems
+            : [];
+
+        const masterIndex = new Map(masterRows.map((row) => [String(row?.rowId || ''), row]));
+        const componentIndex = new Map(componentRows.map((row) => [String(row?.id || ''), row]));
+
+        document.querySelectorAll('input[data-model-master-qty-rowid]').forEach((input) => {
+            const rowId = String(input.getAttribute('data-model-master-qty-rowid') || '');
+            const row = masterIndex.get(rowId);
+            if (!row) return;
+            row.qty = Math.max(1, Math.floor(Number(input.value || 1) || 1));
+        });
+
+        document.querySelectorAll('input[data-model-component-qty-id]').forEach((input) => {
+            const id = String(input.getAttribute('data-model-component-qty-id') || '');
+            const row = componentIndex.get(id);
+            if (!row) return;
+            row.qty = Math.max(1, Math.floor(Number(input.value || 1) || 1));
+        });
     },
 
     removeModelDraftItem: (id) => {
@@ -4319,6 +4344,7 @@ const ProductLibraryModule = {
 
     saveModelVariant: async (asVariant = false) => {
         ProductLibraryModule.ensureModelDefaults();
+        ProductLibraryModule.syncModelDraftQtyFromDom();
         const all = DB.data.data.catalogProductVariants || [];
         const editingId = String(ProductLibraryModule.state.modelEditingId || '').trim();
         const editingRow = editingId ? ProductLibraryModule.getCatalogVariantById(editingId) : null;
@@ -4665,7 +4691,7 @@ const ProductLibraryModule = {
                         <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(row?.name || 'Master urun secmek icin sec butonunu kullanin.')}</div>
                     </div>
                     <button class="btn-sm" onclick="${row?.id ? `ProductLibraryModule.previewModelDraftLinkedRecord('master', '${ProductLibraryModule.escapeHtml(row.id || '')}')` : `ProductLibraryModule.openModelMasterPicker('${ProductLibraryModule.escapeHtml(row.rowId || '')}')`}" style="height:40px;">${row?.id ? 'goruntule' : 'sec'}</button>
-                    <input type="number" min="1" step="1" value="${Number(row?.qty || 1)}" onchange="ProductLibraryModule.setModelMasterQty('${ProductLibraryModule.escapeHtml(row.rowId || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
+                    <input type="number" min="1" step="1" value="${Number(row?.qty || 1)}" data-model-master-qty-rowid="${ProductLibraryModule.escapeHtml(row.rowId || '')}" oninput="ProductLibraryModule.setModelMasterQty('${ProductLibraryModule.escapeHtml(row.rowId || '')}', this.value)" onchange="ProductLibraryModule.setModelMasterQty('${ProductLibraryModule.escapeHtml(row.rowId || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelMasterDraftRow('${ProductLibraryModule.escapeHtml(row.rowId || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');
@@ -4682,7 +4708,7 @@ const ProductLibraryModule = {
                         <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ProductLibraryModule.escapeHtml(item?.name || 'Parca secmek icin sec butonunu kullanin.')}</div>
                     </div>
                     <button class="btn-sm" onclick="${item?.refId ? `ProductLibraryModule.previewModelDraftLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item.refId || '')}')` : `ProductLibraryModule.openModelComponentPicker('${ProductLibraryModule.escapeHtml(item.id || '')}')`}" style="height:40px;">${item?.refId ? 'goruntule' : 'sec'}</button>
-                    <input type="number" min="1" step="1" value="${Number(item?.qty || 1)}" onchange="ProductLibraryModule.setModelComponentQty('${ProductLibraryModule.escapeHtml(item.id || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
+                    <input type="number" min="1" step="1" value="${Number(item?.qty || 1)}" data-model-component-qty-id="${ProductLibraryModule.escapeHtml(item.id || '')}" oninput="ProductLibraryModule.setModelComponentQty('${ProductLibraryModule.escapeHtml(item.id || '')}', this.value)" onchange="ProductLibraryModule.setModelComponentQty('${ProductLibraryModule.escapeHtml(item.id || '')}', this.value)" style="width:80px; height:36px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.4rem; text-align:center;">
                     <button class="btn-sm" onclick="ProductLibraryModule.removeModelDraftItem('${ProductLibraryModule.escapeHtml(item.id || '')}')" style="height:40px;">sil</button>
                 </div>
             `).join('');

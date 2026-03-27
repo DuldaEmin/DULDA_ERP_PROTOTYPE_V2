@@ -2728,16 +2728,26 @@ const UnitModule = {
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
-                                    const qtySummary = `${Number(r.metrics?.inProcessQty || 0)}/${Number(r.metrics?.doneQty || 0)}`;
+                                    const totalQtyForStep = Math.max(0, Number(r.metrics?.stepTarget || 0));
+                                    const takenQtyForStep = Math.max(0, Number(r.metrics?.inProcessQty || 0) + Number(r.metrics?.doneQty || 0));
+                                    const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
+                                    const qtySummary = `${takenQtyForStep}/${totalQtyForStep}`;
                                     const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}`.replace(/[^a-zA-Z0-9_-]/g, '_');
                                     const completeInputDefault = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
                                     const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
-                                    const completeActionBlock = showCompleteAction ? `
+                                    const qtyStatusBlock = `
                                         <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
-                                            <div style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.7rem; color:#64748b;">
-                                                <span>Islemde/Tamamlanan</span>
+                                            <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end; font-size:0.69rem; color:#64748b;">
+                                                <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Toplam:<strong style="color:#0f172a;">${totalQtyForStep}</strong></span>
+                                                <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Alinan:<strong style="color:#1d4ed8;">${takenQtyForStep}</strong></span>
+                                                <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Kalan:<strong style="color:#b45309;">${remainingQtyForStep}</strong></span>
                                                 <span style="display:inline-flex; align-items:center; justify-content:center; min-width:54px; height:24px; border:1px solid #d1d5db; border-radius:0.45rem; background:#f8fafc; color:#0f172a; font-weight:800;">${UnitModule.escapeHtml(qtySummary)}</span>
                                             </div>
+                                        </div>
+                                    `;
+                                    const completeActionBlock = showCompleteAction ? `
+                                        <div style="margin-top:0.2rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
+                                            ${qtyStatusBlock}
                                             ${canComplete ? `
                                                 <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
@@ -2749,7 +2759,7 @@ const UnitModule = {
                                                 : ''
                                             }
                                         </div>
-                                    ` : '';
+                                    ` : qtyStatusBlock;
                                     return `
                                         <tr style="border-bottom:1px solid #f1f5f9;">
                                             <td style="padding:0.55rem;">

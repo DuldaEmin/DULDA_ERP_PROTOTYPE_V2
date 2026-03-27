@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T16:09:08.816Z",
+    "updated_at": "2026-03-27T16:05:42.309Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 263
+    "revision": 259
   },
   "data": {
     "products": [
@@ -2282,7 +2282,385 @@
         "updated_at": "2026-03-27T12:36:52.066Z"
       }
     ],
-    "workOrders": [],
+    "workOrders": [
+      {
+        "id": "8144302f-774f-42d8-82f9-a052523801d0",
+        "workOrderCode": "WO-000001",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000007",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "lotQty": 10,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "42b114fc-b71e-4dbd-b197-86c27b396352",
+            "lineCode": "WO-000001-01",
+            "componentCode": "PRC-000007",
+            "componentName": "2008 bombeli 40 lık dikme pleksi",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "9eeb5a46-01a8-45af-b7a0-54ad2690e43c",
+                "seq": 1,
+                "stationId": "u2",
+                "stationName": "EKSTRUDER ATOLYESI",
+                "processId": "EKS-000001"
+              },
+              {
+                "id": "c939bd25-46ff-4b82-9543-5bea340737b5",
+                "seq": 2,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000001"
+              },
+              {
+                "id": "89c1a9ab-5f7a-4b29-bd98-f363d7d178bf",
+                "seq": 3,
+                "stationId": "u5",
+                "stationName": "PLEKSI POLISAJ ATOLYESI",
+                "processId": "PLSJ-000001"
+              },
+              {
+                "id": "c34a7f63-430e-4cd5-8925-85253fd5ba33",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.308Z",
+        "updated_at": "2026-03-27T16:05:42.308Z"
+      },
+      {
+        "id": "35e94118-f79b-4a97-9fe4-8eae6c6c067a",
+        "workOrderCode": "WO-000002",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000008",
+        "productName": "40 lık aluminyum dikme flanşı",
+        "lotQty": 10,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "fc0ecebe-7877-496b-b956-f8a2058bd0af",
+            "lineCode": "WO-000002-01",
+            "componentCode": "PRC-000008",
+            "componentName": "40 lık aluminyum dikme flanşı",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "73622210-99d4-4e55-96b7-0fe4fb46c845",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "ce534679-4c47-4ccb-b5ff-4d9a2145a7c9",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "8b300c7d-b415-458b-b509-5fbae3855a2f",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "a6abefe6-66c1-453e-a62e-a47652194d58",
+                "seq": 4,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "8f26017e-94ac-4ba4-a1d3-f7e00b0ac26c",
+                "seq": 5,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.308Z",
+        "updated_at": "2026-03-27T16:05:42.308Z"
+      },
+      {
+        "id": "9e55bd44-5ad6-426e-8e9c-dea9c6ba45b1",
+        "workOrderCode": "WO-000003",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000003",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
+        "lotQty": 10,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "67c32027-15b3-4152-941e-67cac8aad88c",
+            "lineCode": "WO-000003-01",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "1ba22b82-563d-4e80-8891-832685cc33c4",
+                "seq": 1,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000002"
+              },
+              {
+                "id": "eccaf731-5bf4-47bc-8196-ff8f5191b360",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "e09df47f-4735-420e-8a6c-880322ff40cc",
+                "seq": 3,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "f4ba6904-5238-45aa-8e8d-2e5ed154e08a",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "3c85cc7b-6c99-45f1-8ccd-098f3142bdbf",
+                "seq": 5,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "ef25865c-7e17-4f7c-a769-3e4c3f1f6e39",
+                "seq": 6,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.308Z",
+        "updated_at": "2026-03-27T16:05:42.308Z"
+      },
+      {
+        "id": "728f2002-73f8-44f0-9b57-7d066a231824",
+        "workOrderCode": "WO-000004",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000005",
+        "productName": "aluminyum dikme ay bağlantısı",
+        "lotQty": 10,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "f079f464-7aa4-4710-8d2c-9ca97ffdf8bd",
+            "lineCode": "WO-000004-01",
+            "componentCode": "PRC-000005",
+            "componentName": "aluminyum dikme ay bağlantısı",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "bdb6b783-d338-4af9-8630-41367fb32d02",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "1989097e-6c7d-4b39-9722-8c2a3743873f",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "c9df07d2-a6bc-45bf-a93b-a1aec9cb64dc",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.309Z",
+        "updated_at": "2026-03-27T16:05:42.309Z"
+      },
+      {
+        "id": "c9e8f74a-f88d-402f-8697-df8aa5a1a23d",
+        "workOrderCode": "WO-000005",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000001",
+        "productName": "aluminyum dikme üst boru 70 mm",
+        "lotQty": 10,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "bfcb9127-e2b3-425b-8017-fc77b71c6713",
+            "lineCode": "WO-000005-01",
+            "componentCode": "PRC-000001",
+            "componentName": "aluminyum dikme üst boru 70 mm",
+            "multiplier": 1,
+            "targetQty": 10,
+            "routes": [
+              {
+                "id": "b4ecfd26-d9a0-4643-ad47-6b4b58f094b1",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000001"
+              },
+              {
+                "id": "567ce4c7-d59e-4a2e-bd77-da4249cd8aa8",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.309Z",
+        "updated_at": "2026-03-27T16:05:42.309Z"
+      },
+      {
+        "id": "aaf833b7-106a-4fe7-9a01-6b06be12a3bb",
+        "workOrderCode": "WO-000006",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000006",
+        "productName": "aluminyum dikme yüzüğü",
+        "lotQty": 20,
+        "dueDate": "2026-03-30",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "68e23327-c627-4a61-8deb-4fd0bdd16628",
+            "lineCode": "WO-000006-01",
+            "componentCode": "PRC-000006",
+            "componentName": "aluminyum dikme yüzüğü",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "e2bdb2df-a6c0-4957-a926-ef473a9dea39",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "31ff5e94-edeb-4c5d-a6b0-a89ab2cb6d50",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "5b1b3cb2-3288-4aad-9285-4754f4553a25",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
+        "sourceCode": "PLN-000001",
+        "sourceItemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+        "sourceItemName": "2008 bombeli aluminyum dikme",
+        "sourceItemCode": "URM-000001-V01",
+        "sourceItemQty": 10,
+        "created_at": "2026-03-27T16:05:42.309Z",
+        "updated_at": "2026-03-27T16:05:42.309Z"
+      }
+    ],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
@@ -3153,7 +3531,7 @@
             "refId": "3f3c7192-6721-4c58-af07-785b8edf3013",
             "code": "PRC-000006",
             "name": "aluminyum dikme yüzüğü",
-            "qty": 1
+            "qty": 2
           },
           {
             "id": "7ca21c47-f72b-4e43-8157-78bf1a8e909d",
@@ -3161,7 +3539,7 @@
             "refId": "1114c5b3-58c4-4a53-8c13-1ab6dd378ed1",
             "code": "PRC-000002",
             "name": "aluminyum dikme alt borusu",
-            "qty": 2
+            "qty": 1
           },
           {
             "id": "a08ef636-71fd-498f-b74b-106444ddc985",
@@ -3213,7 +3591,7 @@
         ],
         "note": "deneme",
         "created_at": "2026-03-13T15:07:00.000Z",
-        "updated_at": "2026-03-27T16:06:51.574Z",
+        "updated_at": "2026-03-27T16:01:30.391Z",
         "masterRefs": [
           {
             "rowId": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
@@ -3324,14 +3702,14 @@
     ],
     "planningDemands": [
       {
-        "id": "58181776-8351-4673-930c-6df1f8d9b16a",
+        "id": "4103fd25-b6ab-4d5a-b5ed-b8b5b96569a6",
         "demandCode": "PLN-000001",
         "sourceType": "STOCK",
         "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-27T16:08:09.645Z",
+        "created_at": "2026-03-27T16:05:00.263Z",
         "items": [
           {
-            "id": "e84f0d09-042b-4de5-8d22-8bda77ed7440",
+            "id": "ff0441e5-54f1-4035-8944-699abff816d4",
             "itemType": "MODEL",
             "qty": 10,
             "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
@@ -3365,12 +3743,128 @@
         "dueDate": "2026-03-30",
         "priority": "NORMAL",
         "note": "",
-        "status": "OPEN",
-        "workOrderId": "",
-        "workOrderCode": "",
-        "workOrderIds": [],
-        "workOrderCodes": [],
-        "updated_at": "2026-03-27T16:09:08.816Z"
+        "status": "RELEASED",
+        "workOrderId": "8144302f-774f-42d8-82f9-a052523801d0",
+        "workOrderCode": "WO-000001 +5",
+        "workOrderIds": [
+          "8144302f-774f-42d8-82f9-a052523801d0",
+          "35e94118-f79b-4a97-9fe4-8eae6c6c067a",
+          "9e55bd44-5ad6-426e-8e9c-dea9c6ba45b1",
+          "728f2002-73f8-44f0-9b57-7d066a231824",
+          "c9e8f74a-f88d-402f-8697-df8aa5a1a23d",
+          "aaf833b7-106a-4fe7-9a01-6b06be12a3bb"
+        ],
+        "workOrderCodes": [
+          "WO-000001",
+          "WO-000002",
+          "WO-000003",
+          "WO-000004",
+          "WO-000005",
+          "WO-000006"
+        ],
+        "updated_at": "2026-03-27T16:05:42.309Z",
+        "poolAnalysis": {
+          "rows": [
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000007",
+              "name": "2008 bombeli 40 lık dikme pleksi",
+              "componentLibrary": "PART",
+              "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "requiredQty": 10,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 10
+            },
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000008",
+              "name": "40 lık aluminyum dikme flanşı",
+              "componentLibrary": "PART",
+              "componentId": "b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "requiredQty": 10,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 10
+            },
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000003",
+              "name": "40 lık aluminyum dikme yarıklı tapa",
+              "componentLibrary": "PART",
+              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "requiredQty": 10,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 10
+            },
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000005",
+              "name": "aluminyum dikme ay bağlantısı",
+              "componentLibrary": "PART",
+              "componentId": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "requiredQty": 10,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 10
+            },
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000001",
+              "name": "aluminyum dikme üst boru 70 mm",
+              "componentLibrary": "PART",
+              "componentId": "0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "requiredQty": 10,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 10
+            },
+            {
+              "key": "ff0441e5-54f1-4035-8944-699abff816d4::PART:3f3c7192-6721-4c58-af07-785b8edf3013",
+              "itemKey": "ff0441e5-54f1-4035-8944-699abff816d4",
+              "itemName": "2008 bombeli aluminyum dikme",
+              "itemCode": "URM-000001-V01",
+              "itemQty": 10,
+              "code": "PRC-000006",
+              "name": "aluminyum dikme yüzüğü",
+              "componentLibrary": "PART",
+              "componentId": "3f3c7192-6721-4c58-af07-785b8edf3013",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            }
+          ],
+          "converted_at": "2026-03-27T16:05:42.309Z"
+        },
+        "released_at": "2026-03-27T16:05:42.309Z"
       }
     ],
     "semiFinishedCards": [

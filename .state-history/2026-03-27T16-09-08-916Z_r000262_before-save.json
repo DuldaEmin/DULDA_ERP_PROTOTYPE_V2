@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T16:09:08.816Z",
+    "updated_at": "2026-03-27T16:08:09.645Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 263
+    "revision": 262
   },
   "data": {
     "products": [
@@ -3331,7 +3331,7 @@
         "created_at": "2026-03-27T16:08:09.645Z",
         "items": [
           {
-            "id": "e84f0d09-042b-4de5-8d22-8bda77ed7440",
+            "id": "990c516e-0fdf-4dea-a55a-932db9a23b8d",
             "itemType": "MODEL",
             "qty": 10,
             "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
@@ -3370,7 +3370,7 @@
         "workOrderCode": "",
         "workOrderIds": [],
         "workOrderCodes": [],
-        "updated_at": "2026-03-27T16:09:08.816Z"
+        "updated_at": "2026-03-27T16:08:09.645Z"
       }
     ],
     "semiFinishedCards": [

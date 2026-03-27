@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:51:25.447Z",
+    "updated_at": "2026-03-27T12:48:08.277Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 220
+    "revision": 218
   },
   "data": {
     "products": [
@@ -2362,14 +2362,6 @@
                 "personnel": "",
                 "note": "hgjf",
                 "updatedAt": "2026-03-27T12:46:53.305Z"
-              },
-              "u1": {
-                "queueOrder": 5,
-                "targetDate": "",
-                "machine": "cnc torna",
-                "personnel": "MUHAMMET BİLECİ",
-                "note": "İYİ İŞLE",
-                "updatedAt": "2026-03-27T12:51:25.447Z"
               }
             }
           }
@@ -2383,7 +2375,7 @@
         "sourceItemCode": "PRC-000013",
         "sourceItemQty": 5,
         "created_at": "2026-03-27T12:44:33.792Z",
-        "updated_at": "2026-03-27T12:51:25.447Z"
+        "updated_at": "2026-03-27T12:48:08.277Z"
       }
     ],
     "workOrderTransactions": [
@@ -2408,17 +2400,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-03-27T12:48:08.277Z"
-      },
-      {
-        "id": "dc812e45-b1ed-42a8-a66f-86aab8020419",
-        "workOrderId": "00edcec7-9502-4626-bb13-6f54942b0586",
-        "lineId": "22a3342b-f644-463d-8de4-7befdd1d10ac",
-        "stationId": "u1",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T12:50:28.494Z"
       }
     ],
     "outsourceTransfers": [],

@@ -350,7 +350,13 @@ const UnitModule = {
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
             const hasActive = rows.some((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0);
             const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
-            const hasPool = rows.some(row => Number(row?.remainingQty || 0) > 0);
+            const hasPool = rows.some((row) => {
+                const inProcess = Number(row?.metrics?.inProcessQty || 0);
+                const transferPending = Number(row?.metrics?.transferPendingQty || 0);
+                const available = Number(row?.metrics?.availableQty || 0);
+                const upcoming = Number(row?.upcomingQty || 0);
+                return upcoming > 0 && inProcess <= 0 && transferPending <= 0 && available <= 0;
+            });
             const hasArchive = rows.some(row => Number(row?.metrics?.doneQty || 0) > 0);
             if (hasActive) {
                 UnitModule.state.workOrderTab = 'AKTIF';
@@ -2346,6 +2352,7 @@ const UnitModule = {
                 const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
                 const targetQty = Math.max(0, Number(line?.targetQty || 0));
                 const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+                const upcomingQty = Math.max(0, targetQty - takenQty - Number(metrics?.availableQty || 0));
                 rows.push({
                     order,
                     line,
@@ -2354,7 +2361,8 @@ const UnitModule = {
                     plan: plan && typeof plan === 'object' ? plan : null,
                     takenQty,
                     targetQty,
-                    remainingQty
+                    remainingQty,
+                    upcomingQty
                 });
             });
         });
@@ -2385,14 +2393,19 @@ const UnitModule = {
             });
         const isTransferPendingRow = (row) => Number(row?.metrics?.transferPendingQty || 0) > 0;
         const isActiveRow = (row) => Number(row?.metrics?.inProcessQty || 0) > 0 || isTransferPendingRow(row);
+        const isPoolRow = (row) =>
+            Number(row?.upcomingQty || 0) > 0
+            && Number(row?.metrics?.availableQty || 0) <= 0
+            && Number(row?.metrics?.inProcessQty || 0) <= 0
+            && !isTransferPendingRow(row);
         const waitingRows = filtered.filter(r => Number(r?.metrics?.availableQty || 0) > 0);
         const activeRows = filtered.filter((r) => isActiveRow(r));
-        const poolRows = filtered.filter(r => Number(r?.remainingQty || 0) > 0);
+        const poolRows = filtered.filter((r) => isPoolRow(r));
         const archiveRows = filtered.filter(r => Number(r?.metrics?.doneQty || 0) > 0);
         const visible = filtered.filter(r => {
             if (tab === 'BEKLEYEN') return Number(r?.metrics?.availableQty || 0) > 0;
             if (tab === 'AKTIF') return isActiveRow(r);
-            if (tab === 'HAVUZ') return Number(r?.remainingQty || 0) > 0;
+            if (tab === 'HAVUZ') return isPoolRow(r);
             if (tab === 'ARSIV') return Number(r?.metrics?.doneQty || 0) > 0;
             return true;
         });

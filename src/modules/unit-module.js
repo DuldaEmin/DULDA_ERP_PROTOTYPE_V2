@@ -348,7 +348,7 @@ const UnitModule = {
             UnitModule.state.view = 'workOrderPlanning';
             UnitModule.state.workOrderFormOpen = false;
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
-            const hasActive = rows.some(row => Number(row?.takenQty || 0) > 0 && Number(row?.remainingQty || 0) > 0);
+            const hasActive = rows.some((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0);
             const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
             const hasPool = rows.some(row => Number(row?.remainingQty || 0) > 0);
             const hasArchive = rows.some(row => Number(row?.metrics?.doneQty || 0) > 0);
@@ -2420,29 +2420,76 @@ const UnitModule = {
         };
         const workOrderToolbarShellStyle = 'position:sticky; top:84px; z-index:24; background:rgba(255,255,255,0.98); border:1px solid #cfd8e3; border-radius:1rem; padding:0.82rem 0.9rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; box-shadow:0 10px 22px rgba(15,23,42,0.08);';
         const workOrderToolbarTabsStyle = 'display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;';
+        const workOrderToolbarSearchGroupStyle = 'display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-left:auto;';
         const workOrderToolbarSearchStyle = 'min-width:320px; height:44px; border:1.5px solid #cbd5e1; border-radius:0.75rem; padding:0.62rem 0.8rem; font-weight:700; background:#f8fafc; color:#0f172a;';
         const renderTabBtn = (id, label, count, options = {}) => {
             const active = tab === id;
             const highlight = !!options.highlight && Number(count || 0) > 0;
+            const secondary = !!options.secondary;
             const style = active
-                ? 'background:#0f172a; color:#fff; border-color:#0f172a; box-shadow:0 8px 16px rgba(15,23,42,0.24);'
-                : (highlight
-                    ? 'background:#ecfdf5; color:#047857; border-color:#34d399;'
-                    : 'background:white; color:#334155; border-color:#cbd5e1;');
+                ? (secondary
+                    ? 'background:#eef2ff; color:#1e3a8a; border-color:#c7d2fe;'
+                    : 'background:#0f172a; color:#fff; border-color:#0f172a; box-shadow:0 8px 16px rgba(15,23,42,0.24);')
+                : (secondary
+                    ? 'background:#f8fafc; color:#64748b; border-color:#e2e8f0;'
+                    : (highlight
+                        ? 'background:#ecfdf5; color:#047857; border-color:#34d399;'
+                        : 'background:white; color:#334155; border-color:#cbd5e1;'));
             const badgeStyle = active
-                ? 'background:rgba(255,255,255,0.2); color:#fff;'
-                : (highlight ? 'background:#16a34a; color:#fff;' : 'background:#e2e8f0; color:#334155;');
+                ? (secondary ? 'background:#dbeafe; color:#1e3a8a;' : 'background:rgba(255,255,255,0.2); color:#fff;')
+                : (secondary ? 'background:#eef2f7; color:#64748b;' : (highlight ? 'background:#16a34a; color:#fff;' : 'background:#e2e8f0; color:#334155;'));
+            const minHeight = secondary ? '40px' : '42px';
+            const padding = secondary ? '0.5rem 0.72rem' : '0.56rem 0.9rem';
+            const fontSize = secondary ? '0.78rem' : '0.83rem';
             return `
-                <button onclick="UnitModule.setWorkOrderTab('${id}')" class="btn-sm" style="${style} display:inline-flex; gap:0.42rem; align-items:center; min-height:42px; padding:0.56rem 0.9rem; border-width:1.5px; font-size:0.83rem; font-weight:800;">
+                <button onclick="UnitModule.setWorkOrderTab('${id}')" class="btn-sm" style="${style} display:inline-flex; gap:0.42rem; align-items:center; min-height:${minHeight}; padding:${padding}; border-width:1.5px; font-size:${fontSize}; font-weight:${secondary ? '700' : '800'};">
                     ${label}
                     <span style="display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:24px; border-radius:999px; padding:0 0.45rem; font-size:0.72rem; font-weight:900; ${badgeStyle}">${Number(count || 0)}</span>
                 </button>
             `;
         };
+        const renderReportsMenu = (statsCount) => {
+            const isReportsActive = tab === 'ISTATISTIK' || tab === 'ARSIV';
+            const triggerStyle = isReportsActive
+                ? 'background:#eff6ff; color:#1d4ed8; border:1.5px solid #93c5fd;'
+                : 'background:#f8fafc; color:#475569; border:1.5px solid #e2e8f0;';
+            return `
+                <details style="position:relative;">
+                    <summary class="btn-sm" style="${triggerStyle} list-style:none; display:inline-flex; align-items:center; gap:0.4rem; min-height:42px; padding:0.56rem 0.86rem; font-size:0.8rem; font-weight:700; cursor:pointer;">
+                        Raporlar
+                        <i data-lucide="chevron-down" width="14" height="14"></i>
+                    </summary>
+                    <div style="position:absolute; right:0; top:calc(100% + 0.35rem); min-width:230px; background:white; border:1px solid #e2e8f0; border-radius:0.7rem; box-shadow:0 14px 30px rgba(15,23,42,0.14); padding:0.35rem; z-index:36;">
+                        <button type="button" onclick="UnitModule.setWorkOrderTab('ISTATISTIK')" style="width:100%; border:none; background:#f8fafc; color:#334155; border-radius:0.5rem; min-height:36px; padding:0.42rem 0.56rem; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; font-weight:700; cursor:pointer;">
+                            <span>Birim Istatistikleri</span>
+                            <span style="display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:999px; padding:0 0.42rem; font-size:0.7rem; font-weight:900; background:#e2e8f0; color:#334155;">${Number(statsCount || 0)}</span>
+                        </button>
+                        <button type="button" onclick="UnitModule.setWorkOrderTab('ARSIV')" style="margin-top:0.3rem; width:100%; border:none; background:#f8fafc; color:#334155; border-radius:0.5rem; min-height:36px; padding:0.42rem 0.56rem; display:flex; align-items:center; justify-content:space-between; gap:0.5rem; font-weight:700; cursor:pointer;">
+                            <span>Arsiv</span>
+                            <span style="display:inline-flex; align-items:center; justify-content:center; min-width:22px; height:22px; border-radius:999px; padding:0 0.42rem; font-size:0.7rem; font-weight:900; background:#e2e8f0; color:#334155;">${Number(archiveRows.length || 0)}</span>
+                        </button>
+                    </div>
+                </details>
+            `;
+        };
+        const renderWorkOrderToolbar = (statsCount = doneQty) => `
+            <div style="${workOrderToolbarShellStyle}">
+                <div style="${workOrderToolbarTabsStyle}">
+                    ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
+                    ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
+                    <span style="width:1px; height:24px; background:#e2e8f0; margin:0 0.1rem 0 0.2rem;"></span>
+                    ${renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true })}
+                </div>
+                <div style="${workOrderToolbarSearchGroupStyle}">
+                    ${renderReportsMenu(statsCount)}
+                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
+                </div>
+            </div>
+        `;
         const getWorkOrderTabDescription = (tabKey) => {
             if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis islemleri ve tamamlanip bir sonraki istasyona devir bekleyen satirlari gosterir.';
             if (tabKey === 'BEKLEYEN') return 'Bu sayfa, atolyenin teslim alabilecegi isleri listeler.';
-            if (tabKey === 'HAVUZ') return 'Bu sayfa, an itibariyla bu atolye icin gelecek is emirlerini gosterir.';
+            if (tabKey === 'HAVUZ') return 'Bu sayfa, atolyeye gelecek isleri bilgilendirme amacli gosterir. Bu alanda planlama islemi kapatilidir.';
             if (tabKey === 'ISTATISTIK') return 'Bu sayfa, birimin gunluk/haftalik/aylik uretim istatistiklerini gosterir.';
             if (tabKey === 'ARSIV') return 'Bu sayfa, tamamlanan veya kismi teslim edilen islerin gecmis kaydini gosterir.';
             return 'Bu sayfa, atolye is emirlerini ve durumlarini gosterir.';
@@ -2523,16 +2570,7 @@ const UnitModule = {
                             </div>
                         </div>
                     </div>
-                    <div style="${workOrderToolbarShellStyle}">
-                        <div style="${workOrderToolbarTabsStyle}">
-                            ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
-                            ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
-                            ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
-                            ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', statsRows.length)}
-                            ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
-                        </div>
-                        <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
-                    </div>
+                    ${renderWorkOrderToolbar(doneQty)}
                     <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
                         ${UnitModule.escapeHtml(getWorkOrderTabDescription('ISTATISTIK'))}
                     </div>
@@ -2596,16 +2634,7 @@ const UnitModule = {
                             </div>
                         </div>
                     </div>
-                    <div style="${workOrderToolbarShellStyle}">
-                        <div style="${workOrderToolbarTabsStyle}">
-                            ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
-                            ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
-                            ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
-                            ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', doneQty)}
-                            ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
-                        </div>
-                        <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
-                    </div>
+                    ${renderWorkOrderToolbar(doneQty)}
                     <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
                         ${UnitModule.escapeHtml(getWorkOrderTabDescription('ARSIV'))}
                     </div>
@@ -2653,16 +2682,7 @@ const UnitModule = {
                     </div>
                 </div>
 
-                <div style="${workOrderToolbarShellStyle}">
-                    <div style="${workOrderToolbarTabsStyle}">
-                        ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
-                        ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
-                        ${renderTabBtn('HAVUZ', 'Atolye Is Havuzu', poolRows.length)}
-                        ${renderTabBtn('ISTATISTIK', 'Birim Istatistikleri', doneQty)}
-                        ${renderTabBtn('ARSIV', 'Arsiv', archiveRows.length)}
-                    </div>
-                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
-                </div>
+                ${renderWorkOrderToolbar(doneQty)}
 
                 <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Is emri</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${totalOrders}</div></div>
@@ -2688,10 +2708,11 @@ const UnitModule = {
                                     const todayDoneQty = getTodayDoneQty(r);
                                     const isWaitingTab = tab === 'BEKLEYEN';
                                     const isActiveTab = tab === 'AKTIF';
+                                    const isPoolTab = tab === 'HAVUZ';
                                     const isArchiveTab = tab === 'ARSIV';
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
-                                    const showPlanAction = !isArchiveTab;
+                                    const showPlanAction = !isArchiveTab && !isPoolTab;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;

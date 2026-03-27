@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T14:47:20.721Z",
+    "updated_at": "2026-03-27T14:44:22.969Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 243
+    "revision": 240
   },
   "data": {
     "products": [
@@ -2345,7 +2345,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 15,
         "created_at": "2026-03-27T14:43:16.152Z",
-        "updated_at": "2026-03-27T14:47:20.721Z"
+        "updated_at": "2026-03-27T14:44:22.969Z"
       },
       {
         "id": "c0fd6968-2659-44c6-a9d0-da4d34e129ea",
@@ -2672,39 +2672,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-27T14:44:22.969Z"
-      },
-      {
-        "id": "9c0fb35a-b0e3-4287-86d4-62ffdee7852b",
-        "workOrderId": "5269bd5b-e154-4b4c-b415-ce07ff2b47c1",
-        "lineId": "28471d38-d917-4cf9-ba81-6dd1c97497f1",
-        "stationId": "u2",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T14:44:51.717Z"
-      },
-      {
-        "id": "a229b2de-c299-4bb9-89c0-733d2fe19b7b",
-        "workOrderId": "5269bd5b-e154-4b4c-b415-ce07ff2b47c1",
-        "lineId": "28471d38-d917-4cf9-ba81-6dd1c97497f1",
-        "stationId": "u2",
-        "type": "COMPLETE",
-        "qty": 4,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T14:46:15.647Z"
-      },
-      {
-        "id": "198145fe-b555-4585-ba46-adfc75eae720",
-        "workOrderId": "5269bd5b-e154-4b4c-b415-ce07ff2b47c1",
-        "lineId": "28471d38-d917-4cf9-ba81-6dd1c97497f1",
-        "stationId": "u1",
-        "type": "TAKE",
-        "qty": 7,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T14:47:20.721Z"
       }
     ],
     "outsourceTransfers": [],

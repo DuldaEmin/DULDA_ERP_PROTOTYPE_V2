@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:03:37.645Z",
+    "updated_at": "2026-03-27T12:02:37.385Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 191
+    "revision": 188
   },
   "data": {
     "products": [
@@ -1767,85 +1767,8 @@
         "updated_at": "2026-03-13T10:57:47.318Z"
       }
     ],
-    "workOrders": [
-      {
-        "id": "e7ddf172-5046-438f-bff6-b633da76a992",
-        "workOrderCode": "WO-000001",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "lotQty": 5,
-        "dueDate": "2026-03-30",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "d0ea3e8e-1fa0-4a44-80cd-6da70e82ee03",
-            "lineCode": "WO-000001-01",
-            "componentCode": "PRC-000007",
-            "componentName": "2008 bombeli 40 lık dikme pleksi",
-            "multiplier": 1,
-            "targetQty": 5,
-            "routes": [
-              {
-                "id": "c61b06da-ef12-4ac5-b487-145e47b1c775",
-                "seq": 1,
-                "stationId": "u2",
-                "stationName": "EKSTRUDER ATOLYESI",
-                "processId": "EKS-000001"
-              },
-              {
-                "id": "a714672a-c956-4d98-8f3e-3497ce4d498e",
-                "seq": 2,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000001"
-              },
-              {
-                "id": "ba42f383-5f73-4a3b-80c8-7a2e57fe45b3",
-                "seq": 3,
-                "stationId": "u5",
-                "stationName": "PLEKSI POLISAJ ATOLYESI",
-                "processId": "PLSJ-000001"
-              },
-              {
-                "id": "288234a7-1da7-419d-8bf3-1dc0d38ba27d",
-                "seq": 4,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000004"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "5f93084a-8d20-428f-a721-b8e7ba8ef96e",
-        "sourceCode": "PLN-000001",
-        "sourceItemKey": "88fe0f99-b031-4ef4-9196-b91241757b82",
-        "sourceItemName": "2008 bombeli 40 lık dikme pleksi",
-        "sourceItemCode": "PRC-000007",
-        "sourceItemQty": 5,
-        "created_at": "2026-03-27T12:03:19.372Z",
-        "updated_at": "2026-03-27T12:03:37.645Z"
-      }
-    ],
-    "workOrderTransactions": [
-      {
-        "id": "0779daa0-587f-4e82-9aa3-2ab05253820f",
-        "workOrderId": "e7ddf172-5046-438f-bff6-b633da76a992",
-        "lineId": "d0ea3e8e-1fa0-4a44-80cd-6da70e82ee03",
-        "stationId": "u2",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T12:03:37.645Z"
-      }
-    ],
+    "workOrders": [],
+    "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
     "depoRoutes": [],
@@ -2797,83 +2720,7 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [
-      {
-        "id": "5f93084a-8d20-428f-a721-b8e7ba8ef96e",
-        "demandCode": "PLN-000001",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-27T12:02:56.153Z",
-        "items": [
-          {
-            "id": "88fe0f99-b031-4ef4-9196-b91241757b82",
-            "itemType": "COMPONENT",
-            "qty": 5,
-            "variantId": "",
-            "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-            "semiFinishedId": "",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "PRC-000007",
-            "semiFinishedCode": "",
-            "productGroup": "dikme pleksileri",
-            "productName": "2008 bombeli 40 lık dikme pleksi",
-            "productCode": "PRC-000007",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "itemType": "COMPONENT",
-        "variantId": "",
-        "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-        "semiFinishedId": "",
-        "familyId": "",
-        "variantCode": "",
-        "componentCode": "PRC-000007",
-        "semiFinishedCode": "",
-        "productGroup": "dikme pleksileri",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "productCode": "PRC-000007",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "qty": 5,
-        "dueDate": "2026-03-30",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "workOrderId": "e7ddf172-5046-438f-bff6-b633da76a992",
-        "workOrderCode": "WO-000001",
-        "workOrderIds": [
-          "e7ddf172-5046-438f-bff6-b633da76a992"
-        ],
-        "workOrderCodes": [
-          "WO-000001"
-        ],
-        "updated_at": "2026-03-27T12:03:19.372Z",
-        "poolAnalysis": {
-          "rows": [
-            {
-              "key": "88fe0f99-b031-4ef4-9196-b91241757b82::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "itemKey": "88fe0f99-b031-4ef4-9196-b91241757b82",
-              "itemName": "2008 bombeli 40 lık dikme pleksi",
-              "itemCode": "PRC-000007",
-              "itemQty": 5,
-              "code": "PRC-000007",
-              "name": "2008 bombeli 40 lık dikme pleksi",
-              "componentLibrary": "PART",
-              "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "requiredQty": 5,
-              "useEnabled": false,
-              "useStockQty": 0,
-              "useSemiQty": 0,
-              "netQty": 5
-            }
-          ],
-          "converted_at": "2026-03-27T12:03:19.372Z"
-        },
-        "released_at": "2026-03-27T12:03:19.372Z"
-      }
-    ],
+    "planningDemands": [],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

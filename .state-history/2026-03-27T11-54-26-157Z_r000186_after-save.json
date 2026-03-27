@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:03:37.645Z",
+    "updated_at": "2026-03-27T11:54:26.030Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 191
+    "revision": 186
   },
   "data": {
     "products": [
@@ -1769,12 +1769,12 @@
     ],
     "workOrders": [
       {
-        "id": "e7ddf172-5046-438f-bff6-b633da76a992",
+        "id": "756a4291-5da2-4c8d-bffa-70311cf8ac7e",
         "workOrderCode": "WO-000001",
         "montageCardId": "",
         "montageCardCode": "",
-        "productCode": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "productCode": "PRC-000003",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
         "lotQty": 5,
         "dueDate": "2026-03-30",
         "priority": "NORMAL",
@@ -1782,37 +1782,51 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "d0ea3e8e-1fa0-4a44-80cd-6da70e82ee03",
+            "id": "01d0d713-e688-4678-a0f0-7e57001b6c92",
             "lineCode": "WO-000001-01",
-            "componentCode": "PRC-000007",
-            "componentName": "2008 bombeli 40 lık dikme pleksi",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
             "multiplier": 1,
             "targetQty": 5,
             "routes": [
               {
-                "id": "c61b06da-ef12-4ac5-b487-145e47b1c775",
+                "id": "8cc06b44-9ce5-4f5c-bac1-fd69a2fedb67",
                 "seq": 1,
-                "stationId": "u2",
-                "stationName": "EKSTRUDER ATOLYESI",
-                "processId": "EKS-000001"
-              },
-              {
-                "id": "a714672a-c956-4d98-8f3e-3497ce4d498e",
-                "seq": 2,
                 "stationId": "u1",
                 "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000001"
+                "processId": "CNC-000002"
               },
               {
-                "id": "ba42f383-5f73-4a3b-80c8-7a2e57fe45b3",
+                "id": "d5fa7042-0b9b-4d45-86e0-5aaf828deffc",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "85560906-857c-467d-8240-9f928690b28a",
                 "seq": 3,
-                "stationId": "u5",
-                "stationName": "PLEKSI POLISAJ ATOLYESI",
-                "processId": "PLSJ-000001"
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
               },
               {
-                "id": "288234a7-1da7-419d-8bf3-1dc0d38ba27d",
+                "id": "d45b2ee5-b6cf-4389-ab6a-3899d8439318",
                 "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "90364e93-6b61-4e37-9f6a-bb29fdbb864c",
+                "seq": 5,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "3c69325c-007d-4e68-ac15-d54a2e78562b",
+                "seq": 6,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000004"
@@ -1823,27 +1837,27 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "5f93084a-8d20-428f-a721-b8e7ba8ef96e",
+        "sourceId": "3fbd100f-2a15-41f2-bea1-6813b9f16528",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "88fe0f99-b031-4ef4-9196-b91241757b82",
-        "sourceItemName": "2008 bombeli 40 lık dikme pleksi",
-        "sourceItemCode": "PRC-000007",
+        "sourceItemKey": "6978d01f-0fe3-4aa0-9e8f-05fe695445ba",
+        "sourceItemName": "40 lık aluminyum dikme yarıklı tapa",
+        "sourceItemCode": "PRC-000003",
         "sourceItemQty": 5,
-        "created_at": "2026-03-27T12:03:19.372Z",
-        "updated_at": "2026-03-27T12:03:37.645Z"
+        "created_at": "2026-03-27T11:53:06.879Z",
+        "updated_at": "2026-03-27T11:54:26.030Z"
       }
     ],
     "workOrderTransactions": [
       {
-        "id": "0779daa0-587f-4e82-9aa3-2ab05253820f",
-        "workOrderId": "e7ddf172-5046-438f-bff6-b633da76a992",
-        "lineId": "d0ea3e8e-1fa0-4a44-80cd-6da70e82ee03",
-        "stationId": "u2",
+        "id": "dcf787cd-7bf3-4696-b4c4-4acbceb06edf",
+        "workOrderId": "756a4291-5da2-4c8d-bffa-70311cf8ac7e",
+        "lineId": "01d0d713-e688-4678-a0f0-7e57001b6c92",
+        "stationId": "u1",
         "type": "TAKE",
         "qty": 5,
         "note": "Istasyon devir aldi",
         "user": "Demo User",
-        "created_at": "2026-03-27T12:03:37.645Z"
+        "created_at": "2026-03-27T11:54:26.030Z"
       }
     ],
     "outsourceTransfers": [],
@@ -2799,41 +2813,41 @@
     ],
     "planningDemands": [
       {
-        "id": "5f93084a-8d20-428f-a721-b8e7ba8ef96e",
+        "id": "3fbd100f-2a15-41f2-bea1-6813b9f16528",
         "demandCode": "PLN-000001",
         "sourceType": "STOCK",
         "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-27T12:02:56.153Z",
+        "created_at": "2026-03-27T11:52:32.078Z",
         "items": [
           {
-            "id": "88fe0f99-b031-4ef4-9196-b91241757b82",
+            "id": "6978d01f-0fe3-4aa0-9e8f-05fe695445ba",
             "itemType": "COMPONENT",
             "qty": 5,
             "variantId": "",
-            "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+            "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
             "semiFinishedId": "",
             "familyId": "",
             "variantCode": "",
-            "componentCode": "PRC-000007",
+            "componentCode": "PRC-000003",
             "semiFinishedCode": "",
-            "productGroup": "dikme pleksileri",
-            "productName": "2008 bombeli 40 lık dikme pleksi",
-            "productCode": "PRC-000007",
+            "productGroup": "aluminyum dikme aksesuarları",
+            "productName": "40 lık aluminyum dikme yarıklı tapa",
+            "productCode": "PRC-000003",
             "montageCardId": "",
             "montageCardCode": ""
           }
         ],
         "itemType": "COMPONENT",
         "variantId": "",
-        "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+        "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
         "semiFinishedId": "",
         "familyId": "",
         "variantCode": "",
-        "componentCode": "PRC-000007",
+        "componentCode": "PRC-000003",
         "semiFinishedCode": "",
-        "productGroup": "dikme pleksileri",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "productCode": "PRC-000007",
+        "productGroup": "aluminyum dikme aksesuarları",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
+        "productCode": "PRC-000003",
         "montageCardId": "",
         "montageCardCode": "",
         "qty": 5,
@@ -2841,27 +2855,27 @@
         "priority": "NORMAL",
         "note": "",
         "status": "RELEASED",
-        "workOrderId": "e7ddf172-5046-438f-bff6-b633da76a992",
+        "workOrderId": "756a4291-5da2-4c8d-bffa-70311cf8ac7e",
         "workOrderCode": "WO-000001",
         "workOrderIds": [
-          "e7ddf172-5046-438f-bff6-b633da76a992"
+          "756a4291-5da2-4c8d-bffa-70311cf8ac7e"
         ],
         "workOrderCodes": [
           "WO-000001"
         ],
-        "updated_at": "2026-03-27T12:03:19.372Z",
+        "updated_at": "2026-03-27T11:53:06.879Z",
         "poolAnalysis": {
           "rows": [
             {
-              "key": "88fe0f99-b031-4ef4-9196-b91241757b82::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "itemKey": "88fe0f99-b031-4ef4-9196-b91241757b82",
-              "itemName": "2008 bombeli 40 lık dikme pleksi",
-              "itemCode": "PRC-000007",
+              "key": "6978d01f-0fe3-4aa0-9e8f-05fe695445ba::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "6978d01f-0fe3-4aa0-9e8f-05fe695445ba",
+              "itemName": "40 lık aluminyum dikme yarıklı tapa",
+              "itemCode": "PRC-000003",
               "itemQty": 5,
-              "code": "PRC-000007",
-              "name": "2008 bombeli 40 lık dikme pleksi",
+              "code": "PRC-000003",
+              "name": "40 lık aluminyum dikme yarıklı tapa",
               "componentLibrary": "PART",
-              "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
               "requiredQty": 5,
               "useEnabled": false,
               "useStockQty": 0,
@@ -2869,9 +2883,9 @@
               "netQty": 5
             }
           ],
-          "converted_at": "2026-03-27T12:03:19.372Z"
+          "converted_at": "2026-03-27T11:53:06.879Z"
         },
-        "released_at": "2026-03-27T12:03:19.372Z"
+        "released_at": "2026-03-27T11:53:06.879Z"
       }
     ],
     "semiFinishedCards": [

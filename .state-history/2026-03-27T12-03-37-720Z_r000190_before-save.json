@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:03:37.645Z",
+    "updated_at": "2026-03-27T12:03:19.372Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -39,7 +39,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 191
+    "revision": 190
   },
   "data": {
     "products": [
@@ -1830,22 +1830,10 @@
         "sourceItemCode": "PRC-000007",
         "sourceItemQty": 5,
         "created_at": "2026-03-27T12:03:19.372Z",
-        "updated_at": "2026-03-27T12:03:37.645Z"
+        "updated_at": "2026-03-27T12:03:19.372Z"
       }
     ],
-    "workOrderTransactions": [
-      {
-        "id": "0779daa0-587f-4e82-9aa3-2ab05253820f",
-        "workOrderId": "e7ddf172-5046-438f-bff6-b633da76a992",
-        "lineId": "d0ea3e8e-1fa0-4a44-80cd-6da70e82ee03",
-        "stationId": "u2",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T12:03:37.645Z"
-      }
-    ],
+    "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
     "depoRoutes": [],
@@ -2051,7 +2039,7 @@
       {
         "id": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
         "code": "PRC-000005",
-        "name": "aluminyum dikme ay bağlantısı",
+        "name": "aluminyum dikme ay bağlantıs��",
         "group": "aluminyum dikme aksesuarları",
         "subGroup": "P3 Sarı Eloksal",
         "colorType": "eloksal",

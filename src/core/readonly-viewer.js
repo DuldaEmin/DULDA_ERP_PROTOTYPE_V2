@@ -183,7 +183,7 @@ const ReadOnlyViewer = {
         `;
     },
 
-    openComponentModal: (row, libraryTitle = 'Parca / Bilesen') => {
+    openComponentModal: (row, libraryTitle = 'Parca / Bilesen', options = {}) => {
         const files = Array.isArray(row?.attachments) ? row.attachments : [];
         const routes = Array.isArray(row?.routes) ? row.routes : [];
         const html = `
@@ -203,10 +203,11 @@ const ReadOnlyViewer = {
                 ${ReadOnlyViewer.renderFilesCard(files)}
             </div>
         `;
-        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.code || '-')}`, html, { maxWidth: '980px' });
+        const modalOptions = (options?.modalOptions && typeof options.modalOptions === 'object') ? options.modalOptions : {};
+        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.code || '-')}`, html, { maxWidth: '980px', ...modalOptions });
     },
 
-    openModelModal: (row) => {
+    openModelModal: (row, options = {}) => {
         const files = [
             ...(Array.isArray(row?.productFiles) ? row.productFiles : []),
             ...(Array.isArray(row?.explodedFiles) ? row.explodedFiles : [])
@@ -260,10 +261,11 @@ const ReadOnlyViewer = {
                 ${ReadOnlyViewer.renderFilesCard(files)}
             </div>
         `;
-        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.variantCode || '-')}`, html, { maxWidth: '980px' });
+        const modalOptions = (options?.modalOptions && typeof options.modalOptions === 'object') ? options.modalOptions : {};
+        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.variantCode || '-')}`, html, { maxWidth: '980px', ...modalOptions });
     },
 
-    openMasterModal: (row) => {
+    openMasterModal: (row, options = {}) => {
         const attachment = row?.attachment?.data ? [row.attachment] : [];
         const html = `
             <div style="display:grid; gap:0.7rem;">
@@ -279,10 +281,11 @@ const ReadOnlyViewer = {
                 ${ReadOnlyViewer.renderFilesCard(attachment)}
             </div>
         `;
-        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.code || '-')}`, html, { maxWidth: '920px' });
+        const modalOptions = (options?.modalOptions && typeof options.modalOptions === 'object') ? options.modalOptions : {};
+        Modal.open(`ID Detay - ${ReadOnlyViewer.escapeHtml(row?.code || '-')}`, html, { maxWidth: '920px', ...modalOptions });
     },
 
-    openVariantCandidatesModal: (searchedCode, candidates) => {
+    openVariantCandidatesModal: (searchedCode, candidates, options = {}) => {
         const list = Array.isArray(candidates) ? candidates : [];
         if (!list.length) return false;
         const html = `
@@ -293,7 +296,7 @@ const ReadOnlyViewer = {
                 </div>
                 <div style="display:grid; gap:0.45rem; max-height:58vh; overflow:auto;">
                     ${list.map((row) => `
-                        <button class="btn-sm" style="display:flex; justify-content:space-between; align-items:center; gap:0.55rem; width:100%; text-align:left; padding:0.55rem 0.6rem;" onclick="ReadOnlyViewer.openByCode('${ReadOnlyViewer.escapeJsString(row?.variantCode || '')}');">
+                        <button class="btn-sm" style="display:flex; justify-content:space-between; align-items:center; gap:0.55rem; width:100%; text-align:left; padding:0.55rem 0.6rem;" onclick="ReadOnlyViewer.openByCode('${ReadOnlyViewer.escapeJsString(row?.variantCode || '')}', { modalOptions: { closeExisting: true } });">
                             <span style="display:flex; flex-direction:column; gap:0.08rem;">
                                 <span style="font-weight:700; color:#0f172a;">${ReadOnlyViewer.escapeHtml(row?.productName || '-')}</span>
                                 <span style="font-size:0.76rem; color:#64748b;">${ReadOnlyViewer.escapeHtml(row?.productGroup || '-')}</span>
@@ -304,7 +307,8 @@ const ReadOnlyViewer = {
                 </div>
             </div>
         `;
-        Modal.open(`ID Secimi - ${ReadOnlyViewer.escapeHtml(searchedCode)}`, html, { maxWidth: '820px' });
+        const modalOptions = (options?.modalOptions && typeof options.modalOptions === 'object') ? options.modalOptions : {};
+        Modal.open(`ID Secimi - ${ReadOnlyViewer.escapeHtml(searchedCode)}`, html, { maxWidth: '820px', ...modalOptions });
         return true;
     },
 
@@ -323,14 +327,14 @@ const ReadOnlyViewer = {
         const part = (Array.isArray(d.partComponentCards) ? d.partComponentCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
         if (part) {
-            ReadOnlyViewer.openComponentModal(part, 'Parca & Bilesen');
+            ReadOnlyViewer.openComponentModal(part, 'Parca & Bilesen', options);
             return true;
         }
 
         const semi = (Array.isArray(d.semiFinishedCards) ? d.semiFinishedCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
         if (semi) {
-            ReadOnlyViewer.openComponentModal(semi, 'Yari Mamul Kutuphanesi');
+            ReadOnlyViewer.openComponentModal(semi, 'Yari Mamul Kutuphanesi', options);
             return true;
         }
 
@@ -338,24 +342,24 @@ const ReadOnlyViewer = {
         const variant = variants
             .find((row) => ReadOnlyViewer.normalizeCode(row?.variantCode) === code);
         if (variant) {
-            ReadOnlyViewer.openModelModal(variant);
+            ReadOnlyViewer.openModelModal(variant, options);
             return true;
         }
 
         const variantByMontageProductCode = variants
             .filter((row) => ReadOnlyViewer.normalizeCode(row?.montageCard?.productCode) === code);
         if (variantByMontageProductCode.length === 1) {
-            ReadOnlyViewer.openModelModal(variantByMontageProductCode[0]);
+            ReadOnlyViewer.openModelModal(variantByMontageProductCode[0], options);
             return true;
         }
         if (variantByMontageProductCode.length > 1) {
-            return ReadOnlyViewer.openVariantCandidatesModal(code, variantByMontageProductCode);
+            return ReadOnlyViewer.openVariantCandidatesModal(code, variantByMontageProductCode, options);
         }
 
         const master = (Array.isArray(d.products) ? d.products : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code && String(row?.type || '').toUpperCase() === 'MASTER');
         if (master) {
-            ReadOnlyViewer.openMasterModal(master);
+            ReadOnlyViewer.openMasterModal(master, options);
             return true;
         }
 

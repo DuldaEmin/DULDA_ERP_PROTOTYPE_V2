@@ -566,7 +566,7 @@ const PlanningModule = {
         if (typeof ReadOnlyViewer === 'undefined' || !ReadOnlyViewer || typeof ReadOnlyViewer.openByCode !== 'function') {
             return alert('Goruntuleme modulu hazir degil.');
         }
-        ReadOnlyViewer.openByCode(raw);
+        ReadOnlyViewer.openByCode(raw, { modalOptions: { closeExisting: false } });
     },
 
     renderLiveCodeButton: (code) => {
@@ -2271,21 +2271,14 @@ const PlanningModule = {
         };
     },
 
-    renderReleasedOrdersWorkspace: () => {
-        const rows = PlanningModule.getDemands()
-            .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED')
-            .slice()
-            .sort((a, b) => String(b?.released_at || '').localeCompare(String(a?.released_at || '')));
-        const expandedDemandId = String(PlanningModule.state.releasedExpandedDemandId || '');
-
-        const trackingRows = rows.map((demand) => {
-            const groups = PlanningModule.getReleasedDemandItemGroups(demand);
-            const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups);
-            return { demand, groups, statusMeta };
-        });
-        const doneCount = trackingRows.filter((entry) => entry.statusMeta.done).length;
-        const inProgressCount = Math.max(0, trackingRows.length - doneCount);
-        const totalQty = rows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
+    openReleasedDemandTrackingModal: (demandId) => {
+        const demand = PlanningModule.getDemands().find((row) => String(row?.id || '') === String(demandId || ''));
+        if (!demand) return alert('Talep kaydi bulunamadi.');
+        const groups = PlanningModule.getReleasedDemandItemGroups(demand);
+        const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups);
+        const workOrderText = Array.isArray(demand?.workOrderCodes) && demand.workOrderCodes.length
+            ? (demand.workOrderCodes.length > 1 ? `${demand.workOrderCodes[0]} +${demand.workOrderCodes.length - 1}` : demand.workOrderCodes[0])
+            : String(demand?.workOrderCode || '-');
 
         const renderRouteChips = (steps) => {
             if (!Array.isArray(steps) || !steps.length) {
@@ -2305,9 +2298,7 @@ const PlanningModule = {
 
         const renderItemLines = (group) => {
             const lines = Array.isArray(group?.lines) ? group.lines : [];
-            if (!lines.length) {
-                return `<tr><td colspan="8" style="padding:0.75rem; text-align:center; color:#94a3b8;">Bu kalem icin takip satiri bulunamadi.</td></tr>`;
-            }
+            if (!lines.length) return `<tr><td colspan="8" style="padding:0.8rem; text-align:center; color:#94a3b8;">Bu kalem icin takip satiri bulunamadi.</td></tr>`;
             return lines.map((line) => {
                 const statusBadgeStyle = line?.isFinished
                     ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
@@ -2334,6 +2325,79 @@ const PlanningModule = {
             }).join('');
         };
 
+        const groupsHtml = groups.length
+            ? groups.map((group, index) => {
+                const groupStatusStyle = group?.isFinished
+                    ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
+                    : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;';
+                const stationText = group?.isFinished
+                    ? 'Montaji bekliyor'
+                    : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(', ') : 'Istasyon bekliyor');
+                return `
+                    <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:2px solid ${group?.isFinished ? '#86efac' : '#fca5a5'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
+                        <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
+                            <div>
+                                <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(String(group?.itemName || '-'))} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
+                                <div style="margin-top:0.12rem; font-size:0.74rem; color:#1d4ed8; font-family:monospace;">${PlanningModule.renderLiveCodeButton(String(group?.itemCode || ''))} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
+                            </div>
+                            <span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${groupStatusStyle}">${group?.isFinished ? 'Bitti' : 'Bitmedi'}</span>
+                        </div>
+                        <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Su anki birim: <strong style="color:${group?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong></div>
+                        <div style="padding:0 0.7rem 0.75rem 0.7rem;">
+                            <div class="card-table" style="margin-top:0.25rem;">
+                                <table style="width:100%; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                            <th style="padding:0.5rem; text-align:left;">Is emri</th>
+                                            <th style="padding:0.5rem; text-align:left;">Parca / unsur</th>
+                                            <th style="padding:0.5rem; text-align:center;">Gereken</th>
+                                            <th style="padding:0.5rem; text-align:center;">Biten</th>
+                                            <th style="padding:0.5rem; text-align:center;">Kalan</th>
+                                            <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                            <th style="padding:0.5rem; text-align:left;">Su anki birim</th>
+                                            <th style="padding:0.5rem; text-align:left;">Rota yolculugu</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${renderItemLines(group)}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('')
+            : `<div style="margin-top:0.65rem; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.75rem; color:#94a3b8;">Bu talep icin takip satiri bulunamadi.</div>`;
+
+        const html = `
+            <div style="display:grid; gap:0.8rem;">
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Talep</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(demand?.qty || 0))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Is emri</div><div style="font-family:monospace; font-weight:800; color:#1e40af;">${PlanningModule.escapeHtml(workOrderText)}</div></div>
+                </div>
+                ${groupsHtml}
+                <div style="display:flex; justify-content:flex-end;">
+                    <button class="btn-sm" onclick="Modal.close()" style="min-width:96px;">kapat</button>
+                </div>
+            </div>
+        `;
+        Modal.open(`Durum Goruntule - ${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}`, html, { maxWidth: '1580px' });
+    },
+
+    renderReleasedOrdersWorkspace: () => {
+        const rows = PlanningModule.getDemands()
+            .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED')
+            .slice()
+            .sort((a, b) => String(b?.released_at || '').localeCompare(String(a?.released_at || '')));
+        const trackingRows = rows.map((demand) => {
+            const groups = PlanningModule.getReleasedDemandItemGroups(demand);
+            const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups);
+            return { demand, groups, statusMeta };
+        });
+        const doneCount = trackingRows.filter((entry) => entry.statusMeta.done).length;
+        const inProgressCount = Math.max(0, trackingRows.length - doneCount);
+        const totalQty = rows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
+
         const renderTrackingRows = () => {
             if (!trackingRows.length) {
                 return `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Henuz planlamadan is emrine donusen kayit yok.</td></tr>`;
@@ -2343,79 +2407,15 @@ const PlanningModule = {
                 const demandId = String(demand?.id || '');
                 const groups = entry.groups;
                 const statusMeta = entry.statusMeta;
-                const isExpanded = expandedDemandId === demandId;
                 const workOrderText = Array.isArray(demand?.workOrderCodes) && demand.workOrderCodes.length
                     ? (demand.workOrderCodes.length > 1 ? `${demand.workOrderCodes[0]} +${demand.workOrderCodes.length - 1}` : demand.workOrderCodes[0])
                     : String(demand?.workOrderCode || '-');
-                const groupStateMap = (PlanningModule.state.releasedExpandedItemByDemand && typeof PlanningModule.state.releasedExpandedItemByDemand[demandId] === 'object')
-                    ? PlanningModule.state.releasedExpandedItemByDemand[demandId]
-                    : {};
-
-                const groupSectionsHtml = groups.length
-                    ? groups.map((group, index) => {
-                        const itemKey = String(group?.itemKey || `item-${index + 1}`);
-                        const isItemExpanded = !!groupStateMap[itemKey];
-                        const groupStatusStyle = group?.isFinished
-                            ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
-                            : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;';
-                        const stationText = group?.isFinished
-                            ? 'Montaji bekliyor'
-                            : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(', ') : 'Istasyon bekliyor');
-                        return `
-                            <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:3px solid ${group?.isFinished ? '#4ade80' : '#f87171'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
-                                <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:2px solid #d1d5db;">
-                                    <div>
-                                        <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(String(group?.itemName || '-'))} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
-                                        <div style="margin-top:0.12rem; font-size:0.74rem; color:#1d4ed8; font-family:monospace;">${PlanningModule.renderLiveCodeButton(String(group?.itemCode || ''))} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
-                                    </div>
-                                    <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap; justify-content:flex-end;">
-                                        <span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${groupStatusStyle}">${group?.isFinished ? 'Bitti' : 'Bitmedi'}</span>
-                                        <button class="btn-sm" onclick="PlanningModule.toggleReleasedItemExpand('${PlanningModule.escapeJsString(demandId)}','${PlanningModule.escapeJsString(itemKey)}')" style="${isItemExpanded ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">${isItemExpanded ? 'kapat' : 'detay'}</button>
-                                    </div>
-                                </div>
-                                <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Su anki birim: <strong style="color:${group?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong></div>
-                                ${isItemExpanded ? `
-                                    <div style="padding:0 0.7rem 0.75rem 0.7rem;">
-                                        <div class="card-table" style="margin-top:0.25rem;">
-                                            <table style="width:100%; border-collapse:collapse;">
-                                                <thead>
-                                                    <tr style="border-bottom:2px solid #cbd5e1; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                                        <th style="padding:0.5rem; text-align:left;">Is emri</th>
-                                                        <th style="padding:0.5rem; text-align:left;">Parca / unsur</th>
-                                                        <th style="padding:0.5rem; text-align:center;">Gereken</th>
-                                                        <th style="padding:0.5rem; text-align:center;">Biten</th>
-                                                        <th style="padding:0.5rem; text-align:center;">Kalan</th>
-                                                        <th style="padding:0.5rem; text-align:left;">Durum</th>
-                                                        <th style="padding:0.5rem; text-align:left;">Su anki birim</th>
-                                                        <th style="padding:0.5rem; text-align:left;">Rota yolculugu</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>${renderItemLines(group)}</tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `;
-                    }).join('')
-                    : `<div style="margin-top:0.65rem; border:2px solid #cbd5e1; border-radius:0.65rem; padding:0.75rem; color:#94a3b8;">Bu talep icin takip satiri bulunamadi.</div>`;
-
-                const expandedHtml = !isExpanded ? '' : `
-                    <tr style="background:#f8fbff;">
-                        <td colspan="7" style="padding:0.85rem 0.9rem 1rem 0.9rem;">
-                            <div style="border:2px solid #93c5fd; border-radius:0.95rem; background:#ffffff; padding:0.85rem;">
-                                <div style="font-weight:800; color:#1e3a8a;">Talep Takip Detayi - ${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div>
-                                <div style="font-size:0.76rem; color:#64748b; margin-top:0.2rem;">Kalem bazli acilir yapi: biten kalem yesil, devam eden kalem kirmizi gorunur. Rota adimlari pasif / aktif / siradaki olarak izlenir.</div>
-                                ${groupSectionsHtml}
-                            </div>
-                        </td>
-                    </tr>
-                `;
+                const lineCount = groups.reduce((sum, group) => sum + (Array.isArray(group?.lines) ? group.lines.length : 0), 0);
 
                 return `
                     <tr style="border-bottom:2px solid #cbd5e1; background:${statusMeta.done ? '#f8fffb' : '#fffef8'};">
                         <td style="padding:0.6rem;">
-                            <div><button class="btn-sm" style="padding:0.12rem 0.5rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;" onclick="PlanningModule.openDemandView('${PlanningModule.escapeJsString(demandId)}')">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</button></div>
+                            <div><button class="btn-sm" style="padding:0.12rem 0.5rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;" onclick="PlanningModule.openReleasedDemandTrackingModal('${PlanningModule.escapeJsString(demandId)}')">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</button></div>
                             <div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(String(demand?.sourceLabel || 'Stok Uretimi'))}</div>
                         </td>
                         <td style="padding:0.6rem;">
@@ -2426,9 +2426,13 @@ const PlanningModule = {
                         <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(String(demand?.dueDate || '-'))}</div><div style="margin-top:0.2rem;">${PlanningModule.renderPriorityBadge(demand?.priority || 'NORMAL')}</div></td>
                         <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span></td>
                         <td style="padding:0.6rem; font-family:monospace; color:#1e40af; font-weight:700;">${PlanningModule.escapeHtml(workOrderText)}</td>
-                        <td style="padding:0.6rem; text-align:right;"><button class="btn-sm" onclick="PlanningModule.toggleReleasedDemandExpand('${PlanningModule.escapeJsString(demandId)}')" style="${isExpanded ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">${isExpanded ? 'kapat' : 'durumu goruntule'}</button></td>
+                        <td style="padding:0.6rem; text-align:right;">
+                            <div style="display:inline-flex; flex-direction:column; align-items:flex-end; gap:0.25rem;">
+                                <button class="btn-sm" onclick="PlanningModule.openReleasedDemandTrackingModal('${PlanningModule.escapeJsString(demandId)}')">durumu goruntule</button>
+                                <span style="font-size:0.72rem; color:#64748b;">${PlanningModule.escapeHtml(String(lineCount))} satir</span>
+                            </div>
+                        </td>
                     </tr>
-                    ${expandedHtml}
                 `;
             }).join('');
         };

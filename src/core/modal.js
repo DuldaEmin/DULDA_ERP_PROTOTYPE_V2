@@ -1,6 +1,7 @@
 const Modal = {
     open: (title, html, options = {}) => {
-        Modal.close();
+        const closeExisting = options.closeExisting !== false;
+        if (closeExisting) Modal.close({ all: true });
         const maxWidth = options.maxWidth || '450px';
         const showHeader = options.showHeader !== false;
 
@@ -25,8 +26,15 @@ const Modal = {
             window.MojibakeFix.sanitizeTree(overlay);
         }
     },
-    close: () => {
-        document.querySelectorAll('.modal-overlay').forEach(node => node.remove());
+    close: (options = {}) => {
+        const all = !!options?.all;
+        const overlays = Array.from(document.querySelectorAll('.modal-overlay'));
+        if (!overlays.length) return;
+        if (all) {
+            overlays.forEach((node) => node.remove());
+            return;
+        }
+        overlays[overlays.length - 1].remove();
     }
 };
 

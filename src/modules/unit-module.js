@@ -343,13 +343,35 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     openWorkOrderPlanning: (id) => {
-        UnitModule.state.activeUnitId = id || null;
-        UnitModule.state.view = 'workOrderPlanning';
-        UnitModule.state.workOrderFormOpen = false;
-        UnitModule.state.workOrderTab = 'AKTIF';
-        if (!UnitModule.state.workOrderDraftLotQty) UnitModule.state.workOrderDraftLotQty = '100';
-        if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
-        UI.renderCurrentPage();
+        try {
+            UnitModule.state.activeUnitId = id || null;
+            UnitModule.state.view = 'workOrderPlanning';
+            UnitModule.state.workOrderFormOpen = false;
+            const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
+            const hasActive = rows.some(row => Number(row?.takenQty || 0) > 0 && Number(row?.remainingQty || 0) > 0);
+            const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
+            const hasPool = rows.some(row => Number(row?.remainingQty || 0) > 0);
+            const hasArchive = rows.some(row => Number(row?.metrics?.doneQty || 0) > 0);
+            if (hasActive) {
+                UnitModule.state.workOrderTab = 'AKTIF';
+            } else if (hasWaiting) {
+                UnitModule.state.workOrderTab = 'BEKLEYEN';
+            } else if (hasPool) {
+                UnitModule.state.workOrderTab = 'HAVUZ';
+            } else if (hasArchive) {
+                UnitModule.state.workOrderTab = 'ARSIV';
+            } else {
+                UnitModule.state.workOrderTab = 'AKTIF';
+            }
+            if (!UnitModule.state.workOrderDraftLotQty) UnitModule.state.workOrderDraftLotQty = '100';
+            if (!UnitModule.state.workOrderDraftPriority) UnitModule.state.workOrderDraftPriority = 'NORMAL';
+            UI.renderCurrentPage();
+        } catch (error) {
+            console.error('Is emri planlama ekrani acilamadi:', error);
+            alert('Is emri planlama ekrani acilamadi. Lutfen sayfayi yenileyip tekrar deneyin.');
+            UnitModule.state.view = 'dashboard';
+            UI.renderCurrentPage();
+        }
     },
     handleLibraryBack: (unitId) => {
         const returnContext = UnitModule.state.libraryReturnContext;
@@ -1410,7 +1432,7 @@ const UnitModule = {
                         <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
                         <div class="app-name">Birim Deposu</div>
                     </a>
-                    <a href="#" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
+                    <a href="javascript:void(0)" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
                         <div class="icon-box g-blue"><i data-lucide="clipboard-list" width="40" height="40"></i></div>
                         <div class="app-name">Is Emri Planlama</div>
                     </a>
@@ -1436,7 +1458,7 @@ const UnitModule = {
                     <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
                     <div class="app-name">Birim Deposu</div>
                 </a>
-                <a href="#" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
+                <a href="javascript:void(0)" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
                     <div class="icon-box g-blue"><i data-lucide="clipboard-list" width="40" height="40"></i></div>
                     <div class="app-name">Is Emri Planlama</div>
                 </a>
@@ -2282,6 +2304,19 @@ const UnitModule = {
                 .map(r => String(r?.metrics?.processId || '').trim().toUpperCase())
                 .filter(Boolean)
         )).sort((a, b) => a.localeCompare(b, 'tr'));
+        const todayIso = new Date().toISOString().slice(0, 10);
+        const getTodayDoneQty = (row) => {
+            if (!row || !row.order || !row.line || !row.metrics) return 0;
+            return txns.reduce((sum, txn) => {
+                if (String(txn?.workOrderId || '') !== String(row.order?.id || '')) return sum;
+                if (String(txn?.lineId || '') !== String(row.line?.id || '')) return sum;
+                if (String(txn?.stationId || '') !== String(row.metrics?.stationId || '')) return sum;
+                if (String(txn?.type || '').toUpperCase() !== 'COMPLETE') return sum;
+                const txnDay = String(txn?.created_at || '').slice(0, 10);
+                if (txnDay !== todayIso) return sum;
+                return sum + Number(txn?.qty || 0);
+            }, 0);
+        };
         const workOrderToolbarShellStyle = 'position:sticky; top:84px; z-index:24; background:rgba(255,255,255,0.98); border:1px solid #cfd8e3; border-radius:1rem; padding:0.82rem 0.9rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; box-shadow:0 10px 22px rgba(15,23,42,0.08);';
         const workOrderToolbarTabsStyle = 'display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;';
         const workOrderToolbarSearchStyle = 'min-width:320px; height:44px; border:1.5px solid #cbd5e1; border-radius:0.75rem; padding:0.62rem 0.8rem; font-weight:700; background:#f8fafc; color:#0f172a;';

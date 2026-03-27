@@ -2074,7 +2074,7 @@ const UnitModule = {
         const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
         if (!metrics || metrics.availableQty <= 0) return alert('Alinabilir miktar yok.');
         const suggested = Math.max(1, Math.floor(metrics.availableQty));
-        const raw = prompt('Kac adet alinsin?', String(suggested));
+        const raw = prompt(`Kac adet alinsin? (Varsayilan: ${suggested})`, String(suggested));
         if (raw === null) return;
         const qty = Number(raw);
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
@@ -2708,11 +2708,9 @@ const UnitModule = {
                                     const todayDoneQty = getTodayDoneQty(r);
                                     const isWaitingTab = tab === 'BEKLEYEN';
                                     const isActiveTab = tab === 'AKTIF';
-                                    const isPoolTab = tab === 'HAVUZ';
-                                    const isArchiveTab = tab === 'ARSIV';
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
-                                    const showPlanAction = !isArchiveTab && !isPoolTab;
+                                    const showPlanAction = isActiveTab;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
@@ -2793,7 +2791,7 @@ const UnitModule = {
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}')">Goruntule</button>
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
-                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button><button class="btn-sm" onclick="UnitModule.takeAllWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#93c5fd; color:#1e3a8a; background:#dbeafe;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamini al</button>` : ''}
+                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
                                                 </div>
                                                 ${completeActionBlock}
                                             </td>

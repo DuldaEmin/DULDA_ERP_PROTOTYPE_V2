@@ -2143,16 +2143,26 @@ const UnitModule = {
         if (!order) return;
         const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
         if (!line) return;
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        const routeIdx = routes.findIndex((r) => String(r?.stationId || '') === String(stationId || ''));
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
         if (!metrics) return;
         const targetQty = Math.max(0, Number(line?.targetQty || 0));
         const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
-        const canTake = Number(metrics?.availableQty || 0) > 0;
-        const canComplete = Number(metrics?.inProcessQty || 0) > 0;
         const plan = (line.plans && typeof line.plans === 'object') ? (line.plans[String(stationId || '')] || null) : null;
         const processCode = String(metrics?.processId || '').trim().toUpperCase();
         const priorityMeta = UnitModule.getWorkOrderPriorityMeta(order?.priority);
+        const prevRoute = routeIdx > 0 ? routes[routeIdx - 1] : null;
+        const nextRoute = routeIdx >= 0 && routeIdx < routes.length - 1 ? routes[routeIdx + 1] : null;
+        const fromStationName = prevRoute
+            ? String(UnitModule.getRouteStationName(prevRoute.stationId) || prevRoute.stationName || prevRoute.stationId || '-')
+            : 'Baslangic (ilk istasyon)';
+        const toStationName = nextRoute
+            ? String(UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
+            : 'Son adim (depo/sevk asamasi)';
+        const transferPendingQty = Math.max(0, Number(metrics?.transferPendingQty || 0));
+        const showTransferFollowup = !!nextRoute && transferPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
         Modal.open(`Is Emri Detay - ${UnitModule.escapeHtml(order?.workOrderCode || '-')}`, `
             <div style="display:flex; flex-direction:column; gap:0.75rem;">
                 <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
@@ -2172,6 +2182,16 @@ const UnitModule = {
                         <span style="display:inline-block; margin-top:0.25rem; border-radius:999px; padding:0.1rem 0.48rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span>
                     </div>
                 </div>
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.5rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Nereden geldi</div>
+                        <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(fromStationName)}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Nereye gidecek</div>
+                        <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(toStationName)}</div>
+                    </div>
+                </div>
                 <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0.5rem;">
                     <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Planlanan</div><div style="font-size:1rem; font-weight:800; color:#0f172a;">${targetQty}</div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Teslim alinan</div><div style="font-size:1rem; font-weight:800; color:#334155;">${Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0)}</div></div>
@@ -2179,15 +2199,17 @@ const UnitModule = {
                     <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Kalan</div><div style="font-size:1rem; font-weight:800; color:#b45309;">${remainingQty}</div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Alinabilir</div><div style="font-size:1rem; font-weight:800; color:#1d4ed8;">${Number(metrics?.availableQty || 0)}</div></div>
                 </div>
+                ${showTransferFollowup ? `
+                    <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.55rem; padding:0.55rem; font-size:0.82rem; color:#991b1b; font-weight:700;">
+                        Uyari: Sonraki birim henuz teslim almadi.
+                    </div>
+                ` : ''}
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.55rem; font-size:0.78rem; color:#475569;">
                     Plan: ${plan ? `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}` : '-'}
                 </div>
                 <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderComponentPreview('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Parca kutuphanesi</button>
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderProcessPreviewForLine('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Islem kutuphanesi</button>
-                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderPlanModal('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Planla</button>
-                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.takeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Aldim</button>
-                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.completeWorkOrderQty('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamlanan Adedi Gir</button>
                 </div>
             </div>
         `, { maxWidth: '1080px' });

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T12:48:08.277Z",
+    "updated_at": "2026-03-27T12:44:33.792Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 218
+    "revision": 214
   },
   "data": {
     "products": [
@@ -2354,16 +2354,7 @@
                 "processId": "DTR-000006"
               }
             ],
-            "plans": {
-              "u7": {
-                "queueOrder": 0,
-                "targetDate": "",
-                "machine": "",
-                "personnel": "",
-                "note": "hgjf",
-                "updatedAt": "2026-03-27T12:46:53.305Z"
-              }
-            }
+            "plans": {}
           }
         ],
         "createdByUnitId": "",
@@ -2375,33 +2366,10 @@
         "sourceItemCode": "PRC-000013",
         "sourceItemQty": 5,
         "created_at": "2026-03-27T12:44:33.792Z",
-        "updated_at": "2026-03-27T12:48:08.277Z"
+        "updated_at": "2026-03-27T12:44:33.792Z"
       }
     ],
-    "workOrderTransactions": [
-      {
-        "id": "902ecb38-ccc1-4d93-8c16-4f64c3718755",
-        "workOrderId": "00edcec7-9502-4626-bb13-6f54942b0586",
-        "lineId": "22a3342b-f644-463d-8de4-7befdd1d10ac",
-        "stationId": "u7",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T12:46:46.287Z"
-      },
-      {
-        "id": "0a6c0b37-9553-48cd-8400-6e826d15b09d",
-        "workOrderId": "00edcec7-9502-4626-bb13-6f54942b0586",
-        "lineId": "22a3342b-f644-463d-8de4-7befdd1d10ac",
-        "stationId": "u7",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-27T12:48:08.277Z"
-      }
-    ],
+    "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
     "depoRoutes": [],

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T13:46:29.253Z",
+    "updated_at": "2026-03-27T13:45:36.914Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 228
+    "revision": 226
   },
   "data": {
     "products": [
@@ -2282,93 +2282,7 @@
         "updated_at": "2026-03-27T12:36:52.066Z"
       }
     ],
-    "workOrders": [
-      {
-        "id": "8faa8b8f-9ac6-465c-97ae-e3cf3e12553a",
-        "workOrderCode": "WO-000001",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000013",
-        "productName": "kurt ağzı",
-        "lotQty": 10,
-        "dueDate": "2026-03-30",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "e36b9d79-f632-40df-b5b9-dc9a5cd86af4",
-            "lineCode": "WO-000001-01",
-            "componentCode": "PRC-000013",
-            "componentName": "kurt ağzı",
-            "multiplier": 1,
-            "targetQty": 10,
-            "routes": [
-              {
-                "id": "50f3e69b-8f4e-4beb-9e7b-acfd0d87db56",
-                "seq": 1,
-                "stationId": "u7",
-                "stationName": "TESTERE ATOLYESI",
-                "processId": "TST-000005"
-              },
-              {
-                "id": "35902483-468a-4e7c-b394-16f76f8be8c0",
-                "seq": 2,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000002"
-              },
-              {
-                "id": "99275645-1463-44bf-a81e-63fd24ff79c9",
-                "seq": 3,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000001"
-              },
-              {
-                "id": "20dd5b46-cf2a-4113-b23f-970c4e851616",
-                "seq": 4,
-                "stationId": "u10",
-                "stationName": "IBRAHIM POLISAJ",
-                "processId": "IPS-000001"
-              },
-              {
-                "id": "bb9047fb-154b-41cd-b16f-922c820ed4b1",
-                "seq": 5,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000002"
-              },
-              {
-                "id": "2e78e917-972c-4a23-a03e-25198b4774af",
-                "seq": 6,
-                "stationId": "u11",
-                "stationName": "TEKIN ELOKSAL",
-                "processId": "ELX-000001"
-              },
-              {
-                "id": "65429bee-7d26-4eec-9281-33f76760c70b",
-                "seq": 7,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000006"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "e5e4eee3-559f-4e00-8a2a-c2fa118321df",
-        "sourceCode": "PLN-000001",
-        "sourceItemKey": "9346311e-fc79-49b0-b0d4-3ff3a6f6108a",
-        "sourceItemName": "kurt ağzı",
-        "sourceItemCode": "PRC-000013",
-        "sourceItemQty": 10,
-        "created_at": "2026-03-27T13:46:29.253Z",
-        "updated_at": "2026-03-27T13:46:29.253Z"
-      }
-    ],
+    "workOrders": [],
     "workOrderTransactions": [],
     "outsourceTransfers": [],
     "depoTransferLogs": [],
@@ -3399,83 +3313,7 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [
-      {
-        "id": "e5e4eee3-559f-4e00-8a2a-c2fa118321df",
-        "demandCode": "PLN-000001",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-27T13:46:11.604Z",
-        "items": [
-          {
-            "id": "9346311e-fc79-49b0-b0d4-3ff3a6f6108a",
-            "itemType": "COMPONENT",
-            "qty": 10,
-            "variantId": "",
-            "componentId": "c01c0d08-4529-4d00-9f95-8ffe4dd89d6e",
-            "semiFinishedId": "",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "PRC-000013",
-            "semiFinishedCode": "",
-            "productGroup": "aluminyum baba aksesuarları",
-            "productName": "kurt ağzı",
-            "productCode": "PRC-000013",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "itemType": "COMPONENT",
-        "variantId": "",
-        "componentId": "c01c0d08-4529-4d00-9f95-8ffe4dd89d6e",
-        "semiFinishedId": "",
-        "familyId": "",
-        "variantCode": "",
-        "componentCode": "PRC-000013",
-        "semiFinishedCode": "",
-        "productGroup": "aluminyum baba aksesuarları",
-        "productName": "kurt ağzı",
-        "productCode": "PRC-000013",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "qty": 10,
-        "dueDate": "2026-03-30",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "workOrderId": "8faa8b8f-9ac6-465c-97ae-e3cf3e12553a",
-        "workOrderCode": "WO-000001",
-        "workOrderIds": [
-          "8faa8b8f-9ac6-465c-97ae-e3cf3e12553a"
-        ],
-        "workOrderCodes": [
-          "WO-000001"
-        ],
-        "updated_at": "2026-03-27T13:46:29.253Z",
-        "poolAnalysis": {
-          "rows": [
-            {
-              "key": "9346311e-fc79-49b0-b0d4-3ff3a6f6108a::PART:c01c0d08-4529-4d00-9f95-8ffe4dd89d6e",
-              "itemKey": "9346311e-fc79-49b0-b0d4-3ff3a6f6108a",
-              "itemName": "kurt ağzı",
-              "itemCode": "PRC-000013",
-              "itemQty": 10,
-              "code": "PRC-000013",
-              "name": "kurt ağzı",
-              "componentLibrary": "PART",
-              "componentId": "c01c0d08-4529-4d00-9f95-8ffe4dd89d6e",
-              "requiredQty": 10,
-              "useEnabled": false,
-              "useStockQty": 0,
-              "useSemiQty": 0,
-              "netQty": 10
-            }
-          ],
-          "converted_at": "2026-03-27T13:46:29.253Z"
-        },
-        "released_at": "2026-03-27T13:46:29.253Z"
-      }
-    ],
+    "planningDemands": [],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

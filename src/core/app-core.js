@@ -302,6 +302,32 @@ const DB = {
         ? globalThis.crypto.randomUUID()
         : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
 
+    mirrorStateToLocalStorage: (state = DB.data) => {
+        let mirrored = true;
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (error) {
+            mirrored = false;
+            console.warn("Disk save succeeded, but browser mirror could not be updated.", error);
+        }
+        try {
+            localStorage.removeItem(CONFLICT_DRAFT_KEY);
+        } catch (error) {
+            console.warn("Could not clear local conflict draft key.", error);
+        }
+        return mirrored;
+    },
+
+    storeConflictDraft: (snapshot) => {
+        try {
+            localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
+            return true;
+        } catch (error) {
+            console.error("Could not write local recovery draft.", error);
+            return false;
+        }
+    },
+
     normalizeData: () => {
         if (!DB.data || typeof DB.data !== "object") {
             DB.data = { schema_version: 1, meta: {}, data: {} };
@@ -490,9 +516,8 @@ const DB = {
         }
         DB.data = latestSnapshot;
         DB.storageMode = "disk";
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
-        localStorage.removeItem(CONFLICT_DRAFT_KEY);
-        UI.updateStatus("🟢 Otomatik Kayit");
+        const mirrored = DB.mirrorStateToLocalStorage(DB.data);
+        UI.updateStatus(mirrored ? "🟢 Otomatik Kayit" : "🟢 Otomatik Kayit (Yerel yedek sinirli)");
         console.warn("Save conflict auto-resolved with latest snapshot.");
         return result;
     },
@@ -520,30 +545,30 @@ const DB = {
                     }
                     DB.storageMode = "disk";
                     // Keep local copy as backup mirror of the accepted disk state.
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB.data));
-                    localStorage.removeItem(CONFLICT_DRAFT_KEY);
-                    UI.updateStatus("🟢 Dosyaya Otomatik Kayıt");
+                    const mirrored = DB.mirrorStateToLocalStorage(DB.data);
+                    UI.updateStatus(mirrored ? "🟢 Dosyaya Otomatik Kayıt" : "🟢 Dosyaya Otomatik Kayıt (Tarayici yedegi sinirli)");
                     console.log("Data saved to demo_state.json");
                 } catch (diskError) {
                     if (diskError?.code === "save_conflict") {
                         try {
                             await DB.resolveConflictAndSaveLatest(snapshot, diskError?.payload || null);
                         } catch (retryError) {
-                            try {
-                                localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
-                            } catch (_) { }
-                            UI.updateStatus("🟠 Kayit cakismasi - veri korunuyor");
+                            const draftSaved = DB.storeConflictDraft(snapshot);
+                            UI.updateStatus(draftSaved ? "🟠 Kayit cakismasi - veri korunuyor" : "🔴 Kayit cakismasi - yedek alinamadi");
                             console.warn("Save conflict could not be auto-resolved.", retryError);
-                            alert("Kayit cakismasi otomatik cozulmedi. Lutfen sayfayi yenileyin.");
+                            alert(draftSaved
+                                ? "Kayit cakismasi otomatik cozulmedi. Lutfen sayfayi yenileyin."
+                                : "Kayit cakismasi ve yedekleme basarisiz. Lutfen sayfayi yenileyin.");
                         }
                     } else {
-                        try {
-                            localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
+                        const draftSaved = DB.storeConflictDraft(snapshot);
+                        if (draftSaved) {
                             UI.updateStatus("🟡 Gecici yedek alindi");
                             console.warn("Disk save failed, stored local recovery draft.", diskError);
-                        } catch (e) {
-                            console.error("Save failed", e);
-                            alert("Kayıt başarısız. Lütfen tekrar deneyin.");
+                        } else {
+                            UI.updateStatus("🔴 Disk kaydi ve yerel yedek basarisiz");
+                            console.error("Save failed", diskError);
+                            alert("Kayit basarisiz. Lutfen tekrar deneyin.");
                         }
                     }
                 }

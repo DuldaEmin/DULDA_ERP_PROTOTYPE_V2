@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-27T15:52:44.979Z",
+    "updated_at": "2026-03-27T15:51:04.094Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 252
+    "revision": 251
   },
   "data": {
     "products": [
@@ -3111,8 +3111,7 @@
           "id": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
           "code": "VID0001",
           "name": "6x8 havşa baş inbus vida paslanmaz",
-          "categoryName": "Hırdavat & Vida",
-          "qty": 1
+          "categoryName": "Hırdavat & Vida"
         },
         "items": [
           {
@@ -3120,56 +3119,49 @@
             "source": "component",
             "refId": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
             "code": "PRC-000005",
-            "name": "aluminyum dikme ay bağlantısı",
-            "qty": 1
+            "name": "aluminyum dikme ay bağlantısı"
           },
           {
             "id": "09ff0c3a-c6ab-41ab-857e-cb8825c7d3b5",
             "source": "component",
             "refId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
             "code": "PRC-000003",
-            "name": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 1
+            "name": "40 lık aluminyum dikme yarıklı tapa"
           },
           {
             "id": "44ecf257-04de-4345-b5b5-b5880f6c5103",
             "source": "component",
             "refId": "0f95fb28-d22f-475a-8b68-d6a054c7189a",
             "code": "PRC-000001",
-            "name": "aluminyum dikme üst boru",
-            "qty": 1
+            "name": "aluminyum dikme üst boru"
           },
           {
             "id": "8cd93837-58f4-4b0d-a7e1-37f90b3550b8",
             "source": "component",
             "refId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
             "code": "PRC-000007",
-            "name": "2008 bombeli 40 lık dikme pleksi",
-            "qty": 1
+            "name": "2008 bombeli 40 lık dikme pleksi"
           },
           {
             "id": "b16f9e52-a08e-4cab-8765-5c08bf35a6d7",
             "source": "component",
             "refId": "3f3c7192-6721-4c58-af07-785b8edf3013",
             "code": "PRC-000006",
-            "name": "aluminyum dikme yüzüğü",
-            "qty": 2
+            "name": "aluminyum dikme yüzüğü"
           },
           {
             "id": "7ca21c47-f72b-4e43-8157-78bf1a8e909d",
             "source": "component",
             "refId": "1114c5b3-58c4-4a53-8c13-1ab6dd378ed1",
             "code": "PRC-000002",
-            "name": "aluminyum dikme alt borusu",
-            "qty": 1
+            "name": "aluminyum dikme alt borusu"
           },
           {
             "id": "a08ef636-71fd-498f-b74b-106444ddc985",
             "source": "component",
             "refId": "b720dffa-db74-4422-b198-419d2b9aa8ce",
             "code": "PRC-000008",
-            "name": "40 lık aluminyum dikme flanşı",
-            "qty": 1
+            "name": "40 lık aluminyum dikme flanşı"
           }
         ],
         "montageCard": {
@@ -3213,15 +3205,14 @@
         ],
         "note": "deneme",
         "created_at": "2026-03-13T15:07:00.000Z",
-        "updated_at": "2026-03-27T15:52:44.979Z",
+        "updated_at": "2026-03-16T15:29:30.012Z",
         "masterRefs": [
           {
             "rowId": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
             "id": "5fdaafc2-cb5d-44ce-b95f-a8317486841e",
             "code": "VID0001",
             "name": "6x8 havşa baş inbus vida paslanmaz",
-            "categoryName": "Hırdavat & Vida",
-            "qty": 1
+            "categoryName": "Hırdavat & Vida"
           }
         ]
       },

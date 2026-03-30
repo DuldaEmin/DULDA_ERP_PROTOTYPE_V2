@@ -94,6 +94,7 @@ const UnitModule = {
         workOrderSearch: '',
         workOrderPlanningUnitId: '',
         workOrderTransferTarget: '',
+        workOrderDispatchListTarget: '',
         workOrderDispatchRows: {},
         workOrderDispatchQtyByRow: {},
         workOrderStatsRange: 'WEEK',
@@ -352,6 +353,7 @@ const UnitModule = {
             UnitModule.state.view = 'workOrderPlanning';
             UnitModule.state.workOrderFormOpen = false;
             UnitModule.state.workOrderTransferTarget = '';
+            UnitModule.state.workOrderDispatchListTarget = '';
             UnitModule.state.workOrderDispatchRows = {};
             UnitModule.state.workOrderDispatchQtyByRow = {};
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
@@ -1735,7 +1737,7 @@ const UnitModule = {
     },
     setWorkOrderTab: (tab) => {
         const normalized = String(tab || 'AKTIF').toUpperCase();
-        const validTabs = ['AKTIF', 'BEKLEYEN', 'HAVUZ', 'ISTATISTIK', 'ARSIV'];
+        const validTabs = ['AKTIF', 'BEKLEYEN', 'HAVUZ', 'ISTATISTIK', 'ARSIV', 'FASON'];
         UnitModule.state.workOrderTab = validTabs.includes(normalized) ? normalized : 'AKTIF';
         UI.renderCurrentPage();
     },
@@ -1748,6 +1750,113 @@ const UnitModule = {
         UnitModule.state.workOrderDispatchRows = {};
         UnitModule.state.workOrderDispatchQtyByRow = {};
         UI.renderCurrentPage();
+    },
+    setWorkOrderDispatchListTarget: (value) => {
+        UnitModule.state.workOrderDispatchListTarget = String(value || '').trim();
+        UI.renderCurrentPage();
+    },
+    getWorkOrderDispatchStatusMeta: (statusRaw) => {
+        const status = String(statusRaw || 'HAZIRLANDI').trim().toUpperCase();
+        if (status === 'TESLIM_EDILDI') {
+            return { label: 'Teslim edildi', style: 'background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe;' };
+        }
+        if (status === 'DIS_BIRIMDE') {
+            return { label: 'Dis birimde', style: 'background:#ede9fe; color:#5b21b6; border:1px solid #ddd6fe;' };
+        }
+        if (status === 'GERI_GELDI') {
+            return { label: 'Geri geldi', style: 'background:#fef3c7; color:#92400e; border:1px solid #fde68a;' };
+        }
+        if (status === 'DEPOYA_ALINDI') {
+            return { label: 'Depoya alindi', style: 'background:#dcfce7; color:#166534; border:1px solid #bbf7d0;' };
+        }
+        return { label: 'Hazirlandi', style: 'background:#f1f5f9; color:#334155; border:1px solid #e2e8f0;' };
+    },
+    setWorkOrderDispatchNoteStatus: async (noteId, nextStatusRaw) => {
+        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
+        const note = (DB.data.data.workOrderDispatchNotes || []).find((row) => String(row?.id || '') === String(noteId || ''));
+        if (!note) return alert('Irsaliye kaydi bulunamadi.');
+        const nextStatus = String(nextStatusRaw || '').trim().toUpperCase();
+        const allowed = new Set(['HAZIRLANDI', 'TESLIM_EDILDI', 'DIS_BIRIMDE', 'GERI_GELDI', 'DEPOYA_ALINDI']);
+        if (!allowed.has(nextStatus)) return alert('Gecersiz irsaliye durumu.');
+        const currentStatus = String(note?.status || 'HAZIRLANDI').trim().toUpperCase();
+        if (currentStatus === nextStatus) return;
+        const transitions = {
+            HAZIRLANDI: ['TESLIM_EDILDI'],
+            TESLIM_EDILDI: ['DIS_BIRIMDE', 'GERI_GELDI'],
+            DIS_BIRIMDE: ['GERI_GELDI'],
+            GERI_GELDI: ['DEPOYA_ALINDI'],
+            DEPOYA_ALINDI: []
+        };
+        const validNext = transitions[currentStatus] || [];
+        if (!validNext.includes(nextStatus)) {
+            return alert('Bu durum gecisi izinli degil. Sirayi takip edin.');
+        }
+        const now = new Date().toISOString();
+        if (!Array.isArray(note.history)) note.history = [];
+        if (note.history.length === 0) {
+            note.history.push({
+                at: String(note.created_at || now),
+                status: 'HAZIRLANDI',
+                user: String(note.created_by || 'Demo User')
+            });
+        }
+        note.status = nextStatus;
+        note.updated_at = now;
+        note.updated_by = 'Demo User';
+        note.history.push({ at: now, status: nextStatus, user: 'Demo User' });
+        if (nextStatus === 'DEPOYA_ALINDI') {
+            note.isArchived = true;
+            note.archived_at = now;
+            note.archived_by = 'Demo User';
+        }
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    openWorkOrderDispatchNoteDetail: (noteId) => {
+        const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
+        const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
+        if (!note) return alert('Irsaliye kaydi bulunamadi.');
+        const rows = Array.isArray(note?.rows) ? note.rows : [];
+        const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
+        const statusMeta = UnitModule.getWorkOrderDispatchStatusMeta(note?.status);
+        const history = Array.isArray(note?.history) ? note.history : [];
+        Modal.open(`Irsaliye - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}`, `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Belge No</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(String(note?.docNo || '-'))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Hedef birim</div><div style="font-weight:700; color:#0f172a;">${UnitModule.escapeHtml(String(note?.targetUnitName || '-'))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${Number(totalQty || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${statusMeta.label}</span></div>
+                </div>
+                <div class="card-table">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                <th style="padding:0.5rem; text-align:left;">Is emri / satir</th>
+                                <th style="padding:0.5rem; text-align:left;">Parca</th>
+                                <th style="padding:0.5rem; text-align:center;">Adet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows.length === 0 ? `<tr><td colspan="3" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row) => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:0.5rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div style="font-family:monospace; font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-size:0.72rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem; text-align:center; font-weight:800; color:#0f172a;">${Math.max(0, Number(row?.qty || 0))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                    <div style="font-size:0.78rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Hareket gecmisi</div>
+                    ${history.length === 0 ? `<div style="font-size:0.78rem; color:#94a3b8;">Gecmis kaydi yok.</div>` : history.map((h) => {
+                        const meta = UnitModule.getWorkOrderDispatchStatusMeta(h?.status);
+                        return `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border-top:1px solid #f1f5f9; padding:0.35rem 0;"><span style="display:inline-block; border-radius:999px; padding:0.1rem 0.45rem; font-size:0.72rem; font-weight:700; ${meta.style}">${meta.label}</span><span style="font-size:0.76rem; color:#475569;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(String(h?.at || '')))} - ${UnitModule.escapeHtml(String(h?.user || '-'))}</span></div>`;
+                    }).join('')}
+                </div>
+            </div>
+        `);
     },
     getWorkOrderDispatchRowKey: (workOrderId, lineId, stationId) =>
         `${String(workOrderId || '')}::${String(lineId || '')}::${String(stationId || '')}`,
@@ -1766,6 +1875,7 @@ const UnitModule = {
         const next = { ...(UnitModule.state.workOrderDispatchQtyByRow || {}) };
         next[key] = qty;
         UnitModule.state.workOrderDispatchQtyByRow = next;
+        UI.renderCurrentPage();
     },
     getNextWorkOrderDispatchDocNo: () => {
         if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
@@ -1841,8 +1951,10 @@ const UnitModule = {
             targetUnitId: targetId,
             targetUnitName: targetName,
             status: 'HAZIRLANDI',
+            isArchived: false,
             created_at: now,
             created_by: 'Demo User',
+            history: [{ at: now, status: 'HAZIRLANDI', user: 'Demo User' }],
             rows: selectedRows.map((entry) => ({
                 workOrderId: String(entry.row?.order?.id || ''),
                 workOrderCode: String(entry.row?.order?.workOrderCode || ''),
@@ -2613,10 +2725,23 @@ const UnitModule = {
             selectedTransferTargetId = '';
             UnitModule.state.workOrderTransferTarget = '';
         }
+        let selectedDispatchListTargetId = isDepoTransferPlanning ? String(UnitModule.state.workOrderDispatchListTarget || '').trim() : '';
+        if (selectedDispatchListTargetId && !transferTargetOptions.some((row) => String(row.id || '') === selectedDispatchListTargetId)) {
+            selectedDispatchListTargetId = '';
+            UnitModule.state.workOrderDispatchListTarget = '';
+        }
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
-        const tab = String(UnitModule.state.workOrderTab || 'AKTIF').toUpperCase();
+        let tab = String(UnitModule.state.workOrderTab || 'AKTIF').toUpperCase();
+        if (!isDepoTransferPlanning && tab === 'FASON') {
+            tab = 'AKTIF';
+            UnitModule.state.workOrderTab = 'AKTIF';
+        }
         const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
+        const dispatchNotesForUnit = (Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [])
+            .filter((row) => String(row?.stationId || '') === String(unitId || ''));
+        const dispatchOpenCount = dispatchNotesForUnit.filter((row) => !row?.isArchived).length;
+        const dispatchArchiveCount = dispatchNotesForUnit.filter((row) => !!row?.isArchived).length;
         const rows = [];
 
         orders.forEach(order => {
@@ -2790,6 +2915,7 @@ const UnitModule = {
                     ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
                     <span style="width:1px; height:24px; background:#e2e8f0; margin:0 0.1rem 0 0.2rem;"></span>
                     ${renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true })}
+                    ${isDepoTransferPlanning ? renderTabBtn('FASON', 'fasona giden malzemeler', dispatchOpenCount) : ''}
                 </div>
                 <div style="${workOrderToolbarSearchGroupStyle}">
                     ${renderReportsMenu(statsCount)}
@@ -2801,10 +2927,181 @@ const UnitModule = {
             if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis islemleri ve tamamlanip bir sonraki istasyona devir bekleyen satirlari gosterir.';
             if (tabKey === 'BEKLEYEN') return 'Bu sayfa, atolyenin teslim alabilecegi isleri listeler.';
             if (tabKey === 'HAVUZ') return 'Bu sayfa, atolyeye gelecek isleri bilgilendirme amacli gosterir. Bu alanda planlama islemi kapatilidir.';
+            if (tabKey === 'FASON') return 'Bu sayfa, depodan dis birimlere acilan sevk irsaliyelerini ve aldim/verdim akisini takip eder.';
             if (tabKey === 'ISTATISTIK') return 'Bu sayfa, birimin gunluk/haftalik/aylik uretim istatistiklerini gosterir.';
             if (tabKey === 'ARSIV') return 'Bu sayfa, tamamlanan veya kismi teslim edilen islerin gecmis kaydini gosterir.';
             return 'Bu sayfa, atolye is emirlerini ve durumlarini gosterir.';
         };
+
+        if (tab === 'FASON' && isDepoTransferPlanning) {
+            const dispatchFiltered = dispatchNotesForUnit
+                .filter((row) => {
+                    if (!selectedDispatchListTargetId) return true;
+                    return String(row?.targetUnitId || '') === selectedDispatchListTargetId;
+                })
+                .filter((row) => {
+                    if (!search) return true;
+                    const statusMeta = UnitModule.getWorkOrderDispatchStatusMeta(row?.status);
+                    const rowText = (Array.isArray(row?.rows) ? row.rows : []).map((r) => [
+                        r?.workOrderCode,
+                        r?.lineCode,
+                        r?.componentCode,
+                        r?.componentName
+                    ].join(' ')).join(' ');
+                    const hay = [
+                        row?.docNo,
+                        row?.targetUnitName,
+                        statusMeta.label,
+                        rowText
+                    ].join(' ').toLowerCase();
+                    return hay.includes(search);
+                })
+                .sort((a, b) => new Date(b?.created_at || 0) - new Date(a?.created_at || 0));
+            const dispatchOpenRows = dispatchFiltered.filter((row) => !row?.isArchived);
+            const dispatchArchiveRows = dispatchFiltered.filter((row) => !!row?.isArchived);
+            const dispatchTotalQty = dispatchFiltered.reduce((sum, row) => {
+                const qty = (Array.isArray(row?.rows) ? row.rows : []).reduce((s, item) => s + Math.max(0, Number(item?.qty || 0)), 0);
+                return sum + qty;
+            }, 0);
+            const renderDispatchActionButtons = (row) => {
+                if (row?.isArchived) return '';
+                const status = String(row?.status || 'HAZIRLANDI').trim().toUpperCase();
+                if (status === 'HAZIRLANDI') {
+                    return `<button class="btn-sm" onclick="UnitModule.setWorkOrderDispatchNoteStatus('${row.id}','TESLIM_EDILDI')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Teslim edildi</button>`;
+                }
+                if (status === 'TESLIM_EDILDI') {
+                    return `
+                        <button class="btn-sm" onclick="UnitModule.setWorkOrderDispatchNoteStatus('${row.id}','DIS_BIRIMDE')" style="border-color:#ddd6fe; color:#5b21b6; background:#f5f3ff;">Dis birimde</button>
+                        <button class="btn-sm" onclick="UnitModule.setWorkOrderDispatchNoteStatus('${row.id}','GERI_GELDI')" style="border-color:#fde68a; color:#92400e; background:#fffbeb;">Geri geldi</button>
+                    `;
+                }
+                if (status === 'DIS_BIRIMDE') {
+                    return `<button class="btn-sm" onclick="UnitModule.setWorkOrderDispatchNoteStatus('${row.id}','GERI_GELDI')" style="border-color:#fde68a; color:#92400e; background:#fffbeb;">Geri geldi</button>`;
+                }
+                if (status === 'GERI_GELDI') {
+                    return `<button class="btn-sm" onclick="UnitModule.setWorkOrderDispatchNoteStatus('${row.id}','DEPOYA_ALINDI')" style="border-color:#bbf7d0; color:#166534; background:#ecfdf5;">Depoya alindi</button>`;
+                }
+                return '';
+            };
+            const renderDispatchTableRows = (items, archivedMode = false) => {
+                if (!items.length) {
+                    return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit yok.</td></tr>`;
+                }
+                return items.map((row) => {
+                    const noteRows = Array.isArray(row?.rows) ? row.rows : [];
+                    const totalQty = noteRows.reduce((sum, item) => sum + Math.max(0, Number(item?.qty || 0)), 0);
+                    const statusMeta = UnitModule.getWorkOrderDispatchStatusMeta(row?.status);
+                    const lastAt = String(row?.updated_at || row?.created_at || '');
+                    const actions = renderDispatchActionButtons(row);
+                    return `
+                        <tr style="border-bottom:1px solid #f1f5f9;">
+                            <td style="padding:0.55rem;">
+                                <div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(String(row?.docNo || '-'))}</div>
+                                <div style="font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(String(row?.created_at || '')))}</div>
+                            </td>
+                            <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(row?.targetUnitName || '-'))}</td>
+                            <td style="padding:0.55rem; text-align:center; font-weight:700; color:#0f172a;">${noteRows.length}</td>
+                            <td style="padding:0.55rem; text-align:center; font-weight:800; color:#0f172a;">${Number(totalQty || 0)}</td>
+                            <td style="padding:0.55rem;">
+                                <span style="display:inline-block; border-radius:999px; padding:0.13rem 0.55rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${statusMeta.label}</span>
+                            </td>
+                            <td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(lastAt))}</td>
+                            <td style="padding:0.55rem;">
+                                <div style="display:flex; flex-direction:column; gap:0.18rem;">
+                                    ${noteRows.slice(0, 2).map((item) => `<div style="font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(String(item?.workOrderCode || '-'))} / ${UnitModule.escapeHtml(String(item?.componentCode || '-'))}</div>`).join('')}
+                                    ${noteRows.length > 2 ? `<div style="font-size:0.72rem; color:#94a3b8;">+${noteRows.length - 2} satir daha</div>` : ''}
+                                </div>
+                            </td>
+                            <td style="padding:0.55rem; text-align:right;">
+                                <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchNoteDetail('${row.id}')">Goruntule</button>
+                                    ${archivedMode ? '' : actions}
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            };
+            container.innerHTML = `
+                <div style="max-width:1380px; margin:0 auto;">
+                    <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                        <div style="display:flex; align-items:center; gap:0.75rem;">
+                            <button onclick="UnitModule.openUnit('${unitId}')" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                                <i data-lucide="arrow-left" width="18"></i>
+                            </button>
+                            <div>
+                                <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                    <i data-lucide="clipboard-list" color="#1d4ed8"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Is Emri Planlama
+                                </h2>
+                                <div style="font-size:0.82rem; color:#64748b;">Fason sevk irsaliye takibi</div>
+                            </div>
+                        </div>
+                    </div>
+                    ${renderWorkOrderToolbar(doneQty)}
+                    <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.7rem; margin-bottom:0.8rem;">
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Toplam irsaliye</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${dispatchFiltered.length}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Acik irsaliye</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${dispatchOpenRows.length}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Arsiv</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${dispatchArchiveRows.length}</div></div>
+                        <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Toplam sevk adedi</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${dispatchTotalQty}</div></div>
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.65rem 0.75rem; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+                        <select onchange="UnitModule.setWorkOrderDispatchListTarget(this.value)" style="min-width:330px; height:40px; border:2px solid #111827; border-radius:0.8rem; padding:0 0.7rem; font-size:0.9rem; font-weight:700; background:white; color:#1f2937;">
+                            <option value="">tum dis birimler</option>
+                            ${transferTargetOptions.map((row) => `<option value="${UnitModule.escapeHtml(row.id)}" ${row.id === selectedDispatchListTargetId ? 'selected' : ''}>${UnitModule.escapeHtml(row.name)}</option>`).join('')}
+                        </select>
+                        <div style="font-size:1.05rem; color:#334155; font-weight:600;">olusturulan irsaliyeler listesi</div>
+                    </div>
+                    <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
+                        ${UnitModule.escapeHtml(getWorkOrderTabDescription('FASON'))}
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:0.8rem;">
+                        <div style="font-size:0.92rem; font-weight:800; color:#0f172a; margin-bottom:0.6rem;">Acik irsaliyeler</div>
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Belge / tarih</th>
+                                        <th style="padding:0.55rem; text-align:left;">Hedef birim</th>
+                                        <th style="padding:0.55rem; text-align:center;">Satir</th>
+                                        <th style="padding:0.55rem; text-align:center;">Adet</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:left;">Son hareket</th>
+                                        <th style="padding:0.55rem; text-align:left;">Ornek satir</th>
+                                        <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${renderDispatchTableRows(dispatchOpenRows, false)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                        <div style="font-size:0.92rem; font-weight:800; color:#0f172a; margin-bottom:0.6rem;">Arsiv</div>
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Belge / tarih</th>
+                                        <th style="padding:0.55rem; text-align:left;">Hedef birim</th>
+                                        <th style="padding:0.55rem; text-align:center;">Satir</th>
+                                        <th style="padding:0.55rem; text-align:center;">Adet</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:left;">Son hareket</th>
+                                        <th style="padding:0.55rem; text-align:left;">Ornek satir</th>
+                                        <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${renderDispatchTableRows(dispatchArchiveRows, true)}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
 
         if (tab === 'ISTATISTIK') {
             const statsRange = String(UnitModule.state.workOrderStatsRange || 'WEEK').toUpperCase();
@@ -3075,7 +3372,7 @@ const UnitModule = {
                                             ${qtyStatusBlock}
                                             ${canComplete ? `
                                                 <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${showDispatchSelection ? `oninput="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)"` : ''} style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${showDispatchSelection ? `onchange="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)"` : ''} style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
                                                     ${showDispatchSelection ? `
                                                         <label style="display:inline-flex; align-items:center; gap:0.28rem; color:#334155; font-size:0.76rem; white-space:nowrap;">
                                                             <input type="checkbox" ${dispatchChecked ? 'checked' : ''} onchange="UnitModule.toggleWorkOrderDispatchRow('${UnitModule.escapeHtml(dispatchRowKey)}', this.checked)">
@@ -3142,7 +3439,7 @@ const UnitModule = {
                         <div style="font-size:0.78rem; color:#475569; font-weight:700;">
                             Secili satir: ${Number(dispatchSelectionStats?.rowCount || 0)} | Toplam sevk adedi: ${Number(dispatchSelectionStats?.totalQty || 0)}
                         </div>
-                        <button class="btn-sm" onclick="UnitModule.createWorkOrderDispatchNoteFromSelected()" ${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 ? '' : 'disabled'} style="${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 ? 'background:#111827; color:#fff; border-color:#111827;' : 'opacity:0.45; cursor:not-allowed;'} min-width:190px; padding:0.62rem 0.85rem;">
+                        <button class="btn-sm" onclick="UnitModule.createWorkOrderDispatchNoteFromSelected()" ${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 && Number(dispatchSelectionStats?.totalQty || 0) > 0 ? '' : 'disabled'} style="${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 && Number(dispatchSelectionStats?.totalQty || 0) > 0 ? 'background:#111827; color:#fff; border-color:#111827;' : 'opacity:0.45; cursor:not-allowed;'} min-width:190px; padding:0.62rem 0.85rem;">
                             sevk irsaliyesi olustur
                         </button>
                     </div>

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T15:53:17.531Z",
+    "updated_at": "2026-03-30T15:50:40.108Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 387
+    "revision": 383
   },
   "data": {
     "products": [
@@ -2416,7 +2416,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:49:31.307Z",
-        "updated_at": "2026-03-30T15:53:17.531Z"
+        "updated_at": "2026-03-30T15:50:40.108Z"
       },
       {
         "id": "c7d5ff3c-541d-4545-8bcb-af7ba8b0bf38",
@@ -2494,7 +2494,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:49:31.308Z",
-        "updated_at": "2026-03-30T15:53:17.531Z"
+        "updated_at": "2026-03-30T15:50:06.925Z"
       },
       {
         "id": "3da53758-2c3d-440f-94cf-d4fc7690160c",
@@ -2601,7 +2601,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:49:31.308Z",
-        "updated_at": "2026-03-30T15:50:44.830Z"
+        "updated_at": "2026-03-30T15:49:31.308Z"
       },
       {
         "id": "7e67b3dc-e8bc-4d4f-befd-acd91740e17d",
@@ -2708,7 +2708,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:49:31.308Z",
-        "updated_at": "2026-03-30T15:50:50.286Z"
+        "updated_at": "2026-03-30T15:49:31.308Z"
       }
     ],
     "workOrderTransactions": [
@@ -2744,61 +2744,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-30T15:50:40.108Z"
-      },
-      {
-        "id": "7bd3eb1d-6ddf-4ea9-88d7-02ec0188a148",
-        "workOrderId": "c7d5ff3c-541d-4545-8bcb-af7ba8b0bf38",
-        "lineId": "da6c6675-8da8-4505-881f-1ae768d883a1",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:50:42.322Z"
-      },
-      {
-        "id": "ed21924c-0538-4b23-8c02-636d068d28aa",
-        "workOrderId": "efc63a58-d890-499c-9130-4b96f60aef01",
-        "lineId": "d612d40e-1ce3-45c7-bd51-16c1c58e66ea",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:50:44.830Z"
-      },
-      {
-        "id": "0533048e-742f-4849-b2f2-01ac490cb0c8",
-        "workOrderId": "258df26e-5e96-4533-bfb8-26b0373b772b",
-        "lineId": "56831ede-c9a2-4281-9bba-728e9b80cf7b",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 10,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:50:50.286Z"
-      },
-      {
-        "id": "67a48cc0-37c4-423d-879f-0f3995b43cb0",
-        "workOrderId": "c7d5ff3c-541d-4545-8bcb-af7ba8b0bf38",
-        "lineId": "da6c6675-8da8-4505-881f-1ae768d883a1",
-        "stationId": "u_dtm",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:53:17.531Z"
-      },
-      {
-        "id": "e616d41c-c060-4b98-9a3f-1735cf315da1",
-        "workOrderId": "c6942d93-5cdc-4990-b80f-d3f6c1cefa6a",
-        "lineId": "f82a2a2b-901e-42c0-ba77-814eefa88e8d",
-        "stationId": "u_dtm",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:53:17.531Z"
       }
     ],
     "outsourceTransfers": [
@@ -4243,48 +4188,6 @@
             "componentCode": "PRC-000005",
             "componentName": "aluminyum dikme ay bağlantısı",
             "qty": 3,
-            "sourceStationId": "u_dtm",
-            "targetUnitId": "u10"
-          }
-        ]
-      },
-      {
-        "id": "a396cc72-7578-4ff9-99f3-eabc5af46ef2",
-        "docNo": "DSI-000002",
-        "stationId": "u_dtm",
-        "targetUnitId": "u10",
-        "targetUnitName": "IBRAHIM POLISAJ",
-        "status": "HAZIRLANDI",
-        "isArchived": false,
-        "created_at": "2026-03-30T15:53:17.531Z",
-        "created_by": "Demo User",
-        "history": [
-          {
-            "at": "2026-03-30T15:53:17.531Z",
-            "status": "HAZIRLANDI",
-            "user": "Demo User"
-          }
-        ],
-        "rows": [
-          {
-            "workOrderId": "c7d5ff3c-541d-4545-8bcb-af7ba8b0bf38",
-            "workOrderCode": "WO-000003",
-            "lineId": "da6c6675-8da8-4505-881f-1ae768d883a1",
-            "lineCode": "WO-000003-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 5,
-            "sourceStationId": "u_dtm",
-            "targetUnitId": "u10"
-          },
-          {
-            "workOrderId": "c6942d93-5cdc-4990-b80f-d3f6c1cefa6a",
-            "workOrderCode": "WO-000002",
-            "lineId": "f82a2a2b-901e-42c0-ba77-814eefa88e8d",
-            "lineCode": "WO-000002-01",
-            "componentCode": "PRC-000008",
-            "componentName": "40 lık aluminyum dikme flanşı",
-            "qty": 5,
             "sourceStationId": "u_dtm",
             "targetUnitId": "u10"
           }

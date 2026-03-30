@@ -224,6 +224,130 @@ const PlanningModule = {
         }, 0);
     },
 
+    getDepotRowCode: (row) => String(row?.productCode || row?.code || row?.itemCode || '').trim().toUpperCase(),
+
+    getDepotRowQty: (row) => {
+        const qty = Number(row?.quantity ?? row?.qty ?? row?.amount ?? row?.value ?? 0);
+        if (!Number.isFinite(qty) || qty <= 0) return 0;
+        return qty;
+    },
+
+    setDepotRowQty: (row, qty) => {
+        const safeQty = PlanningModule.parseQty(qty, 0);
+        if (Object.prototype.hasOwnProperty.call(row, 'quantity') || !Object.prototype.hasOwnProperty.call(row, 'qty')) {
+            row.quantity = safeQty;
+        }
+        if (Object.prototype.hasOwnProperty.call(row, 'qty') || !Object.prototype.hasOwnProperty.call(row, 'quantity')) {
+            row.qty = safeQty;
+        }
+        if (Object.prototype.hasOwnProperty.call(row, 'amount')) row.amount = safeQty;
+        if (Object.prototype.hasOwnProperty.call(row, 'value')) row.value = safeQty;
+        row.updated_at = new Date().toISOString();
+    },
+
+    consumeDepotQuantityByCode: (code, qty) => {
+        const target = String(code || '').trim().toUpperCase();
+        let remaining = PlanningModule.parseQty(qty, 0);
+        if (!target || remaining <= 0) return 0;
+        const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const legacyRows = Array.isArray(DB.data?.data?.inventory) ? DB.data.data.inventory : [];
+        const consumeFromRows = (rows) => {
+            const candidates = rows
+                .filter((row) => PlanningModule.getDepotRowCode(row) === target)
+                .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')));
+            candidates.forEach((row) => {
+                if (remaining <= 0) return;
+                const available = PlanningModule.getDepotRowQty(row);
+                if (available <= 0) return;
+                const used = Math.min(available, remaining);
+                PlanningModule.setDepotRowQty(row, available - used);
+                remaining -= used;
+            });
+        };
+        consumeFromRows(stockRows);
+        if (remaining > 0) consumeFromRows(legacyRows);
+        return PlanningModule.parseQty(qty, 0) - remaining;
+    },
+
+    increaseDepotQuantityByCode: (code, name, qty) => {
+        const target = String(code || '').trim().toUpperCase();
+        const addQty = PlanningModule.parseQty(qty, 0);
+        if (!target || addQty <= 0) return;
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        const stockRows = DB.data.data.stockDepotItems;
+        const existing = stockRows.find((row) => PlanningModule.getDepotRowCode(row) === target);
+        if (existing) {
+            PlanningModule.setDepotRowQty(existing, PlanningModule.getDepotRowQty(existing) + addQty);
+            return;
+        }
+        const locations = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
+        const mainLocation = locations.find((row) => String(row?.depotId || '') === 'main') || null;
+        const now = new Date().toISOString();
+        stockRows.push({
+            id: crypto.randomUUID(),
+            productCode: target,
+            code: target,
+            productName: String(name || target || '-'),
+            name: String(name || target || '-'),
+            quantity: addQty,
+            qty: addQty,
+            amount: addQty,
+            unit: 'ADET',
+            status: 'bitmis',
+            depotId: 'main',
+            locationId: String(mainLocation?.id || ''),
+            created_at: now,
+            updated_at: now
+        });
+    },
+
+    getPoolConsumptionMap: (poolRows) => {
+        const map = new Map();
+        (Array.isArray(poolRows) ? poolRows : []).forEach((row) => {
+            if (!row || !row.useEnabled) return;
+            const code = String(row?.code || '').trim().toUpperCase();
+            const qty = PlanningModule.parseQty(row?.useStockQty, 0) + PlanningModule.parseQty(row?.useSemiQty, 0);
+            if (!code || qty <= 0) return;
+            map.set(code, (map.get(code) || 0) + qty);
+        });
+        return map;
+    },
+
+    validatePoolRowsDepotConsumption: (poolRows) => {
+        const consumptionMap = PlanningModule.getPoolConsumptionMap(poolRows);
+        for (const [code, qty] of consumptionMap.entries()) {
+            const available = PlanningModule.parseQty(PlanningModule.getDepotQuantityByCode(code), 0);
+            if (qty > available) {
+                throw new Error(`${code} stok miktari guncellenmis. Yeniden planlayip tekrar deneyin.`);
+            }
+        }
+        return consumptionMap;
+    },
+
+    consumePoolRowsFromDepot: (poolRows, consumptionMapInput = null) => {
+        const consumptionMap = consumptionMapInput instanceof Map
+            ? consumptionMapInput
+            : PlanningModule.getPoolConsumptionMap(poolRows);
+        for (const [code, qty] of consumptionMap.entries()) {
+            const consumed = PlanningModule.consumeDepotQuantityByCode(code, qty);
+            if (consumed < qty) {
+                throw new Error(`${code} stoktan dusulemedi. Yeniden deneyin.`);
+            }
+        }
+    },
+
+    rollbackDemandPoolConsumption: (demand) => {
+        const rows = Array.isArray(demand?.poolAnalysis?.rows) ? demand.poolAnalysis.rows : [];
+        rows.forEach((row) => {
+            if (!row || !row.useEnabled) return;
+            const code = String(row?.code || '').trim().toUpperCase();
+            const name = String(row?.name || code || '-').trim();
+            const qty = PlanningModule.parseQty(row?.useStockQty, 0) + PlanningModule.parseQty(row?.useSemiQty, 0);
+            if (!code || qty <= 0) return;
+            PlanningModule.increaseDepotQuantityByCode(code, name, qty);
+        });
+    },
+
     findComponentCardByCodeOrId: (code, refId = '') => {
         const cards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
         const byId = String(refId || '').trim();
@@ -1242,9 +1366,8 @@ const PlanningModule = {
         const sourceId = String(demand.id || '');
         const sourceCode = String(demand.demandCode || '');
         const poolRowsRaw = Array.isArray(options?.poolRows) ? options.poolRows : [];
-        const poolRows = poolRowsRaw
-            .map((row) => PlanningModule.normalizePoolRow(row))
-            .filter((row) => PlanningModule.parseQty(row?.netQty, 0) > 0);
+        const poolRows = poolRowsRaw.map((row) => PlanningModule.normalizePoolRow(row));
+        const poolRowsForOrders = poolRows.filter((row) => PlanningModule.parseQty(row?.netQty, 0) > 0);
         const demandItems = Array.isArray(demand?.items) && demand.items.length
             ? demand.items
             : [{
@@ -1277,8 +1400,10 @@ const PlanningModule = {
         };
 
         let orders = [];
+        let poolConsumptionMap = new Map();
         if (poolRows.length > 0) {
-            orders = poolRows.map((row) => {
+            poolConsumptionMap = PlanningModule.validatePoolRowsDepotConsumption(poolRows);
+            orders = poolRowsForOrders.map((row) => {
                 const componentId = String(row?.componentId || '').trim();
                 const componentLibrary = String(row?.componentLibrary || '').trim().toUpperCase() === 'SEMI' ? 'SEMI' : 'PART';
                 const qty = PlanningModule.parseQty(row?.netQty, 0);
@@ -1343,6 +1468,9 @@ const PlanningModule = {
             });
         }
         if (!orders.length) throw new Error('Is emrine donusecek kalem bulunamadi.');
+        if (poolRows.length > 0 && poolConsumptionMap.size > 0) {
+            PlanningModule.consumePoolRowsFromDepot(poolRows, poolConsumptionMap);
+        }
 
         const primaryOrder = orders[0] || null;
         const now = new Date().toISOString();
@@ -1442,7 +1570,7 @@ const PlanningModule = {
             return;
         }
         try {
-            PlanningModule.releaseDemandInternal(demand, { poolRows: nonZeroRows });
+            PlanningModule.releaseDemandInternal(demand, { poolRows: approvedRows });
             await DB.save();
         } catch (error) {
             alert(error?.message || 'Is emrine cevrilemedi.');
@@ -1561,6 +1689,7 @@ const PlanningModule = {
         const confirmText = `Bu kayit tamamen silinecek.\nTalep: ${demandCode}\nBagli is emri: ${workOrderCount}\nEmin misiniz?`;
         if (!confirm(confirmText)) return;
 
+        PlanningModule.rollbackDemandPoolConsumption(demand);
         DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
 
         if (Array.isArray(DB.data?.data?.workOrders)) {

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T16:53:32.436Z",
+    "updated_at": "2026-03-30T16:51:49.862Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 410
+    "revision": 407
   },
   "data": {
     "products": [
@@ -2416,7 +2416,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T16:47:56.724Z",
-        "updated_at": "2026-03-30T16:53:32.435Z"
+        "updated_at": "2026-03-30T16:51:49.862Z"
       },
       {
         "id": "6688c2e5-48ef-45c9-8f0a-8cd978e665c5",
@@ -2551,7 +2551,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T16:47:56.724Z",
-        "updated_at": "2026-03-30T16:53:18.658Z"
+        "updated_at": "2026-03-30T16:49:35.812Z"
       },
       {
         "id": "e6a8b43e-f91f-47ba-a935-cf360e795885",
@@ -2677,39 +2677,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-30T16:51:49.862Z"
-      },
-      {
-        "id": "e42a2140-ea6e-4727-a8b7-849fe33be2f7",
-        "workOrderId": "1a24a5bd-e414-4a9a-81c0-6cdf5ab0747b",
-        "lineId": "0ed22a5d-ae3e-4b34-a829-ea1897b1a878",
-        "stationId": "u10",
-        "type": "TAKE",
-        "qty": 12,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T16:51:52.964Z"
-      },
-      {
-        "id": "43bcec0b-d5d8-4412-9248-42f454fc13dc",
-        "workOrderId": "1a24a5bd-e414-4a9a-81c0-6cdf5ab0747b",
-        "lineId": "0ed22a5d-ae3e-4b34-a829-ea1897b1a878",
-        "stationId": "u10",
-        "type": "COMPLETE",
-        "qty": 2,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T16:53:18.658Z"
-      },
-      {
-        "id": "0d2aade1-7e41-41c9-9f91-53c8061ecd6c",
-        "workOrderId": "f24e78f5-5798-43bc-97e2-e91181a5b6dd",
-        "lineId": "60fd32b6-0a20-4532-823d-5d091a397c4b",
-        "stationId": "u10",
-        "type": "COMPLETE",
-        "qty": 2,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T16:53:32.435Z"
       }
     ],
     "outsourceTransfers": [

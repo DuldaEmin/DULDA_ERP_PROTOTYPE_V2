@@ -1485,6 +1485,59 @@ const UnitModule = {
         }
         return key;
     },
+    getRouteProcessName: (stationId, processId) => {
+        const normalizedStationId = String(stationId || '').trim();
+        const code = String(processId || '').trim().toUpperCase();
+        if (!code) return '';
+        if (code === 'FASON') return 'Fason islemi';
+
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const unit = units.find((u) => String(u?.id || '') === normalizedStationId);
+        const unitName = String(unit?.name || '').toUpperCase();
+
+        const findByCode = (list, codeFields, nameFields, requireUnitMatch = true) => {
+            if (!Array.isArray(list)) return '';
+            const row = list.find((entry) => {
+                if (!entry) return false;
+                if (requireUnitMatch && String(entry?.unitId || '') !== normalizedStationId) return false;
+                return codeFields.some((field) => String(entry?.[field] || '').trim().toUpperCase() === code);
+            });
+            if (!row) return '';
+            const hit = nameFields
+                .map((field) => String(row?.[field] || '').trim())
+                .find(Boolean);
+            return hit || '';
+        };
+
+        if (normalizedStationId === 'u_dtm') {
+            return findByCode(DB.data?.data?.depoTransferTasks, ['taskCode'], ['taskName'], false);
+        }
+        if (unitName.includes('CNC')) {
+            return findByCode(DB.data?.data?.cncCards, ['cncId'], ['productName', 'name']);
+        }
+        if (normalizedStationId === 'u2' || unitName.includes('EKSTR')) {
+            return findByCode(DB.data?.data?.extruderLibraryCards, ['cardCode'], ['productName', 'name']);
+        }
+        if (unitName.includes('TESTERE')) {
+            return findByCode(DB.data?.data?.sawCutOrders, ['code'], ['processName', 'name']);
+        }
+        if (normalizedStationId === 'u9' || unitName.includes('PVD') || unitName.includes('PWD')) {
+            return findByCode(DB.data?.data?.pvdCards, ['cardCode'], ['productName', 'processName', 'name']);
+        }
+        if (normalizedStationId === 'u11' || unitName.includes('ELOKSAL')) {
+            return findByCode(DB.data?.data?.eloksalCards, ['cardCode'], ['productName', 'processName', 'name']);
+        }
+        if (normalizedStationId === 'u10' || unitName.includes('IBRAHIM POLISAJ')) {
+            return findByCode(DB.data?.data?.ibrahimPolishCards, ['cardCode'], ['productName', 'processName', 'name']);
+        }
+        if (normalizedStationId === 'u5' || unitName.includes('PLEKS') || unitName.includes('POLISAJ')) {
+            return findByCode(DB.data?.data?.plexiPolishCards, ['cardCode'], ['processName', 'productName', 'name']);
+        }
+        if (normalizedStationId === 'u3' || unitName.includes('MONTAJ')) {
+            return findByCode(DB.data?.data?.montageCards, ['cardCode', 'productCode'], ['productName', 'name']);
+        }
+        return '';
+    },
     getNextRouteInfo: (line, stationId) => {
         const routes = Array.isArray(line?.routes) ? line.routes : [];
         const idx = routes.findIndex(r => String(r?.stationId || '') === String(stationId || ''));
@@ -1530,6 +1583,8 @@ const UnitModule = {
         const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
         const rows = UnitModule.getUnitWorkRows(unitId).filter(row => {
             if (!search) return true;
+            const currentProcessName = UnitModule.getRouteProcessName(row?.metrics?.stationId, row?.metrics?.processId);
+            const nextProcessName = UnitModule.getRouteProcessName(row?.nextRoute?.stationId, row?.nextRoute?.processId);
             const hay = [
                 row.order?.workOrderCode,
                 row.order?.productCode,
@@ -1538,7 +1593,10 @@ const UnitModule = {
                 row.line?.componentCode,
                 row.line?.componentName,
                 row.metrics?.processId,
-                row.nextRoute?.stationName
+                currentProcessName,
+                row.nextRoute?.stationName,
+                row.nextRoute?.processId,
+                nextProcessName
             ].join(' ').toLowerCase();
             return hay.includes(search);
         });
@@ -1547,10 +1605,14 @@ const UnitModule = {
         const waitingQty = rows.reduce((sum, row) => sum + Number(row.metrics?.availableQty || 0), 0);
         const inProcessQty = rows.reduce((sum, row) => sum + Number(row.metrics?.inProcessQty || 0), 0);
         const readyQty = rows.reduce((sum, row) => sum + Number(row.metrics?.doneQty || 0), 0);
-        const renderRouteLabel = (row) => `
-            <div style="font-size:0.82rem; color:#334155; font-weight:700;">${row.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(row.metrics.stationId || '') || '-')}</div>
-            <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.metrics.processId || '-')}</div>
-        `;
+        const renderRouteLabel = (row) => {
+            const processName = UnitModule.getRouteProcessName(row?.metrics?.stationId, row?.metrics?.processId);
+            return `
+                <div style="font-size:0.82rem; color:#334155; font-weight:700;">${row.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(row.metrics.stationId || '') || '-')}</div>
+                <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.metrics.processId || '-')}</div>
+                <div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(processName || '-')}</div>
+            `;
+        };
         container.innerHTML = `
             <div style="max-width:1380px; margin:0 auto;">
                 <div style="margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
@@ -1653,7 +1715,7 @@ const UnitModule = {
                                         <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.order?.productCode || '-')}</div></td>
                                         <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.line?.componentCode || '-')}</div></td>
                                         <td style="padding:0.55rem; text-align:center; font-weight:800; color:#047857;">${Number(row.metrics?.doneQty || 0)}</td>
-                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.nextRoute?.stationName || 'ROTA SONU')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.nextRoute?.processId || (row.nextRoute ? '-' : 'son adim'))}</div></td>
+                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.nextRoute?.stationName || 'ROTA SONU')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.nextRoute?.processId || (row.nextRoute ? '-' : 'son adim'))}</div><div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(row.nextRoute ? (UnitModule.getRouteProcessName(row.nextRoute.stationId, row.nextRoute.processId) || '-') : 'sevk / depo asamasi')}</div></td>
                                         <td style="padding:0.55rem; color:#475569;">${row.nextRoute ? 'Bu adet sonraki istasyonda bekleyen olarak gorunur.' : 'Son adim tamamlandi; sevk veya depo transfer akisina hazir.'}</td>
                                     </tr>
                                 `).join('')}
@@ -2185,6 +2247,7 @@ const UnitModule = {
         const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
         const plan = (line.plans && typeof line.plans === 'object') ? (line.plans[String(stationId || '')] || null) : null;
         const processCode = String(metrics?.processId || '').trim().toUpperCase();
+        const processName = UnitModule.getRouteProcessName(stationId, processCode);
         const priorityMeta = UnitModule.getWorkOrderPriorityMeta(order?.priority);
         const prevRoute = routeIdx > 0 ? routes[routeIdx - 1] : null;
         const nextRoute = routeIdx >= 0 && routeIdx < routes.length - 1 ? routes[routeIdx + 1] : null;
@@ -2212,6 +2275,7 @@ const UnitModule = {
                         <div style="font-size:0.72rem; color:#64748b;">Rota / Islem</div>
                         <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(UnitModule.getRouteStationName(stationId) || '-')}</div>
                         <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(processCode || '-')}</div>
+                        <div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(processName || '-')}</div>
                     </div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
                         <div style="font-size:0.72rem; color:#64748b;">Termin / Oncelik</div>
@@ -2440,6 +2504,7 @@ const UnitModule = {
         const filtered = rows
             .filter(r => {
                 if (!search) return true;
+                const processName = UnitModule.getRouteProcessName(r?.metrics?.stationId, r?.metrics?.processId);
                 const hay = [
                     r.order?.workOrderCode,
                     r.order?.productCode,
@@ -2447,7 +2512,8 @@ const UnitModule = {
                     r.line?.lineCode,
                     r.line?.componentCode,
                     r.line?.componentName,
-                    r.metrics?.processId
+                    r.metrics?.processId,
+                    processName
                 ].join(' ').toLowerCase();
                 return hay.includes(search);
             })
@@ -2805,6 +2871,7 @@ const UnitModule = {
                                         && String(r.order?.productName || '').trim().toLowerCase() === String(r.line?.componentName || '').trim().toLowerCase();
                                     const productTitle = isSingleComponentOrder ? 'Parca Uretimi' : UnitModule.escapeHtml(r.order?.productName || '-');
                                     const productCode = isSingleComponentOrder ? 'Tek parca is emri' : UnitModule.escapeHtml(r.order?.productCode || '-');
+                                    const processName = UnitModule.getRouteProcessName(r.metrics.stationId, processCode);
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
@@ -2859,6 +2926,7 @@ const UnitModule = {
                                             <td style="padding:0.55rem;">
                                                 <div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div>
                                                 <div>${processCodeHtml}</div>
+                                                <div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(processName || '-')}</div>
                                             </td>
                                             <td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td>
                                             <td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td>

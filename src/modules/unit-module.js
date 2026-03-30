@@ -92,6 +92,7 @@ const UnitModule = {
         depoTaskDraftNote: '',
         workOrderTab: 'AKTIF',
         workOrderSearch: '',
+        workOrderPlanningUnitId: '',
         workOrderTransferTarget: '',
         workOrderDispatchRows: {},
         workOrderDispatchQtyByRow: {},
@@ -1777,8 +1778,8 @@ const UnitModule = {
         return `DSI-${String(max + 1).padStart(6, '0')}`;
     },
     createWorkOrderDispatchNoteFromSelected: async () => {
-        const stationId = String(UnitModule.state.activeUnitId || '').trim();
-        if (stationId !== 'u_dtm') return;
+        const stationId = String(UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim();
+        if (stationId !== 'u_dtm') return alert('Sevk irsaliyesi sadece Depo Transfer planlama ekraninda olusturulur.');
         const targetId = String(UnitModule.state.workOrderTransferTarget || '').trim();
         if (!targetId) return alert('Lutfen once dis birim seciniz.');
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
@@ -2589,6 +2590,7 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     renderWorkOrderPlanningPlaceholder: (container, unitId) => {
+        UnitModule.state.workOrderPlanningUnitId = String(unitId || '').trim();
         const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
         if (!unit) {
             container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;

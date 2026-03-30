@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T15:26:39.905Z",
+    "updated_at": "2026-03-30T15:24:08.974Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 375
+    "revision": 374
   },
   "data": {
     "products": [
@@ -2601,7 +2601,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:19:53.683Z",
-        "updated_at": "2026-03-30T15:26:39.905Z"
+        "updated_at": "2026-03-30T15:20:13.970Z"
       },
       {
         "id": "58fbd3ca-81f8-474d-b102-dc358e98335b",
@@ -2766,17 +2766,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-30T15:24:08.974Z"
-      },
-      {
-        "id": "032c92f5-b12b-403f-96ec-72da9b6d0824",
-        "workOrderId": "ccef05c3-9ef2-4544-9723-397a7d1544ac",
-        "lineId": "d7a82cb1-0aee-410a-8dfc-0480a5c0d8f9",
-        "stationId": "u_dtm",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:26:39.905Z"
       }
     ],
     "outsourceTransfers": [
@@ -4201,31 +4190,6 @@
         "updated_at": "2026-03-24T15:29:40.154Z"
       }
     ],
-    "requests": [],
-    "workOrderDispatchNotes": [
-      {
-        "id": "301069e7-66ea-41fd-834d-51af4c979fd5",
-        "docNo": "DSI-000001",
-        "stationId": "u_dtm",
-        "targetUnitId": "u10",
-        "targetUnitName": "IBRAHIM POLISAJ",
-        "status": "HAZIRLANDI",
-        "created_at": "2026-03-30T15:26:39.905Z",
-        "created_by": "Demo User",
-        "rows": [
-          {
-            "workOrderId": "ccef05c3-9ef2-4544-9723-397a7d1544ac",
-            "workOrderCode": "WO-000005",
-            "lineId": "d7a82cb1-0aee-410a-8dfc-0480a5c0d8f9",
-            "lineCode": "WO-000005-01",
-            "componentCode": "PRC-000005",
-            "componentName": "aluminyum dikme ay bağlantısı",
-            "qty": 3,
-            "sourceStationId": "u_dtm",
-            "targetUnitId": "u10"
-          }
-        ]
-      }
-    ]
+    "requests": []
   }
 }

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T12:31:24.914Z",
+    "updated_at": "2026-03-30T12:29:55.231Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 337
+    "revision": 336
   },
   "data": {
     "products": [
@@ -3338,92 +3338,6 @@
         "created_at": "2026-03-30T12:29:43.674Z",
         "updated_at": "2026-03-30T12:29:55.231Z",
         "lastActionAt": "2026-03-30T12:29:55.231Z"
-      },
-      {
-        "id": "fcd4f4a5-dd09-40ff-a3eb-872d11fe8ed5",
-        "flowType": "DEPO_TRANSFER_LOT",
-        "lotNo": "TLT-000002",
-        "kind": "MAIN",
-        "sourceStationId": "u_dtm",
-        "targetUnitId": "main",
-        "targetUnitName": "Ana Depo",
-        "workOrderId": "dd638fca-0fae-4ca1-887a-68c55514a9a7",
-        "workOrderCode": "WO-000006",
-        "lineId": "9a930306-9ac3-43bd-9dd6-130264017bf8",
-        "lineCode": "WO-000006-01",
-        "componentCode": "PRC-000011",
-        "componentName": "aluminyum dikme alt borusu 150 mm sarı",
-        "processId": "DTR-000004",
-        "processName": "depo transferya alma",
-        "qty": 12,
-        "status": "KAPANDI",
-        "depotId": "main",
-        "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
-        "events": [
-          {
-            "id": "26fead53-e39f-42a3-bc92-e79d694e16c1",
-            "at": "2026-03-30T12:31:24.914Z",
-            "type": "LOT_OLUSTURULDU",
-            "note": "Ana depoya kabul lotu olusturuldu.",
-            "user": "Demo User",
-            "qty": 12
-          },
-          {
-            "id": "3414ed81-6b38-4098-8463-d7b5aca9a2fb",
-            "at": "2026-03-30T12:31:24.914Z",
-            "type": "ANA_DEPO_KABUL",
-            "note": "",
-            "user": "Demo User",
-            "depotId": "main",
-            "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c"
-          }
-        ],
-        "created_at": "2026-03-30T12:31:24.913Z",
-        "updated_at": "2026-03-30T12:31:24.914Z",
-        "lastActionAt": "2026-03-30T12:31:24.914Z"
-      },
-      {
-        "id": "43df6856-58c2-42f1-9a84-5e6cc98530e8",
-        "flowType": "DEPO_TRANSFER_LOT",
-        "lotNo": "TLT-000003",
-        "kind": "MAIN",
-        "sourceStationId": "u_dtm",
-        "targetUnitId": "main",
-        "targetUnitName": "Ana Depo",
-        "workOrderId": "8e6a7d9d-7f24-40ea-be2b-68153efdef8a",
-        "workOrderCode": "WO-000008",
-        "lineId": "9a4ad9d9-cabf-4a5a-b19c-07c0be86d3eb",
-        "lineCode": "WO-000008-01",
-        "componentCode": "PRC-000001",
-        "componentName": "aluminyum dikme üst boru 70 mm",
-        "processId": "DTR-000004",
-        "processName": "depo transferya alma",
-        "qty": 12,
-        "status": "KAPANDI",
-        "depotId": "main",
-        "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
-        "events": [
-          {
-            "id": "9402b1d8-6136-4c9b-8c28-d4aed15d0445",
-            "at": "2026-03-30T12:31:24.914Z",
-            "type": "LOT_OLUSTURULDU",
-            "note": "Ana depoya kabul lotu olusturuldu.",
-            "user": "Demo User",
-            "qty": 12
-          },
-          {
-            "id": "ada9807d-3bfd-4d1b-ba97-76b053fd65d7",
-            "at": "2026-03-30T12:31:24.914Z",
-            "type": "ANA_DEPO_KABUL",
-            "note": "",
-            "user": "Demo User",
-            "depotId": "main",
-            "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c"
-          }
-        ],
-        "created_at": "2026-03-30T12:31:24.913Z",
-        "updated_at": "2026-03-30T12:31:24.914Z",
-        "lastActionAt": "2026-03-30T12:31:24.914Z"
       }
     ],
     "depoTransferLogs": [],
@@ -3538,42 +3452,7 @@
         "created_at": "2026-03-10T12:37:17.688Z"
       }
     ],
-    "stockDepotItems": [
-      {
-        "id": "d571877e-2c4e-4053-9f10-093dc50cb56f",
-        "productCode": "PRC-000011",
-        "code": "PRC-000011",
-        "productName": "aluminyum dikme alt borusu 150 mm sarı",
-        "name": "aluminyum dikme alt borusu 150 mm sarı",
-        "quantity": 12,
-        "qty": 12,
-        "amount": 12,
-        "unit": "ADET",
-        "status": "bitmis",
-        "depotId": "main",
-        "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
-        "note": "Ana depo kabul / TLT-000002",
-        "created_at": "2026-03-30T12:31:24.914Z",
-        "updated_at": "2026-03-30T12:31:24.914Z"
-      },
-      {
-        "id": "d2b70d9f-d1b7-4ad0-b0f8-868c91f02cf5",
-        "productCode": "PRC-000001",
-        "code": "PRC-000001",
-        "productName": "aluminyum dikme üst boru 70 mm",
-        "name": "aluminyum dikme üst boru 70 mm",
-        "quantity": 12,
-        "qty": 12,
-        "amount": 12,
-        "unit": "ADET",
-        "status": "bitmis",
-        "depotId": "main",
-        "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
-        "note": "Ana depo kabul / TLT-000003",
-        "created_at": "2026-03-30T12:31:24.914Z",
-        "updated_at": "2026-03-30T12:31:24.914Z"
-      }
-    ],
+    "stockDepotItems": [],
     "freeExternalVendorJobs": [],
     "partComponentCards": [
       {

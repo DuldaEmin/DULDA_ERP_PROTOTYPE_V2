@@ -370,6 +370,15 @@ const UnitModule = {
     openWorkOrderPlanning: (id) => {
         try {
             const targetUnitId = String(id || '').trim();
+            if (targetUnitId === 'u_dtm') {
+                UnitModule.state.activeUnitId = 'u_dtm';
+                UnitModule.state.view = 'workOrderPlanning';
+                UnitModule.state.workOrderFormOpen = false;
+                UnitModule.state.transferBoardTab = UnitModule.normalizeTransferBoardTab(UnitModule.state.transferBoardTab);
+                if (!UnitModule.state.transferBoardTarget) UnitModule.state.transferBoardTarget = 'main';
+                UI.renderCurrentPage();
+                return;
+            }
             if (!UnitModule.isWorkOrderPlanningEnabledForUnit(targetUnitId)) {
                 alert('Bu birimde planlama kapali. Aldim / isledim / verdim akisiyla devam edin.');
                 return;
@@ -3188,10 +3197,325 @@ const UnitModule = {
         Modal.close();
         UI.renderCurrentPage();
     },
+    renderDepoTransferLotBoard: (container) => {
+        const targets = UnitModule.getTransferTargetButtons();
+        const targetIds = new Set(targets.map((row) => String(row?.id || '')));
+        let target = String(UnitModule.state.transferBoardTarget || 'main').trim() || 'main';
+        if (!targetIds.has(target)) {
+            target = String(targets[0]?.id || 'main');
+            UnitModule.state.transferBoardTarget = target;
+        }
+        const tab = UnitModule.normalizeTransferBoardTab(UnitModule.state.transferBoardTab);
+        if (tab !== UnitModule.state.transferBoardTab) UnitModule.state.transferBoardTab = tab;
+        const isMain = target === 'main';
+        const isFreeVendor = target === 'free-vendor';
+        const searchText = String(UnitModule.state.transferBoardSearch || '').trim().toLowerCase();
+        const sourceRows = (isFreeVendor ? [] : UnitModule.getTransferBoardRowsForTarget(target))
+            .filter((row) => Math.max(0, Number(row?.availableTransferQty || 0)) > 0)
+            .filter((row) => {
+                if (!searchText) return true;
+                const processCode = String(row?.metrics?.processId || '').trim().toUpperCase();
+                const processName = UnitModule.getRouteProcessName(row?.metrics?.stationId, processCode);
+                const hay = [
+                    row?.order?.workOrderCode,
+                    row?.line?.lineCode,
+                    row?.line?.componentCode,
+                    row?.line?.componentName,
+                    processCode,
+                    processName
+                ].join(' ').toLowerCase();
+                return hay.includes(searchText);
+            });
+        const sourceRowKeySet = new Set(sourceRows.map((row) => String(row?.rowKey || '')));
+        const selectedRowCount = Object.entries(UnitModule.state.transferBoardSelectedRows || {})
+            .filter(([rowKey, on]) => !!on && sourceRowKeySet.has(String(rowKey || '')))
+            .length;
+
+        const lots = UnitModule.getTransferLotsForBoard();
+        const lotIdSet = new Set(lots.map((lot) => String(lot?.id || '')));
+        const selectedLotCount = Object.entries(UnitModule.state.transferBoardSelectedLots || {})
+            .filter(([lotId, on]) => !!on && lotIdSet.has(String(lotId || '')))
+            .length;
+
+        const kpi = UnitModule.getTransferBoardKpi();
+        const allTargetLots = UnitModule.getTransferLots().filter((lot) => {
+            if (isMain) return String(lot?.kind || '').toUpperCase() === 'MAIN';
+            return String(lot?.kind || '').toUpperCase() === 'EXTERNAL' && String(lot?.targetUnitId || '') === target;
+        });
+        const countBy = (statuses) => allTargetLots.filter((lot) => statuses.includes(UnitModule.normalizeTransferLotStatus(lot?.status))).length;
+        const tabCounts = {
+            SEVK_BEKLEYEN: countBy(['SEVK_BEKLIYOR', 'KABUL_BEKLIYOR']),
+            YOLDA: countBy(['YOLDA']),
+            DIS_BIRIMDE: countBy(['DIS_BIRIMDE']),
+            GERI_DONEN: countBy(['GERI_DONEN']),
+            GECMIS: countBy(['KAPANDI', 'IPTAL'])
+        };
+        const tabButtons = [
+            { id: 'SEVK_BEKLEYEN', label: 'Sevk Bekleyenler' },
+            { id: 'YOLDA', label: 'Yolda / Teslim Edildi' },
+            { id: 'DIS_BIRIMDE', label: 'Dis Birimde Islemde' },
+            { id: 'GERI_DONEN', label: 'Geri Donen / Kabul Bekleyen' },
+            { id: 'GECMIS', label: 'Gecmis' }
+        ];
+        const statusOptions = [
+            { value: '', label: 'Tum durumlar' },
+            { value: 'SEVK_BEKLIYOR', label: 'Sevk bekliyor' },
+            { value: 'YOLDA', label: 'Yolda' },
+            { value: 'DIS_BIRIMDE', label: 'Dis birimde' },
+            { value: 'GERI_DONEN', label: 'Geri donen' },
+            { value: 'KAPANDI', label: 'Kapandi' }
+        ];
+        const activeTargetLabel = targets.find((row) => String(row?.id || '') === target)?.label || target;
+        const renderTabBtn = (tabId, label, count) => {
+            const active = tab === tabId;
+            const style = active
+                ? 'background:#0f172a; color:#fff; border-color:#0f172a; box-shadow:0 8px 16px rgba(15,23,42,0.24);'
+                : 'background:white; color:#334155; border-color:#cbd5e1;';
+            const badgeStyle = active
+                ? 'background:rgba(255,255,255,0.2); color:#fff;'
+                : 'background:#e2e8f0; color:#334155;';
+            return `
+                <button type="button" onclick="UnitModule.setTransferBoardTab('${tabId}')" class="btn-sm" style="${style} display:inline-flex; align-items:center; gap:0.45rem; border-width:1.5px; min-height:40px; padding:0.5rem 0.72rem; font-size:0.79rem; font-weight:800;">
+                    ${label}
+                    <span style="display:inline-flex; align-items:center; justify-content:center; min-width:23px; height:23px; border-radius:999px; padding:0 0.42rem; font-size:0.7rem; font-weight:900; ${badgeStyle}">${Number(count || 0)}</span>
+                </button>
+            `;
+        };
+
+        container.innerHTML = `
+            <div style="max-width:1380px; margin:0 auto;">
+                <div style="margin-bottom:0.95rem; display:flex; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap;">
+                    <div style="display:flex; align-items:center; gap:0.72rem;">
+                        <button onclick="UnitModule.openDepoTransfer()" style="background:white; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem; cursor:pointer;">
+                            <i data-lucide="arrow-left" width="18"></i>
+                        </button>
+                        <div>
+                            <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
+                                <i data-lucide="truck" color="#0ea5e9"></i> DEPO TRANSFER - Dis Birim Sevk ve Lot Takip
+                            </h2>
+                            <div style="font-size:0.82rem; color:#64748b;">Hedef: <strong>${UnitModule.escapeHtml(String(activeTargetLabel || '-'))}</strong> | Omurga akis: kabul ettim / aldim / isledim / verdim</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background:white; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.72rem; margin-bottom:0.9rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    ${targets.map((row) => {
+                        const rowId = String(row?.id || '');
+                        const active = rowId === target;
+                        const style = active
+                            ? 'background:#0f172a; color:#fff; border-color:#0f172a;'
+                            : 'background:white; color:#334155; border-color:#334155;';
+                        return `<button type="button" onclick="UnitModule.setTransferBoardTarget('${UnitModule.escapeHtml(rowId)}')" class="btn-sm" style="${style} border-width:1.5px; min-height:38px; padding:0.46rem 0.75rem; font-weight:800;">${UnitModule.escapeHtml(row.label || rowId)}</button>`;
+                    }).join('')}
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.78rem; margin-bottom:0.9rem;">
+                    <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0.6rem;">
+                        <div>
+                            <label style="display:block; font-size:0.73rem; color:#64748b; margin-bottom:0.2rem;">Tarih baslangic</label>
+                            <input type="date" value="${UnitModule.escapeHtml(UnitModule.state.transferBoardDateFrom || '')}" onchange="UnitModule.setTransferBoardFilter('dateFrom', this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-weight:600;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.73rem; color:#64748b; margin-bottom:0.2rem;">Tarih bitis</label>
+                            <input type="date" value="${UnitModule.escapeHtml(UnitModule.state.transferBoardDateTo || '')}" onchange="UnitModule.setTransferBoardFilter('dateTo', this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-weight:600;">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.73rem; color:#64748b; margin-bottom:0.2rem;">Durum</label>
+                            <select onchange="UnitModule.setTransferBoardFilter('status', this.value)" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.55rem; font-weight:600;">
+                                ${statusOptions.map((row) => `<option value="${UnitModule.escapeHtml(row.value)}" ${String(UnitModule.state.transferBoardStatusFilter || '') === row.value ? 'selected' : ''}>${UnitModule.escapeHtml(row.label)}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div style="grid-column:span 2;">
+                            <label style="display:block; font-size:0.73rem; color:#64748b; margin-bottom:0.2rem;">Is emri / parca / kod ara</label>
+                            <input value="${UnitModule.escapeHtml(UnitModule.state.transferBoardSearch || '')}" oninput="UnitModule.setTransferBoardFilter('search', this.value)" placeholder="WO, satir, parca kodu, islem kodu..." style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem; font-weight:600;">
+                        </div>
+                    </div>
+                    <label style="margin-top:0.62rem; display:inline-flex; align-items:center; gap:0.4rem; font-size:0.8rem; color:#475569;">
+                        <input type="checkbox" ${UnitModule.state.transferBoardOnlyOpen ? 'checked' : ''} onchange="UnitModule.setTransferBoardOnlyOpen(this.checked)">
+                        Sadece acik lotlar
+                    </label>
+                </div>
+
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.7rem; margin-bottom:0.9rem;">
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.72rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Bugun sevk edilen adet</div><div style="font-size:1.16rem; font-weight:800; color:#0f172a;">${Number(kpi.todayShippedQty || 0)}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.72rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Dis birimde bekleyen adet</div><div style="font-size:1.16rem; font-weight:800; color:#b45309;">${Number(kpi.waitingExternalQty || 0)}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.72rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Geri gelen adet</div><div style="font-size:1.16rem; font-weight:800; color:#92400e;">${Number(kpi.returnedQty || 0)}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.72rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Kapanan lot sayisi</div><div style="font-size:1.16rem; font-weight:800; color:#047857;">${Number(kpi.closedCount || 0)}</div></div>
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.66rem; margin-bottom:0.85rem; display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    ${tabButtons.map((row) => renderTabBtn(row.id, row.label, tabCounts[row.id] || 0)).join('')}
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem; margin-bottom:0.95rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                        <div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Sevk Operasyonu</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Satir sec, adet gir, lot olustur. Ana depo hedefinde direkt kabul kaydi olusur.</div>
+                        </div>
+                        <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
+                            ${isMain
+                                ? `<button class="btn-sm" onclick="UnitModule.openTransferAcceptModalForSelectedRows()" ${selectedRowCount > 0 ? '' : 'disabled'} style="${selectedRowCount > 0 ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Ana Depoya Al (${selectedRowCount})</button>`
+                                : (isFreeVendor
+                                    ? `<button class="btn-sm" disabled style="opacity:0.45; cursor:not-allowed;">Sevk Fisi Olustur</button>`
+                                    : `<button class="btn-sm" onclick="UnitModule.createTransferLotsForExternal()" ${selectedRowCount > 0 ? '' : 'disabled'} style="${selectedRowCount > 0 ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Sevk Fisi Olustur (${selectedRowCount})</button>`
+                                )
+                            }
+                        </div>
+                    </div>
+                    ${isFreeVendor ? `
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.7rem; padding:0.9rem; font-size:0.82rem; color:#475569;">
+                            Serbest dis tedarikci secildiginde once tedarikci kaydini acip sevk kaydini lot olarak olusturacagiz. Bu ekran dis birim butonlariyla ayni omurgayi kullanacak.
+                        </div>
+                    ` : `
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                        <th style="padding:0.52rem; text-align:left; width:40px;"></th>
+                                        <th style="padding:0.52rem; text-align:left;">Is emri / satir</th>
+                                        <th style="padding:0.52rem; text-align:left;">Parca kodu-adi</th>
+                                        <th style="padding:0.52rem; text-align:left;">Islem kodu + islem adi</th>
+                                        <th style="padding:0.52rem; text-align:right;">Uygun adet</th>
+                                        <th style="padding:0.52rem; text-align:right;">Sevk adedi</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${sourceRows.length === 0 ? `<tr><td colspan="6" style="padding:0.9rem; text-align:center; color:#94a3b8;">Sevk icin uygun satir yok.</td></tr>` : sourceRows.map((row) => {
+                                        const rowKey = String(row?.rowKey || '');
+                                        const selected = !!UnitModule.state.transferBoardSelectedRows?.[rowKey];
+                                        const availableQty = Math.max(0, Math.floor(Number(row?.availableTransferQty || 0)));
+                                        const processCode = String(row?.metrics?.processId || '').trim().toUpperCase();
+                                        const processName = UnitModule.getRouteProcessName(row?.metrics?.stationId, processCode);
+                                        const qtyRaw = Number((UnitModule.state.transferBoardQtyByRow || {})[rowKey]);
+                                        const qtyValue = Math.max(0, Math.floor(Number.isFinite(qtyRaw) && qtyRaw > 0 ? qtyRaw : availableQty));
+                                        return `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.52rem;">
+                                                    <input type="checkbox" ${selected ? 'checked' : ''} onchange="UnitModule.toggleTransferBoardRow('${UnitModule.escapeHtml(rowKey)}')">
+                                                </td>
+                                                <td style="padding:0.52rem;">
+                                                    <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</div>
+                                                    <div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</div>
+                                                </td>
+                                                <td style="padding:0.52rem;">
+                                                    <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div>
+                                                    <div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div>
+                                                </td>
+                                                <td style="padding:0.52rem;">
+                                                    <div style="font-family:monospace; font-size:0.74rem; color:#1d4ed8;">${UnitModule.escapeHtml(processCode || '-')}</div>
+                                                    <div style="font-size:0.75rem; color:#475569;">${UnitModule.escapeHtml(processName || '-')}</div>
+                                                </td>
+                                                <td style="padding:0.52rem; text-align:right; font-weight:800; color:#0f172a;">${availableQty}</td>
+                                                <td style="padding:0.52rem; text-align:right;">
+                                                    <input type="number" min="0" max="${availableQty}" value="${qtyValue}" oninput="UnitModule.setTransferBoardRowQty('${UnitModule.escapeHtml(rowKey)}', this.value)" style="width:92px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; text-align:right; font-weight:700;">
+                                                </td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                        <div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Transfer Lotlari</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Lot no bazli takip: yazdir, teslim edildi, geri geldi, ana depoya al.</div>
+                        </div>
+                        <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
+                            <button class="btn-sm" onclick="UnitModule.printTransferLots()" ${selectedLotCount > 0 ? '' : 'disabled'} style="${selectedLotCount > 0 ? '' : 'opacity:0.45; cursor:not-allowed;'}">Yazdir (${selectedLotCount})</button>
+                            ${tab === 'GERI_DONEN' ? `<button class="btn-sm" onclick="UnitModule.openTransferAcceptModalForSelectedLots()" ${selectedLotCount > 0 ? '' : 'disabled'} style="${selectedLotCount > 0 ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Seciliyi Ana Depoya Al</button>` : ''}
+                        </div>
+                    </div>
+                    <div class="card-table">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                    <th style="padding:0.52rem; text-align:left; width:40px;"></th>
+                                    <th style="padding:0.52rem; text-align:left;">Transfer Lot No</th>
+                                    <th style="padding:0.52rem; text-align:left;">Is emri / satir</th>
+                                    <th style="padding:0.52rem; text-align:left;">Parca kodu-adi</th>
+                                    <th style="padding:0.52rem; text-align:left;">Islem kodu + islem adi</th>
+                                    <th style="padding:0.52rem; text-align:right;">Sevk adedi</th>
+                                    <th style="padding:0.52rem; text-align:left;">Sevk tarihi</th>
+                                    <th style="padding:0.52rem; text-align:left;">Son durum</th>
+                                    <th style="padding:0.52rem; text-align:left;">Son hareket zamani</th>
+                                    <th style="padding:0.52rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${lots.length === 0 ? `<tr><td colspan="10" style="padding:0.95rem; text-align:center; color:#94a3b8;">Filtreye uygun lot yok.</td></tr>` : lots.map((lot) => {
+                                    const lotId = String(lot?.id || '');
+                                    const checked = !!UnitModule.state.transferBoardSelectedLots?.[lotId];
+                                    const statusMeta = UnitModule.getTransferLotStatusMeta(lot?.status);
+                                    const events = Array.isArray(lot?.events) ? lot.events : [];
+                                    const shippedEvt = events
+                                        .filter((evt) => String(evt?.type || '').toUpperCase() === 'SEVK_EDILDI')
+                                        .sort((a, b) => String(b?.at || '').localeCompare(String(a?.at || '')))[0];
+                                    const shipAt = shippedEvt?.at || lot?.created_at || '';
+                                    const statusKey = UnitModule.normalizeTransferLotStatus(lot?.status);
+                                    const canShip = statusKey === 'SEVK_BEKLIYOR';
+                                    const canDeliver = statusKey === 'SEVK_BEKLIYOR' || statusKey === 'YOLDA';
+                                    const canReturn = statusKey === 'DIS_BIRIMDE';
+                                    const canAccept = statusKey === 'GERI_DONEN';
+                                    return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.52rem;">
+                                                <input type="checkbox" ${checked ? 'checked' : ''} onchange="UnitModule.toggleTransferBoardLot('${UnitModule.escapeHtml(lotId)}')">
+                                            </td>
+                                            <td style="padding:0.52rem;">
+                                                <div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(String(lot?.lotNo || '-'))}</div>
+                                                <div style="font-size:0.72rem; color:#64748b;">Belge: ${UnitModule.escapeHtml(String(lot?.docNo || '-'))}</div>
+                                            </td>
+                                            <td style="padding:0.52rem;">
+                                                <div style="font-family:monospace; font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(lot?.workOrderCode || '-'))}</div>
+                                                <div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(String(lot?.lineCode || '-'))}</div>
+                                            </td>
+                                            <td style="padding:0.52rem;">
+                                                <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(lot?.componentName || '-'))}</div>
+                                                <div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(String(lot?.componentCode || '-'))}</div>
+                                            </td>
+                                            <td style="padding:0.52rem;">
+                                                <div style="font-family:monospace; font-size:0.74rem; color:#1d4ed8;">${UnitModule.escapeHtml(String(lot?.processId || '-'))}</div>
+                                                <div style="font-size:0.75rem; color:#475569;">${UnitModule.escapeHtml(String(lot?.processName || '-'))}</div>
+                                            </td>
+                                            <td style="padding:0.52rem; text-align:right; font-weight:800; color:#0f172a;">${Math.max(0, Number(lot?.qty || 0))}</td>
+                                            <td style="padding:0.52rem; color:#475569; font-size:0.78rem;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(shipAt))}</td>
+                                            <td style="padding:0.52rem;">
+                                                <span style="display:inline-flex; align-items:center; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${UnitModule.escapeHtml(statusMeta.label)}</span>
+                                            </td>
+                                            <td style="padding:0.52rem; color:#475569; font-size:0.78rem;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(lot?.lastActionAt || lot?.updated_at || lot?.created_at || ''))}</td>
+                                            <td style="padding:0.52rem; text-align:right;">
+                                                <div style="display:inline-flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
+                                                    <button class="btn-sm" onclick="UnitModule.printTransferLots(['${UnitModule.escapeHtml(lotId)}'])">Yazdir</button>
+                                                    ${canShip ? `<button class="btn-sm" onclick="UnitModule.markTransferLotShipped('${UnitModule.escapeHtml(lotId)}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Sevk Et</button>` : ''}
+                                                    ${canDeliver ? `<button class="btn-sm" onclick="UnitModule.markTransferLotDelivered('${UnitModule.escapeHtml(lotId)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Teslim Edildi</button>` : ''}
+                                                    ${canReturn ? `<button class="btn-sm" onclick="UnitModule.markTransferLotReturned('${UnitModule.escapeHtml(lotId)}')" style="border-color:#fed7aa; color:#9a3412; background:#fff7ed;">Geri Geldi</button>` : ''}
+                                                    ${canAccept ? `<button class="btn-sm" onclick="UnitModule.openTransferAcceptModalForLot('${UnitModule.escapeHtml(lotId)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Ana Depoya Al</button>` : ''}
+                                                    <button class="btn-sm" onclick="UnitModule.openTransferLotTimeline('${UnitModule.escapeHtml(lotId)}')" style="border-color:#cbd5e1;">Akis</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
     renderWorkOrderPlanningPlaceholder: (container, unitId) => {
         const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
         if (!unit) {
             container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
+            return;
+        }
+        if (String(unitId || '') === 'u_dtm') {
+            UnitModule.renderDepoTransferLotBoard(container);
             return;
         }
         const planningEnabledForUnit = UnitModule.isWorkOrderPlanningEnabledForUnit(unitId);
@@ -3717,6 +4041,9 @@ const UnitModule = {
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.5rem 0.8rem; font-weight:700; color:#0f172a;">
                         Kayitli Islem: ${tasks.length}
                     </div>
+                    <button class="btn-sm" onclick="UnitModule.openWorkOrderPlanning('u_dtm')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; font-weight:800;">
+                        Sevk / Lot Takip
+                    </button>
                 </div>
             </div>
 

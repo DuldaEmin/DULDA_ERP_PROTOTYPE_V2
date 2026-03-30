@@ -2805,22 +2805,41 @@ const UnitModule = {
     },
     applyExternalTakeForTransferLot: (lot) => {
         if (!lot || typeof lot !== 'object') return;
-        if (lot.externalTakeApplied) return;
+        if (lot.externalTakeApplied) return 0;
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        const txns = DB.data.data.workOrderTransactions;
+        const lotQty = Math.max(0, Number(lot?.qty || 0));
+        let qtyToApply = lotQty;
+        const sourceStationId = String(lot?.sourceStationId || 'u_dtm');
+        const order = (DB.data?.data?.workOrders || []).find((row) => String(row?.id || '') === String(lot?.workOrderId || ''));
+        const line = Array.isArray(order?.lines)
+            ? order.lines.find((row) => String(row?.id || '') === String(lot?.lineId || ''))
+            : null;
+        if (order && line) {
+            const sourceMetrics = UnitModule.computeWorkLineUnitMetrics(order, line, sourceStationId, txns);
+            const pendingQty = Math.max(0, Number(sourceMetrics?.transferPendingQty || 0));
+            qtyToApply = Math.min(lotQty, pendingQty);
+        }
+        if (!qtyToApply) {
+            lot.externalTakeApplied = true;
+            lot.externalTakeQty = 0;
+            return 0;
+        }
         DB.data.data.workOrderTransactions.push({
             id: crypto.randomUUID(),
             workOrderId: String(lot?.workOrderId || ''),
             lineId: String(lot?.lineId || ''),
             stationId: String(lot?.targetUnitId || ''),
             type: 'TAKE',
-            qty: Math.max(0, Number(lot?.qty || 0)),
+            qty: qtyToApply,
             note: `Dis birim teslim aldi / ${String(lot?.lotNo || '-')}`,
             user: 'Demo User',
             created_at: new Date().toISOString()
         });
-        const order = (DB.data?.data?.workOrders || []).find((row) => String(row?.id || '') === String(lot?.workOrderId || ''));
         if (order) order.updated_at = new Date().toISOString();
         lot.externalTakeApplied = true;
+        lot.externalTakeQty = qtyToApply;
+        return qtyToApply;
     },
     createTransferLotsForExternal: async () => {
         const target = String(UnitModule.state.transferBoardTarget || '').trim();
@@ -2883,53 +2902,93 @@ const UnitModule = {
         UI.renderCurrentPage();
         alert(`${created} lot olusturuldu.`);
     },
-    printTransferLots: (lotIds = []) => {
+    downloadTransferLotsPdf: (lotIds = []) => {
         const ids = Array.isArray(lotIds) ? lotIds : [];
         const selectedIds = ids.length
             ? ids
             : Object.entries(UnitModule.state.transferBoardSelectedLots || {}).filter(([, on]) => !!on).map(([id]) => String(id || ''));
-        if (!selectedIds.length) return alert('Yazdirmak icin lot seciniz.');
+        if (!selectedIds.length) return alert('Indirmek icin lot seciniz.');
         const lots = UnitModule.getTransferLots().filter((lot) => selectedIds.includes(String(lot?.id || '')));
-        if (!lots.length) return alert('Yazdirilacak lot bulunamadi.');
-        const opened = window.open('', '_blank', 'width=980,height=760');
-        if (!opened) return alert('Yazdirma penceresi acilamadi.');
-        const rowsHtml = lots.map((lot, idx) => `
-            <tr>
-                <td>${idx + 1}</td>
-                <td>${UnitModule.escapeHtml(String(lot?.lotNo || '-'))}</td>
-                <td>${UnitModule.escapeHtml(String(lot?.workOrderCode || '-'))}</td>
-                <td>${UnitModule.escapeHtml(String(lot?.lineCode || '-'))}</td>
-                <td>${UnitModule.escapeHtml(String(lot?.componentCode || '-'))} / ${UnitModule.escapeHtml(String(lot?.componentName || '-'))}</td>
-                <td>${UnitModule.escapeHtml(String(lot?.processId || '-'))}<br><small>${UnitModule.escapeHtml(String(lot?.processName || '-'))}</small></td>
-                <td style="text-align:right;">${Math.max(0, Number(lot?.qty || 0))}</td>
-            </tr>
-        `).join('');
-        opened.document.write(`
-            <html><head><title>Transfer Sevk Fisi</title><style>
-                body{font-family:Arial,sans-serif;padding:20px;color:#111827;}
-                h2{margin:0 0 8px 0;}
-                .meta{font-size:12px;color:#4b5563;margin-bottom:12px;}
-                table{width:100%;border-collapse:collapse;margin-top:8px;}
-                th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}
-                th{background:#f3f4f6;text-align:left;}
-                .sign{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:26px;}
-                .box{border-top:1px solid #374151;padding-top:6px;font-size:12px;text-align:center;}
-            </style></head><body>
-                <h2>Dis Birim Sevk Fisi</h2>
-                <div class="meta">Belge tarihi: ${UnitModule.escapeHtml(new Date().toLocaleString('tr-TR'))} | Lot sayisi: ${lots.length}</div>
-                <table>
-                    <thead><tr><th>#</th><th>Lot No</th><th>Is Emri</th><th>Satir</th><th>Parca</th><th>Islem</th><th>Adet</th></tr></thead>
-                    <tbody>${rowsHtml}</tbody>
-                </table>
-                <div class="sign">
-                    <div class="box">Teslim Eden</div>
-                    <div class="box">Teslim Alan</div>
-                </div>
-            </body></html>
-        `);
-        opened.document.close();
-        opened.focus();
-        opened.print();
+        if (!lots.length) return alert('Indirilecek lot bulunamadi.');
+
+        const toAscii = (value) => String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^\x20-\x7E]/g, '?');
+        const escPdf = (value) => toAscii(value)
+            .replace(/\\/g, '\\\\')
+            .replace(/\(/g, '\\(')
+            .replace(/\)/g, '\\)');
+        const pad = (value, size) => {
+            const txt = String(value || '');
+            if (txt.length >= size) return txt.slice(0, size - 1) + '.';
+            return txt + ' '.repeat(size - txt.length);
+        };
+        const nowLabel = new Date().toLocaleString('tr-TR');
+        const lines = [
+            'DIS BIRIM SEVK FISI',
+            `Belge tarihi: ${nowLabel}`,
+            `Lot sayisi: ${lots.length}`,
+            ''.padEnd(118, '-'),
+            `${pad('LOT NO', 14)} ${pad('IS EMRI', 14)} ${pad('SATIR', 12)} ${pad('PARCA', 34)} ${pad('ISLEM', 30)} ${pad('ADET', 8)}`,
+            ''.padEnd(118, '-'),
+            ...lots.map((lot) => `${pad(lot?.lotNo || '-', 14)} ${pad(lot?.workOrderCode || '-', 14)} ${pad(lot?.lineCode || '-', 12)} ${pad(`${lot?.componentCode || '-'} / ${lot?.componentName || '-'}`, 34)} ${pad(`${lot?.processId || '-'} / ${lot?.processName || '-'}`, 30)} ${pad(Math.max(0, Number(lot?.qty || 0)), 8)}`),
+            ''.padEnd(118, '-'),
+            '',
+            'Teslim Eden: _______________________    Teslim Alan: _______________________'
+        ];
+        const maxLinesPerPage = 46;
+        const chunks = [];
+        for (let i = 0; i < lines.length; i += maxLinesPerPage) {
+            chunks.push(lines.slice(i, i + maxLinesPerPage));
+        }
+
+        const objects = [];
+        objects[1] = '<< /Type /Catalog /Pages 2 0 R >>';
+        const kids = [];
+        objects[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+        chunks.forEach((chunk, idx) => {
+            const pageObjNum = 4 + (idx * 2);
+            const contentObjNum = pageObjNum + 1;
+            kids.push(`${pageObjNum} 0 R`);
+            const streamLines = ['BT', '/F1 10 Tf', '40 802 Td'];
+            chunk.forEach((line, lineIdx) => {
+                streamLines.push(`(${escPdf(line)}) Tj`);
+                if (lineIdx < chunk.length - 1) streamLines.push('0 -14 Td');
+            });
+            streamLines.push('ET');
+            const streamContent = streamLines.join('\n');
+            objects[contentObjNum] = `<< /Length ${streamContent.length} >>\nstream\n${streamContent}\nendstream`;
+            objects[pageObjNum] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjNum} 0 R >>`;
+        });
+        objects[2] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
+        const objectCount = objects.length - 1;
+        let pdf = '%PDF-1.4\n';
+        const offsets = [0];
+        for (let i = 1; i <= objectCount; i += 1) {
+            offsets[i] = pdf.length;
+            pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+        }
+        const xrefStart = pdf.length;
+        pdf += `xref\n0 ${objectCount + 1}\n`;
+        pdf += '0000000000 65535 f \n';
+        for (let i = 1; i <= objectCount; i += 1) {
+            pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+        }
+        pdf += `trailer\n<< /Size ${objectCount + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
+        const blob = new Blob([pdf], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dis-birim-sevk-fisi-${stamp}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+    },
+    printTransferLots: (lotIds = []) => {
+        UnitModule.downloadTransferLotsPdf(lotIds);
     },
     markTransferLotShipped: async (lotId) => {
         const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
@@ -2950,8 +3009,15 @@ const UnitModule = {
         const status = UnitModule.normalizeTransferLotStatus(lot?.status);
         if (!['YOLDA', 'SEVK_BEKLIYOR'].includes(status)) return;
         lot.status = 'DIS_BIRIMDE';
-        UnitModule.applyExternalTakeForTransferLot(lot);
-        UnitModule.appendTransferLotEvent(lot, 'TESLIM_EDILDI', 'Dis birim lotu teslim aldi.');
+        const appliedQty = Math.max(0, Number(UnitModule.applyExternalTakeForTransferLot(lot) || 0));
+        const lotQty = Math.max(0, Number(lot?.qty || 0));
+        let note = 'Dis birim lotu teslim aldi.';
+        if (appliedQty <= 0) {
+            note = 'Dis birim lotu teslim aldi. Aldim kaydi zaten mevcut oldugu icin yeni TAKE acilmadi.';
+        } else if (appliedQty < lotQty) {
+            note = `Dis birim lotu teslim aldi. ${appliedQty} adet TAKE acildi; kalan kisim zaten alinmis.`;
+        }
+        UnitModule.appendTransferLotEvent(lot, 'TESLIM_EDILDI', note, { appliedTakeQty: appliedQty });
         await DB.save();
         UI.renderCurrentPage();
     },
@@ -3423,10 +3489,10 @@ const UnitModule = {
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                         <div>
                             <div style="font-size:1rem; font-weight:800; color:#0f172a;">Transfer Lotlari</div>
-                            <div style="font-size:0.8rem; color:#64748b;">Lot no bazli takip: yazdir, teslim edildi, geri geldi, ana depoya al.</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Lot no bazli takip: indir (PDF), teslim edildi, geri geldi, ana depoya al.</div>
                         </div>
                         <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
-                            <button class="btn-sm" onclick="UnitModule.printTransferLots()" ${selectedLotCount > 0 ? '' : 'disabled'} style="${selectedLotCount > 0 ? '' : 'opacity:0.45; cursor:not-allowed;'}">Yazdir (${selectedLotCount})</button>
+                            <button class="btn-sm" onclick="UnitModule.downloadTransferLotsPdf()" ${selectedLotCount > 0 ? '' : 'disabled'} style="${selectedLotCount > 0 ? '' : 'opacity:0.45; cursor:not-allowed;'}">Indir (${selectedLotCount})</button>
                             ${tab === 'GERI_DONEN' ? `<button class="btn-sm" onclick="UnitModule.openTransferAcceptModalForSelectedLots()" ${selectedLotCount > 0 ? '' : 'disabled'} style="${selectedLotCount > 0 ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Seciliyi Ana Depoya Al</button>` : ''}
                         </div>
                     </div>
@@ -3490,7 +3556,7 @@ const UnitModule = {
                                             <td style="padding:0.52rem; color:#475569; font-size:0.78rem;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(lot?.lastActionAt || lot?.updated_at || lot?.created_at || ''))}</td>
                                             <td style="padding:0.52rem; text-align:right;">
                                                 <div style="display:inline-flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                    <button class="btn-sm" onclick="UnitModule.printTransferLots(['${UnitModule.escapeHtml(lotId)}'])">Yazdir</button>
+                                                    <button class="btn-sm" onclick="UnitModule.downloadTransferLotsPdf(['${UnitModule.escapeHtml(lotId)}'])">Indir</button>
                                                     ${canShip ? `<button class="btn-sm" onclick="UnitModule.markTransferLotShipped('${UnitModule.escapeHtml(lotId)}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">Sevk Et</button>` : ''}
                                                     ${canDeliver ? `<button class="btn-sm" onclick="UnitModule.markTransferLotDelivered('${UnitModule.escapeHtml(lotId)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Teslim Edildi</button>` : ''}
                                                     ${canReturn ? `<button class="btn-sm" onclick="UnitModule.markTransferLotReturned('${UnitModule.escapeHtml(lotId)}')" style="border-color:#fed7aa; color:#9a3412; background:#fff7ed;">Geri Geldi</button>` : ''}

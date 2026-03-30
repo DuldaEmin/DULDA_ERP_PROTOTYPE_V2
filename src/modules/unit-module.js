@@ -101,6 +101,22 @@ const UnitModule = {
         workOrderDraftDueDate: '',
         workOrderDraftPriority: 'NORMAL',
         workOrderDraftNote: '',
+        transferBoardTarget: 'main',
+        transferBoardTab: 'SEVK_BEKLEYEN',
+        transferBoardSearch: '',
+        transferBoardDateFrom: '',
+        transferBoardDateTo: '',
+        transferBoardOnlyOpen: true,
+        transferBoardStatusFilter: '',
+        transferBoardSelectedRows: {},
+        transferBoardQtyByRow: {},
+        transferBoardSelectedLots: {},
+        transferBoardDepotDraft: {
+            depotId: 'main',
+            locationId: '',
+            note: ''
+        },
+        transferBoardPendingAccept: null,
         freeVendorSearch: '',
         freeVendorFormOpen: false,
         freeVendorEditingId: null,
@@ -134,6 +150,7 @@ const UnitModule = {
         if (!DB.data.data.workOrders) DB.data.data.workOrders = [];
         if (!DB.data.data.workOrderTransactions) DB.data.data.workOrderTransactions = [];
         if (!DB.data.data.partComponentCards) DB.data.data.partComponentCards = [];
+        if (!DB.data.data.outsourceTransfers) DB.data.data.outsourceTransfers = [];
 
         // Seed Data 
         if (!DB.data.data.units || DB.data.data.units.length === 0) {
@@ -2471,6 +2488,702 @@ const UnitModule = {
             updatedAt: new Date().toISOString()
         };
         order.updated_at = new Date().toISOString();
+        await DB.save();
+        Modal.close();
+        UI.renderCurrentPage();
+    },
+    normalizeTransferBoardTab: (tabId) => {
+        const value = String(tabId || '').trim().toUpperCase();
+        const valid = ['SEVK_BEKLEYEN', 'YOLDA', 'DIS_BIRIMDE', 'GERI_DONEN', 'GECMIS'];
+        return valid.includes(value) ? value : 'SEVK_BEKLEYEN';
+    },
+    normalizeTransferLotStatus: (status) => String(status || '').trim().toUpperCase(),
+    isTransferLotOpenStatus: (status) => {
+        const key = UnitModule.normalizeTransferLotStatus(status);
+        return key !== 'KAPANDI' && key !== 'IPTAL';
+    },
+    getTransferLotStatusMeta: (status) => {
+        const key = UnitModule.normalizeTransferLotStatus(status);
+        if (key === 'SEVK_BEKLIYOR') return { label: 'Sevk bekliyor', style: 'background:#f8fafc; color:#334155; border:1px solid #cbd5e1;' };
+        if (key === 'YOLDA') return { label: 'Yolda', style: 'background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;' };
+        if (key === 'DIS_BIRIMDE') return { label: 'Dis birimde', style: 'background:#fff7ed; color:#c2410c; border:1px solid #fed7aa;' };
+        if (key === 'GERI_DONEN') return { label: 'Geri donen / kabul bekliyor', style: 'background:#fef3c7; color:#92400e; border:1px solid #fcd34d;' };
+        if (key === 'KAPANDI') return { label: 'Kapandi', style: 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;' };
+        return { label: key || '-', style: 'background:#f8fafc; color:#334155; border:1px solid #e2e8f0;' };
+    },
+    getTransferLots: () => {
+        if (!Array.isArray(DB.data?.data?.outsourceTransfers)) DB.data.data.outsourceTransfers = [];
+        return DB.data.data.outsourceTransfers
+            .filter((row) => String(row?.flowType || '').trim().toUpperCase() === 'DEPO_TRANSFER_LOT');
+    },
+    getNextTransferLotNo: () => {
+        const max = UnitModule.getTransferLots().reduce((acc, row) => {
+            const lotNo = String(row?.lotNo || '').trim().toUpperCase();
+            const match = lotNo.match(/^TLT-(\d{6})$/);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        return `TLT-${String(max + 1).padStart(6, '0')}`;
+    },
+    appendTransferLotEvent: (lot, type, note = '', extra = {}) => {
+        if (!lot || typeof lot !== 'object') return;
+        if (!Array.isArray(lot.events)) lot.events = [];
+        const now = new Date().toISOString();
+        lot.events.push({
+            id: crypto.randomUUID(),
+            at: now,
+            type: String(type || '').trim().toUpperCase(),
+            note: String(note || '').trim(),
+            user: 'Demo User',
+            ...extra
+        });
+        lot.lastActionAt = now;
+        lot.updated_at = now;
+    },
+    setTransferBoardTarget: (targetId) => {
+        UnitModule.state.transferBoardTarget = String(targetId || 'main').trim() || 'main';
+        UnitModule.state.transferBoardTab = 'SEVK_BEKLEYEN';
+        UnitModule.state.transferBoardSelectedRows = {};
+        UnitModule.state.transferBoardQtyByRow = {};
+        UnitModule.state.transferBoardSelectedLots = {};
+        UI.renderCurrentPage();
+    },
+    setTransferBoardTab: (tabId) => {
+        UnitModule.state.transferBoardTab = UnitModule.normalizeTransferBoardTab(tabId);
+        UnitModule.state.transferBoardSelectedRows = {};
+        UnitModule.state.transferBoardQtyByRow = {};
+        UnitModule.state.transferBoardSelectedLots = {};
+        UI.renderCurrentPage();
+    },
+    setTransferBoardFilter: (field, value) => {
+        if (field === 'search') UnitModule.state.transferBoardSearch = String(value || '');
+        if (field === 'dateFrom') UnitModule.state.transferBoardDateFrom = String(value || '');
+        if (field === 'dateTo') UnitModule.state.transferBoardDateTo = String(value || '');
+        if (field === 'status') UnitModule.state.transferBoardStatusFilter = String(value || '').trim().toUpperCase();
+        UI.renderCurrentPage();
+    },
+    setTransferBoardOnlyOpen: (checked) => {
+        UnitModule.state.transferBoardOnlyOpen = !!checked;
+        UI.renderCurrentPage();
+    },
+    toggleTransferBoardRow: (rowKey) => {
+        const key = String(rowKey || '').trim();
+        if (!key) return;
+        const next = { ...(UnitModule.state.transferBoardSelectedRows || {}) };
+        next[key] = !next[key];
+        UnitModule.state.transferBoardSelectedRows = next;
+        UI.renderCurrentPage();
+    },
+    setTransferBoardRowQty: (rowKey, value) => {
+        const key = String(rowKey || '').trim();
+        if (!key) return;
+        const qty = Math.max(0, Math.floor(Number(value || 0)));
+        const next = { ...(UnitModule.state.transferBoardQtyByRow || {}) };
+        next[key] = qty;
+        UnitModule.state.transferBoardQtyByRow = next;
+    },
+    toggleTransferBoardLot: (lotId) => {
+        const key = String(lotId || '').trim();
+        if (!key) return;
+        const next = { ...(UnitModule.state.transferBoardSelectedLots || {}) };
+        next[key] = !next[key];
+        UnitModule.state.transferBoardSelectedLots = next;
+        UI.renderCurrentPage();
+    },
+    getTransferTargetButtons: () => {
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const externals = units
+            .filter((row) => String(row?.type || '').trim().toLowerCase() === 'external')
+            .map((row) => ({ id: String(row?.id || ''), label: String(row?.name || row?.id || '').trim() }))
+            .filter((row) => row.id && row.label)
+            .sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'tr'));
+        return [
+            { id: 'main', label: 'ana depoya al' },
+            ...externals,
+            { id: 'free-vendor', label: 'Serbest Dis Tedarikci' }
+        ];
+    },
+    getTransferBoardRowsForTarget: (targetId) => {
+        const target = String(targetId || 'main').trim();
+        if (!target || target === 'free-vendor') return [];
+        const baseRows = UnitModule.getWorkOrderPlanningRowsForUnit('u_dtm');
+        const lots = UnitModule.getTransferLots();
+        return baseRows
+            .map((row) => {
+                const nextRoute = UnitModule.getNextRouteInfo(row?.line, 'u_dtm');
+                const lineKey = `${String(row?.order?.id || '')}::${String(row?.line?.id || '')}`;
+                const sameLineLots = lots.filter((lot) => String(lot?.workOrderId || '') === String(row?.order?.id || '')
+                    && String(lot?.lineId || '') === String(row?.line?.id || '')
+                    && String(lot?.sourceStationId || '') === 'u_dtm');
+                if (target === 'main') {
+                    if (nextRoute) return null;
+                    const doneQty = Math.max(0, Number(row?.metrics?.doneQty || 0));
+                    const mainLots = sameLineLots.filter((lot) => String(lot?.kind || '').toUpperCase() === 'MAIN');
+                    const acceptedQty = mainLots
+                        .filter((lot) => UnitModule.normalizeTransferLotStatus(lot?.status) === 'KAPANDI')
+                        .reduce((sum, lot) => sum + Math.max(0, Number(lot?.qty || 0)), 0);
+                    const reservedQty = mainLots
+                        .filter((lot) => UnitModule.isTransferLotOpenStatus(lot?.status))
+                        .reduce((sum, lot) => sum + Math.max(0, Number(lot?.qty || 0)), 0);
+                    const availableQty = Math.max(0, doneQty - acceptedQty - reservedQty);
+                    return {
+                        ...row,
+                        rowKey: `${lineKey}::main`,
+                        targetUnitId: 'main',
+                        targetUnitName: 'Ana Depo',
+                        nextRoute,
+                        availableTransferQty: availableQty
+                    };
+                }
+                if (!nextRoute || String(nextRoute?.stationId || '') !== target) return null;
+                const transferPendingQty = Math.max(0, Number(row?.metrics?.transferPendingQty || 0));
+                const externalLots = sameLineLots.filter((lot) => String(lot?.kind || '').toUpperCase() === 'EXTERNAL'
+                    && String(lot?.targetUnitId || '') === target
+                    && UnitModule.isTransferLotOpenStatus(lot?.status));
+                const reservedQty = externalLots.reduce((sum, lot) => sum + Math.max(0, Number(lot?.qty || 0)), 0);
+                const availableQty = Math.max(0, transferPendingQty - reservedQty);
+                return {
+                    ...row,
+                    rowKey: `${lineKey}::${target}`,
+                    targetUnitId: target,
+                    targetUnitName: UnitModule.getRouteStationName(target),
+                    nextRoute,
+                    availableTransferQty: availableQty
+                };
+            })
+            .filter(Boolean);
+    },
+    getTransferLotsForBoard: () => {
+        const target = String(UnitModule.state.transferBoardTarget || 'main').trim();
+        const tab = UnitModule.normalizeTransferBoardTab(UnitModule.state.transferBoardTab);
+        const search = String(UnitModule.state.transferBoardSearch || '').trim().toLowerCase();
+        const dateFrom = String(UnitModule.state.transferBoardDateFrom || '').trim();
+        const dateTo = String(UnitModule.state.transferBoardDateTo || '').trim();
+        const onlyOpen = !!UnitModule.state.transferBoardOnlyOpen;
+        const statusFilter = String(UnitModule.state.transferBoardStatusFilter || '').trim().toUpperCase();
+
+        const tabStatusMap = {
+            SEVK_BEKLEYEN: ['SEVK_BEKLIYOR', 'KABUL_BEKLIYOR'],
+            YOLDA: ['YOLDA'],
+            DIS_BIRIMDE: ['DIS_BIRIMDE'],
+            GERI_DONEN: ['GERI_DONEN'],
+            GECMIS: ['KAPANDI', 'IPTAL']
+        };
+
+        return UnitModule.getTransferLots()
+            .filter((lot) => {
+                if (target === 'main') return String(lot?.kind || '').toUpperCase() === 'MAIN';
+                return String(lot?.kind || '').toUpperCase() === 'EXTERNAL' && String(lot?.targetUnitId || '') === target;
+            })
+            .filter((lot) => {
+                const status = UnitModule.normalizeTransferLotStatus(lot?.status);
+                const allowed = tabStatusMap[tab] || [];
+                if (allowed.length && !allowed.includes(status)) return false;
+                if (onlyOpen && !UnitModule.isTransferLotOpenStatus(status)) return false;
+                if (statusFilter && status !== statusFilter) return false;
+                const hay = [
+                    lot?.lotNo,
+                    lot?.workOrderCode,
+                    lot?.lineCode,
+                    lot?.componentCode,
+                    lot?.componentName,
+                    lot?.processId,
+                    lot?.processName,
+                    lot?.docNo
+                ].join(' ').toLowerCase();
+                if (search && !hay.includes(search)) return false;
+                const at = String(lot?.updated_at || lot?.created_at || '').slice(0, 10);
+                if (dateFrom && at < dateFrom) return false;
+                if (dateTo && at > dateTo) return false;
+                return true;
+            })
+            .sort((a, b) => String(b?.updated_at || b?.created_at || '').localeCompare(String(a?.updated_at || a?.created_at || '')));
+    },
+    getTransferBoardKpi: () => {
+        const target = String(UnitModule.state.transferBoardTarget || 'main').trim();
+        const today = new Date().toISOString().slice(0, 10);
+        const lots = UnitModule.getTransferLots().filter((lot) => {
+            if (target === 'main') return String(lot?.kind || '').toUpperCase() === 'MAIN';
+            return String(lot?.kind || '').toUpperCase() === 'EXTERNAL' && String(lot?.targetUnitId || '') === target;
+        });
+        const todayShippedQty = lots.reduce((sum, lot) => {
+            const events = Array.isArray(lot?.events) ? lot.events : [];
+            const shippedToday = events.some((evt) => String(evt?.type || '').toUpperCase() === 'SEVK_EDILDI' && String(evt?.at || '').slice(0, 10) === today);
+            if (!shippedToday) return sum;
+            return sum + Math.max(0, Number(lot?.qty || 0));
+        }, 0);
+        const waitingExternalQty = lots
+            .filter((lot) => ['YOLDA', 'DIS_BIRIMDE'].includes(UnitModule.normalizeTransferLotStatus(lot?.status)))
+            .reduce((sum, lot) => sum + Math.max(0, Number(lot?.qty || 0)), 0);
+        const returnedQty = lots
+            .filter((lot) => UnitModule.normalizeTransferLotStatus(lot?.status) === 'GERI_DONEN')
+            .reduce((sum, lot) => sum + Math.max(0, Number(lot?.qty || 0)), 0);
+        const closedCount = lots.filter((lot) => UnitModule.normalizeTransferLotStatus(lot?.status) === 'KAPANDI').length;
+        return { todayShippedQty, waitingExternalQty, returnedQty, closedCount };
+    },
+    getTransferDepotOptions: () => {
+        const rows = Array.isArray(DB.data?.data?.stockDepots) ? DB.data.data.stockDepots : [];
+        const all = [{ id: 'main', name: 'ANA DEPO' }, ...rows.map((row) => ({ id: String(row?.id || ''), name: String(row?.name || '').trim() }))];
+        const map = new Map();
+        all.forEach((row) => {
+            const id = String(row?.id || '').trim();
+            const name = String(row?.name || '').trim();
+            if (!id || !name || map.has(id)) return;
+            map.set(id, { id, name });
+        });
+        return Array.from(map.values()).sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+    getTransferLocationOptions: (depotId) => {
+        const targetDepot = String(depotId || '').trim();
+        const rows = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
+        return rows
+            .filter((row) => String(row?.depotId || '') === targetDepot)
+            .map((row) => {
+                const raf = String(row?.rafCode || '').trim();
+                const cell = String(row?.cellCode || '').trim();
+                const code = [raf, cell].filter(Boolean).join('-') || String(row?.id || '');
+                return {
+                    id: String(row?.id || ''),
+                    code,
+                    label: `${code}${row?.note ? ` / ${String(row.note)}` : ''}`
+                };
+            })
+            .filter((row) => row.id)
+            .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || ''), 'tr'));
+    },
+    addTransferQtyToStockDepot: (payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        const qty = Math.max(0, Number(payload?.qty || 0));
+        if (!qty) return;
+        const depotId = String(payload?.depotId || 'main').trim() || 'main';
+        const locationId = String(payload?.locationId || '').trim();
+        const productCode = String(payload?.productCode || '').trim().toUpperCase();
+        const productName = String(payload?.productName || '').trim();
+        const existing = (DB.data.data.stockDepotItems || []).find((row) =>
+            String(row?.depotId || '') === depotId
+            && String(row?.locationId || '') === locationId
+            && String(row?.productCode || '').trim().toUpperCase() === productCode
+        );
+        if (existing) {
+            const currentQty = Math.max(0, Number(existing?.quantity ?? existing?.qty ?? 0));
+            const nextQty = currentQty + qty;
+            existing.quantity = nextQty;
+            existing.qty = nextQty;
+            existing.amount = nextQty;
+            existing.productName = productName || existing.productName;
+            existing.updated_at = new Date().toISOString();
+            if (payload?.note) existing.note = String(payload.note);
+            return;
+        }
+        DB.data.data.stockDepotItems.push({
+            id: crypto.randomUUID(),
+            productCode,
+            code: productCode,
+            productName,
+            name: productName,
+            quantity: qty,
+            qty,
+            amount: qty,
+            unit: String(payload?.unit || 'ADET'),
+            status: 'bitmis',
+            depotId,
+            locationId,
+            note: String(payload?.note || '').trim(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        });
+    },
+    applyExternalTakeForTransferLot: (lot) => {
+        if (!lot || typeof lot !== 'object') return;
+        if (lot.externalTakeApplied) return;
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        DB.data.data.workOrderTransactions.push({
+            id: crypto.randomUUID(),
+            workOrderId: String(lot?.workOrderId || ''),
+            lineId: String(lot?.lineId || ''),
+            stationId: String(lot?.targetUnitId || ''),
+            type: 'TAKE',
+            qty: Math.max(0, Number(lot?.qty || 0)),
+            note: `Dis birim teslim aldi / ${String(lot?.lotNo || '-')}`,
+            user: 'Demo User',
+            created_at: new Date().toISOString()
+        });
+        const order = (DB.data?.data?.workOrders || []).find((row) => String(row?.id || '') === String(lot?.workOrderId || ''));
+        if (order) order.updated_at = new Date().toISOString();
+        lot.externalTakeApplied = true;
+    },
+    createTransferLotsForExternal: async () => {
+        const target = String(UnitModule.state.transferBoardTarget || '').trim();
+        if (!target || target === 'main' || target === 'free-vendor') return;
+        const rows = UnitModule.getTransferBoardRowsForTarget(target);
+        const map = new Map(rows.map((row) => [String(row?.rowKey || ''), row]));
+        const selected = Object.entries(UnitModule.state.transferBoardSelectedRows || {})
+            .filter(([, isOn]) => !!isOn)
+            .map(([rowKey]) => ({ rowKey, row: map.get(String(rowKey || '')) }))
+            .filter((entry) => entry.row);
+        if (!selected.length) return alert('Sevk icin satir seciniz.');
+
+        const all = Array.isArray(DB.data?.data?.outsourceTransfers) ? DB.data.data.outsourceTransfers : [];
+        const now = new Date().toISOString();
+        let created = 0;
+        for (const entry of selected) {
+            const row = entry.row;
+            const defaultQty = Math.max(0, Math.floor(Number(row?.availableTransferQty || 0)));
+            const rawQty = Number((UnitModule.state.transferBoardQtyByRow || {})[entry.rowKey] || defaultQty);
+            const qty = Math.max(0, Math.floor(rawQty));
+            if (!qty) continue;
+            if (qty > defaultQty) {
+                return alert(`Sevk adedi fazla: ${String(row?.order?.workOrderCode || '-')} / ${String(row?.line?.lineCode || '-')}. Maksimum ${defaultQty}.`);
+            }
+            const lotNo = UnitModule.getNextTransferLotNo();
+            const lot = {
+                id: crypto.randomUUID(),
+                flowType: 'DEPO_TRANSFER_LOT',
+                lotNo,
+                kind: 'EXTERNAL',
+                sourceStationId: 'u_dtm',
+                targetUnitId: target,
+                targetUnitName: UnitModule.getRouteStationName(target),
+                workOrderId: String(row?.order?.id || ''),
+                workOrderCode: String(row?.order?.workOrderCode || ''),
+                lineId: String(row?.line?.id || ''),
+                lineCode: String(row?.line?.lineCode || ''),
+                componentCode: String(row?.line?.componentCode || '').trim().toUpperCase(),
+                componentName: String(row?.line?.componentName || ''),
+                processId: String(row?.metrics?.processId || '').trim().toUpperCase(),
+                processName: UnitModule.getRouteProcessName('u_dtm', row?.metrics?.processId),
+                qty,
+                status: 'SEVK_BEKLIYOR',
+                docNo: '',
+                externalTakeApplied: false,
+                events: [],
+                created_at: now,
+                updated_at: now,
+                lastActionAt: now
+            };
+            UnitModule.appendTransferLotEvent(lot, 'LOT_OLUSTURULDU', 'Sevk fisine aday lot olusturuldu.', { qty });
+            all.push(lot);
+            created += 1;
+        }
+        if (!created) return alert('Secilen satirlarda sevk adedi yok.');
+        DB.data.data.outsourceTransfers = all;
+        UnitModule.state.transferBoardSelectedRows = {};
+        UnitModule.state.transferBoardQtyByRow = {};
+        await DB.save();
+        UI.renderCurrentPage();
+        alert(`${created} lot olusturuldu.`);
+    },
+    printTransferLots: (lotIds = []) => {
+        const ids = Array.isArray(lotIds) ? lotIds : [];
+        const selectedIds = ids.length
+            ? ids
+            : Object.entries(UnitModule.state.transferBoardSelectedLots || {}).filter(([, on]) => !!on).map(([id]) => String(id || ''));
+        if (!selectedIds.length) return alert('Yazdirmak icin lot seciniz.');
+        const lots = UnitModule.getTransferLots().filter((lot) => selectedIds.includes(String(lot?.id || '')));
+        if (!lots.length) return alert('Yazdirilacak lot bulunamadi.');
+        const opened = window.open('', '_blank', 'width=980,height=760');
+        if (!opened) return alert('Yazdirma penceresi acilamadi.');
+        const rowsHtml = lots.map((lot, idx) => `
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${UnitModule.escapeHtml(String(lot?.lotNo || '-'))}</td>
+                <td>${UnitModule.escapeHtml(String(lot?.workOrderCode || '-'))}</td>
+                <td>${UnitModule.escapeHtml(String(lot?.lineCode || '-'))}</td>
+                <td>${UnitModule.escapeHtml(String(lot?.componentCode || '-'))} / ${UnitModule.escapeHtml(String(lot?.componentName || '-'))}</td>
+                <td>${UnitModule.escapeHtml(String(lot?.processId || '-'))}<br><small>${UnitModule.escapeHtml(String(lot?.processName || '-'))}</small></td>
+                <td style="text-align:right;">${Math.max(0, Number(lot?.qty || 0))}</td>
+            </tr>
+        `).join('');
+        opened.document.write(`
+            <html><head><title>Transfer Sevk Fisi</title><style>
+                body{font-family:Arial,sans-serif;padding:20px;color:#111827;}
+                h2{margin:0 0 8px 0;}
+                .meta{font-size:12px;color:#4b5563;margin-bottom:12px;}
+                table{width:100%;border-collapse:collapse;margin-top:8px;}
+                th,td{border:1px solid #d1d5db;padding:8px;font-size:12px;vertical-align:top;}
+                th{background:#f3f4f6;text-align:left;}
+                .sign{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:26px;}
+                .box{border-top:1px solid #374151;padding-top:6px;font-size:12px;text-align:center;}
+            </style></head><body>
+                <h2>Dis Birim Sevk Fisi</h2>
+                <div class="meta">Belge tarihi: ${UnitModule.escapeHtml(new Date().toLocaleString('tr-TR'))} | Lot sayisi: ${lots.length}</div>
+                <table>
+                    <thead><tr><th>#</th><th>Lot No</th><th>Is Emri</th><th>Satir</th><th>Parca</th><th>Islem</th><th>Adet</th></tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div class="sign">
+                    <div class="box">Teslim Eden</div>
+                    <div class="box">Teslim Alan</div>
+                </div>
+            </body></html>
+        `);
+        opened.document.close();
+        opened.focus();
+        opened.print();
+    },
+    markTransferLotShipped: async (lotId) => {
+        const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
+        if (!lot) return;
+        const status = UnitModule.normalizeTransferLotStatus(lot?.status);
+        if (status !== 'SEVK_BEKLIYOR') return;
+        const docNo = prompt('Belge / irsaliye no (opsiyonel):', String(lot?.docNo || ''));
+        if (docNo === null) return;
+        lot.docNo = String(docNo || '').trim();
+        lot.status = 'YOLDA';
+        UnitModule.appendTransferLotEvent(lot, 'SEVK_EDILDI', 'Lot dis birime gonderildi.', { docNo: lot.docNo });
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    markTransferLotDelivered: async (lotId) => {
+        const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
+        if (!lot) return;
+        const status = UnitModule.normalizeTransferLotStatus(lot?.status);
+        if (!['YOLDA', 'SEVK_BEKLIYOR'].includes(status)) return;
+        lot.status = 'DIS_BIRIMDE';
+        UnitModule.applyExternalTakeForTransferLot(lot);
+        UnitModule.appendTransferLotEvent(lot, 'TESLIM_EDILDI', 'Dis birim lotu teslim aldi.');
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    markTransferLotReturned: async (lotId) => {
+        const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
+        if (!lot) return;
+        const status = UnitModule.normalizeTransferLotStatus(lot?.status);
+        if (status !== 'DIS_BIRIMDE') return;
+        lot.status = 'GERI_DONEN';
+        UnitModule.appendTransferLotEvent(lot, 'GERI_DONDU', 'Lot dis birimden geri dondu.');
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    openTransferLotTimeline: (lotId) => {
+        const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
+        if (!lot) return;
+        const events = (Array.isArray(lot?.events) ? lot.events : [])
+            .slice()
+            .sort((a, b) => String(a?.at || '').localeCompare(String(b?.at || '')));
+        const html = `
+            <div style="display:grid; gap:0.55rem;">
+                <div style="font-size:0.85rem; color:#475569;">Lot: <strong>${UnitModule.escapeHtml(String(lot?.lotNo || '-'))}</strong> | Son durum: <strong>${UnitModule.escapeHtml(UnitModule.getTransferLotStatusMeta(lot?.status).label)}</strong></div>
+                <div style="max-height:420px; overflow:auto; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;">
+                    ${events.length === 0 ? '<div style="color:#94a3b8;">Hareket kaydi yok.</div>' : events.map((evt) => `
+                        <div style="padding:0.45rem 0.35rem; border-bottom:1px solid #f1f5f9;">
+                            <div style="font-size:0.75rem; color:#64748b;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(evt?.at || ''))}</div>
+                            <div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(evt?.type || '-'))}</div>
+                            <div style="font-size:0.8rem; color:#475569;">${UnitModule.escapeHtml(String(evt?.note || '-'))}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+        Modal.open(`Lot Akis - ${UnitModule.escapeHtml(String(lot?.lotNo || '-'))}`, html, { maxWidth: '920px' });
+    },
+    refreshTransferAcceptModalDepot: (depotId) => {
+        const draft = UnitModule.state.transferBoardDepotDraft || {};
+        const options = UnitModule.getTransferLocationOptions(depotId);
+        UnitModule.state.transferBoardDepotDraft = {
+            ...draft,
+            depotId: String(depotId || 'main'),
+            locationId: options[0]?.id || ''
+        };
+        UnitModule.renderTransferAcceptModal();
+    },
+    openTransferAcceptModalForSelectedRows: () => {
+        const rows = UnitModule.getTransferBoardRowsForTarget('main');
+        const map = new Map(rows.map((row) => [String(row?.rowKey || ''), row]));
+        const selected = Object.entries(UnitModule.state.transferBoardSelectedRows || {})
+            .filter(([, isOn]) => !!isOn)
+            .map(([rowKey]) => ({ rowKey, row: map.get(String(rowKey || '')) }))
+            .filter((entry) => entry.row);
+        if (!selected.length) return alert('Ana depoya kabul icin satir seciniz.');
+        const payloadRows = [];
+        for (const entry of selected) {
+            const row = entry.row;
+            const maxQty = Math.max(0, Math.floor(Number(row?.availableTransferQty || 0)));
+            const qtyRaw = Number((UnitModule.state.transferBoardQtyByRow || {})[entry.rowKey] || maxQty);
+            const qty = Math.max(0, Math.floor(qtyRaw));
+            if (!qty) continue;
+            if (qty > maxQty) return alert(`Maksimum kabul adedi asildi: ${String(row?.order?.workOrderCode || '-')}`);
+            payloadRows.push({ row, qty });
+        }
+        if (!payloadRows.length) return alert('Kabul adedi giriniz.');
+        UnitModule.state.transferBoardPendingAccept = { mode: 'MAIN_ROWS', rows: payloadRows };
+        const depots = UnitModule.getTransferDepotOptions();
+        const defaultDepotId = String(UnitModule.state.transferBoardDepotDraft?.depotId || depots[0]?.id || 'main');
+        const locations = UnitModule.getTransferLocationOptions(defaultDepotId);
+        UnitModule.state.transferBoardDepotDraft = {
+            depotId: defaultDepotId,
+            locationId: locations[0]?.id || '',
+            note: ''
+        };
+        UnitModule.renderTransferAcceptModal();
+    },
+    openTransferAcceptModalForLot: (lotId) => {
+        const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(lotId || ''));
+        if (!lot) return;
+        if (UnitModule.normalizeTransferLotStatus(lot?.status) !== 'GERI_DONEN') return;
+        UnitModule.state.transferBoardPendingAccept = { mode: 'LOT', lotIds: [String(lotId || '')] };
+        const depots = UnitModule.getTransferDepotOptions();
+        const defaultDepotId = String(UnitModule.state.transferBoardDepotDraft?.depotId || depots[0]?.id || 'main');
+        const locations = UnitModule.getTransferLocationOptions(defaultDepotId);
+        UnitModule.state.transferBoardDepotDraft = {
+            depotId: defaultDepotId,
+            locationId: locations[0]?.id || '',
+            note: ''
+        };
+        UnitModule.renderTransferAcceptModal();
+    },
+    openTransferAcceptModalForSelectedLots: () => {
+        const lotIds = Object.entries(UnitModule.state.transferBoardSelectedLots || {})
+            .filter(([, on]) => !!on)
+            .map(([id]) => String(id || ''));
+        const valid = UnitModule.getTransferLots().filter((lot) => lotIds.includes(String(lot?.id || '')) && UnitModule.normalizeTransferLotStatus(lot?.status) === 'GERI_DONEN');
+        if (!valid.length) return alert('Kabul bekleyen lot seciniz.');
+        UnitModule.state.transferBoardPendingAccept = { mode: 'LOT', lotIds: valid.map((lot) => String(lot.id || '')) };
+        const depots = UnitModule.getTransferDepotOptions();
+        const defaultDepotId = String(UnitModule.state.transferBoardDepotDraft?.depotId || depots[0]?.id || 'main');
+        const locations = UnitModule.getTransferLocationOptions(defaultDepotId);
+        UnitModule.state.transferBoardDepotDraft = {
+            depotId: defaultDepotId,
+            locationId: locations[0]?.id || '',
+            note: ''
+        };
+        UnitModule.renderTransferAcceptModal();
+    },
+    renderTransferAcceptModal: () => {
+        const pending = UnitModule.state.transferBoardPendingAccept;
+        if (!pending) return;
+        const depots = UnitModule.getTransferDepotOptions();
+        const draft = UnitModule.state.transferBoardDepotDraft || {};
+        const depotId = String(draft?.depotId || depots[0]?.id || 'main');
+        const locations = UnitModule.getTransferLocationOptions(depotId);
+        const locationId = String(draft?.locationId || locations[0]?.id || '');
+        UnitModule.state.transferBoardDepotDraft = { ...draft, depotId, locationId };
+        const summaryRows = pending.mode === 'MAIN_ROWS'
+            ? (pending.rows || []).map((entry) => ({
+                key: `${String(entry?.row?.order?.workOrderCode || '-')}/${String(entry?.row?.line?.lineCode || '-')}`,
+                code: String(entry?.row?.line?.componentCode || '-'),
+                name: String(entry?.row?.line?.componentName || '-'),
+                qty: Math.max(0, Number(entry?.qty || 0))
+            }))
+            : UnitModule.getTransferLots()
+                .filter((lot) => (pending.lotIds || []).includes(String(lot?.id || '')))
+                .map((lot) => ({
+                    key: String(lot?.lotNo || '-'),
+                    code: String(lot?.componentCode || '-'),
+                    name: String(lot?.componentName || '-'),
+                    qty: Math.max(0, Number(lot?.qty || 0))
+                }));
+        Modal.open('Ana Depoya Kabul', `
+            <div style="display:grid; gap:0.7rem;">
+                <div style="font-size:0.83rem; color:#475569;">Secilen kalemler</div>
+                <div style="max-height:220px; overflow:auto; border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.45rem;">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;"><th style="padding:0.42rem; text-align:left;">Ref</th><th style="padding:0.42rem; text-align:left;">Parca</th><th style="padding:0.42rem; text-align:right;">Adet</th></tr></thead>
+                        <tbody>${summaryRows.map((row) => `<tr style="border-bottom:1px solid #f8fafc;"><td style="padding:0.42rem; font-family:monospace; color:#334155;">${UnitModule.escapeHtml(row.key)}</td><td style="padding:0.42rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.name)}</div><div style="font-size:0.72rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.code)}</div></td><td style="padding:0.42rem; text-align:right; font-weight:700;">${row.qty}</td></tr>`).join('')}</tbody>
+                    </table>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.18rem;">Depo</label>
+                        <select id="transfer_accept_depot" onchange="UnitModule.refreshTransferAcceptModalDepot(this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem;">
+                            ${depots.map((row) => `<option value="${UnitModule.escapeHtml(row.id)}" ${row.id === depotId ? 'selected' : ''}>${UnitModule.escapeHtml(row.name)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.18rem;">Raf / Hucre</label>
+                        <select id="transfer_accept_location" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem;">
+                            ${locations.map((row) => `<option value="${UnitModule.escapeHtml(row.id)}" ${row.id === locationId ? 'selected' : ''}>${UnitModule.escapeHtml(row.label)}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.18rem;">Not</label>
+                    <textarea id="transfer_accept_note" rows="2" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem;">${UnitModule.escapeHtml(String(draft?.note || ''))}</textarea>
+                </div>
+                <button class="btn-primary" onclick="UnitModule.saveTransferAcceptModal()" style="width:100%;">Kaydet</button>
+            </div>
+        `, { maxWidth: '960px' });
+    },
+    saveTransferAcceptModal: async () => {
+        const pending = UnitModule.state.transferBoardPendingAccept;
+        if (!pending) return;
+        const depotId = String(document.getElementById('transfer_accept_depot')?.value || '').trim();
+        const locationId = String(document.getElementById('transfer_accept_location')?.value || '').trim();
+        const note = String(document.getElementById('transfer_accept_note')?.value || '').trim();
+        if (!depotId) return alert('Depo secimi zorunlu.');
+        if (!locationId) return alert('Raf / hucre secimi zorunlu.');
+        UnitModule.state.transferBoardDepotDraft = { depotId, locationId, note };
+
+        const all = Array.isArray(DB.data?.data?.outsourceTransfers) ? DB.data.data.outsourceTransfers : [];
+        const now = new Date().toISOString();
+        if (pending.mode === 'MAIN_ROWS') {
+            for (const entry of (pending.rows || [])) {
+                const row = entry?.row;
+                const qty = Math.max(0, Number(entry?.qty || 0));
+                if (!row || !qty) continue;
+                const lot = {
+                    id: crypto.randomUUID(),
+                    flowType: 'DEPO_TRANSFER_LOT',
+                    lotNo: UnitModule.getNextTransferLotNo(),
+                    kind: 'MAIN',
+                    sourceStationId: 'u_dtm',
+                    targetUnitId: 'main',
+                    targetUnitName: 'Ana Depo',
+                    workOrderId: String(row?.order?.id || ''),
+                    workOrderCode: String(row?.order?.workOrderCode || ''),
+                    lineId: String(row?.line?.id || ''),
+                    lineCode: String(row?.line?.lineCode || ''),
+                    componentCode: String(row?.line?.componentCode || '').trim().toUpperCase(),
+                    componentName: String(row?.line?.componentName || ''),
+                    processId: String(row?.metrics?.processId || '').trim().toUpperCase(),
+                    processName: UnitModule.getRouteProcessName('u_dtm', row?.metrics?.processId),
+                    qty,
+                    status: 'KAPANDI',
+                    depotId,
+                    locationId,
+                    events: [],
+                    created_at: now,
+                    updated_at: now,
+                    lastActionAt: now
+                };
+                UnitModule.appendTransferLotEvent(lot, 'LOT_OLUSTURULDU', 'Ana depoya kabul lotu olusturuldu.', { qty });
+                UnitModule.appendTransferLotEvent(lot, 'ANA_DEPO_KABUL', 'Ana depoya kabul tamamlandi.', { depotId, locationId, note });
+                all.push(lot);
+                UnitModule.addTransferQtyToStockDepot({
+                    depotId,
+                    locationId,
+                    productCode: lot.componentCode,
+                    productName: lot.componentName,
+                    qty,
+                    note: note || `Ana depo kabul / ${lot.lotNo}`
+                });
+            }
+        } else {
+            const lotIds = Array.isArray(pending.lotIds) ? pending.lotIds : [];
+            for (const id of lotIds) {
+                const lot = UnitModule.getTransferLots().find((row) => String(row?.id || '') === String(id || ''));
+                if (!lot) continue;
+                const qty = Math.max(0, Number(lot?.qty || 0));
+                lot.status = 'KAPANDI';
+                lot.depotId = depotId;
+                lot.locationId = locationId;
+                UnitModule.appendTransferLotEvent(lot, 'ANA_DEPO_KABUL', 'Geri donen lot ana depoya alindi.', { depotId, locationId, note });
+                UnitModule.addTransferQtyToStockDepot({
+                    depotId,
+                    locationId,
+                    productCode: String(lot?.componentCode || ''),
+                    productName: String(lot?.componentName || ''),
+                    qty,
+                    note: note || `Geri donen lot kabul / ${String(lot?.lotNo || '-')}`
+                });
+            }
+        }
+        DB.data.data.outsourceTransfers = all;
+        UnitModule.state.transferBoardPendingAccept = null;
+        UnitModule.state.transferBoardSelectedRows = {};
+        UnitModule.state.transferBoardQtyByRow = {};
+        UnitModule.state.transferBoardSelectedLots = {};
         await DB.save();
         Modal.close();
         UI.renderCurrentPage();

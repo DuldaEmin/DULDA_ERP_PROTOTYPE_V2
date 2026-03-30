@@ -2221,6 +2221,8 @@ const PlanningModule = {
         return stationId;
     },
 
+    isDepotTransferStation: (stationId) => String(stationId || '').trim().toLowerCase() === 'u_dtm',
+
     getReleasedLineProgress: (order, line, txns) => {
         const targetQty = PlanningModule.parseQty(line?.targetQty, 0);
         const routes = Array.isArray(line?.routes) ? line.routes : [];
@@ -2242,10 +2244,14 @@ const PlanningModule = {
             const prevDoneQty = index === 0 ? targetQty : PlanningModule.parseQty(baseSteps[index - 1]?.doneQty, 0);
             const inputQty = PlanningModule.parseQty(prevDoneQty, 0);
             const stationId = String(route?.stationId || '').trim();
+            const isFinalStep = index === routes.length - 1;
             const doneRaw = PlanningModule.getWorkTxnQtyByKey(txns, order?.id, line?.id, stationId, 'COMPLETE');
             const takenRaw = PlanningModule.getWorkTxnQtyByKey(txns, order?.id, line?.id, stationId, 'TAKE');
-            const doneQty = Math.min(inputQty, PlanningModule.parseQty(doneRaw, 0));
             const takenQty = PlanningModule.parseQty(takenRaw, 0);
+            const completeQty = Math.min(inputQty, PlanningModule.parseQty(doneRaw, 0));
+            const doneQty = (isFinalStep && PlanningModule.isDepotTransferStation(stationId))
+                ? Math.min(inputQty, Math.max(completeQty, takenQty))
+                : completeQty;
             baseSteps.push({
                 seq: index + 1,
                 stationId,

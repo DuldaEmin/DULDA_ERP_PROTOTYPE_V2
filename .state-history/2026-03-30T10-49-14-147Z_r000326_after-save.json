@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T10:50:09.213Z",
+    "updated_at": "2026-03-30T10:49:13.985Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 331
+    "revision": 326
   },
   "data": {
     "products": [
@@ -2423,7 +2423,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 10,
         "created_at": "2026-03-30T10:28:56.499Z",
-        "updated_at": "2026-03-30T10:50:09.213Z"
+        "updated_at": "2026-03-30T10:49:11.851Z"
       },
       {
         "id": "8464d112-028b-439f-aa9a-9608d88a1835",
@@ -2558,7 +2558,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T10:29:57.532Z",
-        "updated_at": "2026-03-30T10:49:16.571Z"
+        "updated_at": "2026-03-30T10:29:57.532Z"
       },
       {
         "id": "b9138ed8-e1b1-4cad-a490-3b08214b1a06",
@@ -2636,7 +2636,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T10:29:57.532Z",
-        "updated_at": "2026-03-30T10:49:18.673Z"
+        "updated_at": "2026-03-30T10:47:37.177Z"
       },
       {
         "id": "dd638fca-0fae-4ca1-887a-68c55514a9a7",
@@ -2743,7 +2743,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T10:29:57.532Z",
-        "updated_at": "2026-03-30T10:49:20.515Z"
+        "updated_at": "2026-03-30T10:29:57.532Z"
       },
       {
         "id": "8e6a7d9d-7f24-40ea-be2b-68153efdef8a",
@@ -2850,7 +2850,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 12,
         "created_at": "2026-03-30T10:29:57.532Z",
-        "updated_at": "2026-03-30T10:49:22.621Z"
+        "updated_at": "2026-03-30T10:29:57.532Z"
       }
     ],
     "workOrderTransactions": [
@@ -3150,61 +3150,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-30T10:49:13.985Z"
-      },
-      {
-        "id": "2625c212-7476-4dfa-a7ab-23a3e9948a0c",
-        "workOrderId": "3e35c2a0-d55c-457e-abdb-bb95918862c1",
-        "lineId": "14e6e33e-b4ea-4008-93c8-25628b8fee93",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 12,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T10:49:16.571Z"
-      },
-      {
-        "id": "47c245be-7c88-4b43-860c-c3cd596b5d6c",
-        "workOrderId": "b9138ed8-e1b1-4cad-a490-3b08214b1a06",
-        "lineId": "7c939967-de25-4ed5-abf1-88388f3126c5",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 12,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T10:49:18.673Z"
-      },
-      {
-        "id": "55495bee-3801-43ae-a827-b451568850e3",
-        "workOrderId": "c7b0e08b-d784-4dfa-a80f-2abbed968f15",
-        "lineId": "36284ab8-1bd6-4c71-9758-18c5ffafedd6",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 12,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T10:49:20.515Z"
-      },
-      {
-        "id": "e1142eb0-8180-4bf7-bec5-a9b51b0cf938",
-        "workOrderId": "ccddfcdc-ccee-43e2-9bc6-df724537d7f6",
-        "lineId": "a778a756-80d2-4ed4-832f-a4af648b6f71",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 24,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T10:49:22.621Z"
-      },
-      {
-        "id": "bdeadc06-92a5-428e-8fc0-36d2d227c94b",
-        "workOrderId": "d1eb4e55-832c-4256-948f-92f789d488f4",
-        "lineId": "3833f812-6359-492c-8d1f-adf35007bfb7",
-        "stationId": "u_dtm",
-        "type": "COMPLETE",
-        "qty": 10,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T10:50:09.213Z"
       }
     ],
     "outsourceTransfers": [],

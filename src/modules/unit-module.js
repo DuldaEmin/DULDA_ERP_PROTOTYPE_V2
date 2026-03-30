@@ -93,6 +93,8 @@ const UnitModule = {
         workOrderTab: 'AKTIF',
         workOrderSearch: '',
         workOrderTransferTarget: '',
+        workOrderDispatchRows: {},
+        workOrderDispatchQtyByRow: {},
         workOrderStatsRange: 'WEEK',
         workOrderStatsGroup: 'UNIT',
         workOrderStatsProcess: '',
@@ -349,6 +351,8 @@ const UnitModule = {
             UnitModule.state.view = 'workOrderPlanning';
             UnitModule.state.workOrderFormOpen = false;
             UnitModule.state.workOrderTransferTarget = '';
+            UnitModule.state.workOrderDispatchRows = {};
+            UnitModule.state.workOrderDispatchQtyByRow = {};
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
             const hasActive = rows.some((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0);
             const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
@@ -1740,7 +1744,123 @@ const UnitModule = {
     },
     setWorkOrderTransferTarget: (value) => {
         UnitModule.state.workOrderTransferTarget = String(value || '').trim();
+        UnitModule.state.workOrderDispatchRows = {};
+        UnitModule.state.workOrderDispatchQtyByRow = {};
         UI.renderCurrentPage();
+    },
+    getWorkOrderDispatchRowKey: (workOrderId, lineId, stationId) =>
+        `${String(workOrderId || '')}::${String(lineId || '')}::${String(stationId || '')}`,
+    toggleWorkOrderDispatchRow: (rowKey, checked) => {
+        const key = String(rowKey || '').trim();
+        if (!key) return;
+        const next = { ...(UnitModule.state.workOrderDispatchRows || {}) };
+        next[key] = !!checked;
+        UnitModule.state.workOrderDispatchRows = next;
+        UI.renderCurrentPage();
+    },
+    setWorkOrderDispatchQty: (rowKey, value) => {
+        const key = String(rowKey || '').trim();
+        if (!key) return;
+        const qty = Math.max(0, Math.floor(Number(value || 0)));
+        const next = { ...(UnitModule.state.workOrderDispatchQtyByRow || {}) };
+        next[key] = qty;
+        UnitModule.state.workOrderDispatchQtyByRow = next;
+        UI.renderCurrentPage();
+    },
+    getNextWorkOrderDispatchDocNo: () => {
+        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
+        const max = (DB.data.data.workOrderDispatchNotes || []).reduce((acc, row) => {
+            const code = String(row?.docNo || '').trim().toUpperCase();
+            const match = code.match(/^DSI-(\d{6})$/);
+            if (!match) return acc;
+            return Math.max(acc, Number(match[1]));
+        }, 0);
+        return `DSI-${String(max + 1).padStart(6, '0')}`;
+    },
+    createWorkOrderDispatchNoteFromSelected: async () => {
+        const stationId = String(UnitModule.state.activeUnitId || '').trim();
+        if (stationId !== 'u_dtm') return;
+        const targetId = String(UnitModule.state.workOrderTransferTarget || '').trim();
+        if (!targetId) return alert('Lutfen once dis birim seciniz.');
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
+
+        const selectedKeys = Object.entries(UnitModule.state.workOrderDispatchRows || {})
+            .filter(([, on]) => !!on)
+            .map(([key]) => String(key || '').trim())
+            .filter(Boolean);
+        if (!selectedKeys.length) return alert('Irsaliye icin satir seciniz.');
+
+        const rows = UnitModule.getWorkOrderPlanningRowsForUnit(stationId);
+        const rowMap = new Map(rows.map((row) => [
+            UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId),
+            row
+        ]));
+
+        const txns = DB.data.data.workOrderTransactions;
+        const selectedRows = [];
+        for (const key of selectedKeys) {
+            const row = rowMap.get(key);
+            if (!row) continue;
+            const nextRoute = UnitModule.getNextRouteInfo(row?.line, stationId);
+            if (String(nextRoute?.stationId || '') !== targetId) continue;
+            const qty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[key] || 0)));
+            if (!qty) continue;
+            const metrics = UnitModule.computeWorkLineUnitMetrics(row.order, row.line, stationId, txns);
+            const maxQty = Math.max(0, Math.floor(Number(metrics?.inProcessQty || 0)));
+            if (!maxQty) continue;
+            if (qty > maxQty) {
+                return alert(`Maksimum girilebilir miktar asildi: ${String(row?.order?.workOrderCode || '-')} / ${String(row?.line?.lineCode || '-')}. Maksimum ${maxQty}.`);
+            }
+            selectedRows.push({ key, row, qty, nextRoute });
+        }
+        if (!selectedRows.length) return alert('Secili satirlarda sevk edilecek adet bulunamadi.');
+
+        const docNo = UnitModule.getNextWorkOrderDispatchDocNo();
+        const now = new Date().toISOString();
+        selectedRows.forEach((entry) => {
+            txns.push({
+                id: crypto.randomUUID(),
+                workOrderId: String(entry.row?.order?.id || ''),
+                lineId: String(entry.row?.line?.id || ''),
+                stationId,
+                type: 'COMPLETE',
+                qty: Number(entry.qty || 0),
+                note: `Sevk irsaliyesi olusturuldu / ${docNo}`,
+                user: 'Demo User',
+                created_at: now
+            });
+            if (entry.row?.order) entry.row.order.updated_at = now;
+        });
+
+        const targetName = UnitModule.getRouteStationName(targetId) || targetId;
+        DB.data.data.workOrderDispatchNotes.push({
+            id: crypto.randomUUID(),
+            docNo,
+            stationId,
+            targetUnitId: targetId,
+            targetUnitName: targetName,
+            status: 'HAZIRLANDI',
+            created_at: now,
+            created_by: 'Demo User',
+            rows: selectedRows.map((entry) => ({
+                workOrderId: String(entry.row?.order?.id || ''),
+                workOrderCode: String(entry.row?.order?.workOrderCode || ''),
+                lineId: String(entry.row?.line?.id || ''),
+                lineCode: String(entry.row?.line?.lineCode || ''),
+                componentCode: String(entry.row?.line?.componentCode || ''),
+                componentName: String(entry.row?.line?.componentName || ''),
+                qty: Number(entry.qty || 0),
+                sourceStationId: stationId,
+                targetUnitId: targetId
+            }))
+        });
+
+        UnitModule.state.workOrderDispatchRows = {};
+        UnitModule.state.workOrderDispatchQtyByRow = {};
+        await DB.save();
+        UI.renderCurrentPage();
+        alert(`${docNo} olusturuldu. ${selectedRows.length} satir sevk icin hazirlandi.`);
     },
     setWorkOrderStatsFilter: (field, value) => {
         if (field === 'range') UnitModule.state.workOrderStatsRange = String(value || 'WEEK').toUpperCase();
@@ -2575,6 +2695,22 @@ const UnitModule = {
         const waitingQty = rows.reduce((sum, r) => sum + Number(r.metrics?.availableQty || 0), 0);
         const inProcessQty = rows.reduce((sum, r) => sum + Number(r.metrics?.inProcessQty || 0), 0);
         const doneQty = rows.reduce((sum, r) => sum + Number(r.metrics?.doneQty || 0), 0);
+        const dispatchSelectionStats = (() => {
+            if (!isDepoTransferPlanning || tab !== 'AKTIF') return { rowCount: 0, totalQty: 0 };
+            const selectedMap = UnitModule.state.workOrderDispatchRows || {};
+            const qtyMap = UnitModule.state.workOrderDispatchQtyByRow || {};
+            let rowCount = 0;
+            let totalQty = 0;
+            visible.forEach((row) => {
+                const key = UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId);
+                if (!selectedMap[key]) return;
+                const qty = Math.max(0, Math.floor(Number(qtyMap[key] || 0)));
+                if (!qty) return;
+                rowCount += 1;
+                totalQty += qty;
+            });
+            return { rowCount, totalQty };
+        })();
         const processOptions = Array.from(new Set(
             rows
                 .map(r => String(r?.metrics?.processId || '').trim().toUpperCase())
@@ -2869,7 +3005,7 @@ const UnitModule = {
                 ${isDepoTransferPlanning ? `
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.65rem 0.75rem; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
                         <select onchange="UnitModule.setWorkOrderTransferTarget(this.value)" style="min-width:330px; height:40px; border:2px solid #111827; border-radius:0.8rem; padding:0 0.7rem; font-size:0.9rem; font-weight:700; background:white; color:#1f2937;">
-                            <option value="">tum dis birimler ve atolyeler</option>
+                            <option value="">tum dis birimler</option>
                             ${transferTargetOptions.map((row) => `<option value="${UnitModule.escapeHtml(row.id)}" ${row.id === selectedTransferTargetId ? 'selected' : ''}>${UnitModule.escapeHtml(row.name)}</option>`).join('')}
                         </select>
                         <div style="font-size:1.1rem; line-height:1; color:#64748b; font-weight:700;">${String.fromCharCode(8594)}</div>
@@ -2897,6 +3033,7 @@ const UnitModule = {
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
                                     const showPlanAction = isActiveTab && String(unitId || '') !== 'u_dtm';
+                                    const showDispatchSelection = isDepoTransferPlanning && isActiveTab;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
@@ -2920,6 +3057,18 @@ const UnitModule = {
                                     const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}`.replace(/[^a-zA-Z0-9_-]/g, '_');
                                     const completeInputDefault = 0;
                                     const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
+                                    const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId);
+                                    const dispatchChecked = !!(UnitModule.state.workOrderDispatchRows || {})[dispatchRowKey];
+                                    const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
+                                    const dispatchSelectionBlock = showDispatchSelection ? `
+                                        <div style="margin-top:0.34rem; display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
+                                            <label style="display:inline-flex; align-items:center; gap:0.28rem; color:#334155; font-size:0.76rem;">
+                                                <input type="checkbox" ${dispatchChecked ? 'checked' : ''} onchange="UnitModule.toggleWorkOrderDispatchRow('${UnitModule.escapeHtml(dispatchRowKey)}', this.checked)">
+                                                sec
+                                            </label>
+                                            <input type="number" min="0" max="${completeInputMax}" value="${dispatchQty}" onchange="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)" style="width:74px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700; text-align:center;">
+                                        </div>
+                                    ` : '';
                                     const qtyStatusBlock = `
                                         <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
                                             <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end; font-size:0.69rem; color:#64748b;">
@@ -2981,6 +3130,7 @@ const UnitModule = {
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
                                                     ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
                                                 </div>
+                                                ${dispatchSelectionBlock}
                                                 ${completeActionBlock}
                                             </td>
                                         </tr>
@@ -2990,6 +3140,17 @@ const UnitModule = {
                         </table>
                     </div>
                 </div>
+
+                ${isDepoTransferPlanning && tab === 'AKTIF' ? `
+                    <div style="margin-top:0.75rem; display:flex; align-items:center; justify-content:flex-end; gap:0.6rem; flex-wrap:wrap;">
+                        <div style="font-size:0.78rem; color:#475569; font-weight:700;">
+                            Secili satir: ${Number(dispatchSelectionStats?.rowCount || 0)} | Toplam sevk adedi: ${Number(dispatchSelectionStats?.totalQty || 0)}
+                        </div>
+                        <button class="btn-sm" onclick="UnitModule.createWorkOrderDispatchNoteFromSelected()" ${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 ? '' : 'disabled'} style="${selectedTransferTargetId && Number(dispatchSelectionStats?.rowCount || 0) > 0 ? 'background:#111827; color:#fff; border-color:#111827;' : 'opacity:0.45; cursor:not-allowed;'} min-width:190px; padding:0.62rem 0.85rem;">
+                            sevk irsaliyesi olustur
+                        </button>
+                    </div>
+                ` : ''}
             </div>
         `;
     },

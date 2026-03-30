@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T14:45:14.573Z",
+    "updated_at": "2026-03-30T14:12:09.081Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 357
+    "revision": 355
   },
   "data": {
     "products": [
@@ -2544,7 +2544,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T14:09:40.707Z",
-        "updated_at": "2026-03-30T14:45:14.573Z"
+        "updated_at": "2026-03-30T14:09:40.707Z"
       },
       {
         "id": "dcc7d924-3d78-45d7-a1ba-1a9cf7aaf602",
@@ -2854,28 +2854,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-30T14:12:09.081Z"
-      },
-      {
-        "id": "ca012a09-738b-4b02-ba31-1a1b85f46d67",
-        "workOrderId": "54c0e783-c571-4e98-a727-01e78c851a11",
-        "lineId": "ae2074db-de06-4b20-828d-f2d55dd05521",
-        "stationId": "u7",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T14:45:09.211Z"
-      },
-      {
-        "id": "67f501c5-1050-491c-8587-af2ce0737c99",
-        "workOrderId": "54c0e783-c571-4e98-a727-01e78c851a11",
-        "lineId": "ae2074db-de06-4b20-828d-f2d55dd05521",
-        "stationId": "u7",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T14:45:14.573Z"
       }
     ],
     "outsourceTransfers": [

@@ -1549,41 +1549,34 @@ const UnitModule = {
         }
         return '';
     },
-    getNextRouteInfo: (line, stationId) => {
+    getNextRouteInfo: (line, stationId, routeRef = null, txns = [], order = null) => {
         const routes = Array.isArray(line?.routes) ? line.routes : [];
-        const idx = routes.findIndex(r => String(r?.stationId || '') === String(stationId || ''));
+        const idx = UnitModule.resolveRouteIndexForUnit(line, stationId, txns, order || {}, routeRef);
         if (idx < 0 || idx >= routes.length - 1) return null;
         const next = routes[idx + 1];
         if (!next) return null;
         return {
+            routeId: String(next?.id || '').trim(),
+            routeSeq: idx + 2,
             stationId: String(next.stationId || ''),
             stationName: UnitModule.getRouteStationName(next.stationId || ''),
             processId: String(next.processId || '').trim().toUpperCase()
         };
     },
     getUnitWorkRows: (unitId) => {
-        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
-        const rows = [];
-        orders.forEach(order => {
-            const lines = Array.isArray(order?.lines) ? order.lines : [];
-            lines.forEach(line => {
-                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
-                if (!metrics) return;
-                rows.push({
-                    order,
-                    line,
-                    metrics,
-                    nextRoute: UnitModule.getNextRouteInfo(line, unitId)
-                });
-            });
-        });
-        return rows.sort((a, b) => {
-            const da = String(a.order?.dueDate || '9999-12-31');
-            const db = String(b.order?.dueDate || '9999-12-31');
-            if (da !== db) return da.localeCompare(db);
-            return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
-        });
+        const rows = UnitModule.getWorkOrderPlanningRowsForUnit(unitId);
+        return rows.map((row) => ({
+            ...row,
+            nextRoute: row?.metrics?.nextStationId
+                ? {
+                    routeId: String(row?.metrics?.nextRouteId || ''),
+                    routeSeq: Number(row?.metrics?.nextRouteSeq || 0),
+                    stationId: String(row?.metrics?.nextStationId || ''),
+                    stationName: UnitModule.getRouteStationName(String(row?.metrics?.nextStationId || '')) || '-',
+                    processId: ''
+                }
+                : null
+        }));
     },
     renderUnitDepotPlaceholder: (container, unitId) => {
         const unit = (DB.data?.data?.units || []).find(u => String(u.id) === String(unitId));
@@ -1864,8 +1857,12 @@ const UnitModule = {
             </div>
         `);
     },
-    getWorkOrderDispatchRowKey: (workOrderId, lineId, stationId) =>
-        `${String(workOrderId || '')}::${String(lineId || '')}::${String(stationId || '')}`,
+    getWorkOrderDispatchRowKey: (workOrderId, lineId, stationId, routeRef = null) => {
+        const routeId = String(routeRef?.routeId || '').trim();
+        const routeSeq = Math.max(0, Number(routeRef?.routeSeq || 0));
+        const routeKey = routeId || (routeSeq > 0 ? `SEQ-${routeSeq}` : '');
+        return `${String(workOrderId || '')}::${String(lineId || '')}::${String(stationId || '')}::${routeKey}`;
+    },
     toggleWorkOrderDispatchRow: (rowKey, checked) => {
         const key = String(rowKey || '').trim();
         if (!key) return;
@@ -1901,7 +1898,7 @@ const UnitModule = {
         if (!selectedKeys.length) return { error: 'Irsaliye icin satir seciniz.' };
         const rows = UnitModule.getWorkOrderPlanningRowsForUnit(stationId);
         const rowMap = new Map(rows.map((row) => [
-            UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId),
+            UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId, row?.metrics),
             row
         ]));
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
@@ -1909,11 +1906,11 @@ const UnitModule = {
         for (const key of selectedKeys) {
             const row = rowMap.get(key);
             if (!row) continue;
-            const nextRoute = UnitModule.getNextRouteInfo(row?.line, stationId);
-            if (String(nextRoute?.stationId || '') !== targetId) continue;
+            const nextStationId = String(row?.metrics?.nextStationId || '');
+            if (nextStationId !== targetId) continue;
             const qty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[key] || 0)));
             if (!qty) continue;
-            const metrics = UnitModule.computeWorkLineUnitMetrics(row.order, row.line, stationId, txns);
+            const metrics = UnitModule.computeWorkLineUnitMetrics(row.order, row.line, stationId, txns, row?.metrics);
             const maxQty = Math.max(0, Math.floor(Number(metrics?.inProcessQty || 0)));
             if (!maxQty) continue;
             if (qty > maxQty) {
@@ -1930,6 +1927,9 @@ const UnitModule = {
                 componentCode: String(row?.line?.componentCode || ''),
                 componentName: String(row?.line?.componentName || ''),
                 sourceStationId: stationId,
+                sourceRouteId: String(metrics?.routeId || ''),
+                sourceRouteSeq: Number(metrics?.routeSeq || 0),
+                sourceProcessId: String(metrics?.processId || ''),
                 targetUnitId: targetId,
                 qty: Number(qty || 0)
             });
@@ -2092,6 +2092,9 @@ const UnitModule = {
                 workOrderId: String(entry.workOrderId || ''),
                 lineId: String(entry.lineId || ''),
                 stationId,
+                routeId: String(entry.sourceRouteId || ''),
+                routeSeq: Math.max(0, Number(entry.sourceRouteSeq || 0)),
+                processId: String(entry.sourceProcessId || '').trim().toUpperCase(),
                 type: 'COMPLETE',
                 qty: Number(entry.qty || 0),
                 note: `Sevk irsaliyesi olusturuldu / ${docNo}`,
@@ -2122,6 +2125,9 @@ const UnitModule = {
                 componentName: String(entry.componentName || ''),
                 qty: Number(entry.qty || 0),
                 sourceStationId: stationId,
+                sourceRouteId: String(entry.sourceRouteId || ''),
+                sourceRouteSeq: Math.max(0, Number(entry.sourceRouteSeq || 0)),
+                sourceProcessId: String(entry.sourceProcessId || '').trim().toUpperCase(),
                 targetUnitId: targetId
             }))
         };
@@ -2404,31 +2410,66 @@ const UnitModule = {
         await DB.save();
         UnitModule.closeWorkOrderCreateForm();
     },
-    getWorkTxnQty: (txns, workOrderId, lineId, stationId, type) => {
+    getWorkTxnQty: (txns, workOrderId, lineId, stationId, type, routeFilter = null) => {
         if (!Array.isArray(txns)) return 0;
         const keyOrder = String(workOrderId || '');
         const keyLine = String(lineId || '');
         const keyStation = String(stationId || '');
         const keyType = String(type || '').toUpperCase();
+        const wantedRouteId = String(routeFilter?.routeId || '').trim();
+        const wantedRouteSeq = Math.max(0, Number(routeFilter?.routeSeq || 0));
+        const allowLegacyByStation = !!routeFilter?.allowLegacyByStation;
         return txns.reduce((sum, t) => {
             if (String(t?.workOrderId || '') !== keyOrder) return sum;
             if (String(t?.lineId || '') !== keyLine) return sum;
             if (String(t?.stationId || '') !== keyStation) return sum;
             if (String(t?.type || '').toUpperCase() !== keyType) return sum;
+            if (wantedRouteId || wantedRouteSeq > 0) {
+                const txnRouteId = String(t?.routeId || '').trim();
+                const txnRouteSeq = Math.max(0, Number(t?.routeSeq || 0));
+                if (txnRouteId) {
+                    if (wantedRouteId && txnRouteId !== wantedRouteId) return sum;
+                    if (!wantedRouteId && wantedRouteSeq > 0 && txnRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return sum;
+                } else if (txnRouteSeq > 0) {
+                    if (wantedRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return sum;
+                    if (wantedRouteSeq <= 0) return sum;
+                } else if (!allowLegacyByStation) {
+                    return sum;
+                }
+            }
             return sum + Number(t?.qty || 0);
         }, 0);
     },
-    getWorkTxnTime: (txns, workOrderId, lineId, stationId, type, mode = 'last') => {
+    getWorkTxnTime: (txns, workOrderId, lineId, stationId, type, mode = 'last', routeFilter = null) => {
         if (!Array.isArray(txns)) return '';
         const keyOrder = String(workOrderId || '');
         const keyLine = String(lineId || '');
         const keyStation = String(stationId || '');
         const keyType = String(type || '').toUpperCase();
+        const wantedRouteId = String(routeFilter?.routeId || '').trim();
+        const wantedRouteSeq = Math.max(0, Number(routeFilter?.routeSeq || 0));
+        const allowLegacyByStation = !!routeFilter?.allowLegacyByStation;
         const hits = txns
             .filter((t) => String(t?.workOrderId || '') === keyOrder
                 && String(t?.lineId || '') === keyLine
                 && String(t?.stationId || '') === keyStation
                 && String(t?.type || '').toUpperCase() === keyType
+                && (() => {
+                    if (!wantedRouteId && wantedRouteSeq <= 0) return true;
+                    const txnRouteId = String(t?.routeId || '').trim();
+                    const txnRouteSeq = Math.max(0, Number(t?.routeSeq || 0));
+                    if (txnRouteId) {
+                        if (wantedRouteId && txnRouteId !== wantedRouteId) return false;
+                        if (!wantedRouteId && wantedRouteSeq > 0 && txnRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
+                        return true;
+                    }
+                    if (txnRouteSeq > 0) {
+                        if (wantedRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
+                        if (wantedRouteSeq <= 0) return false;
+                        return true;
+                    }
+                    return allowLegacyByStation;
+                })()
                 && String(t?.created_at || '').trim())
             .map((t) => ({ at: String(t.created_at || ''), ms: new Date(String(t.created_at || '')).getTime() }))
             .filter((row) => Number.isFinite(row.ms));
@@ -2451,27 +2492,96 @@ const UnitModule = {
             minute: '2-digit'
         }).format(d);
     },
-    computeWorkLineUnitMetrics: (order, line, unitId, txns) => {
+    getRouteIndexesByUnit: (line, unitId) => {
         const routes = Array.isArray(line?.routes) ? line.routes : [];
-        const idx = routes.findIndex(r => String(r?.stationId || '') === String(unitId || ''));
-        if (idx < 0) return null;
-        const route = routes[idx];
-        const nextRoute = idx < routes.length - 1 ? routes[idx + 1] : null;
-        const prevTarget = idx === 0
+        const target = String(unitId || '');
+        const indexes = [];
+        routes.forEach((route, idx) => {
+            if (String(route?.stationId || '') === target) indexes.push(idx);
+        });
+        return indexes;
+    },
+    getRouteFilterForIndex: (line, routeIndex) => {
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        if (!Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= routes.length) return null;
+        const route = routes[routeIndex];
+        const stationId = String(route?.stationId || '');
+        if (!stationId) return null;
+        const sameStationIndexes = routes
+            .map((r, idx) => ({ r, idx }))
+            .filter((row) => String(row?.r?.stationId || '') === stationId)
+            .map((row) => row.idx);
+        const firstIndex = sameStationIndexes.length ? sameStationIndexes[0] : routeIndex;
+        const allowLegacyByStation = sameStationIndexes.length <= 1 || firstIndex === routeIndex;
+        return {
+            routeId: String(route?.id || '').trim(),
+            routeSeq: routeIndex + 1,
+            allowLegacyByStation
+        };
+    },
+    resolveRouteIndexForUnit: (line, unitId, txns, order, routeRef = null) => {
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        if (routes.length === 0) return -1;
+        const wantedStationId = String(unitId || '').trim();
+        const wantedRouteId = String(routeRef?.routeId || '').trim();
+        const wantedRouteSeq = Math.max(0, Number(routeRef?.routeSeq || 0));
+        if (wantedRouteId) {
+            const byId = routes.findIndex((route) =>
+                String(route?.stationId || '') === wantedStationId
+                && String(route?.id || '').trim() === wantedRouteId
+            );
+            if (byId >= 0) return byId;
+        }
+        if (wantedRouteSeq > 0) {
+            const idx = wantedRouteSeq - 1;
+            if (idx >= 0 && idx < routes.length && String(routes[idx]?.stationId || '') === wantedStationId) return idx;
+        }
+        const indexes = UnitModule.getRouteIndexesByUnit(line, wantedStationId);
+        if (indexes.length === 0) return -1;
+        if (indexes.length === 1) return indexes[0];
+        // Repeated same station on route: pick the currently actionable step.
+        const candidates = indexes
+            .map((idx) => UnitModule.computeWorkLineRouteMetrics(order, line, idx, txns))
+            .filter(Boolean);
+        if (!candidates.length) return indexes[0];
+        const withInProcess = candidates.find((m) => Number(m?.inProcessQty || 0) > 0);
+        if (withInProcess) return Math.max(0, Number(withInProcess.routeSeq || 1) - 1);
+        const withAvailable = candidates.find((m) => Number(m?.availableQty || 0) > 0);
+        if (withAvailable) return Math.max(0, Number(withAvailable.routeSeq || 1) - 1);
+        const withTransferPending = candidates.find((m) => Number(m?.transferPendingQty || 0) > 0);
+        if (withTransferPending) return Math.max(0, Number(withTransferPending.routeSeq || 1) - 1);
+        const doneCandidates = candidates.filter((m) => Number(m?.doneQty || 0) > 0);
+        if (doneCandidates.length > 0) {
+            const latestDone = doneCandidates[doneCandidates.length - 1];
+            return Math.max(0, Number(latestDone.routeSeq || 1) - 1);
+        }
+        return indexes[0];
+    },
+    computeWorkLineRouteMetrics: (order, line, routeIndex, txns) => {
+        const routes = Array.isArray(line?.routes) ? line.routes : [];
+        if (!Number.isInteger(routeIndex) || routeIndex < 0 || routeIndex >= routes.length) return null;
+        const route = routes[routeIndex];
+        const prevRoute = routeIndex > 0 ? routes[routeIndex - 1] : null;
+        const nextRoute = routeIndex < routes.length - 1 ? routes[routeIndex + 1] : null;
+        const prevFilter = prevRoute ? UnitModule.getRouteFilterForIndex(line, routeIndex - 1) : null;
+        const currentFilter = UnitModule.getRouteFilterForIndex(line, routeIndex);
+        const nextFilter = nextRoute ? UnitModule.getRouteFilterForIndex(line, routeIndex + 1) : null;
+        const prevTarget = routeIndex === 0
             ? Number(line?.targetQty || 0)
-            : UnitModule.getWorkTxnQty(txns, order?.id, line?.id, routes[idx - 1]?.stationId, 'COMPLETE');
+            : UnitModule.getWorkTxnQty(txns, order?.id, line?.id, prevRoute?.stationId, 'COMPLETE', prevFilter);
         const stepTarget = Math.max(0, Number(prevTarget || 0));
-        const taken = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'TAKE');
-        const completed = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'COMPLETE');
+        const taken = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'TAKE', currentFilter);
+        const completed = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'COMPLETE', currentFilter);
         const nextTaken = nextRoute
-            ? UnitModule.getWorkTxnQty(txns, order?.id, line?.id, nextRoute.stationId, 'TAKE')
+            ? UnitModule.getWorkTxnQty(txns, order?.id, line?.id, nextRoute.stationId, 'TAKE', nextFilter)
             : 0;
         const availableQty = Math.max(0, stepTarget - taken);
         const inProcessQty = Math.max(0, taken - completed);
         const doneQty = Math.max(0, completed);
         const transferPendingQty = nextRoute ? Math.max(0, doneQty - nextTaken) : 0;
         return {
-            routeSeq: idx + 1,
+            routeId: String(route?.id || '').trim(),
+            routeSeq: routeIndex + 1,
             routeCount: routes.length,
             stationId: String(route.stationId || ''),
             stationName: String(route.stationName || route.stationId || '-'),
@@ -2480,21 +2590,31 @@ const UnitModule = {
             availableQty,
             inProcessQty,
             doneQty,
-            isFinalStep: idx === routes.length - 1,
+            isFinalStep: routeIndex === routes.length - 1,
+            prevStationId: String(prevRoute?.stationId || ''),
             nextStationId: String(nextRoute?.stationId || ''),
+            nextRouteId: String(nextRoute?.id || '').trim(),
+            nextRouteSeq: nextRoute ? routeIndex + 2 : 0,
             nextTakenQty: nextTaken,
             transferPendingQty,
             isTransferPending: transferPendingQty > 0
         };
+    },
+    computeWorkLineUnitMetrics: (order, line, unitId, txns, routeRef = null) => {
+        const idx = UnitModule.resolveRouteIndexForUnit(line, unitId, txns, order, routeRef);
+        if (idx < 0) return null;
+        return UnitModule.computeWorkLineRouteMetrics(order, line, idx, txns);
     },
     getWorkOrderComputedStatus: (order, txns) => {
         const lines = Array.isArray(order?.lines) ? order.lines : [];
         if (lines.length === 0) return 'OPEN';
         const allDone = lines.every(line => {
             const routes = Array.isArray(line?.routes) ? line.routes : [];
-            const finalStation = routes.length > 0 ? routes[routes.length - 1].stationId : '';
+            const finalIdx = routes.length - 1;
+            const finalStation = finalIdx >= 0 ? routes[finalIdx].stationId : '';
             if (!finalStation) return false;
-            const done = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, finalStation, 'COMPLETE');
+            const finalFilter = finalIdx >= 0 ? UnitModule.getRouteFilterForIndex(line, finalIdx) : null;
+            const done = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, finalStation, 'COMPLETE', finalFilter);
             return done >= Number(line?.targetQty || 0);
         });
         if (allDone) return 'DONE';
@@ -2567,15 +2687,21 @@ const UnitModule = {
             return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
         });
     },
-    addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '') => {
+    addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '', routeRef = null) => {
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
         const cleanQty = Number(qty || 0);
         if (!Number.isFinite(cleanQty) || cleanQty <= 0) return;
+        const routeId = String(routeRef?.routeId || '').trim();
+        const routeSeq = Math.max(0, Number(routeRef?.routeSeq || 0));
+        const processId = String(routeRef?.processId || '').trim().toUpperCase();
         DB.data.data.workOrderTransactions.push({
             id: crypto.randomUUID(),
             workOrderId: String(workOrderId || ''),
             lineId: String(lineId || ''),
             stationId: String(stationId || ''),
+            routeId,
+            routeSeq: routeSeq > 0 ? routeSeq : 0,
+            processId,
             type: String(type || '').toUpperCase(),
             qty: cleanQty,
             note: String(note || ''),
@@ -2587,13 +2713,13 @@ const UnitModule = {
         await DB.save();
         UI.renderCurrentPage();
     },
-    takeWorkOrderQty: async (workOrderId, lineId, stationId) => {
+    takeWorkOrderQty: async (workOrderId, lineId, stationId, routeSeq = '') => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
         if (!line) return;
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(routeSeq || 0) });
         if (!metrics || metrics.availableQty <= 0) return alert('Alinabilir miktar yok.');
         const suggested = Math.max(1, Math.floor(metrics.availableQty));
         const raw = prompt(`Kac adet alinsin? (Varsayilan: ${suggested})`, String(suggested));
@@ -2601,7 +2727,11 @@ const UnitModule = {
         const qty = Number(raw);
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
         if (qty > metrics.availableQty) return alert(`Maksimum alinabilir miktar: ${metrics.availableQty}`);
-        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon devir aldi');
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon devir aldi', {
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Number(metrics?.routeSeq || 0),
+            processId: String(metrics?.processId || '')
+        });
     },
     completeWorkOrderQty: async (workOrderId, lineId, stationId, presetQty = null, options = {}) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
@@ -2609,7 +2739,7 @@ const UnitModule = {
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
         if (!line) return;
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(options?.routeSeq || 0) });
         if (!metrics || metrics.inProcessQty <= 0) return alert('Islemde miktar yok.');
         const suggested = Math.max(1, Math.floor(metrics.inProcessQty || 0));
         const skipPrompt = !!(options && options.skipPrompt);
@@ -2622,48 +2752,60 @@ const UnitModule = {
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
         if (!Number.isInteger(qty)) return alert('Miktar tam sayi olmali.');
         if (qty > metrics.inProcessQty) return alert(`Maksimum girilebilir miktar: ${metrics.inProcessQty}`);
-        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'COMPLETE', qty, 'Istasyon tamamlandi');
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'COMPLETE', qty, 'Istasyon tamamlandi', {
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Number(metrics?.routeSeq || 0),
+            processId: String(metrics?.processId || '')
+        });
     },
-    completeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId) => {
+    completeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId, routeSeq = '') => {
         const input = document.getElementById(String(inputId || '').trim());
         if (!input) return alert('Adet giris kutusu bulunamadi.');
         const raw = String(input.value || '').trim();
         if (!raw) return alert('Lutfen tamamlanan adet giriniz.');
         const qty = Number(raw);
-        await UnitModule.completeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true });
+        await UnitModule.completeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true, routeSeq: Number(routeSeq || 0) });
     },
-    takeAllWorkOrderQty: async (workOrderId, lineId, stationId) => {
+    takeAllWorkOrderQty: async (workOrderId, lineId, stationId, routeSeq = '') => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
         if (!line) return;
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(routeSeq || 0) });
         const qty = Math.floor(Number(metrics?.availableQty || 0));
         if (!metrics || qty <= 0) return alert('Alinabilir miktar yok.');
-        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon tumunu teslim aldi');
+        await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon tumunu teslim aldi', {
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Number(metrics?.routeSeq || 0),
+            processId: String(metrics?.processId || '')
+        });
     },
-    openWorkOrderProcessPreviewForLine: (workOrderId, lineId, stationId) => {
+    openWorkOrderProcessPreviewForLine: (workOrderId, lineId, stationId, routeSeq = '') => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
         if (!line) return;
         const routes = Array.isArray(line?.routes) ? line.routes : [];
-        const route = routes.find(r => String(r?.stationId || '') === String(stationId || ''));
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [], { routeSeq: Number(routeSeq || 0) });
+        const route = routes.find((r, idx) =>
+            String(r?.stationId || '') === String(stationId || '')
+            && Number(idx + 1) === Number(metrics?.routeSeq || routeSeq || 0)
+        ) || routes.find(r => String(r?.stationId || '') === String(stationId || ''));
         const processId = String(route?.processId || '').trim().toUpperCase();
         if (!processId) return alert('Islem kodu bulunamadi.');
         UnitModule.openWorkOrderProcessPreview(stationId, processId, stationId);
     },
-    openWorkOrderExecutionDetail: (workOrderId, lineId, stationId) => {
+    openWorkOrderExecutionDetail: (workOrderId, lineId, stationId, routeSeq = '') => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = Array.isArray(order?.lines) ? order.lines.find(x => String(x?.id || '') === String(lineId || '')) : null;
         if (!line) return;
         const routes = Array.isArray(line?.routes) ? line.routes : [];
-        const routeIdx = routes.findIndex((r) => String(r?.stationId || '') === String(stationId || ''));
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns);
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(routeSeq || 0) });
         if (!metrics) return;
+        const routeIdx = Math.max(0, Number(metrics?.routeSeq || 1) - 1);
         const targetQty = Math.max(0, Number(line?.targetQty || 0));
         const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
         const plan = (line.plans && typeof line.plans === 'object') ? (line.plans[String(stationId || '')] || null) : null;
@@ -2680,8 +2822,9 @@ const UnitModule = {
             : 'Son adim (depo/sevk asamasi)';
         const transferPendingQty = Math.max(0, Number(metrics?.transferPendingQty || 0));
         const showTransferFollowup = !!nextRoute && transferPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
-        const takeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'TAKE', 'first');
-        const completeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'COMPLETE', 'last');
+        const routeFilter = UnitModule.getRouteFilterForIndex(line, routeIdx);
+        const takeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'TAKE', 'first', routeFilter);
+        const completeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'COMPLETE', 'last', routeFilter);
         const takeAtLabel = UnitModule.formatDateTimeShort(takeAt);
         const completeAtLabel = UnitModule.formatDateTimeShort(completeAt);
         Modal.open(`Is Emri Detay - ${UnitModule.escapeHtml(order?.workOrderCode || '-')}`, `
@@ -2741,7 +2884,7 @@ const UnitModule = {
                 </div>
                 <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderComponentPreview('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Parca kutuphanesi</button>
-                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderProcessPreviewForLine('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Islem kutuphanesi</button>
+                    <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderProcessPreviewForLine('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}','${Number(metrics?.routeSeq || 0)}'), 0);" style="border-color:#cbd5e1;">Islem kutuphanesi</button>
                 </div>
             </div>
         `, { maxWidth: '1080px' });
@@ -2920,44 +3063,20 @@ const UnitModule = {
             tab = 'AKTIF';
             UnitModule.state.workOrderTab = 'AKTIF';
         }
+        const showTransferTargetSelector = isDepoTransferPlanning && tab === 'AKTIF';
+        const effectiveTransferTargetId = showTransferTargetSelector ? selectedTransferTargetId : '';
         const search = String(UnitModule.state.workOrderSearch || '').trim().toLowerCase();
         const dispatchNotesForUnit = (Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [])
             .filter((row) => String(row?.stationId || '') === String(unitId || ''));
         const dispatchOpenCount = dispatchNotesForUnit.filter((row) => !row?.isArchived).length;
         const dispatchArchiveCount = dispatchNotesForUnit.filter((row) => !!row?.isArchived).length;
-        const rows = [];
-
-        orders.forEach(order => {
-            const status = UnitModule.getWorkOrderComputedStatus(order, txns);
-            const lines = Array.isArray(order?.lines) ? order.lines : [];
-            lines.forEach(line => {
-                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
-                if (!metrics) return;
-                const plan = (line.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
-                const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
-                const targetQty = Math.max(0, Number(line?.targetQty || 0));
-                const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
-                const upcomingQty = Math.max(0, targetQty - takenQty - Number(metrics?.availableQty || 0));
-                rows.push({
-                    order,
-                    line,
-                    status,
-                    metrics,
-                    plan: plan && typeof plan === 'object' ? plan : null,
-                    takenQty,
-                    targetQty,
-                    remainingQty,
-                    upcomingQty
-                });
-            });
-        });
+        const rows = UnitModule.getWorkOrderPlanningRowsForUnit(unitId);
 
         const priorityRank = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
         const filtered = rows
             .filter(r => {
-                if (selectedTransferTargetId) {
-                    const nextRoute = UnitModule.getNextRouteInfo(r?.line, unitId);
-                    if (String(nextRoute?.stationId || '') !== selectedTransferTargetId) return false;
+                if (effectiveTransferTargetId) {
+                    if (String(r?.metrics?.nextStationId || '') !== effectiveTransferTargetId) return false;
                 }
                 if (!search) return true;
                 const processName = UnitModule.getRouteProcessName(r?.metrics?.stationId, r?.metrics?.processId);
@@ -3011,7 +3130,7 @@ const UnitModule = {
             let rowCount = 0;
             let totalQty = 0;
             visible.forEach((row) => {
-                const key = UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId);
+                const key = UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId, row?.metrics);
                 if (!selectedMap[key]) return;
                 rowCount += 1;
                 const qty = Math.max(0, Math.floor(Number(qtyMap[key] || 0)));
@@ -3484,7 +3603,7 @@ const UnitModule = {
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Bu istasyonda tamamlanan</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${doneQty}</div></div>
                 </div>
 
-                ${isDepoTransferPlanning ? `
+                ${showTransferTargetSelector ? `
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.65rem 0.75rem; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
                         <select onchange="UnitModule.setWorkOrderTransferTarget(this.value)" style="min-width:330px; height:40px; border:2px solid #111827; border-radius:0.8rem; padding:0 0.7rem; font-size:0.9rem; font-weight:700; background:white; color:#1f2937;">
                             <option value="">tum dis birimler</option>

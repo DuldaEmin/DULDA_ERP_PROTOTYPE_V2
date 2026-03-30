@@ -92,6 +92,7 @@ const UnitModule = {
         depoTaskDraftNote: '',
         workOrderTab: 'AKTIF',
         workOrderSearch: '',
+        workOrderTransferTarget: '',
         workOrderStatsRange: 'WEEK',
         workOrderStatsGroup: 'UNIT',
         workOrderStatsProcess: '',
@@ -347,6 +348,7 @@ const UnitModule = {
             UnitModule.state.activeUnitId = id || null;
             UnitModule.state.view = 'workOrderPlanning';
             UnitModule.state.workOrderFormOpen = false;
+            UnitModule.state.workOrderTransferTarget = '';
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
             const hasActive = rows.some((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0);
             const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
@@ -1736,6 +1738,10 @@ const UnitModule = {
         UnitModule.state.workOrderSearch = String(value || '');
         UI.renderCurrentPage();
     },
+    setWorkOrderTransferTarget: (value) => {
+        UnitModule.state.workOrderTransferTarget = String(value || '').trim();
+        UI.renderCurrentPage();
+    },
     setWorkOrderStatsFilter: (field, value) => {
         if (field === 'range') UnitModule.state.workOrderStatsRange = String(value || 'WEEK').toUpperCase();
         if (field === 'group') UnitModule.state.workOrderStatsGroup = String(value || 'UNIT').toUpperCase();
@@ -2469,6 +2475,23 @@ const UnitModule = {
             container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
             return;
         }
+        const isDepoTransferPlanning = String(unitId || '') === 'u_dtm';
+        const allUnits = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        const transferTargetOptions = isDepoTransferPlanning
+            ? allUnits
+                .filter((u) =>
+                    String(u?.id || '')
+                    && String(u?.id || '') !== String(unitId || '')
+                    && String(u?.type || '').trim().toLowerCase() === 'external')
+                .map((u) => ({ id: String(u?.id || ''), name: String(u?.name || '').trim() }))
+                .filter((u) => u.id && u.name)
+                .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'tr'))
+            : [];
+        let selectedTransferTargetId = isDepoTransferPlanning ? String(UnitModule.state.workOrderTransferTarget || '').trim() : '';
+        if (selectedTransferTargetId && !transferTargetOptions.some((row) => String(row.id || '') === selectedTransferTargetId)) {
+            selectedTransferTargetId = '';
+            UnitModule.state.workOrderTransferTarget = '';
+        }
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
         const tab = String(UnitModule.state.workOrderTab || 'AKTIF').toUpperCase();
@@ -2503,6 +2526,10 @@ const UnitModule = {
         const priorityRank = { URGENT: 0, HIGH: 1, NORMAL: 2, LOW: 3 };
         const filtered = rows
             .filter(r => {
+                if (selectedTransferTargetId) {
+                    const nextRoute = UnitModule.getNextRouteInfo(r?.line, unitId);
+                    if (String(nextRoute?.stationId || '') !== selectedTransferTargetId) return false;
+                }
                 if (!search) return true;
                 const processName = UnitModule.getRouteProcessName(r?.metrics?.stationId, r?.metrics?.processId);
                 const hay = [
@@ -2838,6 +2865,17 @@ const UnitModule = {
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Islemde adet</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${inProcessQty}</div></div>
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Bu istasyonda tamamlanan</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${doneQty}</div></div>
                 </div>
+
+                ${isDepoTransferPlanning ? `
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.65rem 0.75rem; margin-bottom:0.8rem; display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap;">
+                        <select onchange="UnitModule.setWorkOrderTransferTarget(this.value)" style="min-width:330px; height:40px; border:2px solid #111827; border-radius:0.8rem; padding:0 0.7rem; font-size:0.9rem; font-weight:700; background:white; color:#1f2937;">
+                            <option value="">tum dis birimler ve atolyeler</option>
+                            ${transferTargetOptions.map((row) => `<option value="${UnitModule.escapeHtml(row.id)}" ${row.id === selectedTransferTargetId ? 'selected' : ''}>${UnitModule.escapeHtml(row.name)}</option>`).join('')}
+                        </select>
+                        <div style="font-size:1.1rem; line-height:1; color:#64748b; font-weight:700;">${String.fromCharCode(8594)}</div>
+                        <div style="font-size:1.05rem; color:#334155; font-weight:600;">sevkiyat icin liste olustur</div>
+                    </div>
+                ` : ''}
 
                 <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
                     ${UnitModule.escapeHtml(getWorkOrderTabDescription(tab))}

@@ -342,9 +342,22 @@ const UnitModule = {
         UnitModule.state.view = 'unitDepot';
         UI.renderCurrentPage();
     },
+    isWorkOrderPlanningEnabledForUnit: (unitId) => {
+        const key = String(unitId || '').trim();
+        if (!key) return false;
+        if (key === 'u_dtm') return false;
+        const unit = (DB.data?.data?.units || []).find((u) => String(u?.id || '') === key);
+        if (!unit) return false;
+        return String(unit?.type || '').trim().toLowerCase() !== 'external';
+    },
     openWorkOrderPlanning: (id) => {
         try {
-            UnitModule.state.activeUnitId = id || null;
+            const targetUnitId = String(id || '').trim();
+            if (!UnitModule.isWorkOrderPlanningEnabledForUnit(targetUnitId)) {
+                alert('Bu birimde planlama kapali. Aldim / isledim / verdim akisiyla devam edin.');
+                return;
+            }
+            UnitModule.state.activeUnitId = targetUnitId || null;
             UnitModule.state.view = 'workOrderPlanning';
             UnitModule.state.workOrderFormOpen = false;
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
@@ -1438,10 +1451,6 @@ const UnitModule = {
                         <div class="icon-box g-emerald"><i data-lucide="warehouse" width="40" height="40"></i></div>
                         <div class="app-name">Birim Deposu</div>
                     </a>
-                    <a href="javascript:void(0)" onclick="UnitModule.openWorkOrderPlanning('${unitId}')" class="app-card">
-                        <div class="icon-box g-blue"><i data-lucide="clipboard-list" width="40" height="40"></i></div>
-                        <div class="app-name">Is Emri Planlama</div>
-                    </a>
                     ${productLibraryCard}
                 </div>
             `;
@@ -2375,6 +2384,9 @@ const UnitModule = {
         return Array.from(mapByName.values()).sort((a, b) => String(a.label || '').localeCompare(String(b.label || ''), 'tr'));
     },
     openWorkOrderPlanModal: (workOrderId, lineId, stationId) => {
+        if (!UnitModule.isWorkOrderPlanningEnabledForUnit(stationId)) {
+            return alert('Bu birimde planlama kapali. Aldim / isledim / verdim akisiyla devam edin.');
+        }
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
@@ -2469,6 +2481,7 @@ const UnitModule = {
             container.innerHTML = `<div style="text-align:center; padding:3rem; color:#64748b;">Birim bulunamadi.</div>`;
             return;
         }
+        const planningEnabledForUnit = UnitModule.isWorkOrderPlanningEnabledForUnit(unitId);
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
         const tab = String(UnitModule.state.workOrderTab || 'AKTIF').toUpperCase();
@@ -2858,7 +2871,7 @@ const UnitModule = {
                                     const isActiveTab = tab === 'AKTIF';
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
-                                    const showPlanAction = isActiveTab;
+                                    const showPlanAction = isActiveTab && planningEnabledForUnit;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T15:20:16.935Z",
+    "updated_at": "2026-03-30T15:19:53.684Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 372
+    "revision": 369
   },
   "data": {
     "products": [
@@ -2416,7 +2416,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:19:53.683Z",
-        "updated_at": "2026-03-30T15:20:11.540Z"
+        "updated_at": "2026-03-30T15:19:53.683Z"
       },
       {
         "id": "aca749a1-2e65-481f-84c9-788a8c995f47",
@@ -2601,7 +2601,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:19:53.683Z",
-        "updated_at": "2026-03-30T15:20:13.970Z"
+        "updated_at": "2026-03-30T15:19:53.683Z"
       },
       {
         "id": "58fbd3ca-81f8-474d-b102-dc358e98335b",
@@ -2708,44 +2708,10 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:19:53.684Z",
-        "updated_at": "2026-03-30T15:20:16.935Z"
+        "updated_at": "2026-03-30T15:19:53.684Z"
       }
     ],
-    "workOrderTransactions": [
-      {
-        "id": "a0b42fe7-7ea0-401d-99ba-c8c2ab77524a",
-        "workOrderId": "48ea8d06-3553-4a34-8f8f-c207d206d28f",
-        "lineId": "46bb15c6-4c34-458b-af9a-6e180716bbba",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:20:11.540Z"
-      },
-      {
-        "id": "19e4eb44-304c-4921-9422-ab4814385759",
-        "workOrderId": "ccef05c3-9ef2-4544-9723-397a7d1544ac",
-        "lineId": "d7a82cb1-0aee-410a-8dfc-0480a5c0d8f9",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:20:13.970Z"
-      },
-      {
-        "id": "8e07a24d-55f1-4b52-b2a6-8ed9e6cd057b",
-        "workOrderId": "52743377-bce6-46d0-b422-8eb67cd9c4f3",
-        "lineId": "0cb5fcd4-f280-48a0-8f5b-4859aa7fc8e8",
-        "stationId": "u_dtm",
-        "type": "TAKE",
-        "qty": 10,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:20:16.935Z"
-      }
-    ],
+    "workOrderTransactions": [],
     "outsourceTransfers": [
       {
         "id": "9ba75807-f720-403c-b736-b741f597499c",

@@ -1765,7 +1765,6 @@ const UnitModule = {
         const next = { ...(UnitModule.state.workOrderDispatchQtyByRow || {}) };
         next[key] = qty;
         UnitModule.state.workOrderDispatchQtyByRow = next;
-        UI.renderCurrentPage();
     },
     getNextWorkOrderDispatchDocNo: () => {
         if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
@@ -2704,9 +2703,8 @@ const UnitModule = {
             visible.forEach((row) => {
                 const key = UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId);
                 if (!selectedMap[key]) return;
-                const qty = Math.max(0, Math.floor(Number(qtyMap[key] || 0)));
-                if (!qty) return;
                 rowCount += 1;
+                const qty = Math.max(0, Math.floor(Number(qtyMap[key] || 0)));
                 totalQty += qty;
             });
             return { rowCount, totalQty };
@@ -3055,20 +3053,11 @@ const UnitModule = {
                                     const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
                                     const qtySummary = `${takenQtyForStep}/${totalQtyForStep}`;
                                     const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-                                    const completeInputDefault = 0;
-                                    const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
                                     const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId);
                                     const dispatchChecked = !!(UnitModule.state.workOrderDispatchRows || {})[dispatchRowKey];
                                     const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
-                                    const dispatchSelectionBlock = showDispatchSelection ? `
-                                        <div style="margin-top:0.34rem; display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
-                                            <label style="display:inline-flex; align-items:center; gap:0.28rem; color:#334155; font-size:0.76rem;">
-                                                <input type="checkbox" ${dispatchChecked ? 'checked' : ''} onchange="UnitModule.toggleWorkOrderDispatchRow('${UnitModule.escapeHtml(dispatchRowKey)}', this.checked)">
-                                                sec
-                                            </label>
-                                            <input type="number" min="0" max="${completeInputMax}" value="${dispatchQty}" onchange="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)" style="width:74px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700; text-align:center;">
-                                        </div>
-                                    ` : '';
+                                    const completeInputDefault = showDispatchSelection ? dispatchQty : 0;
+                                    const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
                                     const qtyStatusBlock = `
                                         <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
                                             <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end; font-size:0.69rem; color:#64748b;">
@@ -3084,7 +3073,13 @@ const UnitModule = {
                                             ${qtyStatusBlock}
                                             ${canComplete ? `
                                                 <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${showDispatchSelection ? `oninput="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)"` : ''} style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    ${showDispatchSelection ? `
+                                                        <label style="display:inline-flex; align-items:center; gap:0.28rem; color:#334155; font-size:0.76rem; white-space:nowrap;">
+                                                            <input type="checkbox" ${dispatchChecked ? 'checked' : ''} onchange="UnitModule.toggleWorkOrderDispatchRow('${UnitModule.escapeHtml(dispatchRowKey)}', this.checked)">
+                                                            irsaliyeye ekle
+                                                        </label>
+                                                    ` : ''}
                                                     <button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>
                                                 </div>
                                             ` : ''}
@@ -3130,7 +3125,6 @@ const UnitModule = {
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
                                                     ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
                                                 </div>
-                                                ${dispatchSelectionBlock}
                                                 ${completeActionBlock}
                                             </td>
                                         </tr>

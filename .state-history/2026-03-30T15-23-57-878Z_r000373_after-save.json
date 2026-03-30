@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T15:24:08.974Z",
+    "updated_at": "2026-03-30T15:23:57.742Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 374
+    "revision": 373
   },
   "data": {
     "products": [
@@ -2416,7 +2416,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 5,
         "created_at": "2026-03-30T15:19:53.683Z",
-        "updated_at": "2026-03-30T15:24:08.974Z"
+        "updated_at": "2026-03-30T15:23:57.742Z"
       },
       {
         "id": "aca749a1-2e65-481f-84c9-788a8c995f47",
@@ -2755,17 +2755,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-03-30T15:23:57.742Z"
-      },
-      {
-        "id": "34cb8a27-256f-4607-837d-7208a59e9ac0",
-        "workOrderId": "48ea8d06-3553-4a34-8f8f-c207d206d28f",
-        "lineId": "46bb15c6-4c34-458b-af9a-6e180716bbba",
-        "stationId": "u10",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-30T15:24:08.974Z"
       }
     ],
     "outsourceTransfers": [

@@ -1457,7 +1457,15 @@ const PlanningModule = {
         if (!row) return;
         if (String(row?.status || 'OPEN').toUpperCase() === 'RELEASED') return alert('Is emrine donusmus kayit silinemez.');
         if (!confirm('Silmek istediginizden emin misiniz?')) return;
+        const linkedIds = PlanningModule.getDemandLinkedWorkOrderIds(row);
         DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
+        if (linkedIds.size > 0 && Array.isArray(DB.data?.data?.workOrders)) {
+            DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '')));
+        }
+        if (linkedIds.size > 0 && Array.isArray(DB.data?.data?.workOrderTransactions)) {
+            DB.data.data.workOrderTransactions = DB.data.data.workOrderTransactions.filter((txn) => !linkedIds.has(String(txn?.workOrderId || '')));
+        }
+        PlanningModule.purgeDispatchNotesByWorkOrderIds(linkedIds);
         if (PlanningModule.state.planningPoolRowsByDemand && typeof PlanningModule.state.planningPoolRowsByDemand === 'object') {
             delete PlanningModule.state.planningPoolRowsByDemand[String(demandId || '')];
         }
@@ -1505,6 +1513,40 @@ const PlanningModule = {
         });
         return linked;
     },
+    purgeDispatchNotesByWorkOrderIds: (linkedIds) => {
+        if (!(linkedIds instanceof Set) || linkedIds.size === 0) return;
+        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) return;
+        const now = new Date().toISOString();
+        let changed = false;
+        const nextNotes = [];
+        (DB.data.data.workOrderDispatchNotes || []).forEach((note) => {
+            const rows = Array.isArray(note?.rows) ? note.rows : [];
+            if (!rows.length) {
+                nextNotes.push(note);
+                return;
+            }
+            const keptRows = rows.filter((row) => !linkedIds.has(String(row?.workOrderId || '')));
+            if (keptRows.length === rows.length) {
+                nextNotes.push(note);
+                return;
+            }
+            changed = true;
+            if (keptRows.length === 0) return;
+            const updated = {
+                ...note,
+                rows: keptRows,
+                updated_at: now,
+                updated_by: 'Demo User'
+            };
+            if (typeof UnitModule !== 'undefined'
+                && UnitModule
+                && typeof UnitModule.buildWorkOrderDispatchPdfHtml === 'function') {
+                updated.documentHtml = UnitModule.buildWorkOrderDispatchPdfHtml(updated);
+            }
+            nextNotes.push(updated);
+        });
+        if (changed) DB.data.data.workOrderDispatchNotes = nextNotes;
+    },
 
     deleteReleasedDemand: async (demandId) => {
         const all = PlanningModule.getDemands();
@@ -1527,6 +1569,7 @@ const PlanningModule = {
         if (Array.isArray(DB.data?.data?.workOrderTransactions)) {
             DB.data.data.workOrderTransactions = DB.data.data.workOrderTransactions.filter((txn) => !linkedIds.has(String(txn?.workOrderId || '')));
         }
+        PlanningModule.purgeDispatchNotesByWorkOrderIds(linkedIds);
 
         if (PlanningModule.state.planningPoolRowsByDemand && typeof PlanningModule.state.planningPoolRowsByDemand === 'object') {
             delete PlanningModule.state.planningPoolRowsByDemand[String(demandId || '')];

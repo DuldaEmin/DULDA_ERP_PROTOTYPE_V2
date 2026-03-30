@@ -97,6 +97,7 @@ const UnitModule = {
         workOrderDispatchListTarget: '',
         workOrderDispatchRows: {},
         workOrderDispatchQtyByRow: {},
+        workOrderDispatchDraft: null,
         workOrderStatsRange: 'WEEK',
         workOrderStatsGroup: 'UNIT',
         workOrderStatsProcess: '',
@@ -356,6 +357,7 @@ const UnitModule = {
             UnitModule.state.workOrderDispatchListTarget = '';
             UnitModule.state.workOrderDispatchRows = {};
             UnitModule.state.workOrderDispatchQtyByRow = {};
+            UnitModule.state.workOrderDispatchDraft = null;
             const rows = UnitModule.getWorkOrderPlanningRowsForUnit(UnitModule.state.activeUnitId);
             const hasActive = rows.some((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0);
             const hasWaiting = rows.some(row => Number(row?.metrics?.availableQty || 0) > 0);
@@ -1749,6 +1751,7 @@ const UnitModule = {
         UnitModule.state.workOrderTransferTarget = String(value || '').trim();
         UnitModule.state.workOrderDispatchRows = {};
         UnitModule.state.workOrderDispatchQtyByRow = {};
+        UnitModule.state.workOrderDispatchDraft = null;
         UI.renderCurrentPage();
     },
     setWorkOrderDispatchListTarget: (value) => {
@@ -1855,6 +1858,9 @@ const UnitModule = {
                         return `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.5rem; border-top:1px solid #f1f5f9; padding:0.35rem 0;"><span style="display:inline-block; border-radius:999px; padding:0.1rem 0.45rem; font-size:0.72rem; font-weight:700; ${meta.style}">${meta.label}</span><span style="font-size:0.76rem; color:#475569;">${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(String(h?.at || '')))} - ${UnitModule.escapeHtml(String(h?.user || '-'))}</span></div>`;
                     }).join('')}
                 </div>
+                <div style="display:flex; justify-content:flex-end;">
+                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')">Belgeyi ac</button>
+                </div>
             </div>
         `);
     },
@@ -1887,27 +1893,18 @@ const UnitModule = {
         }, 0);
         return `DSI-${String(max + 1).padStart(6, '0')}`;
     },
-    createWorkOrderDispatchNoteFromSelected: async () => {
-        const stationId = String(UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim();
-        if (stationId !== 'u_dtm') return alert('Sevk irsaliyesi sadece Depo Transfer planlama ekraninda olusturulur.');
-        const targetId = String(UnitModule.state.workOrderTransferTarget || '').trim();
-        if (!targetId) return alert('Lutfen once dis birim seciniz.');
-        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
-        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
-
+    collectWorkOrderDispatchSelection: (stationId, targetId) => {
         const selectedKeys = Object.entries(UnitModule.state.workOrderDispatchRows || {})
             .filter(([, on]) => !!on)
             .map(([key]) => String(key || '').trim())
             .filter(Boolean);
-        if (!selectedKeys.length) return alert('Irsaliye icin satir seciniz.');
-
+        if (!selectedKeys.length) return { error: 'Irsaliye icin satir seciniz.' };
         const rows = UnitModule.getWorkOrderPlanningRowsForUnit(stationId);
         const rowMap = new Map(rows.map((row) => [
             UnitModule.getWorkOrderDispatchRowKey(row?.order?.id, row?.line?.id, row?.metrics?.stationId),
             row
         ]));
-
-        const txns = DB.data.data.workOrderTransactions;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const selectedRows = [];
         for (const key of selectedKeys) {
             const row = rowMap.get(key);
@@ -1920,19 +1917,180 @@ const UnitModule = {
             const maxQty = Math.max(0, Math.floor(Number(metrics?.inProcessQty || 0)));
             if (!maxQty) continue;
             if (qty > maxQty) {
-                return alert(`Maksimum girilebilir miktar asildi: ${String(row?.order?.workOrderCode || '-')} / ${String(row?.line?.lineCode || '-')}. Maksimum ${maxQty}.`);
+                return {
+                    error: `Maksimum girilebilir miktar asildi: ${String(row?.order?.workOrderCode || '-')} / ${String(row?.line?.lineCode || '-')}. Maksimum ${maxQty}.`
+                };
             }
-            selectedRows.push({ key, row, qty, nextRoute });
+            selectedRows.push({
+                rowKey: key,
+                workOrderId: String(row?.order?.id || ''),
+                workOrderCode: String(row?.order?.workOrderCode || ''),
+                lineId: String(row?.line?.id || ''),
+                lineCode: String(row?.line?.lineCode || ''),
+                componentCode: String(row?.line?.componentCode || ''),
+                componentName: String(row?.line?.componentName || ''),
+                sourceStationId: stationId,
+                targetUnitId: targetId,
+                qty: Number(qty || 0)
+            });
         }
-        if (!selectedRows.length) return alert('Secili satirlarda sevk edilecek adet bulunamadi.');
+        if (!selectedRows.length) return { error: 'Secili satirlarda sevk edilecek adet bulunamadi.' };
+        return { rows: selectedRows };
+    },
+    buildWorkOrderDispatchPdfHtml: (noteLike) => {
+        const rows = Array.isArray(noteLike?.rows) ? noteLike.rows : [];
+        const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
+        const createdLabel = UnitModule.formatDateTimeShort(String(noteLike?.created_at || ''));
+        const sourceUnitName = UnitModule.getRouteStationName(String(noteLike?.stationId || '')) || String(noteLike?.stationId || '-');
+        const targetUnitName = String(noteLike?.targetUnitName || '-');
+        const docNo = String(noteLike?.docNo || '-');
+        const createdBy = String(noteLike?.created_by || 'Demo User');
+        return `
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <title>Irsaliye ${UnitModule.escapeHtml(docNo)}</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 24px; color:#111827; }
+        h1 { font-size: 20px; margin: 0 0 10px; }
+        .meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+        .card { border:1px solid #d1d5db; border-radius:8px; padding:8px; font-size:12px; }
+        .k { color:#6b7280; font-size:11px; margin-bottom:4px; }
+        .v { font-weight:700; font-size:13px; }
+        table { width:100%; border-collapse:collapse; }
+        th, td { border:1px solid #d1d5db; padding:8px; font-size:12px; text-align:left; vertical-align:top; }
+        th { background:#f3f4f6; text-transform:uppercase; font-size:11px; letter-spacing:0.02em; }
+        .mono { font-family: Consolas, monospace; font-weight:700; color:#1d4ed8; }
+        .right { text-align:right; }
+        .foot { margin-top:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+        .sign { border-top:1px solid #9ca3af; padding-top:6px; font-size:11px; color:#6b7280; text-align:center; }
+    </style>
+</head>
+<body>
+    <h1>SEVK IRSALIYESI</h1>
+    <div class="meta">
+        <div class="card"><div class="k">Belge No</div><div class="v">${UnitModule.escapeHtml(docNo)}</div></div>
+        <div class="card"><div class="k">Kaynak Birim</div><div class="v">${UnitModule.escapeHtml(sourceUnitName)}</div></div>
+        <div class="card"><div class="k">Hedef Birim</div><div class="v">${UnitModule.escapeHtml(targetUnitName)}</div></div>
+        <div class="card"><div class="k">Tarih</div><div class="v">${UnitModule.escapeHtml(createdLabel)}</div></div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Is emri / satir</th>
+                <th>Parca Kodu - Adi</th>
+                <th class="right">Adet</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows.length === 0 ? `<tr><td colspan="3">Satir yok.</td></tr>` : rows.map((row) => `
+                <tr>
+                    <td><div class="mono">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
+                    <td><div>${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                    <td class="right"><strong>${Math.max(0, Number(row?.qty || 0))}</strong></td>
+                </tr>
+            `).join('')}
+            <tr>
+                <td colspan="2" class="right"><strong>Toplam</strong></td>
+                <td class="right"><strong>${Number(totalQty || 0)}</strong></td>
+            </tr>
+        </tbody>
+    </table>
+    <div class="foot">
+        <div class="sign">Sevk Eden Imza</div>
+        <div class="sign">Teslim Alan Imza</div>
+        <div class="sign">Kayit / ${UnitModule.escapeHtml(createdBy)}</div>
+    </div>
+</body>
+</html>
+        `;
+    },
+    openWorkOrderDispatchPdfWindowFromHtml: (html, title = 'Sevk Irsaliyesi') => {
+        const win = window.open('', '_blank');
+        if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
+        win.document.open();
+        win.document.write(String(html || ''));
+        win.document.close();
+        try { win.document.title = String(title || 'Sevk Irsaliyesi'); } catch (_) { }
+        win.focus();
+        return win;
+    },
+    openWorkOrderDispatchSavedDocument: (noteId) => {
+        const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
+        const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
+        if (!note) return alert('Irsaliye kaydi bulunamadi.');
+        const html = String(note?.documentHtml || '').trim() || UnitModule.buildWorkOrderDispatchPdfHtml(note);
+        UnitModule.openWorkOrderDispatchPdfWindowFromHtml(html, `Irsaliye ${String(note?.docNo || '-')}`);
+    },
+    previewWorkOrderDispatchDraft: () => {
+        const draft = UnitModule.state.workOrderDispatchDraft;
+        if (!draft || !Array.isArray(draft.rows) || draft.rows.length === 0) return alert('Onizleme icin hazir irsaliye yok.');
+        const totalQty = draft.rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
+        Modal.open(`PDF Onizleme - ${UnitModule.escapeHtml(String(draft.docNo || '-'))}`, `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="background:#f8fafc; border:1px solid #dbeafe; border-radius:0.7rem; padding:0.6rem 0.7rem; font-size:0.82rem; color:#334155;">
+                    Belge onizlemesi hazir. Onayla ve Kaydet dersen irsaliye kaydi olusur ve "fasona giden malzemeler" sayfasina eklenir.
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Belge No</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(String(draft.docNo || '-'))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Hedef birim</div><div style="font-weight:700; color:#0f172a;">${UnitModule.escapeHtml(String(draft.targetUnitName || '-'))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Satir</div><div style="font-weight:800; color:#0f172a;">${draft.rows.length}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.48rem 0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${Number(totalQty || 0)}</div></div>
+                </div>
+                <div class="card-table">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">Is emri / satir</th>
+                                <th style="padding:0.55rem; text-align:left;">Parca</th>
+                                <th style="padding:0.55rem; text-align:center;">Adet</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${draft.rows.map((row) => `
+                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                    <td style="padding:0.5rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div style="font-family:monospace; font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-size:0.72rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem; text-align:center; font-weight:800; color:#0f172a;">${Math.max(0, Number(row?.qty || 0))}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
+                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfWindowFromHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'Irsaliye ${UnitModule.escapeHtml(String(draft.docNo || '-'))}')">PDF onizlemeyi ac</button>
+                    <button class="btn-sm" onclick="UnitModule.state.workOrderDispatchDraft=null; Modal.close();">Vazgec</button>
+                    <button class="btn-primary" onclick="UnitModule.confirmWorkOrderDispatchDraft()">Onayla ve Kaydet</button>
+                </div>
+            </div>
+        `, { maxWidth: '1100px' });
+    },
+    confirmWorkOrderDispatchDraft: async () => {
+        const draft = UnitModule.state.workOrderDispatchDraft;
+        if (!draft || !Array.isArray(draft.rows) || draft.rows.length === 0) return alert('Kaydedilecek irsaliye taslagi bulunamadi.');
+        const stationId = String(draft.stationId || '').trim();
+        const targetId = String(draft.targetUnitId || '').trim();
+        if (!stationId || !targetId) return alert('Irsaliye bilgileri eksik.');
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
 
-        const docNo = UnitModule.getNextWorkOrderDispatchDocNo();
+        const revalidated = UnitModule.collectWorkOrderDispatchSelection(stationId, targetId);
+        if (revalidated.error) return alert(revalidated.error);
+        const draftRowMap = new Map((draft.rows || []).map((row) => [String(row?.rowKey || ''), Math.max(0, Number(row?.qty || 0))]));
+        const finalRows = (revalidated.rows || [])
+            .map((row) => ({ ...row, qty: Math.max(0, Number(draftRowMap.get(String(row?.rowKey || '')) || 0)) }))
+            .filter((row) => Number(row?.qty || 0) > 0);
+        if (!finalRows.length) return alert('Kayit icin gecerli satir bulunamadi.');
+
+        const docNo = String(draft.docNo || UnitModule.getNextWorkOrderDispatchDocNo());
         const now = new Date().toISOString();
-        selectedRows.forEach((entry) => {
+        const txns = DB.data.data.workOrderTransactions;
+        finalRows.forEach((entry) => {
             txns.push({
                 id: crypto.randomUUID(),
-                workOrderId: String(entry.row?.order?.id || ''),
-                lineId: String(entry.row?.line?.id || ''),
+                workOrderId: String(entry.workOrderId || ''),
+                lineId: String(entry.lineId || ''),
                 stationId,
                 type: 'COMPLETE',
                 qty: Number(entry.qty || 0),
@@ -1940,39 +2098,64 @@ const UnitModule = {
                 user: 'Demo User',
                 created_at: now
             });
-            if (entry.row?.order) entry.row.order.updated_at = now;
+            const order = (DB.data?.data?.workOrders || []).find((row) => String(row?.id || '') === String(entry.workOrderId || ''));
+            if (order) order.updated_at = now;
         });
 
-        const targetName = UnitModule.getRouteStationName(targetId) || targetId;
-        DB.data.data.workOrderDispatchNotes.push({
+        const notePayload = {
             id: crypto.randomUUID(),
             docNo,
             stationId,
             targetUnitId: targetId,
-            targetUnitName: targetName,
+            targetUnitName: String(draft.targetUnitName || UnitModule.getRouteStationName(targetId) || targetId),
             status: 'HAZIRLANDI',
             isArchived: false,
             created_at: now,
             created_by: 'Demo User',
             history: [{ at: now, status: 'HAZIRLANDI', user: 'Demo User' }],
-            rows: selectedRows.map((entry) => ({
-                workOrderId: String(entry.row?.order?.id || ''),
-                workOrderCode: String(entry.row?.order?.workOrderCode || ''),
-                lineId: String(entry.row?.line?.id || ''),
-                lineCode: String(entry.row?.line?.lineCode || ''),
-                componentCode: String(entry.row?.line?.componentCode || ''),
-                componentName: String(entry.row?.line?.componentName || ''),
+            rows: finalRows.map((entry) => ({
+                workOrderId: String(entry.workOrderId || ''),
+                workOrderCode: String(entry.workOrderCode || ''),
+                lineId: String(entry.lineId || ''),
+                lineCode: String(entry.lineCode || ''),
+                componentCode: String(entry.componentCode || ''),
+                componentName: String(entry.componentName || ''),
                 qty: Number(entry.qty || 0),
                 sourceStationId: stationId,
                 targetUnitId: targetId
             }))
-        });
+        };
+        notePayload.documentHtml = UnitModule.buildWorkOrderDispatchPdfHtml(notePayload);
+        DB.data.data.workOrderDispatchNotes.push(notePayload);
 
         UnitModule.state.workOrderDispatchRows = {};
         UnitModule.state.workOrderDispatchQtyByRow = {};
+        UnitModule.state.workOrderDispatchDraft = null;
         await DB.save();
+        Modal.close();
         UI.renderCurrentPage();
-        alert(`${docNo} olusturuldu. ${selectedRows.length} satir sevk icin hazirlandi.`);
+        alert(`${docNo} kaydedildi ve fasona giden malzemeler listesine eklendi.`);
+    },
+    createWorkOrderDispatchNoteFromSelected: async () => {
+        const stationId = String(UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim();
+        if (stationId !== 'u_dtm') return alert('Sevk irsaliyesi sadece Depo Transfer planlama ekraninda olusturulur.');
+        const targetId = String(UnitModule.state.workOrderTransferTarget || '').trim();
+        if (!targetId) return alert('Lutfen once dis birim seciniz.');
+        const selected = UnitModule.collectWorkOrderDispatchSelection(stationId, targetId);
+        if (selected.error) return alert(selected.error);
+        const targetName = UnitModule.getRouteStationName(targetId) || targetId;
+        UnitModule.state.workOrderDispatchDraft = {
+            id: crypto.randomUUID(),
+            docNo: UnitModule.getNextWorkOrderDispatchDocNo(),
+            stationId,
+            targetUnitId: targetId,
+            targetUnitName: targetName,
+            status: 'HAZIRLANDI',
+            created_at: new Date().toISOString(),
+            created_by: 'Demo User',
+            rows: selected.rows
+        };
+        UnitModule.previewWorkOrderDispatchDraft();
     },
     setWorkOrderStatsFilter: (field, value) => {
         if (field === 'range') UnitModule.state.workOrderStatsRange = String(value || 'WEEK').toUpperCase();
@@ -2913,11 +3096,12 @@ const UnitModule = {
                 <div style="${workOrderToolbarTabsStyle}">
                     ${renderTabBtn('AKTIF', 'Aktif Islemler', activeRows.length)}
                     ${renderTabBtn('BEKLEYEN', 'Bekleyen Isler', waitingRows.length, { highlight: true })}
-                    <span style="width:1px; height:24px; background:#e2e8f0; margin:0 0.1rem 0 0.2rem;"></span>
-                    ${renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true })}
                     ${isDepoTransferPlanning ? renderTabBtn('FASON', 'fasona giden malzemeler', dispatchOpenCount) : ''}
+                    ${!isDepoTransferPlanning ? `<span style="width:1px; height:24px; background:#e2e8f0; margin:0 0.1rem 0 0.2rem;"></span>` : ''}
+                    ${!isDepoTransferPlanning ? renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true }) : ''}
                 </div>
                 <div style="${workOrderToolbarSearchGroupStyle}">
+                    ${isDepoTransferPlanning ? renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true }) : ''}
                     ${renderReportsMenu(statsCount)}
                     <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
                 </div>
@@ -3015,6 +3199,7 @@ const UnitModule = {
                             <td style="padding:0.55rem; text-align:right;">
                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchNoteDetail('${row.id}')">Goruntule</button>
+                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${row.id}')">Belge</button>
                                     ${archivedMode ? '' : actions}
                                 </div>
                             </td>
@@ -3330,7 +3515,7 @@ const UnitModule = {
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
                                     const showPlanAction = isActiveTab && String(unitId || '') !== 'u_dtm';
-                                    const showDispatchSelection = isDepoTransferPlanning && isActiveTab;
+                                    const showDispatchSelection = isDepoTransferPlanning && isActiveTab && !!selectedTransferTargetId;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;

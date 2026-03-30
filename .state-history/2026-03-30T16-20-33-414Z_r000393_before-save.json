@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-30T16:20:33.308Z",
+    "updated_at": "2026-03-30T16:18:53.560Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 394
+    "revision": 393
   },
   "data": {
     "products": [
@@ -3486,57 +3486,7 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [
-      {
-        "id": "783f13d9-22f2-443d-8b0b-625bc3d18ccb",
-        "demandCode": "PLN-000001",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-30T16:20:33.308Z",
-        "items": [
-          {
-            "id": "469fbe2a-71c3-410a-b580-9351a4a8e34c",
-            "itemType": "MODEL",
-            "qty": 10,
-            "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-            "componentId": "",
-            "semiFinishedId": "",
-            "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-            "variantCode": "URM-000001-V01",
-            "componentCode": "",
-            "semiFinishedCode": "",
-            "productGroup": "Aluminyum Dikmeler",
-            "productName": "2008 bombeli aluminyum dikme",
-            "productCode": "DIKMELER",
-            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-            "montageCardCode": "MON-000001"
-          }
-        ],
-        "itemType": "MODEL",
-        "variantId": "9bc1bf08-6c0e-4cfe-8d1c-1ebfb9dc7247",
-        "componentId": "",
-        "semiFinishedId": "",
-        "familyId": "c4a6b2d0-6a29-4d8c-9cbe-f6fe2f4ab5d1",
-        "variantCode": "URM-000001-V01",
-        "componentCode": "",
-        "semiFinishedCode": "",
-        "productGroup": "Aluminyum Dikmeler",
-        "productName": "2008 bombeli aluminyum dikme",
-        "productCode": "DIKMELER",
-        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
-        "montageCardCode": "MON-000001",
-        "qty": 10,
-        "dueDate": "2026-04-02",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "workOrderId": "",
-        "workOrderCode": "",
-        "workOrderIds": [],
-        "workOrderCodes": [],
-        "updated_at": "2026-03-30T16:20:33.308Z"
-      }
-    ],
+    "planningDemands": [],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

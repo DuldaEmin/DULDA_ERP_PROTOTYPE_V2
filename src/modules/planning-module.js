@@ -2406,7 +2406,8 @@ const PlanningModule = {
                 currentStationName: 'Montaji bekliyor',
                 completedStationCount: 0,
                 routeCount: 0,
-                steps: []
+                steps: [],
+                stationLoads: []
             };
         }
 
@@ -2441,6 +2442,33 @@ const PlanningModule = {
             ...step,
             stepStatus: isFinished ? 'DONE' : (index < currentIdx ? 'DONE' : (index === currentIdx ? 'CURRENT' : 'NEXT'))
         }));
+        const stationLoadMap = new Map();
+        baseSteps.forEach((step, index) => {
+            const nextStep = index < baseSteps.length - 1 ? baseSteps[index + 1] : null;
+            const takenHere = Math.min(step.inputQty, PlanningModule.parseQty(step?.takenQty, 0));
+            const doneHere = Math.min(step.inputQty, PlanningModule.parseQty(step?.doneQty, 0));
+            const inProcessQty = Math.max(0, takenHere - doneHere);
+            const nextTakenQty = nextStep ? Math.min(nextStep.inputQty, PlanningModule.parseQty(nextStep?.takenQty, 0)) : 0;
+            const transferPendingQty = nextStep ? Math.max(0, doneHere - nextTakenQty) : 0;
+            const stationQty = Math.max(0, inProcessQty + transferPendingQty);
+            if (stationQty <= 0) return;
+            const stationKey = String(step?.stationId || step?.stationName || `step-${index + 1}`);
+            const prevLoad = stationLoadMap.get(stationKey) || {
+                stationId: String(step?.stationId || ''),
+                stationName: String(step?.stationName || '-'),
+                qty: 0
+            };
+            prevLoad.qty += stationQty;
+            stationLoadMap.set(stationKey, prevLoad);
+        });
+        const stationLoads = Array.from(stationLoadMap.values())
+            .filter((row) => PlanningModule.parseQty(row?.qty, 0) > 0)
+            .sort((a, b) => {
+                const qtyDiff = PlanningModule.parseQty(b?.qty, 0) - PlanningModule.parseQty(a?.qty, 0);
+                if (qtyDiff !== 0) return qtyDiff;
+                return String(a?.stationName || '').localeCompare(String(b?.stationName || ''), 'tr');
+            });
+        const stationLoadLabel = stationLoads.map((row) => `${String(row?.stationName || '-')}: ${PlanningModule.parseQty(row?.qty, 0)}`).join(' | ');
         const finalDoneQty = PlanningModule.parseQty(baseSteps[baseSteps.length - 1]?.doneQty, 0);
         const remainingQty = Math.max(0, targetQty - finalDoneQty);
         return {
@@ -2448,10 +2476,13 @@ const PlanningModule = {
             finalDoneQty: Math.min(targetQty, finalDoneQty),
             remainingQty,
             isFinished: isFinished || remainingQty <= 0,
-            currentStationName: isFinished ? 'Montaji bekliyor' : String(baseSteps[currentIdx]?.stationName || '-'),
+            currentStationName: isFinished
+                ? 'Montaji bekliyor'
+                : (stationLoadLabel || String(baseSteps[currentIdx]?.stationName || '-')),
             completedStationCount: isFinished ? steps.length : currentIdx,
             routeCount: steps.length,
-            steps
+            steps,
+            stationLoads
         };
     },
 
@@ -2525,7 +2556,8 @@ const PlanningModule = {
                     currentStationName: String(progress?.currentStationName || '-'),
                     completedStationCount: PlanningModule.parseQty(progress?.completedStationCount, 0),
                     routeCount: PlanningModule.parseQty(progress?.routeCount, 0),
-                    steps: Array.isArray(progress?.steps) ? progress.steps : []
+                    steps: Array.isArray(progress?.steps) ? progress.steps : [],
+                    stationLoads: Array.isArray(progress?.stationLoads) ? progress.stationLoads : []
                 });
             });
         });
@@ -2537,19 +2569,39 @@ const PlanningModule = {
                 const totalDoneQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.doneQty, 0), 0);
                 const totalRemainingQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.remainingQty, 0), 0);
                 const isFinished = group.lines.every((line) => !!line?.isFinished);
-                const activeStations = Array.from(new Set(
-                    group.lines
-                        .filter((line) => !line?.isFinished)
-                        .map((line) => String(line?.currentStationName || '').trim())
-                        .filter(Boolean)
-                ));
+                const stationLoadMap = new Map();
+                group.lines.forEach((line) => {
+                    const loads = Array.isArray(line?.stationLoads) ? line.stationLoads : [];
+                    loads.forEach((load) => {
+                        const qty = PlanningModule.parseQty(load?.qty, 0);
+                        if (qty <= 0) return;
+                        const stationKey = String(load?.stationId || load?.stationName || '').trim();
+                        if (!stationKey) return;
+                        const prev = stationLoadMap.get(stationKey) || {
+                            stationId: String(load?.stationId || ''),
+                            stationName: String(load?.stationName || stationKey),
+                            qty: 0
+                        };
+                        prev.qty += qty;
+                        stationLoadMap.set(stationKey, prev);
+                    });
+                });
+                const activeStationLoads = Array.from(stationLoadMap.values())
+                    .filter((row) => PlanningModule.parseQty(row?.qty, 0) > 0)
+                    .sort((a, b) => {
+                        const qtyDiff = PlanningModule.parseQty(b?.qty, 0) - PlanningModule.parseQty(a?.qty, 0);
+                        if (qtyDiff !== 0) return qtyDiff;
+                        return String(a?.stationName || '').localeCompare(String(b?.stationName || ''), 'tr');
+                    });
+                const activeStations = activeStationLoads.map((row) => `${String(row?.stationName || '-')}: ${PlanningModule.parseQty(row?.qty, 0)}`);
                 return {
                     ...group,
                     totalTargetQty,
                     totalDoneQty,
                     totalRemainingQty,
                     isFinished,
-                    activeStations
+                    activeStations,
+                    activeStationLoads
                 };
             })
             .sort((a, b) => {
@@ -2591,6 +2643,33 @@ const PlanningModule = {
         const workOrderText = Array.isArray(demand?.workOrderCodes) && demand.workOrderCodes.length
             ? (demand.workOrderCodes.length > 1 ? `${demand.workOrderCodes[0]} +${demand.workOrderCodes.length - 1}` : demand.workOrderCodes[0])
             : String(demand?.workOrderCode || '-');
+        const demandStationMap = new Map();
+        groups.forEach((group) => {
+            const loads = Array.isArray(group?.activeStationLoads) ? group.activeStationLoads : [];
+            loads.forEach((load) => {
+                const qty = PlanningModule.parseQty(load?.qty, 0);
+                if (qty <= 0) return;
+                const key = String(load?.stationId || load?.stationName || '').trim();
+                if (!key) return;
+                const prev = demandStationMap.get(key) || {
+                    stationId: String(load?.stationId || ''),
+                    stationName: String(load?.stationName || key),
+                    qty: 0
+                };
+                prev.qty += qty;
+                demandStationMap.set(key, prev);
+            });
+        });
+        const demandStationLoads = Array.from(demandStationMap.values())
+            .filter((row) => PlanningModule.parseQty(row?.qty, 0) > 0)
+            .sort((a, b) => {
+                const qtyDiff = PlanningModule.parseQty(b?.qty, 0) - PlanningModule.parseQty(a?.qty, 0);
+                if (qtyDiff !== 0) return qtyDiff;
+                return String(a?.stationName || '').localeCompare(String(b?.stationName || ''), 'tr');
+            });
+        const demandDistributionText = demandStationLoads.length
+            ? demandStationLoads.map((row) => `${String(row?.stationName || '-')}: ${PlanningModule.parseQty(row?.qty, 0)}`).join(' | ')
+            : 'Dagilim yok';
 
         const renderRouteChips = (steps) => {
             if (!Array.isArray(steps) || !steps.length) {
@@ -2606,6 +2685,21 @@ const PlanningModule = {
                 const processText = String(step?.processId || '').trim();
                 return `<span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${style}">${PlanningModule.escapeHtml(`${step?.seq || '?'}-${step?.stationName || '-'}`)}${processText ? `<span style="font-family:monospace;">/${PlanningModule.escapeHtml(processText)}</span>` : ''}</span>`;
             }).join('');
+        };
+        const renderStationDistributionChips = (loads, done) => {
+            if (done) {
+                return `<span style="display:inline-flex; border-radius:999px; border:1px solid #a7f3d0; background:#ecfdf5; color:#047857; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">Montaji bekliyor</span>`;
+            }
+            const rows = Array.isArray(loads) ? loads.filter((row) => PlanningModule.parseQty(row?.qty, 0) > 0) : [];
+            if (!rows.length) {
+                return `<span style="display:inline-flex; border-radius:999px; border:1px solid #e2e8f0; background:#ffffff; color:#64748b; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">Istasyon bekliyor</span>`;
+            }
+            return rows.map((row) => `
+                <span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1e3a8a; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">
+                    ${PlanningModule.escapeHtml(String(row?.stationName || '-'))}
+                    <span style="display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-family:monospace; font-size:0.7rem; padding:0 0.25rem;">${PlanningModule.escapeHtml(String(PlanningModule.parseQty(row?.qty, 0)))}</span>
+                </span>
+            `).join('');
         };
 
         const renderItemLines = (group) => {
@@ -2628,7 +2722,7 @@ const PlanningModule = {
                         <td style="padding:0.5rem; text-align:center; font-weight:700; color:${line?.remainingQty > 0 ? '#b91c1c' : '#0f172a'};">${PlanningModule.escapeHtml(String(line?.remainingQty || 0))}</td>
                         <td style="padding:0.5rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusBadgeStyle}">${PlanningModule.escapeHtml(statusBadgeLabel)}</span></td>
                         <td style="padding:0.5rem;">
-                            <div style="font-weight:700; color:${line?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(String(line?.currentStationName || '-'))}</div>
+                            <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${renderStationDistributionChips(line?.stationLoads || [], !!line?.isFinished)}</div>
                             <div style="font-size:0.72rem; color:#64748b; margin-top:0.1rem;">Biten istasyon: ${PlanningModule.escapeHtml(String(line?.completedStationCount || 0))} / ${PlanningModule.escapeHtml(String(line?.routeCount || 0))}</div>
                         </td>
                         <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${renderRouteChips(line?.steps || [])}</div></td>
@@ -2644,7 +2738,7 @@ const PlanningModule = {
                     : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;';
                 const stationText = group?.isFinished
                     ? 'Montaji bekliyor'
-                    : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(', ') : 'Istasyon bekliyor');
+                    : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(' | ') : 'Istasyon bekliyor');
                 return `
                     <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:2px solid ${group?.isFinished ? '#86efac' : '#fca5a5'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
                         <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
@@ -2654,7 +2748,7 @@ const PlanningModule = {
                             </div>
                             <span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${groupStatusStyle}">${group?.isFinished ? 'Bitti' : 'Bitmedi'}</span>
                         </div>
-                        <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Su anki birim: <strong style="color:${group?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong></div>
+                        <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Adet dagilimi: <strong style="color:${group?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong></div>
                         <div style="padding:0 0.7rem 0.75rem 0.7rem;">
                             <div class="card-table" style="margin-top:0.25rem;">
                                 <table style="width:100%; border-collapse:collapse;">
@@ -2666,7 +2760,7 @@ const PlanningModule = {
                                             <th style="padding:0.5rem; text-align:center;">Biten</th>
                                             <th style="padding:0.5rem; text-align:center;">Kalan</th>
                                             <th style="padding:0.5rem; text-align:left;">Durum</th>
-                                            <th style="padding:0.5rem; text-align:left;">Su anki birim</th>
+                                            <th style="padding:0.5rem; text-align:left;">Birim dagilimi</th>
                                             <th style="padding:0.5rem; text-align:left;">Rota yolculugu</th>
                                         </tr>
                                     </thead>
@@ -2684,7 +2778,7 @@ const PlanningModule = {
                 <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Talep</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(demand?.qty || 0))}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span><div style="margin-top:0.28rem; font-size:0.72rem; color:#475569;">Dagilim: <strong>${PlanningModule.escapeHtml(demandDistributionText)}</strong></div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Is emri</div><div style="font-family:monospace; font-weight:800; color:#1e40af;">${PlanningModule.escapeHtml(workOrderText)}</div></div>
                 </div>
                 ${groupsHtml}

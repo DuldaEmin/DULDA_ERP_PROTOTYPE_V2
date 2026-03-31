@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T15:01:46.537Z",
+    "updated_at": "2026-03-31T15:00:50.061Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 509
+    "revision": 508
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T14:59:55.280Z",
-        "updated_at": "2026-03-31T15:01:46.537Z"
+        "updated_at": "2026-03-31T15:00:50.061Z"
       }
     ],
     "workOrderTransactions": [
@@ -2390,20 +2390,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-03-31T15:00:50.061Z"
-      },
-      {
-        "id": "d7c3d4fe-d201-4cee-aa26-5f8f9f669c7d",
-        "workOrderId": "8f713f71-a868-4b88-8335-24010be6ec73",
-        "lineId": "81511947-8703-4d5e-b750-fbb9daac70f1",
-        "stationId": "u_dtm",
-        "routeId": "c23d4c51-f63f-4891-95eb-a95ed87f653f",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T15:01:46.537Z"
       }
     ],
     "outsourceTransfers": [

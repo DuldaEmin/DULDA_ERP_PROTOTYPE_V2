@@ -2438,19 +2438,23 @@ const PlanningModule = {
         const firstIncompleteIdx = baseSteps.findIndex((step) => step.doneQty < step.inputQty);
         const isFinished = firstIncompleteIdx < 0;
         const currentIdx = isFinished ? -1 : firstIncompleteIdx;
-        const steps = baseSteps.map((step, index) => ({
-            ...step,
-            stepStatus: isFinished ? 'DONE' : (index < currentIdx ? 'DONE' : (index === currentIdx ? 'CURRENT' : 'NEXT'))
-        }));
-        const stationLoadMap = new Map();
-        baseSteps.forEach((step, index) => {
+        const steps = baseSteps.map((step, index) => {
             const nextStep = index < baseSteps.length - 1 ? baseSteps[index + 1] : null;
             const takenHere = Math.min(step.inputQty, PlanningModule.parseQty(step?.takenQty, 0));
             const doneHere = Math.min(step.inputQty, PlanningModule.parseQty(step?.doneQty, 0));
             const inProcessQty = Math.max(0, takenHere - doneHere);
             const nextTakenQty = nextStep ? Math.min(nextStep.inputQty, PlanningModule.parseQty(nextStep?.takenQty, 0)) : 0;
             const transferPendingQty = nextStep ? Math.max(0, doneHere - nextTakenQty) : 0;
-            const stationQty = Math.max(0, inProcessQty + transferPendingQty);
+            const activeQty = Math.max(0, inProcessQty + transferPendingQty);
+            return {
+                ...step,
+                activeQty,
+                stepStatus: isFinished ? 'DONE' : (index < currentIdx ? 'DONE' : (index === currentIdx ? 'CURRENT' : 'NEXT'))
+            };
+        });
+        const stationLoadMap = new Map();
+        steps.forEach((step, index) => {
+            const stationQty = Math.max(0, PlanningModule.parseQty(step?.activeQty, 0));
             if (stationQty <= 0) return;
             const stationKey = String(step?.stationId || step?.stationName || `step-${index + 1}`);
             const prevLoad = stationLoadMap.get(stationKey) || {
@@ -2677,13 +2681,17 @@ const PlanningModule = {
             }
             return steps.map((step) => {
                 const status = String(step?.stepStatus || 'NEXT').toUpperCase();
-                const style = status === 'DONE'
-                    ? 'background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;'
-                    : status === 'CURRENT'
-                        ? 'background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5;'
-                        : 'background:#ffffff; color:#94a3b8; border:1px solid #e2e8f0;';
-                const processText = String(step?.processId || '').trim();
-                return `<span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${style}">${PlanningModule.escapeHtml(`${step?.seq || '?'}-${step?.stationName || '-'}`)}${processText ? `<span style="font-family:monospace;">/${PlanningModule.escapeHtml(processText)}</span>` : ''}</span>`;
+                const activeQty = PlanningModule.parseQty(step?.activeQty, 0);
+                const hasActiveQty = activeQty > 0;
+                const style = hasActiveQty
+                    ? 'background:#fee2e2; color:#b91c1c; border:1px solid #f87171;'
+                    : (status === 'DONE'
+                        ? 'background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1;'
+                        : 'background:#ffffff; color:#94a3b8; border:1px solid #e2e8f0;');
+                const label = hasActiveQty
+                    ? `${step?.seq || '?'}- ${step?.stationName || '-'} / ${activeQty} adet`
+                    : `${step?.seq || '?'}-${step?.stationName || '-'}`;
+                return `<span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${style}">${PlanningModule.escapeHtml(label)}</span>`;
             }).join('');
         };
         const renderStationDistributionChips = (loads, done) => {
@@ -2723,7 +2731,6 @@ const PlanningModule = {
                         <td style="padding:0.5rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusBadgeStyle}">${PlanningModule.escapeHtml(statusBadgeLabel)}</span></td>
                         <td style="padding:0.5rem;">
                             <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${renderStationDistributionChips(line?.stationLoads || [], !!line?.isFinished)}</div>
-                            <div style="font-size:0.72rem; color:#64748b; margin-top:0.1rem;">Biten istasyon: ${PlanningModule.escapeHtml(String(line?.completedStationCount || 0))} / ${PlanningModule.escapeHtml(String(line?.routeCount || 0))}</div>
                         </td>
                         <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${renderRouteChips(line?.steps || [])}</div></td>
                     </tr>

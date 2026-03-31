@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T16:26:18.274Z",
+    "updated_at": "2026-03-31T16:17:47.673Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 563
+    "revision": 553
   },
   "data": {
     "products": [
@@ -3496,16 +3496,16 @@
     ],
     "planningDemands": [
       {
-        "id": "9cb93255-21ef-4180-bfdd-01a5e901bc19",
+        "id": "0bcee094-ec2f-4268-ab9d-e22702b20f68",
         "demandCode": "PLN-000001",
         "sourceType": "STOCK",
         "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-31T16:26:18.273Z",
+        "created_at": "2026-03-31T16:17:47.673Z",
         "items": [
           {
-            "id": "26667d64-78b5-44e8-ab16-97dc2acea9c1",
+            "id": "74dd780d-bc78-4d6f-89ce-07f825a20d3c",
             "itemType": "COMPONENT",
-            "qty": 2,
+            "qty": 1,
             "variantId": "",
             "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
             "semiFinishedId": "",
@@ -3533,7 +3533,7 @@
         "productCode": "PRC-000003",
         "montageCardId": "",
         "montageCardCode": "",
-        "qty": 2,
+        "qty": 1,
         "dueDate": "2026-04-03",
         "priority": "NORMAL",
         "note": "",
@@ -3542,7 +3542,7 @@
         "workOrderCode": "",
         "workOrderIds": [],
         "workOrderCodes": [],
-        "updated_at": "2026-03-31T16:26:18.273Z"
+        "updated_at": "2026-03-31T16:17:47.673Z"
       }
     ],
     "semiFinishedCards": [

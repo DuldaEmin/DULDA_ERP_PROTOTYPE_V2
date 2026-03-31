@@ -4353,7 +4353,10 @@ const UnitModule = {
                                                             irsaliyeye ekle
                                                         </label>
                                                     ` : ''}
-                                                    <button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>
+                                                    ${showDispatchSelection
+                                                        ? ''
+                                                        : `<button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>`
+                                                    }
                                                 </div>
                                             ` : ''}
                                             ${showTransferPendingBadge

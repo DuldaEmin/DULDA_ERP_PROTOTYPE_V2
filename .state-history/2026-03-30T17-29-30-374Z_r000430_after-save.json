@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T11:47:01.074Z",
+    "updated_at": "2026-03-30T17:29:30.185Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 446
+    "revision": 430
   },
   "data": {
     "products": [
@@ -2284,63 +2284,63 @@
     ],
     "workOrders": [
       {
-        "id": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
+        "id": "c59cdb26-8155-4f15-8631-bdeef84c55b7",
         "workOrderCode": "WO-000001",
         "montageCardId": "",
         "montageCardCode": "",
         "productCode": "PRC-000003",
         "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "lotQty": 10,
-        "dueDate": "2026-04-03",
+        "lotQty": 1,
+        "dueDate": "2026-04-02",
         "priority": "NORMAL",
         "note": "",
         "status": "OPEN",
         "lines": [
           {
-            "id": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
+            "id": "5b4935d5-9753-409c-9d9e-e5bcb8e1e282",
             "lineCode": "WO-000001-01",
             "componentCode": "PRC-000003",
             "componentName": "40 lık aluminyum dikme yarıklı tapa",
             "multiplier": 1,
-            "targetQty": 10,
+            "targetQty": 1,
             "routes": [
               {
-                "id": "0540c083-a57e-4bd1-a708-ef0de550107c",
+                "id": "bb83b2c0-ebea-4450-8ca9-31e0cc2871ca",
                 "seq": 1,
                 "stationId": "u1",
                 "stationName": "CNC ATOLYESI",
                 "processId": "CNC-000002"
               },
               {
-                "id": "ba8ccb1c-c376-4ec3-860d-251c4f13c087",
+                "id": "05c8da69-6161-4177-a58f-466d59e64d7b",
                 "seq": 2,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000001"
               },
               {
-                "id": "d1b71ae1-dd5c-4abb-8e89-b2205c2bdc83",
+                "id": "ccf98e23-b2a9-43cd-baed-e00894173f77",
                 "seq": 3,
                 "stationId": "u10",
                 "stationName": "IBRAHIM POLISAJ",
                 "processId": "IPS-000001"
               },
               {
-                "id": "3fde6b7e-29c0-4442-89ce-d3a686237869",
+                "id": "a4acaaa2-9bc3-4d58-9b4a-5af77022886e",
                 "seq": 4,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000002"
               },
               {
-                "id": "de95a23e-e66b-4f28-9848-bd6fdc1c75bb",
+                "id": "aa174148-d352-4a1b-8f85-b4ad03ccb6bb",
                 "seq": 5,
                 "stationId": "u11",
                 "stationName": "TEKIN ELOKSAL",
                 "processId": "ELX-000001"
               },
               {
-                "id": "13e4c2bd-0197-4172-bf69-cf18591ea12d",
+                "id": "018e3aa2-0098-492c-b76a-69cc76524a4c",
                 "seq": 6,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -2352,44 +2352,58 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "5ca059fe-4c56-4530-801e-d22f75cfa810",
+        "sourceId": "2cab9eb2-89b8-49ed-8508-765587a9e8a4",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "5f1bf708-d822-4e10-a10e-9c3a43ba7b7a",
+        "sourceItemKey": "f25b3e8a-b510-4593-954f-527068c1b13b",
         "sourceItemName": "40 lık aluminyum dikme yarıklı tapa",
         "sourceItemCode": "PRC-000003",
-        "sourceItemQty": 10,
-        "created_at": "2026-03-31T11:45:25.994Z",
-        "updated_at": "2026-03-31T11:47:01.074Z"
+        "sourceItemQty": 1,
+        "created_at": "2026-03-30T17:28:41.293Z",
+        "updated_at": "2026-03-30T17:29:30.185Z"
       }
     ],
     "workOrderTransactions": [
       {
-        "id": "da93c84a-0d07-4f73-9614-a62ee0696b4b",
-        "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
-        "lineId": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
+        "id": "75ea7982-34fd-4c45-ab04-443f81ecf9e3",
+        "workOrderId": "c59cdb26-8155-4f15-8631-bdeef84c55b7",
+        "lineId": "5b4935d5-9753-409c-9d9e-e5bcb8e1e282",
         "stationId": "u1",
-        "routeId": "0540c083-a57e-4bd1-a708-ef0de550107c",
+        "routeId": "bb83b2c0-ebea-4450-8ca9-31e0cc2871ca",
         "routeSeq": 1,
         "processId": "CNC-000002",
         "type": "TAKE",
-        "qty": 10,
+        "qty": 1,
         "note": "Istasyon devir aldi",
         "user": "Demo User",
-        "created_at": "2026-03-31T11:46:12.340Z"
+        "created_at": "2026-03-30T17:29:04.633Z"
       },
       {
-        "id": "d8a89284-3cbe-4053-9066-17acefdbeded",
-        "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
-        "lineId": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
+        "id": "cdc4f988-c4ab-4d71-b7d7-7efe39f781be",
+        "workOrderId": "c59cdb26-8155-4f15-8631-bdeef84c55b7",
+        "lineId": "5b4935d5-9753-409c-9d9e-e5bcb8e1e282",
         "stationId": "u1",
-        "routeId": "0540c083-a57e-4bd1-a708-ef0de550107c",
+        "routeId": "bb83b2c0-ebea-4450-8ca9-31e0cc2871ca",
         "routeSeq": 1,
         "processId": "CNC-000002",
         "type": "COMPLETE",
-        "qty": 5,
+        "qty": 1,
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
-        "created_at": "2026-03-31T11:47:01.074Z"
+        "created_at": "2026-03-30T17:29:12.238Z"
+      },
+      {
+        "id": "a4c4dd9c-423f-4b79-8919-65103dfabc38",
+        "workOrderId": "c59cdb26-8155-4f15-8631-bdeef84c55b7",
+        "lineId": "5b4935d5-9753-409c-9d9e-e5bcb8e1e282",
+        "stationId": "u_dtm",
+        "routeId": "05c8da69-6161-4177-a58f-466d59e64d7b",
+        "routeSeq": 2,
+        "processId": "DTR-000001",
+        "type": "TAKE",
+        "qty": 1,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-03-30T17:29:30.185Z"
       }
     ],
     "outsourceTransfers": [
@@ -3596,16 +3610,16 @@
     ],
     "planningDemands": [
       {
-        "id": "5ca059fe-4c56-4530-801e-d22f75cfa810",
+        "id": "2cab9eb2-89b8-49ed-8508-765587a9e8a4",
         "demandCode": "PLN-000001",
         "sourceType": "STOCK",
         "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-03-31T11:44:54.109Z",
+        "created_at": "2026-03-30T17:28:26.190Z",
         "items": [
           {
-            "id": "5f1bf708-d822-4e10-a10e-9c3a43ba7b7a",
+            "id": "f25b3e8a-b510-4593-954f-527068c1b13b",
             "itemType": "COMPONENT",
-            "qty": 10,
+            "qty": 1,
             "variantId": "",
             "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
             "semiFinishedId": "",
@@ -3633,42 +3647,42 @@
         "productCode": "PRC-000003",
         "montageCardId": "",
         "montageCardCode": "",
-        "qty": 10,
-        "dueDate": "2026-04-03",
+        "qty": 1,
+        "dueDate": "2026-04-02",
         "priority": "NORMAL",
         "note": "",
         "status": "RELEASED",
-        "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
+        "workOrderId": "c59cdb26-8155-4f15-8631-bdeef84c55b7",
         "workOrderCode": "WO-000001",
         "workOrderIds": [
-          "16e4e9ef-269a-4a13-a97f-e21ffda2d51d"
+          "c59cdb26-8155-4f15-8631-bdeef84c55b7"
         ],
         "workOrderCodes": [
           "WO-000001"
         ],
-        "updated_at": "2026-03-31T11:45:25.994Z",
+        "updated_at": "2026-03-30T17:28:41.293Z",
         "poolAnalysis": {
           "rows": [
             {
-              "key": "5f1bf708-d822-4e10-a10e-9c3a43ba7b7a::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "itemKey": "5f1bf708-d822-4e10-a10e-9c3a43ba7b7a",
+              "key": "f25b3e8a-b510-4593-954f-527068c1b13b::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "f25b3e8a-b510-4593-954f-527068c1b13b",
               "itemName": "40 lık aluminyum dikme yarıklı tapa",
               "itemCode": "PRC-000003",
-              "itemQty": 10,
+              "itemQty": 1,
               "code": "PRC-000003",
               "name": "40 lık aluminyum dikme yarıklı tapa",
               "componentLibrary": "PART",
               "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "requiredQty": 10,
+              "requiredQty": 1,
               "useEnabled": false,
               "useStockQty": 0,
               "useSemiQty": 0,
-              "netQty": 10
+              "netQty": 1
             }
           ],
-          "converted_at": "2026-03-31T11:45:25.994Z"
+          "converted_at": "2026-03-30T17:28:41.293Z"
         },
-        "released_at": "2026-03-31T11:45:25.994Z"
+        "released_at": "2026-03-30T17:28:41.293Z"
       }
     ],
     "semiFinishedCards": [

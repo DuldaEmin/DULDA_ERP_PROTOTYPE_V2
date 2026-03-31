@@ -1568,13 +1568,18 @@ const UnitModule = {
         return rows.map((row) => ({
             ...row,
             nextRoute: row?.metrics?.nextStationId
-                ? {
-                    routeId: String(row?.metrics?.nextRouteId || ''),
-                    routeSeq: Number(row?.metrics?.nextRouteSeq || 0),
-                    stationId: String(row?.metrics?.nextStationId || ''),
-                    stationName: UnitModule.getRouteStationName(String(row?.metrics?.nextStationId || '')) || '-',
-                    processId: ''
-                }
+                ? (() => {
+                    const routes = Array.isArray(row?.line?.routes) ? row.line.routes : [];
+                    const nextIdx = Math.max(0, Number(row?.metrics?.nextRouteSeq || 0) - 1);
+                    const next = routes[nextIdx] || null;
+                    return {
+                        routeId: String(row?.metrics?.nextRouteId || ''),
+                        routeSeq: Number(row?.metrics?.nextRouteSeq || 0),
+                        stationId: String(row?.metrics?.nextStationId || ''),
+                        stationName: UnitModule.getRouteStationName(String(row?.metrics?.nextStationId || '')) || '-',
+                        processId: String(next?.processId || '').trim().toUpperCase()
+                    };
+                })()
                 : null
         }));
     },
@@ -1681,8 +1686,8 @@ const UnitModule = {
                                         <td style="padding:0.55rem; text-align:center; font-weight:800; color:#b45309;">${Number(row.metrics?.inProcessQty || 0)}</td>
                                         <td style="padding:0.55rem; text-align:right;">
                                             <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                <button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
-                                                <button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}')" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamla</button>
+                                                <button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${Number(row.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
+                                                <button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}', null, { routeSeq: ${Number(row.metrics?.routeSeq || 0)} })" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamla</button>
                                             </div>
                                         </td>
                                     </tr>
@@ -2410,33 +2415,37 @@ const UnitModule = {
         await DB.save();
         UnitModule.closeWorkOrderCreateForm();
     },
+    isWorkTxnRouteMatch: (txn, routeFilter = null) => {
+        const wantedRouteId = String(routeFilter?.routeId || '').trim();
+        const wantedRouteSeq = Math.max(0, Number(routeFilter?.routeSeq || 0));
+        const allowLegacyByStation = !!routeFilter?.allowLegacyByStation;
+        if (!wantedRouteId && wantedRouteSeq <= 0) return true;
+        const txnRouteId = String(txn?.routeId || '').trim();
+        const txnRouteSeq = Math.max(0, Number(txn?.routeSeq || 0));
+        if (txnRouteId) {
+            if (wantedRouteId && txnRouteId !== wantedRouteId) return false;
+            if (!wantedRouteId && wantedRouteSeq > 0 && txnRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
+            return true;
+        }
+        if (txnRouteSeq > 0) {
+            if (wantedRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
+            if (wantedRouteSeq <= 0) return false;
+            return true;
+        }
+        return allowLegacyByStation;
+    },
     getWorkTxnQty: (txns, workOrderId, lineId, stationId, type, routeFilter = null) => {
         if (!Array.isArray(txns)) return 0;
         const keyOrder = String(workOrderId || '');
         const keyLine = String(lineId || '');
         const keyStation = String(stationId || '');
         const keyType = String(type || '').toUpperCase();
-        const wantedRouteId = String(routeFilter?.routeId || '').trim();
-        const wantedRouteSeq = Math.max(0, Number(routeFilter?.routeSeq || 0));
-        const allowLegacyByStation = !!routeFilter?.allowLegacyByStation;
         return txns.reduce((sum, t) => {
             if (String(t?.workOrderId || '') !== keyOrder) return sum;
             if (String(t?.lineId || '') !== keyLine) return sum;
             if (String(t?.stationId || '') !== keyStation) return sum;
             if (String(t?.type || '').toUpperCase() !== keyType) return sum;
-            if (wantedRouteId || wantedRouteSeq > 0) {
-                const txnRouteId = String(t?.routeId || '').trim();
-                const txnRouteSeq = Math.max(0, Number(t?.routeSeq || 0));
-                if (txnRouteId) {
-                    if (wantedRouteId && txnRouteId !== wantedRouteId) return sum;
-                    if (!wantedRouteId && wantedRouteSeq > 0 && txnRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return sum;
-                } else if (txnRouteSeq > 0) {
-                    if (wantedRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return sum;
-                    if (wantedRouteSeq <= 0) return sum;
-                } else if (!allowLegacyByStation) {
-                    return sum;
-                }
-            }
+            if (!UnitModule.isWorkTxnRouteMatch(t, routeFilter)) return sum;
             return sum + Number(t?.qty || 0);
         }, 0);
     },
@@ -2446,30 +2455,12 @@ const UnitModule = {
         const keyLine = String(lineId || '');
         const keyStation = String(stationId || '');
         const keyType = String(type || '').toUpperCase();
-        const wantedRouteId = String(routeFilter?.routeId || '').trim();
-        const wantedRouteSeq = Math.max(0, Number(routeFilter?.routeSeq || 0));
-        const allowLegacyByStation = !!routeFilter?.allowLegacyByStation;
         const hits = txns
             .filter((t) => String(t?.workOrderId || '') === keyOrder
                 && String(t?.lineId || '') === keyLine
                 && String(t?.stationId || '') === keyStation
                 && String(t?.type || '').toUpperCase() === keyType
-                && (() => {
-                    if (!wantedRouteId && wantedRouteSeq <= 0) return true;
-                    const txnRouteId = String(t?.routeId || '').trim();
-                    const txnRouteSeq = Math.max(0, Number(t?.routeSeq || 0));
-                    if (txnRouteId) {
-                        if (wantedRouteId && txnRouteId !== wantedRouteId) return false;
-                        if (!wantedRouteId && wantedRouteSeq > 0 && txnRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
-                        return true;
-                    }
-                    if (txnRouteSeq > 0) {
-                        if (wantedRouteSeq > 0 && txnRouteSeq !== wantedRouteSeq) return false;
-                        if (wantedRouteSeq <= 0) return false;
-                        return true;
-                    }
-                    return allowLegacyByStation;
-                })()
+                && UnitModule.isWorkTxnRouteMatch(t, routeFilter)
                 && String(t?.created_at || '').trim())
             .map((t) => ({ at: String(t.created_at || ''), ms: new Date(String(t.created_at || '')).getTime() }))
             .filter((row) => Number.isFinite(row.ms));
@@ -3146,11 +3137,13 @@ const UnitModule = {
         const todayIso = new Date().toISOString().slice(0, 10);
         const getTodayDoneQty = (row) => {
             if (!row || !row.order || !row.line || !row.metrics) return 0;
+            const routeFilter = UnitModule.getRouteFilterForIndex(row.line, Math.max(0, Number(row?.metrics?.routeSeq || 1) - 1));
             return txns.reduce((sum, txn) => {
                 if (String(txn?.workOrderId || '') !== String(row.order?.id || '')) return sum;
                 if (String(txn?.lineId || '') !== String(row.line?.id || '')) return sum;
                 if (String(txn?.stationId || '') !== String(row.metrics?.stationId || '')) return sum;
                 if (String(txn?.type || '').toUpperCase() !== 'COMPLETE') return sum;
+                if (!UnitModule.isWorkTxnRouteMatch(txn, routeFilter)) return sum;
                 const txnDay = String(txn?.created_at || '').slice(0, 10);
                 if (txnDay !== todayIso) return sum;
                 return sum + Number(txn?.qty || 0);
@@ -3567,7 +3560,7 @@ const UnitModule = {
                     && String(row?.order?.productName || '').trim().toLowerCase() === String(row?.line?.componentName || '').trim().toLowerCase();
                 const productTitle = isSingle ? 'Parca Uretimi' : UnitModule.escapeHtml(row?.order?.productName || '-');
                 const productCode = isSingle ? 'Tek parca is emri' : UnitModule.escapeHtml(row?.order?.productCode || '-');
-                return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${target}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${done}</td><td style="padding:0.55rem;"><span style="display:inline-block; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusChip}">${statusText}</span></td><td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(getArchiveDate(row))}</td><td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${row.order.id}','${row.line.id}','${row.metrics.stationId}')">Goruntule</button></td></tr>`;
+                return `<tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${productTitle}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div></td><td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div></td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${target}</td><td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${done}</td><td style="padding:0.55rem;"><span style="display:inline-block; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusChip}">${statusText}</span></td><td style="padding:0.55rem; color:#475569;">${UnitModule.escapeHtml(getArchiveDate(row))}</td><td style="padding:0.55rem; text-align:right;"><button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${Number(row.metrics?.routeSeq || 0)}')">Goruntule</button></td></tr>`;
             }).join('')}
                                 </tbody>
                             </table>
@@ -3655,8 +3648,8 @@ const UnitModule = {
                                     const takenQtyForStep = Math.max(0, Number(r.metrics?.inProcessQty || 0) + Number(r.metrics?.doneQty || 0));
                                     const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
                                     const qtySummary = `${takenQtyForStep}/${totalQtyForStep}`;
-                                    const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-                                    const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId);
+                                    const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}_${String(r.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+                                    const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId, r.metrics);
                                     const dispatchChecked = !!(UnitModule.state.workOrderDispatchRows || {})[dispatchRowKey];
                                     const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
                                     const completeInputDefault = showDispatchSelection ? dispatchQty : 0;
@@ -3683,7 +3676,7 @@ const UnitModule = {
                                                             irsaliyeye ekle
                                                         </label>
                                                     ` : ''}
-                                                    <button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>
+                                                    <button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>
                                                 </div>
                                             ` : ''}
                                             ${showTransferPendingBadge
@@ -3724,9 +3717,9 @@ const UnitModule = {
                                             <td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td>
                                             <td style="padding:0.55rem; text-align:right;">
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}')">Goruntule</button>
+                                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')">Goruntule</button>
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
-                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
+                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
                                                 </div>
                                                 ${completeActionBlock}
                                             </td>

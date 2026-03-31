@@ -67,7 +67,23 @@ async function getPdfBrowser() {
     }
     const chromium = playwright?.chromium;
     if (!chromium) throw new Error("playwright_not_available");
-    pdfBrowserPromise = chromium.launch({ headless: true });
+    pdfBrowserPromise = (async () => {
+      const launchAttempts = [
+        { headless: true },
+        { headless: true, channel: "chrome" },
+        { headless: true, channel: "msedge" },
+      ];
+      const errors = [];
+      for (const options of launchAttempts) {
+        try {
+          return await chromium.launch(options);
+        } catch (err) {
+          const label = options.channel ? `channel:${options.channel}` : "bundled";
+          errors.push(`${label}:${String(err?.message || err)}`);
+        }
+      }
+      throw new Error(`playwright_launch_failed:${errors.join(" | ")}`);
+    })();
   }
   return pdfBrowserPromise;
 }
@@ -77,7 +93,8 @@ async function renderPdfFromHtml(html) {
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
-    await page.setContent(String(html || ""), { waitUntil: "networkidle" });
+    await page.setContent(String(html || ""), { waitUntil: "domcontentloaded" });
+    await page.emulateMedia({ media: "screen" });
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,

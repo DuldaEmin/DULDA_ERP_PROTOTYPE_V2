@@ -2416,10 +2416,8 @@ const UnitModule = {
         if (!note) return alert('Irsaliye kaydi bulunamadi.');
         const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
         const previewHtml = String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/, '');
-        const previewSrc = `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml)}`;
         const fileBase = String(`teslim-belgesi-${String(note?.docNo || 'belge')}`).replace(/[^a-zA-Z0-9_-]+/g, '_');
-        const encodedHtml = encodeURIComponent(String(html || ''));
-        const encodedFileBase = encodeURIComponent(fileBase || 'teslim-belgesi');
+        const apiEndpoint = `${String(window.location.origin || '').replace(/\/+$/, '')}/api/dispatch-pdf`;
         const pageHtml = `
 <!doctype html>
 <html lang="tr">
@@ -2451,36 +2449,87 @@ const UnitModule = {
     </div>
   </div>
   <div class="frame-wrap">
-    <iframe id="pdf_preview_frame" src="${previewSrc}" title="PDF onizleme"></iframe>
+    <iframe id="pdf_preview_frame" title="PDF onizleme"></iframe>
   </div>
   <script>
+    let PAYLOAD = {
+      previewHtml: '',
+      html: '',
+      fileName: 'teslim-belgesi',
+      apiEndpoint: '/api/dispatch-pdf'
+    };
+    function mountPreview() {
+      const iframe = document.getElementById('pdf_preview_frame');
+      if (!iframe) return;
+      try {
+        iframe.srcdoc = String(PAYLOAD.previewHtml || '');
+      } catch (_) {
+        iframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(String(PAYLOAD.previewHtml || ''));
+      }
+    }
+    window.__setDispatchPayload = function(next) {
+      PAYLOAD = Object.assign({}, PAYLOAD, (next && typeof next === 'object') ? next : {});
+      mountPreview();
+    };
+    window.addEventListener('message', function(event) {
+      const data = event && event.data ? event.data : null;
+      if (!data || data.type !== 'dispatch_payload') return;
+      window.__setDispatchPayload(data.payload || {});
+    });
+
     async function downloadPdf() {
       try {
-        const html = decodeURIComponent('${encodedHtml}');
-        const fileName = decodeURIComponent('${encodedFileBase}');
-        const res = await fetch('/api/dispatch-pdf', {
+        if (!PAYLOAD.html) throw new Error('Belge verisi bulunamadi');
+        const res = await fetch(String(PAYLOAD.apiEndpoint || '/api/dispatch-pdf'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html: html, fileName: fileName })
+          body: JSON.stringify({ html: String(PAYLOAD.html || ''), fileName: String(PAYLOAD.fileName || 'teslim-belgesi') })
         });
-        if (!res.ok) throw new Error('PDF indirilemedi');
+        if (!res.ok) {
+          let detail = '';
+          try {
+            const raw = await res.text();
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw);
+                detail = String(parsed?.message || parsed?.error || raw);
+              } catch (_) {
+                detail = String(raw);
+              }
+            }
+          } catch (_) {}
+          throw new Error(detail || ('HTTP ' + res.status));
+        }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = fileName + '.pdf';
+        a.download = String(PAYLOAD.fileName || 'teslim-belgesi') + '.pdf';
         document.body.appendChild(a);
         a.click();
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1500);
       } catch (e) {
-        alert('PDF indirilemedi. Lutfen tekrar deneyin.');
+        const msg = String(e && e.message ? e.message : 'PDF indirilemedi');
+        alert('PDF indirilemedi.\\n' + msg + '\\n\\nNot: Sunucuyu RUN_DEMO.ps1 ile yeniden baslatman gerekebilir.');
       }
     }
     function printPdf() {
       const iframe = document.getElementById('pdf_preview_frame');
       if (iframe && iframe.contentWindow) {
         try {
+          if (iframe.contentDocument && iframe.contentDocument.readyState !== 'complete') {
+            iframe.addEventListener('load', function onceLoaded() {
+              iframe.removeEventListener('load', onceLoaded);
+              try {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+              } catch (_) {
+                window.print();
+              }
+            }, { once: true });
+            return;
+          }
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
           return;
@@ -2488,6 +2537,8 @@ const UnitModule = {
       }
       window.print();
     }
+    window.downloadPdf = downloadPdf;
+    window.printPdf = printPdf;
   </script>
 </body>
 </html>`;
@@ -2496,6 +2547,26 @@ const UnitModule = {
         win.document.open();
         win.document.write(pageHtml);
         win.document.close();
+        const payload = {
+            previewHtml: String(previewHtml || ''),
+            html: String(html || ''),
+            fileName: String(fileBase || 'teslim-belgesi'),
+            apiEndpoint: String(apiEndpoint || '/api/dispatch-pdf')
+        };
+        let injectAttempts = 0;
+        const injectPayload = () => {
+            if (!win || win.closed) return;
+            try { win.postMessage({ type: 'dispatch_payload', payload }, '*'); } catch (_) { }
+            if (typeof win.__setDispatchPayload === 'function') {
+                try {
+                    win.__setDispatchPayload(payload);
+                    return;
+                } catch (_) { }
+            }
+            injectAttempts += 1;
+            if (injectAttempts < 60) setTimeout(injectPayload, 50);
+        };
+        injectPayload();
         try { win.focus(); } catch (_) { }
     },
     openWorkOrderDispatchSavedDocument: (noteId, autoPrint = false) => {
@@ -2518,7 +2589,12 @@ const UnitModule = {
             });
             if (!res.ok) {
                 const raw = await res.text().catch(() => '');
-                throw new Error(raw || `HTTP ${res.status}`);
+                let detail = raw;
+                try {
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    detail = String(parsed?.message || parsed?.error || raw || '');
+                } catch (_) { }
+                throw new Error(detail || `HTTP ${res.status}`);
             }
             const blob = await res.blob();
             const safeName = String(fileNameBase || 'teslim-belgesi').replace(/[^a-zA-Z0-9_-]+/g, '_');

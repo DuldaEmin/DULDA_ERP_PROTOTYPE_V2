@@ -1857,7 +1857,10 @@ const UnitModule = {
                     }).join('')}
                 </div>
                 <div style="display:flex; justify-content:flex-end;">
-                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')">Belgeyi ac</button>
+                    <div style="display:inline-flex; gap:0.4rem; flex-wrap:wrap; justify-content:flex-end;">
+                        <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')">Belgeyi ac</button>
+                        <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
+                    </div>
                 </div>
             </div>
         `);
@@ -1945,88 +1948,380 @@ const UnitModule = {
     buildWorkOrderDispatchPdfHtml: (noteLike) => {
         const rows = Array.isArray(noteLike?.rows) ? noteLike.rows : [];
         const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
-        const createdLabel = UnitModule.formatDateTimeShort(String(noteLike?.created_at || ''));
+        const createdLabel = UnitModule.formatDateTimeShort(String(noteLike?.created_at || '')) || '-';
+        const printedLabel = UnitModule.formatDateTimeShort(new Date().toISOString());
         const sourceUnitName = UnitModule.getRouteStationName(String(noteLike?.stationId || '')) || String(noteLike?.stationId || '-');
         const targetUnitName = String(noteLike?.targetUnitName || '-');
         const docNo = String(noteLike?.docNo || '-');
         const createdBy = String(noteLike?.created_by || 'Demo User');
+        const statusMeta = UnitModule.getWorkOrderDispatchStatusMeta(noteLike?.status);
+        const history = Array.isArray(noteLike?.history) ? noteLike.history : [];
+        const noteStatus = String(statusMeta?.label || '-');
+        const baseOrigin = (typeof window !== 'undefined' && window?.location?.origin && window.location.origin !== 'null')
+            ? String(window.location.origin)
+            : '';
+        const logoUrl = baseOrigin
+            ? `${baseOrigin}/assets/logodulda.jpg`
+            : 'assets/logodulda.jpg';
         return `
 <!doctype html>
 <html lang="tr">
 <head>
     <meta charset="utf-8">
-    <title>Irsaliye ${UnitModule.escapeHtml(docNo)}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Teslim Belgesi ${UnitModule.escapeHtml(docNo)}</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 24px; color:#111827; }
-        h1 { font-size: 20px; margin: 0 0 10px; }
-        .meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
-        .card { border:1px solid #d1d5db; border-radius:8px; padding:8px; font-size:12px; }
-        .k { color:#6b7280; font-size:11px; margin-bottom:4px; }
-        .v { font-weight:700; font-size:13px; }
-        table { width:100%; border-collapse:collapse; }
-        th, td { border:1px solid #d1d5db; padding:8px; font-size:12px; text-align:left; vertical-align:top; }
-        th { background:#f3f4f6; text-transform:uppercase; font-size:11px; letter-spacing:0.02em; }
-        .mono { font-family: Consolas, monospace; font-weight:700; color:#1d4ed8; }
+        :root {
+            --ink:#0f172a;
+            --muted:#64748b;
+            --line:#cbd5e1;
+            --bg:#f1f5f9;
+            --card:#ffffff;
+            --brand:#0b3a8f;
+            --brand-soft:#dbeafe;
+        }
+        * { box-sizing:border-box; }
+        body {
+            margin:0;
+            font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+            color:var(--ink);
+            background:var(--bg);
+        }
+        .screen-tools {
+            max-width:920px;
+            margin:14px auto 0 auto;
+            padding:0 8px;
+            display:flex;
+            justify-content:flex-end;
+            gap:8px;
+        }
+        .tool-btn {
+            border:1px solid #334155;
+            background:#0f172a;
+            color:#fff;
+            border-radius:8px;
+            height:34px;
+            padding:0 12px;
+            font-size:12px;
+            font-weight:700;
+            cursor:pointer;
+        }
+        .tool-btn.secondary {
+            background:#fff;
+            color:#0f172a;
+            border-color:#94a3b8;
+        }
+        .sheet {
+            width:210mm;
+            min-height:297mm;
+            margin:10px auto 22px auto;
+            background:var(--card);
+            border:1px solid #dbe3ef;
+            box-shadow:0 18px 45px rgba(15,23,42,0.16);
+            padding:12mm;
+            position:relative;
+        }
+        .header {
+            border:2px solid #1e293b;
+            border-radius:12px;
+            padding:10px 12px;
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:14px;
+            margin-bottom:12px;
+            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);
+        }
+        .brand-wrap {
+            display:flex;
+            align-items:center;
+            gap:12px;
+            min-width:0;
+        }
+        .brand-logo {
+            width:150px;
+            max-height:56px;
+            object-fit:contain;
+            display:block;
+        }
+        .title-wrap h1 {
+            margin:0;
+            font-size:20px;
+            letter-spacing:0.02em;
+            font-weight:900;
+            color:#0b3a8f;
+        }
+        .title-wrap .subtitle {
+            margin-top:4px;
+            color:var(--muted);
+            font-size:12px;
+            font-weight:600;
+        }
+        .doc-no {
+            border:1px solid #93c5fd;
+            background:var(--brand-soft);
+            color:#1d4ed8;
+            border-radius:999px;
+            padding:4px 10px;
+            font-size:12px;
+            font-weight:800;
+            font-family:Consolas, monospace;
+            white-space:nowrap;
+        }
+        .meta-grid {
+            display:grid;
+            grid-template-columns:repeat(4,minmax(0,1fr));
+            gap:8px;
+            margin-bottom:10px;
+        }
+        .meta-card {
+            border:1px solid var(--line);
+            border-radius:10px;
+            padding:7px 9px;
+            min-height:66px;
+        }
+        .meta-k {
+            color:var(--muted);
+            font-size:10px;
+            font-weight:700;
+            text-transform:uppercase;
+            letter-spacing:0.04em;
+            margin-bottom:4px;
+        }
+        .meta-v {
+            color:var(--ink);
+            font-size:13px;
+            font-weight:800;
+            line-height:1.35;
+            word-break:break-word;
+        }
+        .status-chip {
+            display:inline-flex;
+            border:1px solid #bfdbfe;
+            border-radius:999px;
+            padding:2px 8px;
+            font-size:11px;
+            font-weight:800;
+            background:#eff6ff;
+            color:#1d4ed8;
+        }
+        table {
+            width:100%;
+            border-collapse:collapse;
+            margin-top:8px;
+        }
+        thead th {
+            border:1px solid var(--line);
+            background:#f8fafc;
+            color:#334155;
+            font-size:10px;
+            letter-spacing:0.04em;
+            text-transform:uppercase;
+            padding:8px 7px;
+            text-align:left;
+        }
+        tbody td {
+            border:1px solid var(--line);
+            font-size:12px;
+            padding:7px;
+            vertical-align:top;
+        }
+        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }
         .right { text-align:right; }
-        .foot { margin-top:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
-        .sign { border-top:1px solid #9ca3af; padding-top:6px; font-size:11px; color:#6b7280; text-align:center; }
+        .center { text-align:center; }
+        .sum-row td {
+            background:#f8fafc;
+            font-weight:900;
+        }
+        .timeline {
+            margin-top:10px;
+            border:1px solid var(--line);
+            border-radius:10px;
+            padding:8px 10px;
+        }
+        .timeline-title {
+            font-size:11px;
+            font-weight:800;
+            color:#334155;
+            margin-bottom:5px;
+            text-transform:uppercase;
+            letter-spacing:0.04em;
+        }
+        .timeline-row {
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            gap:10px;
+            padding:4px 0;
+            border-top:1px dashed #e2e8f0;
+            font-size:11px;
+        }
+        .timeline-row:first-of-type { border-top:none; }
+        .footer-sign {
+            margin-top:16px;
+            display:grid;
+            grid-template-columns:repeat(3,minmax(0,1fr));
+            gap:16px;
+        }
+        .sign-box {
+            border:1px solid var(--line);
+            border-radius:10px;
+            min-height:78px;
+            padding:8px;
+            display:flex;
+            flex-direction:column;
+            justify-content:flex-end;
+        }
+        .sign-line {
+            border-top:1px solid #94a3b8;
+            padding-top:5px;
+            text-align:center;
+            font-size:10px;
+            color:#64748b;
+            font-weight:700;
+            text-transform:uppercase;
+            letter-spacing:0.04em;
+        }
+        .note {
+            margin-top:10px;
+            font-size:10px;
+            color:#64748b;
+            display:flex;
+            justify-content:space-between;
+            gap:10px;
+            flex-wrap:wrap;
+        }
+        @page { size: A4; margin: 10mm; }
+        @media print {
+            body { background:#fff; }
+            .screen-tools { display:none !important; }
+            .sheet {
+                margin:0;
+                border:none;
+                box-shadow:none;
+                width:auto;
+                min-height:auto;
+                padding:0;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>SEVK IRSALIYESI</h1>
-    <div class="meta">
-        <div class="card"><div class="k">Belge No</div><div class="v">${UnitModule.escapeHtml(docNo)}</div></div>
-        <div class="card"><div class="k">Kaynak Birim</div><div class="v">${UnitModule.escapeHtml(sourceUnitName)}</div></div>
-        <div class="card"><div class="k">Hedef Birim</div><div class="v">${UnitModule.escapeHtml(targetUnitName)}</div></div>
-        <div class="card"><div class="k">Tarih</div><div class="v">${UnitModule.escapeHtml(createdLabel)}</div></div>
+    <div class="screen-tools">
+        <button class="tool-btn" onclick="window.print()">PDF indir / Yazdir</button>
+        <button class="tool-btn secondary" onclick="window.close()">Kapat</button>
     </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Is emri / satir</th>
-                <th>Parca Kodu - Adi</th>
-                <th class="right">Adet</th>
-            </tr>
-        </thead>
-        <tbody>
-            ${rows.length === 0 ? `<tr><td colspan="3">Satir yok.</td></tr>` : rows.map((row) => `
+    <section class="sheet">
+        <div class="header">
+            <div class="brand-wrap">
+                <img class="brand-logo" src="${UnitModule.escapeHtml(logoUrl)}" alt="Dulda Logo" onerror="this.style.display='none';">
+                <div class="title-wrap">
+                    <h1>TESLIM BELGESI</h1>
+                    <div class="subtitle">Fason sevk ve teslim takip dokumani</div>
+                </div>
+            </div>
+            <div class="doc-no">${UnitModule.escapeHtml(docNo)}</div>
+        </div>
+
+        <div class="meta-grid">
+            <div class="meta-card">
+                <div class="meta-k">Kaynak Birim</div>
+                <div class="meta-v">${UnitModule.escapeHtml(sourceUnitName)}</div>
+            </div>
+            <div class="meta-card">
+                <div class="meta-k">Hedef Birim</div>
+                <div class="meta-v">${UnitModule.escapeHtml(targetUnitName)}</div>
+            </div>
+            <div class="meta-card">
+                <div class="meta-k">Belge Tarihi</div>
+                <div class="meta-v">${UnitModule.escapeHtml(createdLabel)}</div>
+            </div>
+            <div class="meta-card">
+                <div class="meta-k">Durum</div>
+                <div class="meta-v"><span class="status-chip">${UnitModule.escapeHtml(noteStatus)}</span></div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
                 <tr>
-                    <td><div class="mono">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
-                    <td><div>${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
-                    <td class="right"><strong>${Math.max(0, Number(row?.qty || 0))}</strong></td>
+                    <th style="width:40px;" class="center">Sira</th>
+                    <th style="width:170px;">Is Emri / Satir</th>
+                    <th>Parca Bilgisi</th>
+                    <th style="width:92px;" class="right">Adet</th>
                 </tr>
-            `).join('')}
-            <tr>
-                <td colspan="2" class="right"><strong>Toplam</strong></td>
-                <td class="right"><strong>${Number(totalQty || 0)}</strong></td>
-            </tr>
-        </tbody>
-    </table>
-    <div class="foot">
-        <div class="sign">Sevk Eden Imza</div>
-        <div class="sign">Teslim Alan Imza</div>
-        <div class="sign">Kayit / ${UnitModule.escapeHtml(createdBy)}</div>
-    </div>
+            </thead>
+            <tbody>
+                ${rows.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row, idx) => `
+                    <tr>
+                        <td class="center">${idx + 1}</td>
+                        <td><div class="mono">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
+                        <td><div style="font-weight:700;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-family:Consolas, monospace; color:#475569;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                        <td class="right"><strong>${Math.max(0, Number(row?.qty || 0))}</strong></td>
+                    </tr>
+                `).join('')}
+                <tr class="sum-row">
+                    <td colspan="3" class="right">TOPLAM SEVK ADEDI</td>
+                    <td class="right">${Number(totalQty || 0)}</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="timeline">
+            <div class="timeline-title">Durum Gecmisi</div>
+            ${history.length === 0
+                ? `<div style="font-size:11px; color:#94a3b8;">Gecmis kaydi yok.</div>`
+                : history.map((h) => `
+                    <div class="timeline-row">
+                        <div><strong>${UnitModule.escapeHtml(UnitModule.getWorkOrderDispatchStatusMeta(h?.status).label)}</strong> - ${UnitModule.escapeHtml(String(h?.user || '-'))}</div>
+                        <div>${UnitModule.escapeHtml(UnitModule.formatDateTimeShort(String(h?.at || '')))}</div>
+                    </div>
+                `).join('')
+            }
+        </div>
+
+        <div class="footer-sign">
+            <div class="sign-box"><div class="sign-line">Sevk Eden Imza</div></div>
+            <div class="sign-box"><div class="sign-line">Teslim Alan Imza</div></div>
+            <div class="sign-box"><div class="sign-line">Depo Kontrol Imza</div></div>
+        </div>
+
+        <div class="note">
+            <span>Kayit sorumlusu: ${UnitModule.escapeHtml(createdBy)}</span>
+            <span>PDF olusturma: ${UnitModule.escapeHtml(printedLabel)}</span>
+        </div>
+    </section>
 </body>
 </html>
         `;
     },
-    openWorkOrderDispatchPdfWindowFromHtml: (html, title = 'Sevk Irsaliyesi') => {
+    openWorkOrderDispatchPdfWindowFromHtml: (html, title = 'Teslim Belgesi', autoPrint = false) => {
         const win = window.open('', '_blank');
         if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
         win.document.open();
         win.document.write(String(html || ''));
         win.document.close();
-        try { win.document.title = String(title || 'Sevk Irsaliyesi'); } catch (_) { }
-        win.focus();
+        try { win.document.title = String(title || 'Teslim Belgesi'); } catch (_) { }
+        try { win.focus(); } catch (_) { }
+        if (autoPrint) {
+            setTimeout(() => {
+                try {
+                    win.focus();
+                    win.print();
+                } catch (_) { }
+            }, 280);
+        }
         return win;
     },
-    openWorkOrderDispatchSavedDocument: (noteId) => {
+    openWorkOrderDispatchSavedDocument: (noteId, autoPrint = false) => {
         const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
         const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
         if (!note) return alert('Irsaliye kaydi bulunamadi.');
-        const html = String(note?.documentHtml || '').trim() || UnitModule.buildWorkOrderDispatchPdfHtml(note);
-        UnitModule.openWorkOrderDispatchPdfWindowFromHtml(html, `Irsaliye ${String(note?.docNo || '-')}`);
+        const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
+        UnitModule.openWorkOrderDispatchPdfWindowFromHtml(html, `Teslim Belgesi ${String(note?.docNo || '-')}`, autoPrint);
+    },
+    downloadWorkOrderDispatchSavedDocument: (noteId) => {
+        UnitModule.openWorkOrderDispatchSavedDocument(noteId, true);
     },
     previewWorkOrderDispatchDraft: () => {
         const draft = UnitModule.state.workOrderDispatchDraft;
@@ -2064,7 +2359,7 @@ const UnitModule = {
                     </table>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
-                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfWindowFromHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'Irsaliye ${UnitModule.escapeHtml(String(draft.docNo || '-'))}')">PDF onizlemeyi ac</button>
+                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfWindowFromHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'Teslim Belgesi ${UnitModule.escapeHtml(String(draft.docNo || '-'))}', true)">PDF indir</button>
                     <button class="btn-sm" onclick="UnitModule.state.workOrderDispatchDraft=null; Modal.close();">Vazgec</button>
                     <button class="btn-primary" onclick="UnitModule.confirmWorkOrderDispatchDraft()">Onayla ve Kaydet</button>
                 </div>
@@ -2880,7 +3175,9 @@ const UnitModule = {
                         if (hasUnitPlan) {
                             return `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}`;
                         }
-                        return UnitModule.escapeHtml(String(order?.sourceCode || '').trim().toUpperCase() || '-');
+                        const sourceCode = String(order?.sourceCode || '').trim().toUpperCase();
+                        if (!/^PLN-\d{6}$/.test(sourceCode)) return '-';
+                        return `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(order?.id || '')}')" style="padding:0.1rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`;
                     })()}
                 </div>
                 <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
@@ -2889,6 +3186,29 @@ const UnitModule = {
                 </div>
             </div>
         `, { maxWidth: '1080px' });
+    },
+    openWorkOrderSourceDemand: (workOrderId) => {
+        const order = (DB.data?.data?.workOrders || []).find((x) => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return alert('Is emri bulunamadi.');
+        if (typeof PlanningModule === 'undefined' || !PlanningModule) {
+            return alert('Planlama modulu yuklenemedi.');
+        }
+        const sourceId = String(order?.sourceId || '').trim();
+        const sourceCode = String(order?.sourceCode || '').trim().toUpperCase();
+        if (!sourceId && !sourceCode) return alert('Bu is emrinde plan talep kodu yok.');
+        const demands = typeof PlanningModule.getDemands === 'function' ? PlanningModule.getDemands() : [];
+        const demand = (Array.isArray(demands) ? demands : []).find((row) => {
+            const demandId = String(row?.id || '').trim();
+            const demandCode = String(row?.demandCode || '').trim().toUpperCase();
+            return (sourceId && demandId === sourceId) || (sourceCode && demandCode === sourceCode);
+        });
+        if (!demand) {
+            return alert(`Talep kaydi bulunamadi: ${sourceCode || sourceId}`);
+        }
+        if (typeof PlanningModule.openReleasedDemandTrackingModal !== 'function') {
+            return alert('Talep detay ekrani acilamadi.');
+        }
+        PlanningModule.openReleasedDemandTrackingModal(String(demand?.id || ''));
     },
     getWorkOrderPlanMachineOptions: (stationId) => {
         const unitId = String(stationId || '').trim();
@@ -3325,6 +3645,7 @@ const UnitModule = {
                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchNoteDetail('${row.id}')">Goruntule</button>
                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${row.id}')">Belge</button>
+                                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${row.id}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
                                     ${archivedMode ? '' : actions}
                                 </div>
                             </td>
@@ -3636,9 +3957,12 @@ const UnitModule = {
                                         || String(r.plan.personnel || '').trim()
                                         || String(r.plan.targetDate || '').trim()
                                     ));
+                                    const sourceCode = String(r.order?.sourceCode || '').trim().toUpperCase();
                                     const planSummary = hasUnitPlan
                                         ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}`
-                                        : UnitModule.escapeHtml(String(r.order?.sourceCode || '').trim().toUpperCase() || '-');
+                                        : (/^PLN-\d{6}$/.test(sourceCode)
+                                            ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
+                                            : '-');
                                     const canTake = Number(r.metrics?.availableQty || 0) > 0;
                                     const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
                                     const todayDoneQty = getTodayDoneQty(r);

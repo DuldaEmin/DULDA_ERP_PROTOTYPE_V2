@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T12:03:00.676Z",
+    "updated_at": "2026-03-31T12:00:18.336Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 459
+    "revision": 455
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T11:45:25.994Z",
-        "updated_at": "2026-03-31T12:03:00.675Z"
+        "updated_at": "2026-03-31T12:00:13.808Z"
       },
       {
         "id": "9e39e44f-2006-482b-a335-67b9a770e552",
@@ -2494,7 +2494,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T11:55:10.081Z",
-        "updated_at": "2026-03-31T12:03:00.675Z"
+        "updated_at": "2026-03-31T11:59:35.164Z"
       },
       {
         "id": "8cd7c974-3018-4de9-aa59-0b194e16d8fa",
@@ -2572,7 +2572,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T11:55:10.082Z",
-        "updated_at": "2026-03-31T12:03:00.675Z"
+        "updated_at": "2026-03-31T12:00:18.336Z"
       },
       {
         "id": "1ec52040-58f8-4252-bff4-1c582a23d26d",
@@ -2915,90 +2915,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-03-31T12:00:18.336Z"
-      },
-      {
-        "id": "e2058674-7502-4ba0-8967-310de62b0c29",
-        "workOrderId": "8cd7c974-3018-4de9-aa59-0b194e16d8fa",
-        "lineId": "8957a771-1024-4f93-bd2e-71bd5a66aede",
-        "stationId": "u1",
-        "routeId": "77ef06bd-b626-442e-acc6-767cc51d10d2",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:00:23.751Z"
-      },
-      {
-        "id": "b073eac9-76e1-40a0-8bc7-b52875c5efe6",
-        "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
-        "lineId": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
-        "stationId": "u_dtm",
-        "routeId": "ba8ccb1c-c376-4ec3-860d-251c4f13c087",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:00:41.534Z"
-      },
-      {
-        "id": "2769778f-6d87-4d03-999e-483584b4f8be",
-        "workOrderId": "8cd7c974-3018-4de9-aa59-0b194e16d8fa",
-        "lineId": "8957a771-1024-4f93-bd2e-71bd5a66aede",
-        "stationId": "u_dtm",
-        "routeId": "a06cee71-6f29-40c3-ba10-daa1daeea31e",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 10,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:00:43.751Z"
-      },
-      {
-        "id": "1f3445d5-287c-447f-8ebc-4e7201500d33",
-        "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
-        "lineId": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
-        "stationId": "u_dtm",
-        "routeId": "ba8ccb1c-c376-4ec3-860d-251c4f13c087",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "COMPLETE",
-        "qty": 10,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:03:00.675Z"
-      },
-      {
-        "id": "516c58cd-c7fc-499f-a105-6c7c6b78a3bb",
-        "workOrderId": "4ca6849d-9da2-4359-aa00-3c99900c8ba0",
-        "lineId": "65f17452-6986-45c8-bb21-2849b4bcb547",
-        "stationId": "u_dtm",
-        "routeId": "1ad963bd-ee30-4af6-82a1-c27cf0925e51",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "COMPLETE",
-        "qty": 10,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:03:00.675Z"
-      },
-      {
-        "id": "6bbf31be-0a4d-445f-8515-a762baf0f2bd",
-        "workOrderId": "8cd7c974-3018-4de9-aa59-0b194e16d8fa",
-        "lineId": "8957a771-1024-4f93-bd2e-71bd5a66aede",
-        "stationId": "u_dtm",
-        "routeId": "a06cee71-6f29-40c3-ba10-daa1daeea31e",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "COMPLETE",
-        "qty": 10,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-03-31T12:03:00.675Z"
       }
     ],
     "outsourceTransfers": [
@@ -4499,70 +4415,6 @@
       }
     ],
     "requests": [],
-    "workOrderDispatchNotes": [
-      {
-        "id": "7dcedc1c-b35e-4f92-9391-153b6568ca3d",
-        "docNo": "DSI-000001",
-        "stationId": "u_dtm",
-        "targetUnitId": "u10",
-        "targetUnitName": "IBRAHIM POLISAJ",
-        "status": "HAZIRLANDI",
-        "isArchived": false,
-        "created_at": "2026-03-31T12:03:00.675Z",
-        "created_by": "Demo User",
-        "history": [
-          {
-            "at": "2026-03-31T12:03:00.675Z",
-            "status": "HAZIRLANDI",
-            "user": "Demo User"
-          }
-        ],
-        "rows": [
-          {
-            "workOrderId": "16e4e9ef-269a-4a13-a97f-e21ffda2d51d",
-            "workOrderCode": "WO-000001",
-            "lineId": "457f2bbb-4308-446f-8dea-53bc5334e2e6",
-            "lineCode": "WO-000001-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 10,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "ba8ccb1c-c376-4ec3-860d-251c4f13c087",
-            "sourceRouteSeq": 2,
-            "sourceProcessId": "DTR-000001",
-            "targetUnitId": "u10"
-          },
-          {
-            "workOrderId": "4ca6849d-9da2-4359-aa00-3c99900c8ba0",
-            "workOrderCode": "WO-000003",
-            "lineId": "65f17452-6986-45c8-bb21-2849b4bcb547",
-            "lineCode": "WO-000003-01",
-            "componentCode": "PRC-000008",
-            "componentName": "40 lık aluminyum dikme flanşı",
-            "qty": 10,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "1ad963bd-ee30-4af6-82a1-c27cf0925e51",
-            "sourceRouteSeq": 1,
-            "sourceProcessId": "DTR-000001",
-            "targetUnitId": "u10"
-          },
-          {
-            "workOrderId": "8cd7c974-3018-4de9-aa59-0b194e16d8fa",
-            "workOrderCode": "WO-000004",
-            "lineId": "8957a771-1024-4f93-bd2e-71bd5a66aede",
-            "lineCode": "WO-000004-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 10,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "a06cee71-6f29-40c3-ba10-daa1daeea31e",
-            "sourceRouteSeq": 2,
-            "sourceProcessId": "DTR-000001",
-            "targetUnitId": "u10"
-          }
-        ],
-        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <title>Irsaliye DSI-000001</title>\n    <style>\n        body { font-family: Arial, sans-serif; padding: 24px; color:#111827; }\n        h1 { font-size: 20px; margin: 0 0 10px; }\n        .meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:14px; }\n        .card { border:1px solid #d1d5db; border-radius:8px; padding:8px; font-size:12px; }\n        .k { color:#6b7280; font-size:11px; margin-bottom:4px; }\n        .v { font-weight:700; font-size:13px; }\n        table { width:100%; border-collapse:collapse; }\n        th, td { border:1px solid #d1d5db; padding:8px; font-size:12px; text-align:left; vertical-align:top; }\n        th { background:#f3f4f6; text-transform:uppercase; font-size:11px; letter-spacing:0.02em; }\n        .mono { font-family: Consolas, monospace; font-weight:700; color:#1d4ed8; }\n        .right { text-align:right; }\n        .foot { margin-top:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }\n        .sign { border-top:1px solid #9ca3af; padding-top:6px; font-size:11px; color:#6b7280; text-align:center; }\n    </style>\n</head>\n<body>\n    <h1>SEVK IRSALIYESI</h1>\n    <div class=\"meta\">\n        <div class=\"card\"><div class=\"k\">Belge No</div><div class=\"v\">DSI-000001</div></div>\n        <div class=\"card\"><div class=\"k\">Kaynak Birim</div><div class=\"v\">DEPO TRANSFER</div></div>\n        <div class=\"card\"><div class=\"k\">Hedef Birim</div><div class=\"v\">IBRAHIM POLISAJ</div></div>\n        <div class=\"card\"><div class=\"k\">Tarih</div><div class=\"v\">31.03.2026 15:03</div></div>\n    </div>\n    <table>\n        <thead>\n            <tr>\n                <th>Is emri / satir</th>\n                <th>Parca Kodu - Adi</th>\n                <th class=\"right\">Adet</th>\n            </tr>\n        </thead>\n        <tbody>\n            \n                <tr>\n                    <td><div class=\"mono\">WO-000001</div><div>WO-000001-01</div></td>\n                    <td><div>40 lık aluminyum dikme yarıklı tapa</div><div>PRC-000003</div></td>\n                    <td class=\"right\"><strong>10</strong></td>\n                </tr>\n            \n                <tr>\n                    <td><div class=\"mono\">WO-000003</div><div>WO-000003-01</div></td>\n                    <td><div>40 lık aluminyum dikme flanşı</div><div>PRC-000008</div></td>\n                    <td class=\"right\"><strong>10</strong></td>\n                </tr>\n            \n                <tr>\n                    <td><div class=\"mono\">WO-000004</div><div>WO-000004-01</div></td>\n                    <td><div>40 lık aluminyum dikme yarıklı tapa</div><div>PRC-000003</div></td>\n                    <td class=\"right\"><strong>10</strong></td>\n                </tr>\n            \n            <tr>\n                <td colspan=\"2\" class=\"right\"><strong>Toplam</strong></td>\n                <td class=\"right\"><strong>30</strong></td>\n            </tr>\n        </tbody>\n    </table>\n    <div class=\"foot\">\n        <div class=\"sign\">Sevk Eden Imza</div>\n        <div class=\"sign\">Teslim Alan Imza</div>\n        <div class=\"sign\">Kayit / Demo User</div>\n    </div>\n</body>\n</html>\n        "
-      }
-    ]
+    "workOrderDispatchNotes": []
   }
 }

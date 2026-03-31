@@ -33,7 +33,7 @@ const ProductLibraryModule = {
         consumableDraftImageData: '',
         editingProductId: null,
         isFormVisible: false, // New State
-        masterFilters: { categoryId: '', name: '', length: '', color: '', code: '' },
+        masterFilters: { categoryId: '', name: '', length: '', colorType: '', color: '', code: '' },
         masterCategoryExpanded: {},
         masterFormOpen: false,
         masterEditingId: null,
@@ -5278,11 +5278,20 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.masterDraftColorCode = '';
         }
 
+        if (!state.masterFilters || typeof state.masterFilters !== 'object') {
+            state.masterFilters = { categoryId: '', name: '', length: '', colorType: '', color: '', code: '' };
+        }
+        if (!Object.prototype.hasOwnProperty.call(state.masterFilters, 'colorType')) {
+            state.masterFilters.colorType = '';
+        }
+
         const qCategoryId = String(state.masterFilters.categoryId || '').trim();
         const qName = String(state.masterFilters.name || '').trim().toLocaleLowerCase('tr-TR');
         const qLen = String(state.masterFilters.length || '').trim().toLocaleLowerCase('tr-TR');
-        const qColor = String(state.masterFilters.color || '').trim().toLocaleLowerCase('tr-TR');
+        const qColorType = ProductLibraryModule.normalizeColorType(state.masterFilters.colorType || '');
+        const qColorName = String(state.masterFilters.color || '').trim();
         const qCode = String(state.masterFilters.code || '').trim().toLocaleLowerCase('tr-TR');
+        const colorSearchOptions = ProductLibraryModule.getColorLibraryItemsByType(qColorType);
 
         const toMs = (value) => {
             const ms = Date.parse(String(value || ''));
@@ -5308,7 +5317,11 @@ const ProductLibraryModule = {
                 const unitAmountMatch = String(p.unitAmount || '').toLocaleLowerCase('tr-TR').includes(qLen);
                 if (!lengthMatch && !unitAmountMatch) return false;
             }
-            if (qColor && !String(p.color || '').toLocaleLowerCase('tr-TR').includes(qColor)) return false;
+            if (qColorType && ProductLibraryModule.normalizeColorType(p.colorType || '') !== qColorType) return false;
+            if (qColorType && qColorName) {
+                const rowColor = String(p.color || '').trim().toLocaleLowerCase('tr-TR');
+                if (rowColor !== qColorName.toLocaleLowerCase('tr-TR')) return false;
+            }
             if (qCode) {
                 const codeMatch = String(p.code || '').toLocaleLowerCase('tr-TR').includes(qCode);
                 const idMatch = String(p.id || '').toLocaleLowerCase('tr-TR').includes(qCode);
@@ -5412,14 +5425,27 @@ const ProductLibraryModule = {
                     </div>
                 ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
-                    <div style="display:grid; grid-template-columns: 280px 1fr 190px 190px 190px 170px; gap:0.65rem; align-items:center;">
+                    <div style="display:grid; grid-template-columns: 280px 1fr 190px 280px 190px 170px; gap:0.65rem; align-items:center;">
                         <select onchange="ProductLibraryModule.setMasterFilter('categoryId', this.value)" style="width:100%; height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.7rem; font-weight:700;">
                             <option value="">tum urunler (varsayilan)</option>
                             ${categories.map(c => `<option value="${c.id}" ${qCategoryId === c.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(c.name)}</option>`).join('')}
                         </select>
                         <input id="master_filter_name" value="${ProductLibraryModule.escapeHtml(state.masterFilters.name || '')}" oninput="ProductLibraryModule.setMasterFilter('name', this.value)" placeholder="urun adiyla ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
                         <input id="master_filter_length" value="${ProductLibraryModule.escapeHtml(state.masterFilters.length || '')}" oninput="ProductLibraryModule.setMasterFilter('length', this.value)" placeholder="boy ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
-                        <input id="master_filter_color" value="${ProductLibraryModule.escapeHtml(state.masterFilters.color || '')}" oninput="ProductLibraryModule.setMasterFilter('color', this.value)" placeholder="renk ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
+                        <div style="height:50px; border:1px solid #cbd5e1; border-radius:0.7rem; overflow:hidden; display:grid; grid-template-columns:42% 58%; background:white;">
+                            <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                                <select id="master_filter_color_type" onchange="ProductLibraryModule.setMasterColorFilterType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:#334155;">
+                                    <option value="">kategori sec</option>
+                                    ${ProductLibraryModule.getColorTypeOptions().map(opt => `<option value="${opt.id}" ${qColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.shortLabel || opt.label)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div style="background:${qColorType ? 'white' : '#f1f5f9'};">
+                                <select id="master_filter_color" ${qColorType ? '' : 'disabled'} onchange="ProductLibraryModule.setMasterColorFilter(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.6rem; font-weight:700; color:${qColorType ? '#111827' : '#94a3b8'};">
+                                    <option value="">renk sec</option>
+                                    ${colorSearchOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(String(opt.name || ''))}" ${String(qColorName) === String(opt.name || '') ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(String(opt.name || ''))}</option>`).join('')}
+                                </select>
+                            </div>
+                        </div>
                         <input id="master_filter_code" value="${ProductLibraryModule.escapeHtml(state.masterFilters.code || '')}" oninput="ProductLibraryModule.setMasterFilter('code', this.value)" placeholder="ID kod ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
                         <button class="btn-primary" onclick="${isMasterPicker ? 'ProductLibraryModule.cancelMasterPicker()' : 'ProductLibraryModule.toggleMasterForm()'}" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${isMasterPicker ? 'vazgec' : (showForm ? 'vazgec' : 'urun ekle +')}</button>
                     </div>
@@ -5584,7 +5610,15 @@ const ProductLibraryModule = {
         const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
         const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
 
-        ProductLibraryModule.state.masterFilters[key] = value || '';
+        if (!ProductLibraryModule.state.masterFilters || typeof ProductLibraryModule.state.masterFilters !== 'object') {
+            ProductLibraryModule.state.masterFilters = { categoryId: '', name: '', length: '', colorType: '', color: '', code: '' };
+        }
+        if (key === 'colorType') {
+            ProductLibraryModule.state.masterFilters.colorType = ProductLibraryModule.normalizeColorType(value || '');
+            ProductLibraryModule.state.masterFilters.color = '';
+        } else {
+            ProductLibraryModule.state.masterFilters[key] = value || '';
+        }
         UI.renderCurrentPage();
 
         if (activeId && activeId.startsWith('master_filter_')) {
@@ -5596,6 +5630,12 @@ const ProductLibraryModule = {
                 }
             }
         }
+    },
+    setMasterColorFilterType: (value) => {
+        ProductLibraryModule.setMasterFilter('colorType', value);
+    },
+    setMasterColorFilter: (value) => {
+        ProductLibraryModule.setMasterFilter('color', String(value || '').trim());
     },
 
     toggleMasterCategorySection: (groupKey) => {

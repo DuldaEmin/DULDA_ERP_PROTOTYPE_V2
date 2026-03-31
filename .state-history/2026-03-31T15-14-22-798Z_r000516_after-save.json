@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T15:15:26.863Z",
+    "updated_at": "2026-03-31T15:14:22.649Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 517
+    "revision": 516
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T15:10:54.595Z",
-        "updated_at": "2026-03-31T15:15:26.863Z"
+        "updated_at": "2026-03-31T15:14:22.644Z"
       }
     ],
     "workOrderTransactions": [
@@ -2418,20 +2418,6 @@
         "note": "Sevk irsaliyesi olusturuldu / DSI-000001 / DENEME",
         "user": "Demo User",
         "created_at": "2026-03-31T15:14:22.644Z"
-      },
-      {
-        "id": "dfd62fa0-3295-41b2-8621-d6c0e3b174e6",
-        "workOrderId": "2bfe1c0c-6e80-46fe-b628-1289a67b8e3f",
-        "lineId": "1dadbf26-25d5-406d-b4a9-d232020bc4fe",
-        "stationId": "u10",
-        "routeId": "9c189f8f-f61d-4232-8bea-034f28f0e9ff",
-        "routeSeq": 3,
-        "processId": "IPS-000001",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T15:15:26.863Z"
       }
     ],
     "outsourceTransfers": [

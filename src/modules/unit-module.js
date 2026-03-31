@@ -1858,8 +1858,7 @@ const UnitModule = {
                 </div>
                 <div style="display:flex; justify-content:flex-end;">
                     <div style="display:inline-flex; gap:0.4rem; flex-wrap:wrap; justify-content:flex-end;">
-                        <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')">Belgeyi ac</button>
-                        <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${UnitModule.escapeHtml(String(note?.id || ''))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
+                        <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfPreview('${UnitModule.escapeHtml(String(note?.id || ''))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF goruntule</button>
                     </div>
                 </div>
             </div>
@@ -2313,15 +2312,82 @@ const UnitModule = {
         }
         return win;
     },
+    openWorkOrderDispatchPdfPreview: (noteId) => {
+        const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
+        const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
+        if (!note) return alert('Irsaliye kaydi bulunamadi.');
+        const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
+        const previewHtml = String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/, '');
+        const previewSrc = `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml)}`;
+        const safeId = UnitModule.escapeHtml(String(note?.id || ''));
+        Modal.open(`PDF Goruntule - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}`, `
+            <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                <div style="background:#f8fafc; border:1px solid #dbeafe; border-radius:0.65rem; padding:0.55rem 0.65rem; font-size:0.8rem; color:#334155;">
+                    Belge onizlemesi asagida. "Indir" dosyayi dogrudan indirir, "Yazdir" yazici secim penceresini acar.
+                </div>
+                <div style="height:72vh; border:1px solid #cbd5e1; border-radius:0.72rem; overflow:hidden; background:#fff;">
+                    <iframe src="${UnitModule.escapeHtml(previewSrc)}" title="PDF onizleme" style="width:100%; height:100%; border:none;"></iframe>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
+                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${safeId}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">Indir</button>
+                    <button class="btn-primary" onclick="UnitModule.printWorkOrderDispatchSavedDocument('${safeId}')">Yazdir</button>
+                </div>
+            </div>
+        `, { maxWidth: '1360px' });
+    },
     openWorkOrderDispatchSavedDocument: (noteId, autoPrint = false) => {
         const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
         const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
         if (!note) return alert('Irsaliye kaydi bulunamadi.');
         const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
-        UnitModule.openWorkOrderDispatchPdfWindowFromHtml(html, `Teslim Belgesi ${String(note?.docNo || '-')}`, autoPrint);
+        return UnitModule.openWorkOrderDispatchPdfWindowFromHtml(html, `Teslim Belgesi ${String(note?.docNo || '-')}`, autoPrint);
     },
-    downloadWorkOrderDispatchSavedDocument: (noteId) => {
+    downloadWorkOrderDispatchPdfHtml: async (html, fileNameBase = 'teslim-belgesi') => {
+        try {
+            const payload = {
+                html: String(html || ''),
+                fileName: String(fileNameBase || 'teslim-belgesi')
+            };
+            const res = await fetch('/api/dispatch-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const raw = await res.text().catch(() => '');
+                throw new Error(raw || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const safeName = String(fileNameBase || 'teslim-belgesi').replace(/[^a-zA-Z0-9_-]+/g, '_');
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName || 'teslim-belgesi'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            return true;
+        } catch (error) {
+            console.error('PDF indirme hatasi:', error);
+            return false;
+        }
+    },
+    printWorkOrderDispatchSavedDocument: (noteId) => {
         UnitModule.openWorkOrderDispatchSavedDocument(noteId, true);
+    },
+    downloadWorkOrderDispatchSavedDocument: async (noteId) => {
+        const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
+        const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
+        if (!note) return alert('Irsaliye kaydi bulunamadi.');
+        const docNo = String(note?.docNo || 'teslim-belgesi');
+        const ok = await UnitModule.downloadWorkOrderDispatchPdfHtml(
+            UnitModule.buildWorkOrderDispatchPdfHtml(note),
+            `teslim-belgesi-${docNo}`
+        );
+        if (!ok) {
+            alert('PDF otomatik indirilemedi. Yazdir ile "PDF olarak kaydet" secenegini kullanabilirsiniz.');
+        }
     },
     previewWorkOrderDispatchDraft: () => {
         const draft = UnitModule.state.workOrderDispatchDraft;
@@ -2359,7 +2425,7 @@ const UnitModule = {
                     </table>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
-                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfWindowFromHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'Teslim Belgesi ${UnitModule.escapeHtml(String(draft.docNo || '-'))}', true)">PDF indir</button>
+                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchPdfHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'teslim-belgesi-${UnitModule.escapeHtml(String(draft.docNo || '-'))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
                     <button class="btn-sm" onclick="UnitModule.state.workOrderDispatchDraft=null; Modal.close();">Vazgec</button>
                     <button class="btn-primary" onclick="UnitModule.confirmWorkOrderDispatchDraft()">Onayla ve Kaydet</button>
                 </div>
@@ -3644,8 +3710,7 @@ const UnitModule = {
                             <td style="padding:0.55rem; text-align:right;">
                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchNoteDetail('${row.id}')">Goruntule</button>
-                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchSavedDocument('${row.id}')">Belge</button>
-                                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${row.id}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
+                                    <button class="btn-sm" onclick="UnitModule.openWorkOrderDispatchPdfPreview('${row.id}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF goruntule</button>
                                     ${archivedMode ? '' : actions}
                                 </div>
                             </td>

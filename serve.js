@@ -14,6 +14,7 @@ const noCacheHeaders = {
   Pragma: "no-cache",
   Expires: "0",
 };
+let pdfBrowserPromise = null;
 
 const mimeMap = {
   ".html": "text/html; charset=utf-8",
@@ -45,6 +46,48 @@ async function readBody(req) {
     req.on("end", () => resolve(body));
     req.on("error", reject);
   });
+}
+
+function sanitizeDownloadName(value) {
+  const raw = String(value || "teslim-belgesi")
+    .trim()
+    .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
+    .replace(/\s+/g, "_");
+  const normalized = raw || "teslim-belgesi";
+  return normalized.slice(0, 96);
+}
+
+async function getPdfBrowser() {
+  if (!pdfBrowserPromise) {
+    let playwright;
+    try {
+      playwright = require("playwright");
+    } catch (_) {
+      throw new Error("playwright_not_available");
+    }
+    const chromium = playwright?.chromium;
+    if (!chromium) throw new Error("playwright_not_available");
+    pdfBrowserPromise = chromium.launch({ headless: true });
+  }
+  return pdfBrowserPromise;
+}
+
+async function renderPdfFromHtml(html) {
+  const browser = await getPdfBrowser();
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  try {
+    await page.setContent(String(html || ""), { waitUntil: "networkidle" });
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
+      preferCSSPageSize: true,
+    });
+    return pdfBuffer;
+  } finally {
+    await context.close();
+  }
 }
 
 async function loadState() {
@@ -144,6 +187,29 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  if (req.method === "POST" && reqPath === "/api/dispatch-pdf") {
+    try {
+      const body = await readBody(req);
+      const payload = JSON.parse(body || "{}");
+      const html = String(payload?.html || "");
+      if (!html.trim()) {
+        return sendJson(res, 400, { ok: false, error: "invalid_html" });
+      }
+      const fileName = sanitizeDownloadName(payload?.fileName || "teslim-belgesi");
+      const pdfBuffer = await renderPdfFromHtml(html);
+      res.writeHead(200, {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${fileName}.pdf"`,
+        "Content-Length": String(pdfBuffer.length),
+        ...noCacheHeaders,
+      });
+      res.end(pdfBuffer);
+      return;
+    } catch (err) {
+      return sendJson(res, 500, { ok: false, error: "pdf_build_failed", message: String(err?.message || err) });
+    }
+  }
+
   const safePath = path.normalize(reqPath).replace(/^([.][.][/\\])+/, "");
   let filePath = path.join(root, safePath === "/" ? "index.html" : safePath);
 
@@ -185,4 +251,11 @@ server.on("error", (err) => {
 server.listen(port, () => {
   console.log(`Dulda ERP demo hazır: http://localhost:${port}/index.html`);
   console.log(`Kalıcı veri dosyası: ${dataFile}`);
+});
+
+process.on("exit", () => {
+  if (!pdfBrowserPromise) return;
+  Promise.resolve(pdfBrowserPromise)
+    .then((browser) => browser?.close?.())
+    .catch(() => {});
 });

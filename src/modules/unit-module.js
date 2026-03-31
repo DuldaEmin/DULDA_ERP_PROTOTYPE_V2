@@ -1835,17 +1835,22 @@ const UnitModule = {
                             <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
                                 <th style="padding:0.5rem; text-align:left;">Is emri / satir</th>
                                 <th style="padding:0.5rem; text-align:left;">Parca</th>
+                                <th style="padding:0.5rem; text-align:left;">Yapilacak islem</th>
                                 <th style="padding:0.5rem; text-align:center;">Adet</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${rows.length === 0 ? `<tr><td colspan="3" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row) => `
+                            ${rows.length === 0 ? `<tr><td colspan="4" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row) => {
+                                const processMeta = UnitModule.getWorkOrderDispatchProcessMeta(row, note);
+                                return `
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:0.5rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div style="font-family:monospace; font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
                                     <td style="padding:0.5rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-size:0.72rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem;"><div style="font-size:0.7rem; color:#64748b; font-family:monospace; font-weight:700;">${UnitModule.escapeHtml(processMeta.code || '-')}</div><div style="font-size:0.82rem; color:#0f172a; font-weight:800; margin-top:0.1rem;">${UnitModule.escapeHtml(processMeta.name || '-')}</div></td>
                                     <td style="padding:0.5rem; text-align:center; font-weight:800; color:#0f172a;">${Math.max(0, Number(row?.qty || 0))}</td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1895,6 +1900,21 @@ const UnitModule = {
         if (!UnitModule.state.workOrderDispatchDraft || typeof UnitModule.state.workOrderDispatchDraft !== 'object') return;
         UnitModule.state.workOrderDispatchDraft.note = String(value || '');
     },
+    getWorkOrderDispatchProcessMeta: (row, noteLike = null) => {
+        const processCode = String(
+            row?.targetProcessId
+            || row?.processId
+            || row?.sourceProcessId
+            || ''
+        ).trim().toUpperCase();
+        const unitId = String(row?.targetUnitId || noteLike?.targetUnitId || '').trim();
+        const processName = String(
+            row?.targetProcessName
+            || (processCode ? UnitModule.getRouteProcessName(unitId, processCode) : '')
+            || ''
+        ).trim();
+        return { code: processCode, name: processName };
+    },
     getNextWorkOrderDispatchDocNo: () => {
         if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
         const max = (DB.data.data.workOrderDispatchNotes || []).reduce((acc, row) => {
@@ -1933,6 +1953,24 @@ const UnitModule = {
                     error: `Maksimum girilebilir miktar asildi: ${String(row?.order?.workOrderCode || '-')} / ${String(row?.line?.lineCode || '-')}. Maksimum ${maxQty}.`
                 };
             }
+            const routes = Array.isArray(row?.line?.routes) ? row.line.routes : [];
+            const currentSeq = Math.max(0, Number(metrics?.routeSeq || row?.metrics?.routeSeq || 0));
+            const nextSeq = Math.max(0, Number(metrics?.nextRouteSeq || row?.metrics?.nextRouteSeq || 0));
+            let targetRoute = null;
+            if (nextSeq > 0 && nextSeq <= routes.length) {
+                const bySeq = routes[nextSeq - 1];
+                if (String(bySeq?.stationId || '') === targetId) targetRoute = bySeq;
+            }
+            if (!targetRoute) {
+                targetRoute = routes.find((route, idx) =>
+                    String(route?.stationId || '') === targetId
+                    && Number(idx + 1) >= Math.max(1, currentSeq + 1)
+                ) || routes.find((route) => String(route?.stationId || '') === targetId) || null;
+            }
+            const targetProcessId = String(targetRoute?.processId || '').trim().toUpperCase();
+            const targetProcessName = targetProcessId
+                ? String(UnitModule.getRouteProcessName(targetId, targetProcessId) || '').trim()
+                : '';
             selectedRows.push({
                 rowKey: key,
                 workOrderId: String(row?.order?.id || ''),
@@ -1946,6 +1984,8 @@ const UnitModule = {
                 sourceRouteSeq: Number(metrics?.routeSeq || 0),
                 sourceProcessId: String(metrics?.processId || ''),
                 targetUnitId: targetId,
+                targetProcessId,
+                targetProcessName,
                 qty: Number(qty || 0)
             });
         }
@@ -2134,6 +2174,20 @@ const UnitModule = {
             padding:7px;
             vertical-align:top;
         }
+        .proc-code {
+            font-size:10px;
+            line-height:1.25;
+            font-family:Consolas, monospace;
+            color:#64748b;
+            font-weight:700;
+        }
+        .proc-name {
+            margin-top:2px;
+            font-size:12px;
+            line-height:1.35;
+            color:#0f172a;
+            font-weight:800;
+        }
         .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }
         .right { text-align:right; }
         .center { text-align:center; }
@@ -2278,20 +2332,28 @@ const UnitModule = {
                     <th style="width:40px;" class="center">Sira</th>
                     <th style="width:170px;">Is Emri / Satir</th>
                     <th>Parca Bilgisi</th>
+                    <th style="width:220px;">Yapilacak Islem</th>
                     <th style="width:92px;" class="right">Adet</th>
                 </tr>
             </thead>
             <tbody>
-                ${rows.length === 0 ? `<tr><td colspan="4" style="text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row, idx) => `
+                ${rows.length === 0 ? `<tr><td colspan="5" style="text-align:center; color:#94a3b8;">Satir yok.</td></tr>` : rows.map((row, idx) => {
+                    const processMeta = UnitModule.getWorkOrderDispatchProcessMeta(row, noteLike);
+                    return `
                     <tr>
                         <td class="center">${idx + 1}</td>
                         <td><div class="mono">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div>${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
                         <td><div style="font-weight:700;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-family:Consolas, monospace; color:#475569;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                        <td>
+                            <div class="proc-code">${UnitModule.escapeHtml(processMeta.code || '-')}</div>
+                            <div class="proc-name">${UnitModule.escapeHtml(processMeta.name || '-')}</div>
+                        </td>
                         <td class="right"><strong>${Math.max(0, Number(row?.qty || 0))}</strong></td>
                     </tr>
-                `).join('')}
+                `;
+                }).join('')}
                 <tr class="sum-row">
-                    <td colspan="3" class="right">TOPLAM SEVK ADEDI</td>
+                    <td colspan="4" class="right">TOPLAM SEVK ADEDI</td>
                     <td class="right">${Number(totalQty || 0)}</td>
                 </tr>
             </tbody>
@@ -2512,17 +2574,22 @@ const UnitModule = {
                             <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
                                 <th style="padding:0.55rem; text-align:left;">Is emri / satir</th>
                                 <th style="padding:0.55rem; text-align:left;">Parca</th>
+                                <th style="padding:0.55rem; text-align:left;">Yapilacak islem</th>
                                 <th style="padding:0.55rem; text-align:center;">Adet</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${draft.rows.map((row) => `
+                            ${draft.rows.map((row) => {
+                                const processMeta = UnitModule.getWorkOrderDispatchProcessMeta(row, draft);
+                                return `
                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                     <td style="padding:0.5rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(String(row?.workOrderCode || '-'))}</div><div style="font-family:monospace; font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(String(row?.lineCode || '-'))}</div></td>
                                     <td style="padding:0.5rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(String(row?.componentName || '-'))}</div><div style="font-size:0.72rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(String(row?.componentCode || '-'))}</div></td>
+                                    <td style="padding:0.5rem;"><div style="font-size:0.7rem; color:#64748b; font-family:monospace; font-weight:700;">${UnitModule.escapeHtml(processMeta.code || '-')}</div><div style="font-size:0.82rem; color:#0f172a; font-weight:800; margin-top:0.1rem;">${UnitModule.escapeHtml(processMeta.name || '-')}</div></td>
                                     <td style="padding:0.5rem; text-align:center; font-weight:800; color:#0f172a;">${Math.max(0, Number(row?.qty || 0))}</td>
                                 </tr>
-                            `).join('')}
+                            `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -2531,7 +2598,6 @@ const UnitModule = {
                     <textarea rows="3" oninput="UnitModule.setWorkOrderDispatchDraftNote(this.value)" placeholder="Ornek: Cumaya getir, Persembe hazir olsun." style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(dispatchNote)}</textarea>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
-                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchPdfHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'teslim-belgesi-${UnitModule.escapeHtml(String(draft.docNo || '-'))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
                     <button class="btn-sm" onclick="UnitModule.state.workOrderDispatchDraft=null; Modal.close();">Vazgec</button>
                     <button class="btn-primary" onclick="UnitModule.confirmWorkOrderDispatchDraft()">Onayla ve Kaydet</button>
                 </div>
@@ -2602,6 +2668,8 @@ const UnitModule = {
                 sourceRouteId: String(entry.sourceRouteId || ''),
                 sourceRouteSeq: Math.max(0, Number(entry.sourceRouteSeq || 0)),
                 sourceProcessId: String(entry.sourceProcessId || '').trim().toUpperCase(),
+                targetProcessId: String(entry.targetProcessId || '').trim().toUpperCase(),
+                targetProcessName: String(entry.targetProcessName || '').trim(),
                 targetUnitId: targetId
             }))
         };

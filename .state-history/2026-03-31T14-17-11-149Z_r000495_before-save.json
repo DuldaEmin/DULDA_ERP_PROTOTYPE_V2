@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T14:22:38.432Z",
+    "updated_at": "2026-03-31T14:16:51.828Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 497
+    "revision": 495
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 10,
         "created_at": "2026-03-31T14:16:31.915Z",
-        "updated_at": "2026-03-31T14:22:38.432Z"
+        "updated_at": "2026-03-31T14:16:51.828Z"
       }
     ],
     "workOrderTransactions": [
@@ -2376,34 +2376,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-31T14:16:51.828Z"
-      },
-      {
-        "id": "4d8b402c-6bbc-4626-8da1-0ebe07f4d229",
-        "workOrderId": "a8a1d6a6-6856-4772-ae0f-d8e8387e21ab",
-        "lineId": "854c8a36-e09b-42d3-bbda-ee3d7e64e253",
-        "stationId": "u1",
-        "routeId": "56b48972-7232-4534-9a38-46e495bc84ce",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T14:17:11.072Z"
-      },
-      {
-        "id": "14c5375e-c83c-4933-87db-489f44627abb",
-        "workOrderId": "a8a1d6a6-6856-4772-ae0f-d8e8387e21ab",
-        "lineId": "854c8a36-e09b-42d3-bbda-ee3d7e64e253",
-        "stationId": "u_dtm",
-        "routeId": "638473ad-f8ea-4434-a830-aaf0b01b1511",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T14:22:38.432Z"
       }
     ],
     "outsourceTransfers": [

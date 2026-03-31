@@ -3416,7 +3416,10 @@ const UnitModule = {
         if (!metrics) return;
         const routeIdx = Math.max(0, Number(metrics?.routeSeq || 1) - 1);
         const targetQty = Math.max(0, Number(line?.targetQty || 0));
-        const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+        const stepDoneQty = Math.max(0, Number(metrics?.doneQty || 0));
+        const stepInProcessQty = Math.max(0, Number(metrics?.inProcessQty || 0));
+        const takenTotalQty = Math.max(0, stepInProcessQty + stepDoneQty);
+        const remainingQty = Math.max(0, targetQty - stepDoneQty);
         const plan = (line.plans && typeof line.plans === 'object') ? (line.plans[String(stationId || '')] || null) : null;
         const processCode = String(metrics?.processId || '').trim().toUpperCase();
         const processName = UnitModule.getRouteProcessName(stationId, processCode);
@@ -3430,6 +3433,9 @@ const UnitModule = {
             ? String(UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
             : 'Son adim (depo/sevk asamasi)';
         const transferPendingQty = Math.max(0, Number(metrics?.transferPendingQty || 0));
+        const nextUnitTakenQty = nextRoute ? Math.max(0, stepDoneQty - transferPendingQty) : stepDoneQty;
+        const nextUnitTakenLabel = nextRoute ? 'Sonraki istasyon teslim aldi' : 'Bu adim onaylanan';
+        const balanceLeftQty = Math.max(0, remainingQty + transferPendingQty + nextUnitTakenQty);
         const showTransferFollowup = !!nextRoute && transferPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
         const routeFilter = UnitModule.getRouteFilterForIndex(line, routeIdx);
         const takeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'TAKE', 'first', routeFilter);
@@ -3476,12 +3482,35 @@ const UnitModule = {
                         <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">${UnitModule.escapeHtml(completeAtLabel)}</div>
                     </div>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:0.5rem;">
-                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Planlanan</div><div style="font-size:1rem; font-weight:800; color:#0f172a;">${targetQty}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Teslim alinan</div><div style="font-size:1rem; font-weight:800; color:#334155;">${Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0)}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Yapilan</div><div style="font-size:1rem; font-weight:800; color:#047857;">${Number(metrics?.doneQty || 0)}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Kalan</div><div style="font-size:1rem; font-weight:800; color:#b45309;">${remainingQty}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.7rem; color:#64748b;">Alinabilir</div><div style="font-size:1rem; font-weight:800; color:#1d4ed8;">${Number(metrics?.availableQty || 0)}</div></div>
+                <div style="display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.5rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Uretilecek adet</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">${targetQty}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#64748b;">Teslim alinan adet</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#334155;">${takenTotalQty}/${targetQty}</div>
+                        <div style="font-size:0.68rem; color:#64748b; margin-top:0.12rem;">Alinan / Hedef</div>
+                    </div>
+                    <div style="border:1px solid #fecaca; background:#fff7ed; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#9a3412;">Kalan - uretilmesi gereken</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#b45309;">${remainingQty}</div>
+                    </div>
+                    <div style="border:1px solid #a7f3d0; background:#ecfdf5; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#065f46;">Bu istasyonda yapilan</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#047857;">${stepDoneQty}</div>
+                    </div>
+                    <div style="border:1px solid #fed7aa; background:#fffbeb; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#9a3412;">Sonraki istasyona devir bekleyen</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#c2410c;">${transferPendingQty}</div>
+                    </div>
+                    <div style="border:1px solid #bfdbfe; background:#eff6ff; border-radius:0.55rem; padding:0.45rem;">
+                        <div style="font-size:0.7rem; color:#1e3a8a;">${UnitModule.escapeHtml(nextUnitTakenLabel)}</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#1d4ed8;">${nextUnitTakenQty}</div>
+                    </div>
+                </div>
+                <div style="font-size:0.74rem; color:#475569; padding:0.28rem 0.1rem;">
+                    Kontrol: Kalan (${remainingQty}) + Devir bekleyen (${transferPendingQty}) + Sonraki istasyon teslim aldi (${nextUnitTakenQty}) = ${balanceLeftQty}
                 </div>
                 ${showTransferFollowup ? `
                     <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.55rem; padding:0.55rem; font-size:0.82rem; color:#991b1b; font-weight:700;">

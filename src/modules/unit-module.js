@@ -1850,6 +1850,10 @@ const UnitModule = {
                     </table>
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                    <div style="font-size:0.78rem; font-weight:700; color:#334155; margin-bottom:0.3rem;">Sevk notu</div>
+                    <div style="font-size:0.82rem; color:#334155; line-height:1.55; white-space:pre-wrap; word-break:break-word;">${UnitModule.escapeHtml(String(note?.note || '-'))}</div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
                     <div style="font-size:0.78rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Hareket gecmisi</div>
                     ${history.length === 0 ? `<div style="font-size:0.78rem; color:#94a3b8;">Gecmis kaydi yok.</div>` : history.map((h) => {
                         const meta = UnitModule.getWorkOrderDispatchStatusMeta(h?.status);
@@ -1886,6 +1890,10 @@ const UnitModule = {
         next[key] = qty;
         UnitModule.state.workOrderDispatchQtyByRow = next;
         UI.renderCurrentPage();
+    },
+    setWorkOrderDispatchDraftNote: (value) => {
+        if (!UnitModule.state.workOrderDispatchDraft || typeof UnitModule.state.workOrderDispatchDraft !== 'object') return;
+        UnitModule.state.workOrderDispatchDraft.note = String(value || '');
     },
     getNextWorkOrderDispatchDocNo: () => {
         if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
@@ -1947,6 +1955,7 @@ const UnitModule = {
     buildWorkOrderDispatchPdfHtml: (noteLike) => {
         const rows = Array.isArray(noteLike?.rows) ? noteLike.rows : [];
         const totalQty = rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
+        const dispatchNote = String(noteLike?.note || '').trim();
         const createdLabel = UnitModule.formatDateTimeShort(String(noteLike?.created_at || '')) || '-';
         const printedLabel = UnitModule.formatDateTimeShort(new Date().toISOString());
         const sourceUnitName = UnitModule.getRouteStationName(String(noteLike?.stationId || '')) || String(noteLike?.stationId || '-');
@@ -2138,6 +2147,28 @@ const UnitModule = {
             border-radius:10px;
             padding:8px 10px;
         }
+        .dispatch-note-box {
+            margin-top:10px;
+            border:1px solid var(--line);
+            border-radius:10px;
+            padding:8px 10px;
+            background:#f8fafc;
+        }
+        .dispatch-note-title {
+            font-size:11px;
+            font-weight:800;
+            color:#334155;
+            text-transform:uppercase;
+            letter-spacing:0.04em;
+            margin-bottom:4px;
+        }
+        .dispatch-note-text {
+            font-size:12px;
+            color:#0f172a;
+            line-height:1.5;
+            white-space:pre-wrap;
+            word-break:break-word;
+        }
         .timeline-title {
             font-size:11px;
             font-weight:800;
@@ -2266,6 +2297,11 @@ const UnitModule = {
             </tbody>
         </table>
 
+        <div class="dispatch-note-box">
+            <div class="dispatch-note-title">Sevk Notu</div>
+            <div class="dispatch-note-text">${UnitModule.escapeHtml(dispatchNote || '-')}</div>
+        </div>
+
         <div class="timeline">
             <div class="timeline-title">Durum Gecmisi</div>
             ${history.length === 0
@@ -2319,23 +2355,86 @@ const UnitModule = {
         const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
         const previewHtml = String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/, '');
         const previewSrc = `data:text/html;charset=utf-8,${encodeURIComponent(previewHtml)}`;
-        const safeId = UnitModule.escapeHtml(String(note?.id || ''));
-        Modal.open(`PDF Goruntule - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}`, `
-            <div style="display:flex; flex-direction:column; gap:0.65rem;">
-                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; background:#f8fafc; border:1px solid #dbeafe; border-radius:0.65rem; padding:0.55rem 0.65rem;">
-                    <div style="font-size:0.8rem; color:#334155;">
-                        Belge onizlemesi asagida. "Indir" dosyayi bilgisayara kaydeder, "Yazdir" yazici secim penceresini acar.
-                    </div>
-                    <div style="display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
-                        <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${safeId}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">Indir</button>
-                        <button class="btn-primary" onclick="UnitModule.printWorkOrderDispatchSavedDocument('${safeId}')">Yazdir</button>
-                    </div>
-                </div>
-                <div style="height:72vh; border:1px solid #cbd5e1; border-radius:0.72rem; overflow:hidden; background:#fff;">
-                    <iframe src="${UnitModule.escapeHtml(previewSrc)}" title="PDF onizleme" style="width:100%; height:100%; border:none;"></iframe>
-                </div>
-            </div>
-        `, { maxWidth: '1360px' });
+        const fileBase = String(`teslim-belgesi-${String(note?.docNo || 'belge')}`).replace(/[^a-zA-Z0-9_-]+/g, '_');
+        const encodedHtml = encodeURIComponent(String(html || ''));
+        const encodedFileBase = encodeURIComponent(fileBase || 'teslim-belgesi');
+        const pageHtml = `
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PDF Goruntule - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}</title>
+  <style>
+    :root { --line:#cbd5e1; --ink:#0f172a; --muted:#64748b; --bg:#f1f5f9; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Segoe UI",Tahoma,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+    .topbar { position:sticky; top:0; z-index:20; background:rgba(248,250,252,0.98); border-bottom:1px solid var(--line); padding:0.62rem 0.8rem; display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; }
+    .title { font-size:1.02rem; font-weight:800; color:#0f172a; }
+    .actions { display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap; }
+    .btn { height:36px; border-radius:0.6rem; padding:0 0.85rem; border:1px solid var(--line); background:white; color:#334155; font-weight:700; cursor:pointer; }
+    .btn.primary { background:#0f172a; border-color:#0f172a; color:#fff; }
+    .btn.blue { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+    .frame-wrap { height:calc(100vh - 64px); padding:0.7rem; }
+    iframe { width:100%; height:100%; border:1px solid var(--line); border-radius:0.85rem; background:#fff; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">PDF Goruntule - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}</div>
+    <div class="actions">
+      <button class="btn blue" type="button" onclick="downloadPdf()">Indir</button>
+      <button class="btn primary" type="button" onclick="printPdf()">Yazdir</button>
+      <button class="btn" type="button" onclick="window.close()">Kapat</button>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <iframe id="pdf_preview_frame" src="${previewSrc}" title="PDF onizleme"></iframe>
+  </div>
+  <script>
+    async function downloadPdf() {
+      try {
+        const html = decodeURIComponent('${encodedHtml}');
+        const fileName = decodeURIComponent('${encodedFileBase}');
+        const res = await fetch('/api/dispatch-pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: html, fileName: fileName })
+        });
+        if (!res.ok) throw new Error('PDF indirilemedi');
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      } catch (e) {
+        alert('PDF indirilemedi. Lutfen tekrar deneyin.');
+      }
+    }
+    function printPdf() {
+      const iframe = document.getElementById('pdf_preview_frame');
+      if (iframe && iframe.contentWindow) {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          return;
+        } catch (_) {}
+      }
+      window.print();
+    }
+  </script>
+</body>
+</html>`;
+        const win = window.open('', '_blank');
+        if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
+        win.document.open();
+        win.document.write(pageHtml);
+        win.document.close();
+        try { win.focus(); } catch (_) { }
     },
     openWorkOrderDispatchSavedDocument: (noteId, autoPrint = false) => {
         const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
@@ -2395,6 +2494,7 @@ const UnitModule = {
         const draft = UnitModule.state.workOrderDispatchDraft;
         if (!draft || !Array.isArray(draft.rows) || draft.rows.length === 0) return alert('Onizleme icin hazir irsaliye yok.');
         const totalQty = draft.rows.reduce((sum, row) => sum + Math.max(0, Number(row?.qty || 0)), 0);
+        const dispatchNote = String(draft?.note || '');
         Modal.open(`PDF Onizleme - ${UnitModule.escapeHtml(String(draft.docNo || '-'))}`, `
             <div style="display:flex; flex-direction:column; gap:0.7rem;">
                 <div style="background:#f8fafc; border:1px solid #dbeafe; border-radius:0.7rem; padding:0.6rem 0.7rem; font-size:0.82rem; color:#334155;">
@@ -2426,6 +2526,10 @@ const UnitModule = {
                         </tbody>
                     </table>
                 </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.6rem;">
+                    <label style="display:block; font-size:0.78rem; font-weight:700; color:#334155; margin-bottom:0.35rem;">Sevk Notu</label>
+                    <textarea rows="3" oninput="UnitModule.setWorkOrderDispatchDraftNote(this.value)" placeholder="Ornek: Cumaya getir, Persembe hazir olsun." style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.55rem; resize:vertical;">${UnitModule.escapeHtml(dispatchNote)}</textarea>
+                </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
                     <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchPdfHtml(UnitModule.buildWorkOrderDispatchPdfHtml(UnitModule.state.workOrderDispatchDraft), 'teslim-belgesi-${UnitModule.escapeHtml(String(draft.docNo || '-'))}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">PDF indir</button>
                     <button class="btn-sm" onclick="UnitModule.state.workOrderDispatchDraft=null; Modal.close();">Vazgec</button>
@@ -2452,6 +2556,7 @@ const UnitModule = {
         if (!finalRows.length) return alert('Kayit icin gecerli satir bulunamadi.');
 
         const docNo = String(draft.docNo || UnitModule.getNextWorkOrderDispatchDocNo());
+        const dispatchNote = String(draft.note || '').trim();
         const now = new Date().toISOString();
         const txns = DB.data.data.workOrderTransactions;
         finalRows.forEach((entry) => {
@@ -2465,7 +2570,7 @@ const UnitModule = {
                 processId: String(entry.sourceProcessId || '').trim().toUpperCase(),
                 type: 'COMPLETE',
                 qty: Number(entry.qty || 0),
-                note: `Sevk irsaliyesi olusturuldu / ${docNo}`,
+                note: `Sevk irsaliyesi olusturuldu / ${docNo}${dispatchNote ? ` / ${dispatchNote}` : ''}`,
                 user: 'Demo User',
                 created_at: now
             });
@@ -2483,6 +2588,7 @@ const UnitModule = {
             isArchived: false,
             created_at: now,
             created_by: 'Demo User',
+            note: dispatchNote,
             history: [{ at: now, status: 'HAZIRLANDI', user: 'Demo User' }],
             rows: finalRows.map((entry) => ({
                 workOrderId: String(entry.workOrderId || ''),
@@ -2525,6 +2631,7 @@ const UnitModule = {
             targetUnitId: targetId,
             targetUnitName: targetName,
             status: 'HAZIRLANDI',
+            note: '',
             created_at: new Date().toISOString(),
             created_by: 'Demo User',
             rows: selected.rows
@@ -3649,6 +3756,7 @@ const UnitModule = {
                         row?.docNo,
                         row?.targetUnitName,
                         statusMeta.label,
+                        row?.note,
                         rowText
                     ].join(' ').toLowerCase();
                     return hay.includes(search);

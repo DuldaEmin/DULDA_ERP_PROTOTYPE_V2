@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-03-31T16:40:50.302Z",
+    "updated_at": "2026-03-31T16:33:51.527Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 577
+    "revision": 576
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 2,
         "created_at": "2026-03-31T16:33:28.677Z",
-        "updated_at": "2026-03-31T16:40:50.302Z"
+        "updated_at": "2026-03-31T16:33:51.527Z"
       }
     ],
     "workOrderTransactions": [
@@ -2376,20 +2376,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-03-31T16:33:51.527Z"
-      },
-      {
-        "id": "04f96f4a-3c55-42bc-a7c4-e9e8c625e287",
-        "workOrderId": "fba7e2dc-e6d3-49aa-b023-43f88ec33003",
-        "lineId": "5916a678-b552-4a6d-8d28-f004696e72fc",
-        "stationId": "u1",
-        "routeId": "91625da6-9650-4777-babd-ed7e80412a99",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "COMPLETE",
-        "qty": 1,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-03-31T16:40:50.302Z"
       }
     ],
     "outsourceTransfers": [

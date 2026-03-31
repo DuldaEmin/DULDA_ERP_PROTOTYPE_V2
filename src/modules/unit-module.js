@@ -2322,15 +2322,17 @@ const UnitModule = {
         const safeId = UnitModule.escapeHtml(String(note?.id || ''));
         Modal.open(`PDF Goruntule - ${UnitModule.escapeHtml(String(note?.docNo || '-'))}`, `
             <div style="display:flex; flex-direction:column; gap:0.65rem;">
-                <div style="background:#f8fafc; border:1px solid #dbeafe; border-radius:0.65rem; padding:0.55rem 0.65rem; font-size:0.8rem; color:#334155;">
-                    Belge onizlemesi asagida. "Indir" dosyayi dogrudan indirir, "Yazdir" yazici secim penceresini acar.
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; background:#f8fafc; border:1px solid #dbeafe; border-radius:0.65rem; padding:0.55rem 0.65rem;">
+                    <div style="font-size:0.8rem; color:#334155;">
+                        Belge onizlemesi asagida. "Indir" dosyayi bilgisayara kaydeder, "Yazdir" yazici secim penceresini acar.
+                    </div>
+                    <div style="display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                        <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${safeId}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">Indir</button>
+                        <button class="btn-primary" onclick="UnitModule.printWorkOrderDispatchSavedDocument('${safeId}')">Yazdir</button>
+                    </div>
                 </div>
                 <div style="height:72vh; border:1px solid #cbd5e1; border-radius:0.72rem; overflow:hidden; background:#fff;">
                     <iframe src="${UnitModule.escapeHtml(previewSrc)}" title="PDF onizleme" style="width:100%; height:100%; border:none;"></iframe>
-                </div>
-                <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
-                    <button class="btn-sm" onclick="UnitModule.downloadWorkOrderDispatchSavedDocument('${safeId}')" style="border-color:#1d4ed8; color:#1d4ed8; background:#eff6ff;">Indir</button>
-                    <button class="btn-primary" onclick="UnitModule.printWorkOrderDispatchSavedDocument('${safeId}')">Yazdir</button>
                 </div>
             </div>
         `, { maxWidth: '1360px' });

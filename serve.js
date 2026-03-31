@@ -94,7 +94,7 @@ async function renderPdfFromHtml(html) {
   const page = await context.newPage();
   try {
     await page.setContent(String(html || ""), { waitUntil: "domcontentloaded" });
-    await page.emulateMedia({ media: "screen" });
+    await page.emulateMedia({ media: "print" });
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,

@@ -2392,6 +2392,9 @@ const UnitModule = {
 </html>
         `;
     },
+    getWorkOrderDispatchPrintableHtml: (html) => {
+        return String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/i, '');
+    },
     openWorkOrderDispatchPdfWindowFromHtml: (html, title = 'Teslim Belgesi', autoPrint = false) => {
         const win = window.open('', '_blank');
         if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
@@ -2415,7 +2418,7 @@ const UnitModule = {
         const note = notes.find((row) => String(row?.id || '') === String(noteId || ''));
         if (!note) return alert('Irsaliye kaydi bulunamadi.');
         const html = UnitModule.buildWorkOrderDispatchPdfHtml(note);
-        const previewHtml = String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/, '');
+        const previewHtml = UnitModule.getWorkOrderDispatchPrintableHtml(html);
         const fileBase = String(`teslim-belgesi-${String(note?.docNo || 'belge')}`).replace(/[^a-zA-Z0-9_-]+/g, '_');
         const apiEndpoint = `${String(window.location.origin || '').replace(/\/+$/, '')}/api/dispatch-pdf`;
         const pageHtml = `
@@ -2549,7 +2552,7 @@ const UnitModule = {
         win.document.close();
         const payload = {
             previewHtml: String(previewHtml || ''),
-            html: String(html || ''),
+            html: String(previewHtml || ''),
             fileName: String(fileBase || 'teslim-belgesi'),
             apiEndpoint: String(apiEndpoint || '/api/dispatch-pdf')
         };
@@ -2578,8 +2581,9 @@ const UnitModule = {
     },
     downloadWorkOrderDispatchPdfHtml: async (html, fileNameBase = 'teslim-belgesi') => {
         try {
+            const printableHtml = UnitModule.getWorkOrderDispatchPrintableHtml(html);
             const payload = {
-                html: String(html || ''),
+                html: String(printableHtml || ''),
                 fileName: String(fileNameBase || 'teslim-belgesi')
             };
             const res = await fetch('/api/dispatch-pdf', {

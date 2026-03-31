@@ -4191,24 +4191,24 @@ const UnitModule = {
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     <div class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
-                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:left;">Hedef / Oncelik</th><th style="padding:0.55rem; text-align:left;">Plan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
+                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
                             <tbody>
-                                ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map((r) => {
-                                    const priorityMeta = UnitModule.getWorkOrderPriorityMeta(r.order?.priority);
+                                ${visible.length === 0 ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map((r) => {
                                     const hasUnitPlan = !!(r.plan && (
                                         String(r.plan.machine || '').trim()
                                         || String(r.plan.personnel || '').trim()
                                         || String(r.plan.targetDate || '').trim()
                                     ));
                                     const sourceCode = String(r.order?.sourceCode || '').trim().toUpperCase();
-                                    const planSummary = hasUnitPlan
+                                    const hasSourcePlan = /^PLN-\d{6}$/.test(sourceCode);
+                                    const sourcePlanBadge = hasSourcePlan
+                                        ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
+                                        : '';
+                                    const planDetailText = hasUnitPlan
                                         ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}`
-                                        : (/^PLN-\d{6}$/.test(sourceCode)
-                                            ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
-                                            : '-');
+                                        : '-';
                                     const canTake = Number(r.metrics?.availableQty || 0) > 0;
                                     const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
-                                    const todayDoneQty = getTodayDoneQty(r);
                                     const isWaitingTab = tab === 'BEKLEYEN';
                                     const isActiveTab = tab === 'AKTIF';
                                     const showTakeAction = isWaitingTab;
@@ -4231,6 +4231,16 @@ const UnitModule = {
                                     const processCodeHtml = processCode
                                         ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
                                         : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
+                                    const routes = Array.isArray(r.line?.routes) ? r.line.routes : [];
+                                    const routeIndex = Math.max(0, Number(r.metrics?.routeSeq || 1) - 1);
+                                    const prevRoute = routeIndex > 0 ? routes[routeIndex - 1] : null;
+                                    const nextRoute = routeIndex >= 0 && routeIndex < routes.length - 1 ? routes[routeIndex + 1] : null;
+                                    const fromStationName = prevRoute
+                                        ? String(UnitModule.getRouteStationName(prevRoute.stationId) || prevRoute.stationName || prevRoute.stationId || '-')
+                                        : 'Baslangic';
+                                    const toStationName = nextRoute
+                                        ? String(UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
+                                        : 'Son adim / sevk';
                                     const totalQtyForStep = Math.max(0, Number(r.metrics?.stepTarget || 0));
                                     const takenQtyForStep = Math.max(0, Number(r.metrics?.inProcessQty || 0) + Number(r.metrics?.doneQty || 0));
                                     const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
@@ -4279,6 +4289,11 @@ const UnitModule = {
                                                 <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div>
                                                 <div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div>
                                                 <div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div>
+                                                <div style="margin-top:0.35rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Plan</div>
+                                                <div style="display:flex; flex-direction:column; gap:0.2rem; align-items:flex-start;">
+                                                    ${hasSourcePlan ? sourcePlanBadge : `<span style="font-size:0.76rem; color:#64748b;">-</span>`}
+                                                    ${hasUnitPlan ? `<div style="font-size:0.72rem; color:#475569;">${planDetailText}</div>` : ''}
+                                                </div>
                                             </td>
                                             <td style="padding:0.55rem;">
                                                 <div style="font-weight:700; color:#334155;">${productTitle}</div>
@@ -4292,16 +4307,14 @@ const UnitModule = {
                                                 <div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div>
                                                 <div>${processCodeHtml}</div>
                                                 <div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(processName || '-')}</div>
+                                                <div style="margin-top:0.3rem; display:flex; flex-direction:column; gap:0.1rem;">
+                                                    <div style="font-size:0.7rem; color:#64748b;">Nereden: <strong style="color:#334155;">${UnitModule.escapeHtml(fromStationName)}</strong></div>
+                                                    <div style="font-size:0.7rem; color:#64748b;">Nereye: <strong style="color:#334155;">${UnitModule.escapeHtml(toStationName)}</strong></div>
+                                                </div>
                                             </td>
                                             <td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td>
                                             <td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td>
                                             <td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td>
-                                            <td style="padding:0.55rem;">
-                                                <div style="font-size:0.78rem; color:#475569;">${UnitModule.escapeHtml(r.order?.dueDate || '-')}</div>
-                                                <span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.12rem 0.5rem; font-size:0.72rem; font-weight:700; ${priorityMeta.style}">${priorityMeta.label}</span>
-                                                <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">Bugun: ${todayDoneQty}</div>
-                                            </td>
-                                            <td style="padding:0.55rem; font-size:0.78rem; color:#475569;">${planSummary}</td>
                                             <td style="padding:0.55rem; text-align:right;">
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')">Goruntule</button>

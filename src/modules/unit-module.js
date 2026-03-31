@@ -2871,7 +2871,17 @@ const UnitModule = {
                     </div>
                 ` : ''}
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.55rem; font-size:0.78rem; color:#475569;">
-                    Plan: ${plan ? `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}` : '-'}
+                    Plan: ${(() => {
+                        const hasUnitPlan = !!(plan && (
+                            String(plan.machine || '').trim()
+                            || String(plan.personnel || '').trim()
+                            || String(plan.targetDate || '').trim()
+                        ));
+                        if (hasUnitPlan) {
+                            return `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}`;
+                        }
+                        return UnitModule.escapeHtml(String(order?.sourceCode || '').trim().toUpperCase() || '-');
+                    })()}
                 </div>
                 <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
                     <button class="btn-sm" onclick="Modal.close(); setTimeout(() => UnitModule.openWorkOrderComponentPreview('${String(order?.id || '')}','${String(line?.id || '')}','${String(stationId || '')}'), 0);" style="border-color:#cbd5e1;">Parca kutuphanesi</button>
@@ -3075,6 +3085,9 @@ const UnitModule = {
                     r.order?.workOrderCode,
                     r.order?.productCode,
                     r.order?.productName,
+                    r.order?.sourceCode,
+                    r.order?.sourceItemCode,
+                    r.order?.sourceItemName,
                     r.line?.lineCode,
                     r.line?.componentCode,
                     r.line?.componentName,
@@ -3618,7 +3631,14 @@ const UnitModule = {
                             <tbody>
                                 ${visible.length === 0 ? `<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>` : visible.map((r) => {
                                     const priorityMeta = UnitModule.getWorkOrderPriorityMeta(r.order?.priority);
-                                    const planSummary = r.plan ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}` : '-';
+                                    const hasUnitPlan = !!(r.plan && (
+                                        String(r.plan.machine || '').trim()
+                                        || String(r.plan.personnel || '').trim()
+                                        || String(r.plan.targetDate || '').trim()
+                                    ));
+                                    const planSummary = hasUnitPlan
+                                        ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}`
+                                        : UnitModule.escapeHtml(String(r.order?.sourceCode || '').trim().toUpperCase() || '-');
                                     const canTake = Number(r.metrics?.availableQty || 0) > 0;
                                     const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
                                     const todayDoneQty = getTodayDoneQty(r);

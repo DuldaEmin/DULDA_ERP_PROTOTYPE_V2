@@ -2694,25 +2694,9 @@ const PlanningModule = {
                 return `<span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${style}">${PlanningModule.escapeHtml(label)}</span>`;
             }).join('');
         };
-        const renderStationDistributionChips = (loads, done) => {
-            if (done) {
-                return `<span style="display:inline-flex; border-radius:999px; border:1px solid #a7f3d0; background:#ecfdf5; color:#047857; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">Montaji bekliyor</span>`;
-            }
-            const rows = Array.isArray(loads) ? loads.filter((row) => PlanningModule.parseQty(row?.qty, 0) > 0) : [];
-            if (!rows.length) {
-                return `<span style="display:inline-flex; border-radius:999px; border:1px solid #e2e8f0; background:#ffffff; color:#64748b; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">Istasyon bekliyor</span>`;
-            }
-            return rows.map((row) => `
-                <span style="display:inline-flex; align-items:center; gap:0.28rem; border-radius:999px; border:1px solid #bfdbfe; background:#eff6ff; color:#1e3a8a; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700;">
-                    ${PlanningModule.escapeHtml(String(row?.stationName || '-'))}
-                    <span style="display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:18px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-family:monospace; font-size:0.7rem; padding:0 0.25rem;">${PlanningModule.escapeHtml(String(PlanningModule.parseQty(row?.qty, 0)))}</span>
-                </span>
-            `).join('');
-        };
-
         const renderItemLines = (group) => {
             const lines = Array.isArray(group?.lines) ? group.lines : [];
-            if (!lines.length) return `<tr><td colspan="8" style="padding:0.8rem; text-align:center; color:#94a3b8;">Bu kalem icin takip satiri bulunamadi.</td></tr>`;
+            if (!lines.length) return `<tr><td colspan="7" style="padding:0.8rem; text-align:center; color:#94a3b8;">Bu kalem icin takip satiri bulunamadi.</td></tr>`;
             return lines.map((line) => {
                 const statusBadgeStyle = line?.isFinished
                     ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
@@ -2729,9 +2713,6 @@ const PlanningModule = {
                         <td style="padding:0.5rem; text-align:center; font-weight:700; color:#047857;">${PlanningModule.escapeHtml(String(line?.doneQty || 0))}</td>
                         <td style="padding:0.5rem; text-align:center; font-weight:700; color:${line?.remainingQty > 0 ? '#b91c1c' : '#0f172a'};">${PlanningModule.escapeHtml(String(line?.remainingQty || 0))}</td>
                         <td style="padding:0.5rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusBadgeStyle}">${PlanningModule.escapeHtml(statusBadgeLabel)}</span></td>
-                        <td style="padding:0.5rem;">
-                            <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${renderStationDistributionChips(line?.stationLoads || [], !!line?.isFinished)}</div>
-                        </td>
                         <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;">${renderRouteChips(line?.steps || [])}</div></td>
                     </tr>
                 `;
@@ -2767,7 +2748,6 @@ const PlanningModule = {
                                             <th style="padding:0.5rem; text-align:center;">Biten</th>
                                             <th style="padding:0.5rem; text-align:center;">Kalan</th>
                                             <th style="padding:0.5rem; text-align:left;">Durum</th>
-                                            <th style="padding:0.5rem; text-align:left;">Birim dagilimi</th>
                                             <th style="padding:0.5rem; text-align:left;">Rota yolculugu</th>
                                         </tr>
                                     </thead>

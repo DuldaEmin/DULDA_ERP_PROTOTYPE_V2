@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-01T10:57:01.723Z",
+    "updated_at": "2026-04-01T10:56:50.062Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 638
+    "revision": 637
   },
   "data": {
     "products": [
@@ -2282,86 +2282,7 @@
         "updated_at": "2026-03-27T12:36:52.066Z"
       }
     ],
-    "workOrders": [
-      {
-        "id": "b4fad1b0-28a0-4ca9-93d8-01a85760c43c",
-        "workOrderCode": "WO-000001",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "lotQty": 2,
-        "dueDate": "2026-04-04",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "a2f4a9aa-bd49-43e4-bb65-b30813c968fa",
-            "lineCode": "WO-000001-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "multiplier": 1,
-            "targetQty": 2,
-            "routes": [
-              {
-                "id": "b2d14178-955c-4306-ae7e-f06edc2eb350",
-                "seq": 1,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000002"
-              },
-              {
-                "id": "635a1f50-21a5-4079-ad40-ac4974686d7c",
-                "seq": 2,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000001"
-              },
-              {
-                "id": "ad543739-1a6a-4c07-b569-2abf035d5229",
-                "seq": 3,
-                "stationId": "u10",
-                "stationName": "IBRAHIM POLISAJ",
-                "processId": "IPS-000001"
-              },
-              {
-                "id": "181dfe3e-1ab5-4035-a6dd-8faf42939434",
-                "seq": 4,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000002"
-              },
-              {
-                "id": "890251c1-2928-4b87-a370-46c0a93512c3",
-                "seq": 5,
-                "stationId": "u11",
-                "stationName": "TEKIN ELOKSAL",
-                "processId": "ELX-000001"
-              },
-              {
-                "id": "83c9c983-8960-453d-9b9a-61d56d046bda",
-                "seq": 6,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000004"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "08af4b2f-ad23-412f-81de-0e0aa6489918",
-        "sourceCode": "PLN-000001",
-        "sourceItemKey": "620089b2-fd78-46a9-a37c-fed8ae4e026b",
-        "sourceItemName": "40 lık aluminyum dikme yarıklı tapa",
-        "sourceItemCode": "PRC-000003",
-        "sourceItemQty": 1,
-        "created_at": "2026-04-01T10:57:01.723Z",
-        "updated_at": "2026-04-01T10:57:01.723Z"
-      }
-    ],
+    "workOrders": [],
     "workOrderTransactions": [],
     "outsourceTransfers": [
       {
@@ -3616,38 +3537,12 @@
         "dueDate": "2026-04-04",
         "priority": "NORMAL",
         "note": "",
-        "status": "RELEASED",
-        "workOrderId": "b4fad1b0-28a0-4ca9-93d8-01a85760c43c",
-        "workOrderCode": "WO-000001",
-        "workOrderIds": [
-          "b4fad1b0-28a0-4ca9-93d8-01a85760c43c"
-        ],
-        "workOrderCodes": [
-          "WO-000001"
-        ],
-        "updated_at": "2026-04-01T10:57:01.723Z",
-        "poolAnalysis": {
-          "rows": [
-            {
-              "key": "620089b2-fd78-46a9-a37c-fed8ae4e026b::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "itemKey": "620089b2-fd78-46a9-a37c-fed8ae4e026b",
-              "itemName": "40 lık aluminyum dikme yarıklı tapa",
-              "itemCode": "PRC-000003",
-              "itemQty": 1,
-              "code": "PRC-000003",
-              "name": "40 lık aluminyum dikme yarıklı tapa",
-              "componentLibrary": "PART",
-              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "requiredQty": 1,
-              "useEnabled": false,
-              "useStockQty": 0,
-              "useSemiQty": 0,
-              "netQty": 2
-            }
-          ],
-          "converted_at": "2026-04-01T10:57:01.723Z"
-        },
-        "released_at": "2026-04-01T10:57:01.723Z"
+        "status": "OPEN",
+        "workOrderId": "",
+        "workOrderCode": "",
+        "workOrderIds": [],
+        "workOrderCodes": [],
+        "updated_at": "2026-04-01T10:56:50.062Z"
       }
     ],
     "semiFinishedCards": [

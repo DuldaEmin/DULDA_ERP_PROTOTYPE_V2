@@ -1631,9 +1631,14 @@ const PlanningModule = {
         const all = PlanningModule.getDemands();
         const row = all.find((item) => String(item?.id || '') === String(demandId || ''));
         if (!row) return;
-        if (String(row?.status || 'OPEN').toUpperCase() === 'RELEASED') return alert('Is emrine donusmus kayit silinemez.');
-        if (!confirm('Silmek istediginizden emin misiniz?')) return;
         const linkedIds = PlanningModule.getDemandLinkedWorkOrderIds(row);
+        const isReleased = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
+        const confirmText = linkedIds.size > 0 || isReleased
+            ? 'Bu talep tam silinecek. Bagli is emirleri, islem hareketleri ve depoya alinan stok kayitlari da silinecek. Devam edilsin mi?'
+            : 'Silmek istediginizden emin misiniz?';
+        if (!confirm(confirmText)) return;
+        if (isReleased) PlanningModule.rollbackDemandPoolConsumption(row);
+        if (linkedIds.size > 0) PlanningModule.purgeDepotOutputsByWorkOrderIds(linkedIds);
         DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
         if (linkedIds.size > 0 && Array.isArray(DB.data?.data?.workOrders)) {
             DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '')));
@@ -1723,52 +1728,77 @@ const PlanningModule = {
         });
         if (changed) DB.data.data.workOrderDispatchNotes = nextNotes;
     },
+    purgeDepotOutputsByWorkOrderIds: (linkedIds) => {
+        if (!(linkedIds instanceof Set) || linkedIds.size === 0) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        if (!txns.length || !stockRows.length || !orders.length) return;
+
+        const orderById = new Map();
+        orders.forEach((order) => {
+            const key = String(order?.id || '').trim();
+            if (key) orderById.set(key, order);
+        });
+
+        const removalMap = new Map();
+        txns.forEach((txn) => {
+            if (String(txn?.type || '').trim().toUpperCase() !== 'STORE') return;
+            const workOrderId = String(txn?.workOrderId || '').trim();
+            if (!workOrderId || !linkedIds.has(workOrderId)) return;
+            const order = orderById.get(workOrderId);
+            if (!order) return;
+            const lineId = String(txn?.lineId || '').trim();
+            const line = (Array.isArray(order?.lines) ? order.lines : []).find((row) => String(row?.id || '').trim() === lineId) || null;
+            const code = String(line?.componentCode || order?.productCode || '').trim().toUpperCase();
+            const stationId = String(txn?.stationId || '').trim();
+            const qty = PlanningModule.parseQty(txn?.qty, 0);
+            if (!code || !stationId || qty <= 0) return;
+            const key = `${stationId}|${code}`;
+            removalMap.set(key, (removalMap.get(key) || 0) + qty);
+        });
+        if (!removalMap.size) return;
+
+        const touchedRowIds = new Set();
+        removalMap.forEach((removeQty, key) => {
+            let remaining = PlanningModule.parseQty(removeQty, 0);
+            if (remaining <= 0) return;
+            const [stationIdRaw, codeRaw] = String(key || '').split('|');
+            const stationId = String(stationIdRaw || '').trim();
+            const code = String(codeRaw || '').trim().toUpperCase();
+            const candidates = stockRows
+                .filter((row) => {
+                    const rowCode = PlanningModule.getDepotRowCode(row);
+                    if (rowCode !== code) return false;
+                    const rowStation = String(row?.unitId || row?.stationId || '').trim();
+                    const rowNodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+                    const stationMatch = rowStation === stationId || rowNodeKey === `unit:${stationId}`;
+                    if (!stationMatch) return false;
+                    return PlanningModule.getDepotRowQty(row) > 0;
+                })
+                .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')));
+            candidates.forEach((row) => {
+                if (remaining <= 0) return;
+                const available = PlanningModule.getDepotRowQty(row);
+                if (available <= 0) return;
+                const used = Math.min(available, remaining);
+                PlanningModule.setDepotRowQty(row, available - used);
+                touchedRowIds.add(String(row?.id || ''));
+                remaining -= used;
+            });
+        });
+
+        if (touchedRowIds.size > 0) {
+            DB.data.data.stockDepotItems = stockRows.filter((row) => {
+                const rowId = String(row?.id || '');
+                if (!touchedRowIds.has(rowId)) return true;
+                return PlanningModule.getDepotRowQty(row) > 0;
+            });
+        }
+    },
 
     deleteReleasedDemand: async (demandId) => {
-        const all = PlanningModule.getDemands();
-        const demand = all.find((item) => String(item?.id || '') === String(demandId || ''));
-        if (!demand) return;
-        if (String(demand?.status || 'OPEN').toUpperCase() !== 'RELEASED') {
-            return PlanningModule.deleteDemand(demandId);
-        }
-        const linkedIds = PlanningModule.getDemandLinkedWorkOrderIds(demand);
-        const workOrderCount = linkedIds.size;
-        const demandCode = String(demand?.demandCode || '-');
-        const confirmText = `Bu kayit tamamen silinecek.\nTalep: ${demandCode}\nBagli is emri: ${workOrderCount}\nEmin misiniz?`;
-        if (!confirm(confirmText)) return;
-
-        PlanningModule.rollbackDemandPoolConsumption(demand);
-        DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
-
-        if (Array.isArray(DB.data?.data?.workOrders)) {
-            DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '')));
-        }
-        if (Array.isArray(DB.data?.data?.workOrderTransactions)) {
-            DB.data.data.workOrderTransactions = DB.data.data.workOrderTransactions.filter((txn) => !linkedIds.has(String(txn?.workOrderId || '')));
-        }
-        PlanningModule.purgeDispatchNotesByWorkOrderIds(linkedIds);
-
-        if (PlanningModule.state.planningPoolRowsByDemand && typeof PlanningModule.state.planningPoolRowsByDemand === 'object') {
-            delete PlanningModule.state.planningPoolRowsByDemand[String(demandId || '')];
-        }
-        if (PlanningModule.state.planningPoolBuildTokenByDemand && typeof PlanningModule.state.planningPoolBuildTokenByDemand === 'object') {
-            delete PlanningModule.state.planningPoolBuildTokenByDemand[String(demandId || '')];
-        }
-        if (String(PlanningModule.state.planningPoolExpandedDemandId || '') === String(demandId || '')) {
-            PlanningModule.state.planningPoolExpandedDemandId = '';
-        }
-        if (PlanningModule.state.planningPoolExpandedItemByDemand && typeof PlanningModule.state.planningPoolExpandedItemByDemand === 'object') {
-            delete PlanningModule.state.planningPoolExpandedItemByDemand[String(demandId || '')];
-        }
-        if (String(PlanningModule.state.releasedExpandedDemandId || '') === String(demandId || '')) {
-            PlanningModule.state.releasedExpandedDemandId = '';
-        }
-        if (PlanningModule.state.releasedExpandedItemByDemand && typeof PlanningModule.state.releasedExpandedItemByDemand === 'object') {
-            delete PlanningModule.state.releasedExpandedItemByDemand[String(demandId || '')];
-        }
-
-        await DB.save();
-        UI.renderCurrentPage();
+        return PlanningModule.deleteDemand(demandId);
     },
 
     renderPriorityBadge: (priority) => {

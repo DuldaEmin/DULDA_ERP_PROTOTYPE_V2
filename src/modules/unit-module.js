@@ -1638,7 +1638,7 @@ const UnitModule = {
                             <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
                                 <i data-lucide="warehouse" color="#059669"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Birim Deposu
                             </h2>
-                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri goruntule, isleme al ve final adimda depoya al.</div>
+                            <div style="font-size:0.82rem; color:#64748b;">Bu ekran sadece goruntuleme icindir.</div>
                         </div>
                     </div>
                     <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
@@ -1653,7 +1653,7 @@ const UnitModule = {
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
-                    <div style="font-size:0.83rem; color:#64748b;">Bu ekranda urun once <strong>Bekleyen</strong>e duser, sonra <strong>Isleme Al</strong>. Son adimdaysa <strong>Depoya Al</strong>, degilse <strong>Tamamla</strong> ile sonraki rotaya gider.</div>
+                    <div style="font-size:0.83rem; color:#64748b;">Bu sayfa sadece izleme ekranidir. Isleme al / tamamla / depoya al islemleri bu ekranda kapatilidir.</div>
                     <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya rota ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                 </div>
 
@@ -1674,30 +1674,23 @@ const UnitModule = {
                                     <th style="padding:0.55rem; text-align:left;">Bu rota adimi</th>
                                     <th style="padding:0.55rem; text-align:center;">Bekleyen</th>
                                     <th style="padding:0.55rem; text-align:center;">Islemde</th>
-                                    <th style="padding:0.55rem; text-align:right;">Islem</th>
+                                    <th style="padding:0.55rem; text-align:right;">Durum</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${waitingRows.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Bekleyen veya islemde kayit yok.</td></tr>` : waitingRows.map(row => {
-            const canTake = Number(row.metrics?.availableQty || 0) > 0;
             const hasNextRoute = !!String(row?.metrics?.nextStationId || '').trim();
             const isFinalStep = !hasNextRoute;
             const depotPendingQty = Math.max(0, Number(row.metrics?.depotPendingQty || 0));
-            const canComplete = Number(row.metrics?.inProcessQty || 0) > 0;
-            const canStoreFinal = isFinalStep && (Number(row.metrics?.inProcessQty || 0) > 0 || depotPendingQty > 0);
-            const takeInputId = `wo_wait_take_qty_${String(row.order?.id || '')}_${String(row.line?.id || '')}_${String(row.metrics?.stationId || '')}_${String(row.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-            const takeInputMax = Math.max(1, Math.floor(Number(row.metrics?.availableQty || 0)));
-            const takeInputDefault = takeInputMax;
-            const completeInputId = `wo_wait_complete_qty_${String(row.order?.id || '')}_${String(row.line?.id || '')}_${String(row.metrics?.stationId || '')}_${String(row.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
-            const completeInputMax = Math.max(1, Math.floor(isFinalStep
-                ? (Number(row.metrics?.inProcessQty || 0) + depotPendingQty)
-                : Number(row.metrics?.inProcessQty || 0)));
-            const completeInputDefault = completeInputMax;
-            const completionActionLabel = isFinalStep ? 'Depoya Al' : 'Tamamla';
-            const completionActionHandler = isFinalStep
-                ? `UnitModule.storeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${completeInputId}','${Number(row.metrics?.routeSeq || 0)}')`
-                : `UnitModule.completeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${completeInputId}','${Number(row.metrics?.routeSeq || 0)}')`;
-            const canCompletionAction = isFinalStep ? canStoreFinal : canComplete;
+            const transferPendingQty = Math.max(0, Number(row.metrics?.transferPendingQty || 0));
+            const inProcessQtyRow = Math.max(0, Number(row.metrics?.inProcessQty || 0));
+            const availableQtyRow = Math.max(0, Number(row.metrics?.availableQty || 0));
+            const statusBadges = [];
+            if (availableQtyRow > 0) statusBadges.push('<span style="display:inline-block; border:1px solid #cbd5e1; background:#f8fafc; color:#334155; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700;">Bekliyor</span>');
+            if (inProcessQtyRow > 0) statusBadges.push('<span style="display:inline-block; border:1px solid #fed7aa; background:#fff7ed; color:#9a3412; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700;">Islemde</span>');
+            if (transferPendingQty > 0) statusBadges.push('<span style="display:inline-block; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700;">Devir bekliyor</span>');
+            if (isFinalStep && depotPendingQty > 0) statusBadges.push('<span style="display:inline-block; border:1px solid #bbf7d0; background:#ecfdf5; color:#166534; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700;">Depoya alinacak</span>');
+            if (!statusBadges.length) statusBadges.push('<span style="display:inline-block; border:1px solid #e2e8f0; background:#f8fafc; color:#64748b; border-radius:999px; padding:0.14rem 0.52rem; font-size:0.72rem; font-weight:700;">Takipte</span>');
             return `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
                                         <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
@@ -1708,14 +1701,7 @@ const UnitModule = {
                                         <td style="padding:0.55rem; text-align:center; font-weight:800; color:#b45309;">${Number(row.metrics?.inProcessQty || 0)}</td>
                                         <td style="padding:0.55rem; text-align:right;">
                                             <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                <span style="display:inline-flex; align-items:center; gap:0.35rem;">
-                                                    <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
-                                                    <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${takeInputId}','${Number(row.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
-                                                </span>
-                                                <span style="display:inline-flex; align-items:center; gap:0.35rem;">
-                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${canCompletionAction ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
-                                                    <button class="btn-sm" onclick="${completionActionHandler}" ${canCompletionAction ? '' : 'disabled'} style="${canCompletionAction ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">${completionActionLabel}</button>
-                                                </span>
+                                                ${statusBadges.join('')}
                                             </div>
                                         </td>
                                     </tr>

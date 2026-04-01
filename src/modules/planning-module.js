@@ -16,6 +16,8 @@ const PlanningModule = {
         planningPoolExpandedItemByDemand: {},
         planningPoolRowsByDemand: {},
         planningPoolBuildTokenByDemand: {},
+        planningPoolArchiveMode: false,
+        stockArchiveMode: false,
         releasedExpandedDemandId: '',
         releasedExpandedItemByDemand: {},
         releasedArchiveMode: false
@@ -1081,10 +1083,14 @@ const PlanningModule = {
         if (PlanningModule.state.workspaceView !== 'planning-pool') {
             PlanningModule.state.planningPoolExpandedDemandId = '';
             PlanningModule.state.planningPoolExpandedItemByDemand = {};
+            PlanningModule.state.planningPoolArchiveMode = false;
         }
         if (PlanningModule.state.workspaceView === 'planning-pool') {
             PlanningModule.state.planningPoolRowsByDemand = {};
             PlanningModule.state.planningPoolBuildTokenByDemand = {};
+        }
+        if (PlanningModule.state.workspaceView !== 'stock-production') {
+            PlanningModule.state.stockArchiveMode = false;
         }
         if (PlanningModule.state.workspaceView !== 'released-orders') {
             PlanningModule.state.releasedExpandedDemandId = '';
@@ -1100,6 +1106,16 @@ const PlanningModule = {
         PlanningModule.state.releasedArchiveMode = !!enabled;
         PlanningModule.state.releasedExpandedDemandId = '';
         PlanningModule.state.releasedExpandedItemByDemand = {};
+        UI.renderCurrentPage();
+    },
+    setPlanningPoolArchiveMode: (enabled) => {
+        PlanningModule.state.planningPoolArchiveMode = !!enabled;
+        PlanningModule.state.planningPoolExpandedDemandId = '';
+        PlanningModule.state.planningPoolExpandedItemByDemand = {};
+        UI.renderCurrentPage();
+    },
+    setStockArchiveMode: (enabled) => {
+        PlanningModule.state.stockArchiveMode = !!enabled;
         UI.renderCurrentPage();
     },
 
@@ -1931,6 +1947,14 @@ const PlanningModule = {
             .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
         const openStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN');
         const releasedStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED');
+        const releasedStockEntries = releasedStockRows.map((row) => ({
+            row,
+            statusMeta: PlanningModule.getReleasedDemandStatusMeta(PlanningModule.getReleasedDemandItemGroups(row))
+        }));
+        const activeReleasedStockRows = releasedStockEntries.filter((entry) => !entry?.statusMeta?.archived).map((entry) => entry.row);
+        const archiveReleasedStockRows = releasedStockEntries.filter((entry) => !!entry?.statusMeta?.archived).map((entry) => entry.row);
+        const showStockArchive = !!PlanningModule.state.stockArchiveMode;
+        const visibleReleasedStockRows = showStockArchive ? archiveReleasedStockRows : activeReleasedStockRows;
         const planningPoolOpenCount = PlanningModule.getDemands()
             .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN')
             .length;
@@ -1946,6 +1970,10 @@ const PlanningModule = {
                             </div>
                             <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                 <button class="btn-sm" onclick="PlanningModule.openWorkspace('planning-pool')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; font-weight:700;">planlama havuzu (${planningPoolOpenCount})</button>
+                                ${showStockArchive
+                    ? `<button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif liste (${activeReleasedStockRows.length})</button>`
+                    : `<button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveReleasedStockRows.length})</button>`
+                }
                                 <button class="btn-primary" onclick="PlanningModule.openStockDemandForm(true)" style="min-width:170px;">yeni talep +</button>
                             </div>
                         </div>
@@ -1975,8 +2003,8 @@ const PlanningModule = {
 
                         <div style="background:white; border:2px solid #86efac; border-radius:0.95rem; padding:0.9rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
-                                <strong style="color:#047857;">Is emrine donusenler</strong>
-                                <span style="font-size:0.78rem; color:#047857; font-weight:700;">${PlanningModule.escapeHtml(String(releasedStockRows.length))} kayit</span>
+                                <strong style="color:#047857;">${showStockArchive ? 'Birim arsivi' : 'Is emrine donusenler'}</strong>
+                                <span style="font-size:0.78rem; color:#047857; font-weight:700;">${PlanningModule.escapeHtml(String(visibleReleasedStockRows.length))} kayit</span>
                             </div>
                             <div class="card-table">
                                 <table style="width:100%; border-collapse:collapse;">
@@ -1992,7 +2020,7 @@ const PlanningModule = {
                                             <th style="padding:0.6rem; text-align:right;">Islem</th>
                                         </tr>
                                     </thead>
-                                    <tbody>${PlanningModule.renderStockDemandRows(releasedStockRows, 'Henuz is emrine donusen stok talebi yok.')}</tbody>
+                                    <tbody>${PlanningModule.renderStockDemandRows(visibleReleasedStockRows, showStockArchive ? 'Birim arsivinde kayit yok.' : 'Henuz is emrine donusen aktif stok talebi yok.')}</tbody>
                                 </table>
                             </div>
                         </div>
@@ -2123,8 +2151,16 @@ const PlanningModule = {
         const releasedRows = allRows
             .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED')
             .sort((a, b) => String(b?.released_at || '').localeCompare(String(a?.released_at || '')));
+        const releasedEntries = releasedRows.map((row) => ({
+            row,
+            statusMeta: PlanningModule.getReleasedDemandStatusMeta(PlanningModule.getReleasedDemandItemGroups(row))
+        }));
+        const activeReleasedRows = releasedEntries.filter((entry) => !entry?.statusMeta?.archived).map((entry) => entry.row);
+        const archiveReleasedRows = releasedEntries.filter((entry) => !!entry?.statusMeta?.archived).map((entry) => entry.row);
+        const showPoolArchive = !!PlanningModule.state.planningPoolArchiveMode;
+        const visibleReleasedRows = showPoolArchive ? archiveReleasedRows : activeReleasedRows;
         const totalOpenQty = openRows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
-        const totalReleasedQty = releasedRows.reduce((sum, row) => sum + PlanningModule.getDemandQtyForDisplay(row), 0);
+        const totalReleasedQty = visibleReleasedRows.reduce((sum, row) => sum + PlanningModule.getDemandQtyForDisplay(row), 0);
         const expandedDemandId = String(PlanningModule.state.planningPoolExpandedDemandId || '');
 
         const renderOpenTableRows = () => {
@@ -2304,10 +2340,10 @@ const PlanningModule = {
         };
 
         const renderReleasedRows = () => {
-            if (!releasedRows.length) {
-                return `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Henuz is emrine donusen kayit yok.</td></tr>`;
+            if (!visibleReleasedRows.length) {
+                return `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">${showPoolArchive ? 'Birim arsivinde kayit yok.' : 'Henuz is emrine donusen aktif kayit yok.'}</td></tr>`;
             }
-            return releasedRows.map((row) => {
+            return visibleReleasedRows.map((row) => {
                 const displayName = PlanningModule.getDemandDisplayName(row);
                 const workOrderCode = Array.isArray(row?.workOrderCodes) && row.workOrderCodes.length
                     ? (row.workOrderCodes.length > 1 ? `${row.workOrderCodes[0]} +${row.workOrderCodes.length - 1}` : row.workOrderCodes[0])
@@ -2338,6 +2374,10 @@ const PlanningModule = {
                             <div style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">Bu sayfa stok/siparis taleplerini patlatip is emrine donusmeden once kontrol etmek icindir.</div>
                         </div>
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                            ${showPoolArchive
+                ? `<button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif donusenler (${activeReleasedRows.length})</button>`
+                : `<button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveReleasedRows.length})</button>`
+            }
                             <button class="btn-sm" disabled style="opacity:0.7; cursor:default;">filtreler</button>
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('menu')">geri</button>
                         </div>
@@ -2358,11 +2398,11 @@ const PlanningModule = {
                             <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(totalOpenQty))}</div>
                         </div>
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;">
-                            <div style="font-size:0.72rem; color:#64748b;">Donusen kayit</div>
-                            <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${releasedRows.length}</div>
+                            <div style="font-size:0.72rem; color:#64748b;">${showPoolArchive ? 'Arsiv kayit' : 'Donusen kayit'}</div>
+                            <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${visibleReleasedRows.length}</div>
                         </div>
                         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;">
-                            <div style="font-size:0.72rem; color:#64748b;">Donusen toplam adet</div>
+                            <div style="font-size:0.72rem; color:#64748b;">${showPoolArchive ? 'Arsiv toplam adet' : 'Donusen toplam adet'}</div>
                             <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(totalReleasedQty))}</div>
                         </div>
                     </div>
@@ -2387,7 +2427,7 @@ const PlanningModule = {
                     </div>
 
                     <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:1rem; padding:0.75rem;">
-                        <div style="font-size:0.82rem; font-weight:800; color:#047857; margin-bottom:0.45rem;">IS EMRINE DONUSENLER (AYRI LISTE)</div>
+                        <div style="font-size:0.82rem; font-weight:800; color:#047857; margin-bottom:0.45rem;">${showPoolArchive ? 'BIRIM ARSIVI (AYRI LISTE)' : 'IS EMRINE DONUSENLER (AYRI LISTE)'}</div>
                         <div class="card-table">
                             <table style="width:100%; border-collapse:collapse;">
                                 <thead>

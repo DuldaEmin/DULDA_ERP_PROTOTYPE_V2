@@ -1970,10 +1970,8 @@ const PlanningModule = {
                             </div>
                             <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
                                 <button class="btn-sm" onclick="PlanningModule.openWorkspace('planning-pool')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; font-weight:700;">planlama havuzu (${planningPoolOpenCount})</button>
-                                ${showStockArchive
-                    ? `<button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif liste (${activeReleasedStockRows.length})</button>`
-                    : `<button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveReleasedStockRows.length})</button>`
-                }
+                                <button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(false)" style="${showStockArchive ? '' : 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;'}">aktif donusenler (${activeReleasedStockRows.length})</button>
+                                <button class="btn-sm" onclick="PlanningModule.setStockArchiveMode(true)" style="${showStockArchive ? 'border-color:#047857; color:#047857; background:#ecfdf5; font-weight:700;' : ''}">birim arsivi (${archiveReleasedStockRows.length})</button>
                                 <button class="btn-primary" onclick="PlanningModule.openStockDemandForm(true)" style="min-width:170px;">yeni talep +</button>
                             </div>
                         </div>
@@ -2374,10 +2372,8 @@ const PlanningModule = {
                             <div style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">Bu sayfa stok/siparis taleplerini patlatip is emrine donusmeden once kontrol etmek icindir.</div>
                         </div>
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
-                            ${showPoolArchive
-                ? `<button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif donusenler (${activeReleasedRows.length})</button>`
-                : `<button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveReleasedRows.length})</button>`
-            }
+                            <button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(false)" style="${showPoolArchive ? '' : 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;'}">aktif donusenler (${activeReleasedRows.length})</button>
+                            <button class="btn-sm" onclick="PlanningModule.setPlanningPoolArchiveMode(true)" style="${showPoolArchive ? 'border-color:#047857; color:#047857; background:#ecfdf5; font-weight:700;' : ''}">birim arsivi (${archiveReleasedRows.length})</button>
                             <button class="btn-sm" disabled style="opacity:0.7; cursor:default;">filtreler</button>
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('menu')">geri</button>
                         </div>
@@ -3018,10 +3014,8 @@ const PlanningModule = {
                             <div style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">${showArchive ? 'Tum islemleri tamamlanip depoya alinan talepler bu listede arsivlenir.' : 'Bu ekran siparis ve stok taleplerinin uretim izleme panelidir. Talep satirina tiklayip kalem kalem rota durumunu gorebilirsin.'}</div>
                         </div>
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
-                            ${showArchive
-                ? `<button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif liste (${activeRows.length})</button>`
-                : `<button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveRows.length})</button>`
-            }
+                            <button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(false)" style="${showArchive ? '' : 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;'}">aktif donusenler (${activeRows.length})</button>
+                            <button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(true)" style="${showArchive ? 'border-color:#047857; color:#047857; background:#ecfdf5; font-weight:700;' : ''}">birim arsivi (${archiveRows.length})</button>
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('planning-pool')">planlama havuzu</button>
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('menu')">geri</button>
                         </div>

@@ -374,7 +374,7 @@ const StockModule = {
                 editable: false,
                 allowLocations: false
             }));
-        const ordered = ['EKSTRUDER', 'TESTERE', 'PLEKSI', 'CNC', 'MONTAJ'];
+        const ordered = ['EKSTRUDER', 'TESTERE', 'CNC', 'PLEKSI', 'MONTAJ'];
         return rows.sort((a, b) => {
             const aKey = ordered.findIndex((item) => String(a?.name || '').includes(item));
             const bKey = ordered.findIndex((item) => String(b?.name || '').includes(item));
@@ -393,8 +393,18 @@ const StockModule = {
                 kind: 'external',
                 editable: false,
                 allowLocations: false
-            }))
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+            }));
+        const ordered = ['IBRAHIM POLISAJ', 'TEKIN ELOKSAL', 'HILAL PWD'];
+        rows.sort((a, b) => {
+            const aName = String(a?.name || '').trim().toUpperCase();
+            const bName = String(b?.name || '').trim().toUpperCase();
+            const aIdx = ordered.indexOf(aName);
+            const bIdx = ordered.indexOf(bName);
+            if (aIdx !== -1 || bIdx !== -1) {
+                return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+            }
+            return aName.localeCompare(bName, 'tr');
+        });
         rows.push({
             id: 'free_external',
             key: 'external:free',
@@ -1150,7 +1160,6 @@ const StockModule = {
             <div class="stock-location-card">
                 <div class="stock-location-head">
                     <div class="stock-location-title">tanimli konumlar</div>
-                    ${node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">hucreleri duzenle</button>` : ''}
                 </div>
                 ${locations.length === 0 ? `<div class="stock-location-empty">Bu depoda henuz raf / hucre tanimi yok.</div>` : `
                     <div class="stock-location-list">
@@ -1390,7 +1399,6 @@ const StockModule = {
                                 <div class="stock-banner-note">${StockModule.escapeHtml(node.note || '')}</div>
                             </div>
                             <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
-                                ${node.kind === 'managed' && node.editable ? `<button class="btn-sm" onclick="StockModule.openDepotEditModal('${StockModule.escapeHtml(node.id || '')}')">duzenle</button>` : ''}
                                 <button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>
                             </div>
                         </div>

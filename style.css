@@ -647,6 +647,10 @@ tr:hover {
 
 .stock-sidebar {
     min-width: 0;
+    background: rgba(243, 247, 252, 0.9);
+    border: 1px solid #d8e2ef;
+    border-radius: 1rem;
+    padding: 0.75rem;
 }
 
 .stock-content {
@@ -659,9 +663,9 @@ tr:hover {
 
 .stock-side-group-title {
     margin: 0 0 0.45rem 0.1rem;
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 800;
-    color: #6f8096;
+    color: #2563eb;
     text-transform: none;
 }
 

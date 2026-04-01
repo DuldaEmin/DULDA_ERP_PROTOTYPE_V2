@@ -208,6 +208,33 @@ const PlanningModule = {
         if (itemCount > 1) return `MIXED / ${itemCount} kalem`;
         return String(demand?.variantCode || demand?.componentCode || demand?.semiFinishedCode || '-');
     },
+    getDemandQtyForDisplay: (demand) => {
+        const baseQty = PlanningModule.parseQty(demand?.qty, 0);
+        if (String(demand?.status || 'OPEN').toUpperCase() !== 'RELEASED') return baseQty;
+
+        const releasedQty = PlanningModule.parseQty(demand?.releasedQty, 0);
+        if (releasedQty > 0) return releasedQty;
+        const hasModelItem = PlanningModule.getDemandItems(demand)
+            .some((item) => PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL') === 'MODEL');
+        if (hasModelItem) return baseQty;
+
+        const linkedIds = new Set();
+        (Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : []).forEach((id) => {
+            const key = String(id || '').trim();
+            if (key) linkedIds.add(key);
+        });
+        const singleId = String(demand?.workOrderId || '').trim();
+        if (singleId) linkedIds.add(singleId);
+        if (linkedIds.size === 0) return baseQty;
+
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const sumFromOrders = orders.reduce((sum, order) => {
+            const orderId = String(order?.id || '').trim();
+            if (!orderId || !linkedIds.has(orderId)) return sum;
+            return sum + PlanningModule.parseQty(order?.lotQty, 0);
+        }, 0);
+        return sumFromOrders > 0 ? sumFromOrders : baseQty;
+    },
 
     getDepotQuantityByCode: (code) => {
         const target = String(code || '').trim().toUpperCase();
@@ -1472,9 +1499,22 @@ const PlanningModule = {
             PlanningModule.consumePoolRowsFromDepot(poolRows, poolConsumptionMap);
         }
 
+        let releasedQty = PlanningModule.parseQty(demand?.qty, 0);
+        if (poolRows.length > 0) {
+            const hasModelItem = demandItems.some((item) => PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL') === 'MODEL');
+            if (!hasModelItem) {
+                const approvedNetQty = poolRowsForOrders.reduce((sum, row) => sum + PlanningModule.parseQty(row?.netQty, 0), 0);
+                if (approvedNetQty > 0) releasedQty = approvedNetQty;
+            }
+        } else {
+            const totalOrderQty = orders.reduce((sum, order) => sum + PlanningModule.parseQty(order?.lotQty, 0), 0);
+            if (totalOrderQty > 0) releasedQty = totalOrderQty;
+        }
+
         const primaryOrder = orders[0] || null;
         const now = new Date().toISOString();
         demand.status = 'RELEASED';
+        demand.releasedQty = releasedQty;
         demand.workOrderId = String(primaryOrder?.id || '');
         demand.workOrderIds = orders.map((order) => String(order?.id || '')).filter(Boolean);
         demand.workOrderCodes = orders.map((order) => String(order?.workOrderCode || '')).filter(Boolean);
@@ -1749,6 +1789,7 @@ const PlanningModule = {
         }
         return rows.map((row) => {
             const released = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
+            const displayQty = released ? PlanningModule.getDemandQtyForDisplay(row) : PlanningModule.parseQty(row?.qty, 0);
             const itemCount = Array.isArray(row?.items) ? row.items.length : 0;
             const displayName = itemCount > 1 ? `${row?.productName || 'Coklu stok talebi'} (${itemCount} kalem)` : String(row?.productName || '-');
             const displayCode = itemCount > 1
@@ -1762,7 +1803,7 @@ const PlanningModule = {
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(row?.sourceLabel || 'Stok Uretimi')}</div></td>
                     <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(displayName)}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div><div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(displayCode)}</div></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.productCode || '-')}</td>
-                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
+                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(displayQty))}</td>
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayWorkOrder)}</td>
@@ -1783,12 +1824,13 @@ const PlanningModule = {
                 ? `MIXED / ${itemCount} kalem`
                 : String(row?.variantCode || row?.componentCode || row?.semiFinishedCode || row?.productCode || '-');
             const released = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
+            const displayQty = released ? PlanningModule.getDemandQtyForDisplay(row) : PlanningModule.parseQty(row?.qty, 0);
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.6rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</div></td>
                     <td style="padding:0.6rem;"><div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(displayName)}</div><div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(row?.itemType || 'MODEL'))}</div></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(displayCode)}</td>
-                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
+                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(displayQty))}</td>
                     <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(row?.dueDate || '-')}</div><div style="margin-top:0.25rem;">${PlanningModule.renderPriorityBadge(row?.priority || 'NORMAL')}</div></td>
                     <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${PlanningModule.getStatusStyle(row?.status || 'OPEN')}">${PlanningModule.escapeHtml(PlanningModule.getStatusLabel(row?.status || 'OPEN'))}</span></td>
                     <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row?.workOrderCode || '-')}</td>
@@ -2044,7 +2086,7 @@ const PlanningModule = {
             .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED')
             .sort((a, b) => String(b?.released_at || '').localeCompare(String(a?.released_at || '')));
         const totalOpenQty = openRows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
-        const totalReleasedQty = releasedRows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
+        const totalReleasedQty = releasedRows.reduce((sum, row) => sum + PlanningModule.getDemandQtyForDisplay(row), 0);
         const expandedDemandId = String(PlanningModule.state.planningPoolExpandedDemandId || '');
 
         const renderOpenTableRows = () => {
@@ -2236,7 +2278,7 @@ const PlanningModule = {
                     <tr style="border-bottom:1px solid #f1f5f9;">
                         <td style="padding:0.55rem; font-family:monospace; font-weight:700; color:#1d4ed8;">${PlanningModule.escapeHtml(row?.demandCode || '-')}</td>
                         <td style="padding:0.55rem; font-weight:700; color:#334155;">${PlanningModule.escapeHtml(displayName)}</td>
-                        <td style="padding:0.55rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(row?.qty || 0))}</td>
+                        <td style="padding:0.55rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(PlanningModule.getDemandQtyForDisplay(row)))}</td>
                         <td style="padding:0.55rem; font-family:monospace; color:#1e40af; font-weight:700;">${PlanningModule.escapeHtml(workOrderCode)}</td>
                         <td style="padding:0.55rem;">${PlanningModule.escapeHtml(row?.released_at ? String(row.released_at).slice(0, 10) : '-')}</td>
                         <td style="padding:0.55rem; text-align:right;">
@@ -2770,7 +2812,7 @@ const PlanningModule = {
             <div style="display:grid; gap:0.8rem;">
                 <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Talep</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(demand?.qty || 0))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(PlanningModule.getDemandQtyForDisplay(demand)))}</div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Durum</div><span style="display:inline-block; margin-top:0.2rem; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span><div style="margin-top:0.28rem; font-size:0.72rem; color:#475569;">Dagilim: <strong>${PlanningModule.escapeHtml(demandDistributionText)}</strong></div></div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Is emri</div><div style="font-family:monospace; font-weight:800; color:#1e40af;">${PlanningModule.escapeHtml(workOrderText)}</div></div>
                 </div>
@@ -2795,7 +2837,7 @@ const PlanningModule = {
         });
         const doneCount = trackingRows.filter((entry) => entry.statusMeta.done).length;
         const inProgressCount = Math.max(0, trackingRows.length - doneCount);
-        const totalQty = rows.reduce((sum, row) => sum + PlanningModule.parseQty(row?.qty, 0), 0);
+        const totalQty = rows.reduce((sum, row) => sum + PlanningModule.getDemandQtyForDisplay(row), 0);
 
         const renderTrackingRows = () => {
             if (!trackingRows.length) {
@@ -2821,7 +2863,7 @@ const PlanningModule = {
                             <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(PlanningModule.getDemandDisplayName(demand))}</div>
                             <div style="font-size:0.75rem; color:#64748b; font-family:monospace;">${PlanningModule.escapeHtml(PlanningModule.getDemandDisplayCode(demand))}</div>
                         </td>
-                        <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(demand?.qty || 0))}</td>
+                        <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(PlanningModule.getDemandQtyForDisplay(demand)))}</td>
                         <td style="padding:0.6rem;"><div>${PlanningModule.escapeHtml(String(demand?.dueDate || '-'))}</div><div style="margin-top:0.2rem;">${PlanningModule.renderPriorityBadge(demand?.priority || 'NORMAL')}</div></td>
                         <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusMeta.style}">${PlanningModule.escapeHtml(statusMeta.label)}</span></td>
                         <td style="padding:0.6rem; font-family:monospace; color:#1e40af; font-weight:700;">${PlanningModule.escapeHtml(workOrderText)}</td>

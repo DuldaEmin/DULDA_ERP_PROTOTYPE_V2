@@ -2100,9 +2100,10 @@ const UnitModule = {
             min-width:0;
         }
         .brand-logo {
-            width:150px;
-            max-height:56px;
+            width:300px;
+            max-height:112px;
             object-fit:contain;
+            object-position:left center;
             display:block;
         }
         .title-wrap h1 {

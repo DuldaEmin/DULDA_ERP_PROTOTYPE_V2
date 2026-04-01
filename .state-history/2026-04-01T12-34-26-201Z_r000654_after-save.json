@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-01T12:35:43.705Z",
+    "updated_at": "2026-04-01T12:34:26.058Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 660
+    "revision": 654
   },
   "data": {
     "products": [
@@ -2359,7 +2359,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 1,
         "created_at": "2026-04-01T12:24:56.966Z",
-        "updated_at": "2026-04-01T12:35:43.704Z"
+        "updated_at": "2026-04-01T12:34:26.058Z"
       }
     ],
     "workOrderTransactions": [
@@ -2446,104 +2446,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-04-01T12:34:26.058Z"
-      },
-      {
-        "id": "b2ee47b0-21b7-40aa-a9f3-871f876efc6e",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u_dtm",
-        "routeId": "3b69fa11-d734-40a4-a6f3-fb129de253eb",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "TAKE",
-        "qty": 2,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:34:37.928Z"
-      },
-      {
-        "id": "cb185583-06a4-41e0-881a-48361da53b03",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u_dtm",
-        "routeId": "3b69fa11-d734-40a4-a6f3-fb129de253eb",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "COMPLETE",
-        "qty": 2,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:34:48.858Z"
-      },
-      {
-        "id": "ae2a38a2-fb26-4d6e-afba-793e77aaf24f",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u11",
-        "routeId": "002dd7fd-9746-42dc-afd6-98098384ad55",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "TAKE",
-        "qty": 2,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:35:14.718Z"
-      },
-      {
-        "id": "9fc1e49b-9aca-4430-b1bf-49bf63ee8914",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u11",
-        "routeId": "002dd7fd-9746-42dc-afd6-98098384ad55",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "COMPLETE",
-        "qty": 2,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:35:26.470Z"
-      },
-      {
-        "id": "217e4320-d8a9-4576-995c-aac9d28bdabe",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u_dtm",
-        "routeId": "94e7a9b5-3d1e-43a8-b854-7bdf3120206c",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 2,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:35:37.362Z"
-      },
-      {
-        "id": "d911a5ce-c78c-4adc-86c9-f3ae03b86f6f",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u_dtm",
-        "routeId": "94e7a9b5-3d1e-43a8-b854-7bdf3120206c",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 2,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:35:43.704Z"
-      },
-      {
-        "id": "ec2da85f-ad59-4ccf-a69d-e42da3863b9e",
-        "workOrderId": "9805ea1f-2b99-496d-872f-167ed70a70b5",
-        "lineId": "0e3f516d-4661-42f8-b068-0e46fde36d85",
-        "stationId": "u_dtm",
-        "routeId": "94e7a9b5-3d1e-43a8-b854-7bdf3120206c",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 2,
-        "note": "Birim depoya alindi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T12:35:43.704Z"
       }
     ],
     "outsourceTransfers": [
@@ -2830,26 +2732,6 @@
         "note": "Ana depo kabul / TLT-000003",
         "created_at": "2026-03-30T12:31:24.914Z",
         "updated_at": "2026-03-30T16:47:56.723Z"
-      },
-      {
-        "id": "e2bc91c7-dfe9-498e-a8c2-a26838600af8",
-        "unitId": "u_dtm",
-        "stationId": "u_dtm",
-        "nodeKey": "unit:u_dtm",
-        "productCode": "PRC-000003",
-        "code": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "name": "40 lık aluminyum dikme yarıklı tapa",
-        "quantity": 2,
-        "qty": 2,
-        "amount": 2,
-        "unit": "ADET",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "locationCode": "BIRIM-STOK",
-        "note": "DEPO TRANSFER birim stogu",
-        "created_at": "2026-04-01T12:35:43.705Z",
-        "updated_at": "2026-04-01T12:35:43.705Z"
       }
     ],
     "freeExternalVendorJobs": [],

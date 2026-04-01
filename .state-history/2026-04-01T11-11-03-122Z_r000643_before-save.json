@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-01T11:11:03.023Z",
+    "updated_at": "2026-04-01T11:10:17.769Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 644
+    "revision": 643
   },
   "data": {
     "products": [
@@ -2359,25 +2359,10 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 1,
         "created_at": "2026-04-01T11:10:17.768Z",
-        "updated_at": "2026-04-01T11:11:03.023Z"
+        "updated_at": "2026-04-01T11:10:17.768Z"
       }
     ],
-    "workOrderTransactions": [
-      {
-        "id": "29f584bf-b64a-4b67-bbc3-3838480d2d2d",
-        "workOrderId": "d3ee7aee-680c-48cb-b6bc-7d57c28e5b2f",
-        "lineId": "e90862b6-421f-4a26-8519-8bae101c37da",
-        "stationId": "u1",
-        "routeId": "622f3e59-5308-4c89-a02b-7d6dde1e9e28",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "TAKE",
-        "qty": 2,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-01T11:11:03.023Z"
-      }
-    ],
+    "workOrderTransactions": [],
     "outsourceTransfers": [
       {
         "id": "9ba75807-f720-403c-b736-b741f597499c",

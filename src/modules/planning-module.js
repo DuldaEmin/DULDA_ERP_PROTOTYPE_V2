@@ -1851,6 +1851,9 @@ const PlanningModule = {
             .sort((a, b) => String(b?.created_at || '').localeCompare(String(a?.created_at || '')));
         const openStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN');
         const releasedStockRows = stockRows.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED');
+        const planningPoolOpenCount = PlanningModule.getDemands()
+            .filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN')
+            .length;
 
         if (!isFormOpen) {
             return `
@@ -1861,7 +1864,10 @@ const PlanningModule = {
                                 <h2 class="page-title" style="margin:0;">planlama / stok icin uretim</h2>
                                 <div style="color:#64748b; margin-top:0.2rem;">Buradan depoya hazir tutulacak urun icin talep acabilir ve istersek aninda is emrine cevirebiliriz.</div>
                             </div>
-                            <button class="btn-primary" onclick="PlanningModule.openStockDemandForm(true)" style="min-width:170px;">yeni talep +</button>
+                            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                                <button class="btn-sm" onclick="PlanningModule.openWorkspace('planning-pool')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff; font-weight:700;">planlama havuzu (${planningPoolOpenCount})</button>
+                                <button class="btn-primary" onclick="PlanningModule.openStockDemandForm(true)" style="min-width:170px;">yeni talep +</button>
+                            </div>
                         </div>
                         <div style="background:white; border:2px solid #fca5a5; border-radius:0.95rem; padding:0.9rem; margin-bottom:0.75rem;">
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">

@@ -1676,6 +1676,9 @@ const UnitModule = {
                                 ${waitingRows.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Bekleyen veya islemde kayit yok.</td></tr>` : waitingRows.map(row => {
             const canTake = Number(row.metrics?.availableQty || 0) > 0;
             const canComplete = Number(row.metrics?.inProcessQty || 0) > 0;
+            const takeInputId = `wo_wait_take_qty_${String(row.order?.id || '')}_${String(row.line?.id || '')}_${String(row.metrics?.stationId || '')}_${String(row.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const takeInputMax = Math.max(1, Math.floor(Number(row.metrics?.availableQty || 0)));
+            const takeInputDefault = takeInputMax;
             return `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
                                         <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
@@ -1686,7 +1689,10 @@ const UnitModule = {
                                         <td style="padding:0.55rem; text-align:center; font-weight:800; color:#b45309;">${Number(row.metrics?.inProcessQty || 0)}</td>
                                         <td style="padding:0.55rem; text-align:right;">
                                             <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                                                <button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${Number(row.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
+                                                <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                                    <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${takeInputId}','${Number(row.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
+                                                </span>
                                                 <button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}', null, { routeSeq: ${Number(row.metrics?.routeSeq || 0)} })" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamla</button>
                                             </div>
                                         </td>
@@ -3258,6 +3264,24 @@ const UnitModule = {
             style: 'background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;'
         };
     },
+    createWorkOrderPlanningRow: (order, line, unitId, metrics) => {
+        if (!metrics) return null;
+        const plan = (line?.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
+        const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
+        const targetQty = Math.max(0, Number(line?.targetQty || 0));
+        const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
+        const upcomingQty = Math.max(0, targetQty - takenQty - Number(metrics?.availableQty || 0));
+        return {
+            order,
+            line,
+            metrics,
+            plan: plan && typeof plan === 'object' ? plan : null,
+            takenQty,
+            targetQty,
+            remainingQty,
+            upcomingQty
+        };
+    },
     getWorkOrderPlanningRowsForUnit: (unitId) => {
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
@@ -3266,23 +3290,40 @@ const UnitModule = {
             const status = UnitModule.getWorkOrderComputedStatus(order, txns);
             const lines = Array.isArray(order?.lines) ? order.lines : [];
             lines.forEach(line => {
-                const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
-                if (!metrics) return;
-                const plan = (line.plans && typeof line.plans === 'object') ? line.plans[String(unitId)] : null;
-                const takenQty = Math.max(0, Number(metrics?.inProcessQty || 0) + Number(metrics?.doneQty || 0));
-                const targetQty = Math.max(0, Number(line?.targetQty || 0));
-                const remainingQty = Math.max(0, targetQty - Number(metrics?.doneQty || 0));
-                const upcomingQty = Math.max(0, targetQty - takenQty - Number(metrics?.availableQty || 0));
-                rows.push({
-                    order,
-                    line,
-                    status,
-                    metrics,
-                    plan: plan && typeof plan === 'object' ? plan : null,
-                    takenQty,
-                    targetQty,
-                    remainingQty,
-                    upcomingQty
+                const stationRouteIndexes = UnitModule.getRouteIndexesByUnit(line, unitId);
+                if (!stationRouteIndexes.length) return;
+
+                if (stationRouteIndexes.length === 1) {
+                    const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, unitId, txns);
+                    if (!metrics) return;
+                    const row = UnitModule.createWorkOrderPlanningRow(order, line, unitId, metrics);
+                    if (!row) return;
+                    row.status = status;
+                    rows.push(row);
+                    return;
+                }
+
+                const metricsByStep = stationRouteIndexes
+                    .map((idx) => UnitModule.computeWorkLineRouteMetrics(order, line, idx, txns))
+                    .filter(Boolean);
+                if (!metricsByStep.length) return;
+
+                let selectedMetrics = metricsByStep.filter((m) =>
+                    Number(m?.availableQty || 0) > 0
+                    || Number(m?.inProcessQty || 0) > 0
+                    || Number(m?.doneQty || 0) > 0
+                    || Number(m?.transferPendingQty || 0) > 0
+                );
+                if (!selectedMetrics.length) {
+                    // Keep at least one row so pool visibility is preserved for repeated stations.
+                    selectedMetrics = [metricsByStep[0]];
+                }
+
+                selectedMetrics.forEach((metrics) => {
+                    const row = UnitModule.createWorkOrderPlanningRow(order, line, unitId, metrics);
+                    if (!row) return;
+                    row.status = status;
+                    rows.push(row);
                 });
             });
         });
@@ -3322,7 +3363,7 @@ const UnitModule = {
         await DB.save();
         UI.renderCurrentPage();
     },
-    takeWorkOrderQty: async (workOrderId, lineId, stationId, routeSeq = '') => {
+    takeWorkOrderQty: async (workOrderId, lineId, stationId, routeSeq = '', presetQty = null, options = {}) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
@@ -3331,16 +3372,29 @@ const UnitModule = {
         const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(routeSeq || 0) });
         if (!metrics || metrics.availableQty <= 0) return alert('Alinabilir miktar yok.');
         const suggested = Math.max(1, Math.floor(metrics.availableQty));
-        const raw = prompt(`Kac adet alinsin? (Varsayilan: ${suggested})`, String(suggested));
-        if (raw === null) return;
-        const qty = Number(raw);
+        const skipPrompt = !!(options && options.skipPrompt);
+        let qty = Number(presetQty);
+        if (!skipPrompt) {
+            const raw = prompt(`Kac adet alinsin? (Varsayilan: ${suggested})`, String(suggested));
+            if (raw === null) return;
+            qty = Number(raw);
+        }
         if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
+        if (!Number.isInteger(qty)) return alert('Miktar tam sayi olmali.');
         if (qty > metrics.availableQty) return alert(`Maksimum alinabilir miktar: ${metrics.availableQty}`);
         await UnitModule.addWorkOrderTxn(workOrderId, lineId, stationId, 'TAKE', qty, 'Istasyon devir aldi', {
             routeId: String(metrics?.routeId || ''),
             routeSeq: Number(metrics?.routeSeq || 0),
             processId: String(metrics?.processId || '')
         });
+    },
+    takeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId, routeSeq = '') => {
+        const input = document.getElementById(String(inputId || '').trim());
+        if (!input) return alert('Adet giris kutusu bulunamadi.');
+        const raw = String(input.value || '').trim();
+        if (!raw) return alert('Lutfen teslim alinacak adet giriniz.');
+        const qty = Number(raw);
+        await UnitModule.takeWorkOrderQty(workOrderId, lineId, stationId, routeSeq, qty, { skipPrompt: true });
     },
     completeWorkOrderQty: async (workOrderId, lineId, stationId, presetQty = null, options = {}) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
@@ -4360,6 +4414,9 @@ const UnitModule = {
                                     const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
                                     const completeInputDefault = showDispatchSelection ? dispatchQty : 0;
                                     const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
+                                    const takeInputId = `wo_take_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}_${String(r.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+                                    const takeInputMax = Math.max(1, Math.floor(Number(r.metrics?.availableQty || 0)));
+                                    const takeInputDefault = takeInputMax;
                                     const qtyStatusBlock = `
                                         <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
                                             <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end; font-size:0.69rem; color:#64748b;">
@@ -4431,7 +4488,12 @@ const UnitModule = {
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')">Goruntule</button>
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
-                                                    ${showTakeAction ? `<button class="btn-sm" onclick="UnitModule.takeWorkOrderQty('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>` : ''}
+                                                    ${showTakeAction ? `
+                                                        <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                                            <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                            <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${takeInputId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>
+                                                        </span>
+                                                    ` : ''}
                                                 </div>
                                                 ${completeActionBlock}
                                             </td>

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-01T10:56:36.206Z",
+    "updated_at": "2026-03-31T17:30:57.356Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 636
+    "revision": 610
   },
   "data": {
     "products": [
@@ -3494,7 +3494,57 @@
         "updated_at": "2026-03-23T12:51:17.094Z"
       }
     ],
-    "planningDemands": [],
+    "planningDemands": [
+      {
+        "id": "e3602ce7-96f8-48bd-8a0f-3b0f5c357854",
+        "demandCode": "PLN-000001",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-03-31T17:30:57.355Z",
+        "items": [
+          {
+            "id": "7e117a9d-fa09-4ece-9493-baffc684b613",
+            "itemType": "COMPONENT",
+            "qty": 2,
+            "variantId": "",
+            "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+            "semiFinishedId": "",
+            "familyId": "",
+            "variantCode": "",
+            "componentCode": "PRC-000003",
+            "semiFinishedCode": "",
+            "productGroup": "aluminyum dikme aksesuarları",
+            "productName": "40 lık aluminyum dikme yarıklı tapa",
+            "productCode": "PRC-000003",
+            "montageCardId": "",
+            "montageCardCode": ""
+          }
+        ],
+        "itemType": "COMPONENT",
+        "variantId": "",
+        "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+        "semiFinishedId": "",
+        "familyId": "",
+        "variantCode": "",
+        "componentCode": "PRC-000003",
+        "semiFinishedCode": "",
+        "productGroup": "aluminyum dikme aksesuarları",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
+        "productCode": "PRC-000003",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "qty": 2,
+        "dueDate": "2026-04-03",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "workOrderId": "",
+        "workOrderCode": "",
+        "workOrderIds": [],
+        "workOrderCodes": [],
+        "updated_at": "2026-03-31T17:30:57.355Z"
+      }
+    ],
     "semiFinishedCards": [
       {
         "id": "7073eaeb-80a9-46dd-b18b-b4c76fd57fd7",

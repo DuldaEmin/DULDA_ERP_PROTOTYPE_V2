@@ -13,11 +13,13 @@ const StockModule = {
         operationDraftCode: '',
         operationDraftName: '',
         operationDraftNote: '',
+        depotModalCellsOnly: false,
         depotDraftName: '',
         depotDraftNote: '',
         locationDraftRaf: '',
         locationDraftCell: '',
         locationDraftNote: '',
+        locationDraftEditIndex: -1,
         depotDraftLocations: [],
         depotEditingId: null
     },
@@ -851,11 +853,13 @@ const StockModule = {
     },
 
     resetDepotDraft: () => {
+        StockModule.state.depotModalCellsOnly = false;
         StockModule.state.depotDraftName = '';
         StockModule.state.depotDraftNote = '';
         StockModule.state.locationDraftRaf = '';
         StockModule.state.locationDraftCell = '';
         StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftEditIndex = -1;
         StockModule.state.depotDraftLocations = [];
         StockModule.state.depotEditingId = null;
     },
@@ -879,6 +883,7 @@ const StockModule = {
 
     openDepotCreateModal: () => {
         StockModule.resetDepotDraft();
+        StockModule.state.depotModalCellsOnly = false;
         StockModule.renderDepotModal();
     },
 
@@ -889,10 +894,42 @@ const StockModule = {
             : (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === targetId);
         if (!depot) return;
         StockModule.resetDepotDraft();
+        StockModule.state.depotModalCellsOnly = false;
         StockModule.state.depotEditingId = String(depot.id || '');
         StockModule.state.depotDraftName = String(depot.name || '');
         StockModule.state.depotDraftNote = String(depot.note || '');
         StockModule.state.depotDraftLocations = StockModule.getDepotLocations(depot.id).map((row) => ({
+            id: String(row?.id || ''),
+            rafCode: String(row?.rafCode || '').trim().toUpperCase(),
+            cellCode: String(row?.cellCode || '').trim().toUpperCase(),
+            note: String(row?.note || '')
+        }));
+        StockModule.renderDepotModal();
+    },
+    getNodeLocationScopeId: (node) => {
+        const kind = String(node?.kind || '').trim().toLowerCase();
+        if (kind === 'managed') return String(node?.id || '').trim();
+        if (kind === 'unit') return `unit:${String(node?.id || '').trim()}`;
+        if (kind === 'external') return `external:${String(node?.id || '').trim()}`;
+        return '';
+    },
+    openLocationManagerForSelectedNode: () => {
+        const node = StockModule.getSelectedNode();
+        if (!node || String(node?.key || '') === 'all') {
+            alert('Lutfen once bir depo seciniz.');
+            return;
+        }
+        const scopeId = StockModule.getNodeLocationScopeId(node);
+        if (!scopeId) {
+            alert('Secili depo icin hucre yonetimi acilamadi.');
+            return;
+        }
+        StockModule.resetDepotDraft();
+        StockModule.state.depotModalCellsOnly = true;
+        StockModule.state.depotEditingId = scopeId;
+        StockModule.state.depotDraftName = String(node?.name || '').trim();
+        StockModule.state.depotDraftNote = String(node?.note || '').trim();
+        StockModule.state.depotDraftLocations = StockModule.getDepotLocations(scopeId).map((row) => ({
             id: String(row?.id || ''),
             rafCode: String(row?.rafCode || '').trim().toUpperCase(),
             cellCode: String(row?.cellCode || '').trim().toUpperCase(),
@@ -905,21 +942,64 @@ const StockModule = {
         const rafCode = String(StockModule.state.locationDraftRaf || '').trim().toUpperCase();
         const cellCode = String(StockModule.state.locationDraftCell || '').trim().toUpperCase();
         const note = String(StockModule.state.locationDraftNote || '').trim();
+        const editIndex = Number(StockModule.state.locationDraftEditIndex);
         if (!rafCode || !cellCode) return alert('Raf ve hucre kodu giriniz.');
-        const exists = (StockModule.state.depotDraftLocations || []).some((row) =>
-            String(row?.rafCode || '').trim().toUpperCase() === rafCode
-            && String(row?.cellCode || '').trim().toUpperCase() === cellCode
-        );
+        const exists = (StockModule.state.depotDraftLocations || []).some((row, rowIndex) => {
+            if (Number(editIndex) !== -1 && rowIndex === Number(editIndex)) return false;
+            return String(row?.rafCode || '').trim().toUpperCase() === rafCode
+                && String(row?.cellCode || '').trim().toUpperCase() === cellCode;
+        });
         if (exists) return alert('Bu raf / hucre zaten listede var.');
-        StockModule.state.depotDraftLocations.push({ id: '', rafCode, cellCode, note });
+        if (Number.isInteger(editIndex) && editIndex >= 0 && editIndex < (StockModule.state.depotDraftLocations || []).length) {
+            const current = StockModule.state.depotDraftLocations[editIndex] || {};
+            StockModule.state.depotDraftLocations[editIndex] = {
+                id: String(current?.id || ''),
+                rafCode,
+                cellCode,
+                note
+            };
+        } else {
+            StockModule.state.depotDraftLocations.push({ id: '', rafCode, cellCode, note });
+        }
         StockModule.state.locationDraftRaf = '';
         StockModule.state.locationDraftCell = '';
         StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftEditIndex = -1;
+        StockModule.renderDepotModal();
+    },
+    startEditDraftLocation: (index) => {
+        const rows = StockModule.state.depotDraftLocations || [];
+        const idx = Number(index);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= rows.length) return;
+        const row = rows[idx] || {};
+        StockModule.state.locationDraftRaf = String(row?.rafCode || '').trim().toUpperCase();
+        StockModule.state.locationDraftCell = String(row?.cellCode || '').trim().toUpperCase();
+        StockModule.state.locationDraftNote = String(row?.note || '');
+        StockModule.state.locationDraftEditIndex = idx;
+        StockModule.renderDepotModal();
+    },
+    cancelDraftLocationEdit: () => {
+        StockModule.state.locationDraftRaf = '';
+        StockModule.state.locationDraftCell = '';
+        StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftEditIndex = -1;
         StockModule.renderDepotModal();
     },
 
     removeDraftLocation: (index) => {
-        StockModule.state.depotDraftLocations = (StockModule.state.depotDraftLocations || []).filter((_row, idx) => idx !== Number(index));
+        const idx = Number(index);
+        if (!Number.isInteger(idx) || idx < 0) return;
+        if (!confirm('Bu hucre satiri silinsin mi?')) return;
+        StockModule.state.depotDraftLocations = (StockModule.state.depotDraftLocations || []).filter((_row, rowIndex) => rowIndex !== idx);
+        const editIndex = Number(StockModule.state.locationDraftEditIndex);
+        if (editIndex === idx) {
+            StockModule.state.locationDraftEditIndex = -1;
+            StockModule.state.locationDraftRaf = '';
+            StockModule.state.locationDraftCell = '';
+            StockModule.state.locationDraftNote = '';
+        } else if (editIndex > idx) {
+            StockModule.state.locationDraftEditIndex = editIndex - 1;
+        }
         StockModule.renderDepotModal();
     },
 
@@ -934,7 +1014,12 @@ const StockModule = {
                 <td>${StockModule.escapeHtml(row.cellCode || '-')}</td>
                 <td>${StockModule.escapeHtml(row.note || '-')}</td>
                 <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</td>
-                <td style="text-align:right;"><button class="btn-sm" onclick="StockModule.removeDraftLocation(${index})">sil</button></td>
+                <td style="text-align:right;">
+                    <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                        <button class="btn-sm" onclick="StockModule.startEditDraftLocation(${index})">duzenle</button>
+                        <button class="btn-sm" onclick="StockModule.removeDraftLocation(${index})">sil</button>
+                    </div>
+                </td>
             </tr>
         `).join('');
     },
@@ -942,19 +1027,25 @@ const StockModule = {
     renderDepotModal: () => {
         const editing = !!String(StockModule.state.depotEditingId || '');
         const editingMain = String(StockModule.state.depotEditingId || '') === 'main';
-        Modal.open(editing ? 'Depo Duzenle' : 'Depo Olustur', `
+        const cellsOnly = !!StockModule.state.depotModalCellsOnly;
+        const lockDepotMeta = cellsOnly || editingMain;
+        const editingLocation = Number.isInteger(Number(StockModule.state.locationDraftEditIndex)) && Number(StockModule.state.locationDraftEditIndex) >= 0;
+        const modalTitle = cellsOnly
+            ? `Duzenle / Hucre Ekle - ${StockModule.escapeHtml(StockModule.state.depotDraftName || 'Depo')}`
+            : (editing ? 'Depo Duzenle' : 'Depo Olustur');
+        Modal.open(modalTitle, `
             <div class="stock-modal-form">
-                <div class="stock-modal-title">${editing ? 'Secili depoyu duzenle' : 'Yeni depo tanimi'}</div>
-                <div class="stock-modal-note">${editingMain ? 'Ana depoda ayni pencereden raf / hucre ekleyebilirsin.' : 'Depo adi ve notu gir. Istersen ayni pencerede raf / hucre de ekleyebilirsin.'}</div>
+                <div class="stock-modal-title">${cellsOnly ? 'Bu pencerede sadece hucre tanimlarini yonetirsiniz.' : (editing ? 'Secili depoyu duzenle' : 'Yeni depo tanimi')}</div>
+                <div class="stock-modal-note">${cellsOnly ? 'Depo secimi korunur. Raf / hucre ekleyebilir, duzenleyebilir ve kaydedebilirsiniz.' : (editingMain ? 'Ana depoda ayni pencereden raf / hucre ekleyebilirsin.' : 'Depo adi ve notu gir. Istersen ayni pencerede raf / hucre de ekleyebilirsin.')}</div>
 
                 <div class="stock-modal-grid">
                     <div>
                         <label class="stock-modal-label">Depo adi</label>
-                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: SEVKIYATA GIDECEK URUNLER" ${editingMain ? 'disabled' : ''}>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.depotDraftName)}" oninput="StockModule.setDraftField('depotName', this.value)" placeholder="or: SEVKIYATA GIDECEK URUNLER" ${lockDepotMeta ? 'disabled' : ''}>
                     </div>
                     <div>
                         <label class="stock-modal-label">Not</label>
-                        <textarea class="stock-textarea" oninput="StockModule.setDraftField('depotNote', this.value)" placeholder="or: Merdiven yani alan" ${editingMain ? 'disabled' : ''}>${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
+                        <textarea class="stock-textarea" oninput="StockModule.setDraftField('depotNote', this.value)" placeholder="or: Merdiven yani alan" ${lockDepotMeta ? 'disabled' : ''}>${StockModule.escapeHtml(StockModule.state.depotDraftNote)}</textarea>
                     </div>
                 </div>
 
@@ -975,9 +1066,14 @@ const StockModule = {
                         <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftNote)}" oninput="StockModule.setDraftField('locNote', this.value)" placeholder="opsiyonel">
                     </div>
                     <div class="stock-modal-action">
-                        <button class="btn-primary" onclick="StockModule.addDraftLocation()">hucre ekle +</button>
+                        <button class="btn-primary" onclick="StockModule.addDraftLocation()">${editingLocation ? 'hucreyi guncelle' : 'hucre ekle +'}</button>
                     </div>
                 </div>
+                ${editingLocation ? `
+                    <div style="display:flex; justify-content:flex-end; margin-top:0.5rem;">
+                        <button class="btn-sm" onclick="StockModule.cancelDraftLocationEdit()">duzenlemeyi iptal et</button>
+                    </div>
+                ` : ''}
 
                 <div class="stock-table-card" style="margin-top:0.9rem;">
                     <table>
@@ -995,10 +1091,10 @@ const StockModule = {
                 </div>
 
                 <div class="stock-modal-footer">
-                    ${editing && !editingMain ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
+                    ${editing && !editingMain && !cellsOnly ? `<button class="btn-sm" onclick="StockModule.deleteDepot('${StockModule.escapeHtml(StockModule.state.depotEditingId || '')}')">Sil</button>` : '<div></div>'}
                     <div style="display:flex; gap:0.55rem;">
                         <button class="btn-sm" onclick="StockModule.resetDepotDraft(); Modal.close()">Vazgec</button>
-                        <button class="btn-primary" onclick="StockModule.saveDepotModal()">${editing ? 'Kaydet' : 'Depoyu kaydet'}</button>
+                        <button class="btn-primary" onclick="StockModule.saveDepotModal()">${cellsOnly ? 'Degisiklikleri Kaydet' : (editing ? 'Kaydet' : 'Depoyu kaydet')}</button>
                     </div>
                 </div>
             </div>
@@ -1010,28 +1106,35 @@ const StockModule = {
         const note = String(StockModule.state.depotDraftNote || '').trim();
         const editingId = String(StockModule.state.depotEditingId || '');
         const editingMain = editingId === 'main';
-        if (!name) return alert('Depo adi zorunlu.');
+        const cellsOnly = !!StockModule.state.depotModalCellsOnly;
+        if (!cellsOnly && !name) return alert('Depo adi zorunlu.');
 
-        const duplicateName = (DB.data.data.stockDepots || []).some((row) =>
-            String(row?.id || '') !== editingId
-            && String(row?.name || '').trim().toUpperCase() === name
-            && row?.isActive !== false
-        );
-        if (duplicateName) return alert('Bu isimde bir depo zaten var.');
+        if (!cellsOnly) {
+            const duplicateName = (DB.data.data.stockDepots || []).some((row) =>
+                String(row?.id || '') !== editingId
+                && String(row?.name || '').trim().toUpperCase() === name
+                && row?.isActive !== false
+            );
+            if (duplicateName) return alert('Bu isimde bir depo zaten var.');
+        }
 
         let depotId = editingId;
         const now = new Date().toISOString();
-        if (editingId) {
-            if (!editingMain) {
-                const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === editingId);
-                if (!depot) return;
-                depot.name = name;
-                depot.note = note;
-                depot.isActive = true;
+        if (!cellsOnly) {
+            if (editingId) {
+                if (!editingMain) {
+                    const depot = (DB.data.data.stockDepots || []).find((row) => String(row?.id || '') === editingId);
+                    if (!depot) return;
+                    depot.name = name;
+                    depot.note = note;
+                    depot.isActive = true;
+                }
+            } else {
+                depotId = StockModule.makeDepotId(name);
+                DB.data.data.stockDepots.push({ id: depotId, name, note, isActive: true, created_at: now });
             }
-        } else {
-            depotId = StockModule.makeDepotId(name);
-            DB.data.data.stockDepots.push({ id: depotId, name, note, isActive: true, created_at: now });
+        } else if (!depotId) {
+            return alert('Hucre eklenecek depo secilemedi.');
         }
 
         const nextLocations = (StockModule.state.depotDraftLocations || []).map((row) => ({
@@ -1047,8 +1150,10 @@ const StockModule = {
             .filter((row) => String(row?.depotId || '') !== depotId)
             .concat(nextLocations);
 
-        StockModule.state.selectedKey = `managed:${depotId}`;
-        StockModule.state.topTab = depotId === 'depot_transfer' ? 'transfer' : 'all';
+        if (!cellsOnly) {
+            StockModule.state.selectedKey = `managed:${depotId}`;
+            StockModule.state.topTab = depotId === 'depot_transfer' ? 'transfer' : 'all';
+        }
         await DB.save();
         StockModule.resetDepotDraft();
         Modal.close();
@@ -1359,6 +1464,7 @@ const StockModule = {
         const overview = StockModule.getOverviewSummary();
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
         const topManagedRows = [mainDepot, ...customDepots];
+        const canOpenLocationEditor = String(node?.key || '') !== 'all';
 
         const sidebarHtml = `
             <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
@@ -1398,9 +1504,6 @@ const StockModule = {
                                 <div class="stock-banner-title">${StockModule.escapeHtml(node.name || '-')}</div>
                                 <div class="stock-banner-note">${StockModule.escapeHtml(node.note || '')}</div>
                             </div>
-                            <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
-                                <button class="btn-primary" onclick="StockModule.openDepotCreateModal()">depo ekle +</button>
-                            </div>
                         </div>
                         ${node.kind === 'managed' && managedSummary ? `
                             <div class="stock-banner-meta">
@@ -1419,6 +1522,9 @@ const StockModule = {
                         <div class="stock-section-head">
                             <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
                             <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir.' : 'Arama secili deponun icinde urun adi ve ID koduna gore calisir.'}</div>
+                            <div style="margin-left:auto;">
+                                <button class="btn-sm" onclick="StockModule.openLocationManagerForSelectedNode()" ${canOpenLocationEditor ? '' : 'disabled'} style="${canOpenLocationEditor ? 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;' : 'opacity:0.45; cursor:not-allowed;'}">DUZENLE / HUCRE EKLE</button>
+                            </div>
                         </div>
 
                         <div class="stock-search-grid stock-search-grid-2">

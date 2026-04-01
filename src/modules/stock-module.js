@@ -441,22 +441,82 @@ const StockModule = {
         ];
         return nodes.find((row) => String(row?.key || '') === nodeKey || String(row?.id || '') === nodeId) || null;
     },
+    normalizeStockClass: (value) => {
+        const raw = String(value || '').trim().toUpperCase();
+        if (raw === 'WIP' || raw === 'ISLEMDE') return 'WIP';
+        return 'KULLANILABILIR';
+    },
+    getWorkflowWipRows: () => {
+        if (typeof UnitModule === 'undefined' || !UnitModule || typeof UnitModule.computeWorkLineRouteMetrics !== 'function') return [];
+        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const rows = [];
+        orders.forEach((order) => {
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            lines.forEach((line) => {
+                const routes = Array.isArray(line?.routes) ? line.routes : [];
+                routes.forEach((_route, idx) => {
+                    const metrics = UnitModule.computeWorkLineRouteMetrics(order, line, idx, txns);
+                    if (!metrics) return;
+                    const inProcessQty = Math.max(0, Math.floor(Number(metrics?.inProcessQty || 0)));
+                    if (inProcessQty <= 0) return;
+                    const stationId = String(metrics?.stationId || '').trim();
+                    if (!stationId) return;
+                    const node = StockModule.resolveInventoryNode({ stationId }) || null;
+                    rows.push({
+                        id: `wip_${String(order?.id || '')}_${String(line?.id || '')}_${String(metrics?.routeSeq || idx + 1)}`,
+                        name: String(line?.componentName || order?.productName || '-').trim(),
+                        code: String(line?.componentCode || order?.productCode || '-').trim(),
+                        quantity: inProcessQty,
+                        unit: 'adet',
+                        status: 'ISLEMDE (WIP)',
+                        stockClass: 'WIP',
+                        note: `Is emri: ${String(order?.workOrderCode || '-')} | Rota: ${Number(metrics?.routeSeq || idx + 1)}`,
+                        locationCode: `ROTA-${Number(metrics?.routeSeq || idx + 1)}`,
+                        depotNode: node,
+                        depotName: node?.name || String(metrics?.stationName || stationId || '-')
+                    });
+                });
+            });
+        });
+        const grouped = new Map();
+        rows.forEach((row) => {
+            const key = [
+                String(row?.depotNode?.key || ''),
+                String(row?.code || ''),
+                String(row?.stockClass || ''),
+                String(row?.status || ''),
+                String(row?.locationCode || '')
+            ].join('|');
+            if (!grouped.has(key)) {
+                grouped.set(key, { ...row });
+                return;
+            }
+            const prev = grouped.get(key);
+            prev.quantity = Math.max(0, Math.floor(Number(prev?.quantity || 0)) + Math.floor(Number(row?.quantity || 0)));
+            grouped.set(key, prev);
+        });
+        return Array.from(grouped.values());
+    },
 
     getInventoryRows: () => {
         const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
         const locationMap = new Map((DB.data.data.stockDepotLocations || []).map((row) => [String(row?.id || ''), row]));
-        return (DB.data.data.stockDepotItems || []).map((raw) => {
+        const stockRows = (DB.data.data.stockDepotItems || []).map((raw) => {
             const product = products.find((row) => String(row?.id || '') === String(raw?.productId || '')) || null;
             const node = StockModule.resolveInventoryNode(raw);
             const location = locationMap.get(String(raw?.locationId || '')) || null;
             const quantity = raw?.quantity ?? raw?.qty ?? raw?.amount ?? '';
+            const stockClass = StockModule.normalizeStockClass(raw?.stockClass || raw?.status || 'KULLANILABILIR');
+            const status = String(raw?.status || '').trim() || (stockClass === 'WIP' ? 'ISLEMDE (WIP)' : 'KULLANILABILIR');
             return {
                 id: String(raw?.id || product?.id || ''),
                 name: String(raw?.productName || raw?.name || product?.name || '').trim(),
                 code: String(raw?.productCode || raw?.code || product?.code || '').trim(),
                 quantity,
                 unit: String(raw?.unit || product?.unit || product?.specs?.unit || '').trim(),
-                status: String(raw?.status || '').trim(),
+                status,
+                stockClass,
                 note: String(raw?.note || '').trim(),
                 locationCode: raw?.locationCode
                     ? String(raw.locationCode)
@@ -467,6 +527,7 @@ const StockModule = {
                 depotName: node?.name || String(raw?.depotName || '-')
             };
         });
+        return [...stockRows, ...StockModule.getWorkflowWipRows()];
     },
 
     getFilteredInventoryRows: (node) => {
@@ -475,8 +536,8 @@ const StockModule = {
         const targetKey = String(node?.key || 'all');
         return StockModule.getInventoryRows().filter((row) => {
             if (targetKey !== 'all' && String(row?.depotNode?.key || '') !== targetKey) return false;
-            const hayName = [row?.name, row?.depotName, row?.note].map(StockModule.normalize).join(' ');
-            const hayCode = [row?.code, row?.locationCode].map(StockModule.normalize).join(' ');
+            const hayName = [row?.name, row?.depotName, row?.note, row?.status].map(StockModule.normalize).join(' ');
+            const hayCode = [row?.code, row?.locationCode, row?.stockClass].map(StockModule.normalize).join(' ');
             return (!qName || hayName.includes(qName)) && (!qCode || hayCode.includes(qCode));
         });
     },
@@ -1012,43 +1073,64 @@ const StockModule = {
             </div>
         `;
     },
-
     renderInventoryGroups: (node) => {
         const groups = StockModule.getInventoryGroups(node);
         if (groups.length === 0 || groups.every((group) => group.rows.length === 0)) {
             return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
         }
-        return groups.map((group) => `
-            <div class="stock-group-card">
-                ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
-                <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'};">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="text-align:left;">Urun adi</th>
-                                <th style="text-align:left;">ID kodu</th>
-                                <th style="text-align:left;">Detay</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${group.rows.map((row) => {
-            const detail = [];
-            if (row.locationCode) detail.push(`Konum: ${row.locationCode}`);
-            if (row.quantity !== '' && row.quantity !== null && row.quantity !== undefined) detail.push(`Miktar: ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`);
-            if (row.status) detail.push(`Durum: ${row.status}`);
+        const renderRows = (rows, emptyMessage) => {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return `<tr><td colspan="3" style="padding:0.85rem; color:#94a3b8; text-align:center;">${StockModule.escapeHtml(emptyMessage || 'Kayit yok.')}</td></tr>`;
+            }
+            return rows.map((row) => {
+                const detail = [];
+                if (row.locationCode) detail.push(`Konum: ${row.locationCode}`);
+                if (row.quantity !== '' && row.quantity !== null && row.quantity !== undefined) detail.push(`Miktar: ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`);
+                if (row.status) detail.push(`Durum: ${row.status}`);
+                return `
+                    <tr>
+                        <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
+                        <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
+                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' | ') || 'Detay daha sonra zenginlestirilecek.')}</td>
+                    </tr>
+                `;
+            }).join('');
+        };
+        return groups.map((group) => {
+            const rows = Array.isArray(group?.rows) ? group.rows : [];
+            const usableRows = rows.filter((row) => String(row?.stockClass || 'KULLANILABILIR') !== 'WIP');
+            const wipRows = rows.filter((row) => String(row?.stockClass || '') === 'WIP');
             return `
-                                    <tr>
-                                        <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
-                                        <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
-                                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' • ') || 'Detay daha sonra zenginlestirilecek.')}</td>
-                                    </tr>
-                                `;
-        }).join('')}
-                        </tbody>
-                    </table>
+                <div class="stock-group-card">
+                    ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
+                    <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'}; padding:0.75rem;">
+                        <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">KULLANILABILIR STOK</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">Urun adi</th>
+                                    <th style="text-align:left;">ID kodu</th>
+                                    <th style="text-align:left;">Detay</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderRows(usableRows, 'Kullanilabilir stok kaydi yok.')}</tbody>
+                        </table>
+                        <div style="height:10px;"></div>
+                        <div style="font-size:0.78rem; font-weight:800; color:#9a3412; margin-bottom:0.35rem;">ISLEMDE / WIP</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="text-align:left;">Urun adi</th>
+                                    <th style="text-align:left;">ID kodu</th>
+                                    <th style="text-align:left;">Detay</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderRows(wipRows, 'Islemde (WIP) kaydi yok.')}</tbody>
+                        </table>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     },
 
     renderLocationsCard: (node) => {

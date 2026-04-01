@@ -2092,12 +2092,21 @@ const UnitModule = {
             gap:14px;
             margin-bottom:12px;
             background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);
+            position:relative;
         }
         .brand-wrap {
             display:flex;
             align-items:center;
             gap:12px;
             min-width:0;
+        }
+        .title-wrap {
+            position:absolute;
+            left:50%;
+            top:50%;
+            transform:translate(-50%, -50%);
+            text-align:center;
+            z-index:1;
         }
         .brand-logo {
             width:300px;

@@ -17,7 +17,8 @@ const PlanningModule = {
         planningPoolRowsByDemand: {},
         planningPoolBuildTokenByDemand: {},
         releasedExpandedDemandId: '',
-        releasedExpandedItemByDemand: {}
+        releasedExpandedItemByDemand: {},
+        releasedArchiveMode: false
     },
 
     blueprints: {
@@ -1088,10 +1089,17 @@ const PlanningModule = {
         if (PlanningModule.state.workspaceView !== 'released-orders') {
             PlanningModule.state.releasedExpandedDemandId = '';
             PlanningModule.state.releasedExpandedItemByDemand = {};
+            PlanningModule.state.releasedArchiveMode = false;
         }
         if (PlanningModule.state.workspaceView === 'stock-production' && !PlanningModule.state.stockDraftDueDate) {
             PlanningModule.resetStockDraft();
         }
+        UI.renderCurrentPage();
+    },
+    setReleasedArchiveMode: (enabled) => {
+        PlanningModule.state.releasedArchiveMode = !!enabled;
+        PlanningModule.state.releasedExpandedDemandId = '';
+        PlanningModule.state.releasedExpandedItemByDemand = {};
         UI.renderCurrentPage();
     },
 
@@ -2449,8 +2457,11 @@ const PlanningModule = {
             return {
                 targetQty,
                 finalDoneQty: targetQty,
+                finalStoredQty: targetQty,
                 remainingQty: 0,
+                storageRemainingQty: 0,
                 isFinished: true,
+                isStored: true,
                 currentStationName: 'Montaji bekliyor',
                 completedStationCount: 0,
                 routeCount: 0,
@@ -2467,7 +2478,9 @@ const PlanningModule = {
             const isFinalStep = index === routes.length - 1;
             const doneRaw = PlanningModule.getWorkTxnQtyByKey(txns, order?.id, line?.id, stationId, 'COMPLETE');
             const takenRaw = PlanningModule.getWorkTxnQtyByKey(txns, order?.id, line?.id, stationId, 'TAKE');
+            const storedRaw = isFinalStep ? PlanningModule.getWorkTxnQtyByKey(txns, order?.id, line?.id, stationId, 'STORE') : 0;
             const takenQty = PlanningModule.parseQty(takenRaw, 0);
+            const storedQty = isFinalStep ? Math.min(inputQty, PlanningModule.parseQty(storedRaw, 0)) : 0;
             const completeQty = Math.min(inputQty, PlanningModule.parseQty(doneRaw, 0));
             const doneQty = (isFinalStep && PlanningModule.isDepotTransferStation(stationId))
                 ? Math.min(inputQty, Math.max(completeQty, takenQty))
@@ -2479,7 +2492,8 @@ const PlanningModule = {
                 processId: String(route?.processId || '').trim().toUpperCase(),
                 inputQty,
                 doneQty,
-                takenQty
+                takenQty,
+                storedQty
             });
         });
 
@@ -2522,14 +2536,20 @@ const PlanningModule = {
             });
         const stationLoadLabel = stationLoads.map((row) => `${String(row?.stationName || '-')}: ${PlanningModule.parseQty(row?.qty, 0)}`).join(' | ');
         const finalDoneQty = PlanningModule.parseQty(baseSteps[baseSteps.length - 1]?.doneQty, 0);
+        const finalStoredQty = PlanningModule.parseQty(baseSteps[baseSteps.length - 1]?.storedQty, 0);
         const remainingQty = Math.max(0, targetQty - finalDoneQty);
+        const storageRemainingQty = Math.max(0, targetQty - finalStoredQty);
+        const isStored = finalStoredQty >= targetQty;
         return {
             targetQty,
             finalDoneQty: Math.min(targetQty, finalDoneQty),
+            finalStoredQty: Math.min(targetQty, finalStoredQty),
             remainingQty,
+            storageRemainingQty,
             isFinished: isFinished || remainingQty <= 0,
+            isStored,
             currentStationName: isFinished
-                ? 'Montaji bekliyor'
+                ? (isStored ? 'Montaji bekliyor' : 'Depoya alinmayi bekliyor')
                 : (stationLoadLabel || String(baseSteps[currentIdx]?.stationName || '-')),
             completedStationCount: isFinished ? steps.length : currentIdx,
             routeCount: steps.length,
@@ -2603,8 +2623,11 @@ const PlanningModule = {
                     componentName: String(line?.componentName || order?.productName || '-'),
                     targetQty: PlanningModule.parseQty(line?.targetQty, 0),
                     doneQty: PlanningModule.parseQty(progress?.finalDoneQty, 0),
+                    storedQty: PlanningModule.parseQty(progress?.finalStoredQty, 0),
                     remainingQty: PlanningModule.parseQty(progress?.remainingQty, 0),
+                    storageRemainingQty: PlanningModule.parseQty(progress?.storageRemainingQty, 0),
                     isFinished: !!progress?.isFinished,
+                    isStored: !!progress?.isStored,
                     currentStationName: String(progress?.currentStationName || '-'),
                     completedStationCount: PlanningModule.parseQty(progress?.completedStationCount, 0),
                     routeCount: PlanningModule.parseQty(progress?.routeCount, 0),
@@ -2619,8 +2642,11 @@ const PlanningModule = {
             .map((group) => {
                 const totalTargetQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.targetQty, 0), 0);
                 const totalDoneQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.doneQty, 0), 0);
+                const totalStoredQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.storedQty, 0), 0);
                 const totalRemainingQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.remainingQty, 0), 0);
+                const totalStorageRemainingQty = group.lines.reduce((sum, line) => sum + PlanningModule.parseQty(line?.storageRemainingQty, 0), 0);
                 const isFinished = group.lines.every((line) => !!line?.isFinished);
+                const isStored = group.lines.every((line) => !!line?.isStored);
                 const stationLoadMap = new Map();
                 group.lines.forEach((line) => {
                     const loads = Array.isArray(line?.stationLoads) ? line.stationLoads : [];
@@ -2650,8 +2676,11 @@ const PlanningModule = {
                     ...group,
                     totalTargetQty,
                     totalDoneQty,
+                    totalStoredQty,
                     totalRemainingQty,
+                    totalStorageRemainingQty,
                     isFinished,
+                    isStored,
                     activeStations,
                     activeStationLoads
                 };
@@ -2668,20 +2697,40 @@ const PlanningModule = {
         if (!Array.isArray(groups) || !groups.length) {
             return {
                 done: false,
+                finished: false,
+                stored: false,
+                archived: false,
                 label: 'Rota bilgisi yok',
                 style: 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;'
             };
         }
-        const done = groups.every((group) => !!group?.isFinished);
-        if (done) {
+        const finished = groups.every((group) => !!group?.isFinished);
+        const stored = groups.every((group) => !!group?.isStored);
+        if (finished && stored) {
             return {
                 done: true,
-                label: 'Bitti / montaji bekliyor',
-                style: 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
+                finished: true,
+                stored: true,
+                archived: true,
+                label: 'Arsivde / depoya alindi',
+                style: 'background:#ecfdf5; color:#047857; border:1px solid #86efac;'
+            };
+        }
+        if (finished && !stored) {
+            return {
+                done: false,
+                finished: true,
+                stored: false,
+                archived: false,
+                label: 'Bitti / depoya al bekliyor',
+                style: 'background:#fff7ed; color:#b45309; border:1px solid #fed7aa;'
             };
         }
         return {
             done: false,
+            finished: false,
+            stored: false,
+            archived: false,
             label: 'Uretim devam ediyor',
             style: 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;'
         };
@@ -2746,12 +2795,16 @@ const PlanningModule = {
             const lines = Array.isArray(group?.lines) ? group.lines : [];
             if (!lines.length) return `<tr><td colspan="7" style="padding:0.8rem; text-align:center; color:#94a3b8;">Bu kalem icin takip satiri bulunamadi.</td></tr>`;
             return lines.map((line) => {
-                const statusBadgeStyle = line?.isFinished
+                const statusBadgeStyle = line?.isStored
                     ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
-                    : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;';
-                const statusBadgeLabel = line?.isFinished ? 'Bitti / montaj bekliyor' : 'Uretimde';
+                    : (line?.isFinished
+                        ? 'background:#fff7ed; color:#b45309; border:1px solid #fed7aa;'
+                        : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;');
+                const statusBadgeLabel = line?.isStored
+                    ? 'Depoya alindi'
+                    : (line?.isFinished ? 'Bitti / depoya al bekliyor' : 'Uretimde');
                 return `
-                    <tr style="border-bottom:1px solid #f1f5f9; ${line?.isFinished ? 'background:#f8fffb;' : 'background:#fffef8;'}">
+                    <tr style="border-bottom:1px solid #f1f5f9; ${line?.isStored ? 'background:#f8fffb;' : (line?.isFinished ? 'background:#fffaf3;' : 'background:#fffef8;')}">
                         <td style="padding:0.5rem; font-family:monospace; color:#334155;">${PlanningModule.escapeHtml(String(line?.workOrderCode || '-'))}</td>
                         <td style="padding:0.5rem;">
                             <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(String(line?.componentName || '-'))}</div>
@@ -2769,22 +2822,26 @@ const PlanningModule = {
 
         const groupsHtml = groups.length
             ? groups.map((group, index) => {
-                const groupStatusStyle = group?.isFinished
+                const groupStatusStyle = group?.isStored
                     ? 'background:#ecfdf5; color:#047857; border:1px solid #a7f3d0;'
-                    : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;';
-                const stationText = group?.isFinished
-                    ? 'Montaji bekliyor'
-                    : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(' | ') : 'Istasyon bekliyor');
+                    : (group?.isFinished
+                        ? 'background:#fff7ed; color:#b45309; border:1px solid #fed7aa;'
+                        : 'background:#fee2e2; color:#b91c1c; border:1px solid #fecaca;');
+                const stationText = group?.isStored
+                    ? 'Birim arsivinde'
+                    : (group?.isFinished
+                        ? `Depoya alinmayi bekliyor (${PlanningModule.parseQty(group?.totalStorageRemainingQty, 0)} adet)`
+                        : (Array.isArray(group?.activeStations) && group.activeStations.length ? group.activeStations.join(' | ') : 'Istasyon bekliyor'));
                 return `
-                    <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:2px solid ${group?.isFinished ? '#86efac' : '#fca5a5'}; border-radius:0.8rem; background:${group?.isFinished ? '#f0fdf4' : '#fff7f7'};">
+                    <div style="margin-top:${index === 0 ? '0.65rem' : '0.75rem'}; border:2px solid ${group?.isStored ? '#86efac' : (group?.isFinished ? '#fdba74' : '#fca5a5')}; border-radius:0.8rem; background:${group?.isStored ? '#f0fdf4' : (group?.isFinished ? '#fffbeb' : '#fff7f7')};">
                         <div style="padding:0.55rem 0.7rem; display:flex; justify-content:space-between; align-items:center; gap:0.55rem; flex-wrap:wrap; border-bottom:1px solid #e2e8f0;">
                             <div>
                                 <div style="font-weight:800; color:#1e293b;">${PlanningModule.escapeHtml(String(group?.itemName || '-'))} <span style="font-family:monospace; color:#1d4ed8;">- ${PlanningModule.escapeHtml(String(group?.itemQty || 0))} ADET</span></div>
                                 <div style="margin-top:0.12rem; font-size:0.74rem; color:#1d4ed8; font-family:monospace;">${PlanningModule.renderLiveCodeButton(String(group?.itemCode || ''))} / ${PlanningModule.escapeHtml(PlanningModule.getItemTypeLabel(group?.itemType || 'MODEL'))}</div>
                             </div>
-                            <span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${groupStatusStyle}">${group?.isFinished ? 'Bitti' : 'Bitmedi'}</span>
+                            <span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${groupStatusStyle}">${group?.isStored ? 'Arsivde' : (group?.isFinished ? 'Depoya al bekliyor' : 'Bitmedi')}</span>
                         </div>
-                        <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Adet dagilimi: <strong style="color:${group?.isFinished ? '#047857' : '#b91c1c'};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong></div>
+                        <div style="padding:0.45rem 0.7rem; font-size:0.78rem; color:#475569;">Adet dagilimi: <strong style="color:${group?.isStored ? '#047857' : (group?.isFinished ? '#b45309' : '#b91c1c')};">${PlanningModule.escapeHtml(stationText)}</strong> | Kalan toplam: <strong>${PlanningModule.escapeHtml(String(group?.totalRemainingQty || 0))}</strong> | Depoya alinacak: <strong>${PlanningModule.escapeHtml(String(group?.totalStorageRemainingQty || 0))}</strong></div>
                         <div style="padding:0 0.7rem 0.75rem 0.7rem;">
                             <div class="card-table" style="margin-top:0.25rem;">
                                 <table style="width:100%; border-collapse:collapse;">
@@ -2835,15 +2892,19 @@ const PlanningModule = {
             const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups);
             return { demand, groups, statusMeta };
         });
-        const doneCount = trackingRows.filter((entry) => entry.statusMeta.done).length;
-        const inProgressCount = Math.max(0, trackingRows.length - doneCount);
-        const totalQty = rows.reduce((sum, row) => sum + PlanningModule.getDemandQtyForDisplay(row), 0);
+        const archiveRows = trackingRows.filter((entry) => !!entry?.statusMeta?.archived);
+        const activeRows = trackingRows.filter((entry) => !entry?.statusMeta?.archived);
+        const showArchive = !!PlanningModule.state.releasedArchiveMode;
+        const visibleRows = showArchive ? archiveRows : activeRows;
+        const doneCount = visibleRows.filter((entry) => entry.statusMeta.done).length;
+        const inProgressCount = Math.max(0, visibleRows.length - doneCount);
+        const totalQty = visibleRows.reduce((sum, entry) => sum + PlanningModule.getDemandQtyForDisplay(entry?.demand), 0);
 
         const renderTrackingRows = () => {
-            if (!trackingRows.length) {
-                return `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Henuz planlamadan is emrine donusen kayit yok.</td></tr>`;
+            if (!visibleRows.length) {
+                return `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">${showArchive ? 'Birim arsivinde kayit yok.' : 'Henuz planlamadan is emrine donusen aktif kayit yok.'}</td></tr>`;
             }
-            return trackingRows.map((entry) => {
+            return visibleRows.map((entry) => {
                 const demand = entry.demand;
                 const demandId = String(demand?.id || '');
                 const groups = entry.groups;
@@ -2854,7 +2915,7 @@ const PlanningModule = {
                 const lineCount = groups.reduce((sum, group) => sum + (Array.isArray(group?.lines) ? group.lines.length : 0), 0);
 
                 return `
-                    <tr style="border-bottom:2px solid #cbd5e1; background:${statusMeta.done ? '#f8fffb' : '#fffef8'};">
+                    <tr style="border-bottom:2px solid #cbd5e1; background:${showArchive ? '#f0fdf4' : (statusMeta.done ? '#f8fffb' : '#fffef8')};">
                         <td style="padding:0.6rem;">
                             <div><button class="btn-sm" style="padding:0.12rem 0.5rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;" onclick="PlanningModule.openReleasedDemandTrackingModal('${PlanningModule.escapeJsString(demandId)}')">${PlanningModule.escapeHtml(String(demand?.demandCode || '-'))}</button></div>
                             <div style="font-size:0.75rem; color:#64748b;">${PlanningModule.escapeHtml(String(demand?.sourceLabel || 'Stok Uretimi'))}</div>
@@ -2883,16 +2944,20 @@ const PlanningModule = {
                 <div style="background:rgba(255,255,255,0.72); border:2px solid #94a3b8; border-radius:1.8rem; padding:1.2rem;">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.85rem; margin-bottom:0.85rem; flex-wrap:wrap;">
                         <div>
-                            <h2 class="page-title" style="margin:0;">planlama / is emrine donusenler</h2>
-                            <div style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">Bu ekran siparis ve stok taleplerinin uretim izleme panelidir. Talep satirina tiklayip kalem kalem rota durumunu gorebilirsin.</div>
+                            <h2 class="page-title" style="margin:0;">${showArchive ? 'planlama / birim arsivi' : 'planlama / is emrine donusenler'}</h2>
+                            <div style="font-size:0.85rem; color:#64748b; margin-top:0.2rem;">${showArchive ? 'Tum islemleri tamamlanip depoya alinan talepler bu listede arsivlenir.' : 'Bu ekran siparis ve stok taleplerinin uretim izleme panelidir. Talep satirina tiklayip kalem kalem rota durumunu gorebilirsin.'}</div>
                         </div>
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                            ${showArchive
+                ? `<button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(false)" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">aktif liste (${activeRows.length})</button>`
+                : `<button class="btn-sm" onclick="PlanningModule.setReleasedArchiveMode(true)" style="border-color:#86efac; color:#047857; background:#ecfdf5; font-weight:700;">birim arsivi (${archiveRows.length})</button>`
+            }
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('planning-pool')">planlama havuzu</button>
                             <button class="btn-sm" onclick="PlanningModule.openWorkspace('menu')">geri</button>
                         </div>
                     </div>
                     <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.65rem; margin-bottom:0.9rem;">
-                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Talep kaydi</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${trackingRows.length}</div></div>
+                        <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Talep kaydi</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${visibleRows.length}</div></div>
                         <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam adet</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(totalQty))}</div></div>
                         <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Biten talep</div><div style="font-size:1.05rem; font-weight:800; color:#047857;">${doneCount}</div></div>
                         <div style="background:#ffffff; border:2px solid #cbd5e1; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Devam eden talep</div><div style="font-size:1.05rem; font-weight:800; color:#b91c1c;">${inProgressCount}</div></div>

@@ -662,7 +662,7 @@ tr:hover {
     font-size: 0.72rem;
     font-weight: 800;
     color: #6f8096;
-    text-transform: uppercase;
+    text-transform: none;
 }
 
 .stock-side-list {

@@ -91,8 +91,8 @@ const StockModule = {
     managedDepotSeed: [
         { id: 'depot_transfer', name: 'TRANSFER DEPO', note: 'Atolyeler arasinda bekleyen ve yonlendirilecek urunler burada gorunur.' },
         { id: 'depot_granul', name: 'GRANUL DEPO', note: 'Hammadde ve granul icin ayrilan fiziksel alan.' },
-        { id: 'depot_profil', name: 'PROFIL DEPO', note: 'Profil ve uzun malzemeler icin ayrilan fiziksel alan.' },
-        { id: 'depot_mafsal', name: 'MAFSAL DEPO', note: 'Mafsal ve benzeri yarimamul / bitmis unsur alanlari.' }
+        { id: 'depot_profil', name: 'SEVKIYAT DEPO', note: 'Sevke hazir urunlerin toplandigi fiziksel alan.' },
+        { id: 'depot_mafsal', name: 'HURDA DEPO', note: 'Hurda, fire ve ayrilan malzemeler icin izleme alani.' }
     ],
 
     escapeHtml: (value) => String(value ?? '')
@@ -235,6 +235,15 @@ const StockModule = {
                 row.name = seed.name;
                 changed = true;
             }
+            const legacyName = String(row.name || '').trim().toUpperCase();
+            if (String(seed.id) === 'depot_profil' && legacyName === 'PROFIL DEPO') {
+                row.name = seed.name;
+                changed = true;
+            }
+            if (String(seed.id) === 'depot_mafsal' && legacyName === 'MAFSAL DEPO') {
+                row.name = seed.name;
+                changed = true;
+            }
             if (!row.note) {
                 row.note = seed.note;
                 changed = true;
@@ -323,7 +332,7 @@ const StockModule = {
     },
 
     getCustomDepots: () => {
-        const order = ['depot_transfer', 'depot_granul', 'depot_profil', 'depot_mafsal'];
+        const order = ['depot_granul', 'depot_profil', 'depot_mafsal', 'depot_transfer'];
         const rows = (DB.data.data.stockDepots || [])
             .filter((row) => row?.isActive !== false)
             .map((row) => ({
@@ -1054,6 +1063,7 @@ const StockModule = {
 
     renderSidebarSection: (title, items, options = {}) => {
         const canEdit = !!options.canEdit;
+        const showInlineEdit = false;
         if (items.length === 0) return '';
         return `
             <div class="stock-side-group">
@@ -1061,7 +1071,7 @@ const StockModule = {
                 <div class="stock-side-list">
                     ${items.map((item) => {
             const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
-            const rowCanEdit = canEdit && item?.editable === true;
+            const rowCanEdit = showInlineEdit && canEdit && item?.editable === true;
             return `
                             <div class="stock-side-row${rowCanEdit ? ' with-edit' : ''}">
                                 <button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button>
@@ -1335,23 +1345,24 @@ const StockModule = {
         const node = StockModule.getSelectedNode();
         const mainDepot = StockModule.getMainDepot();
         const customDepots = StockModule.getCustomDepots();
-        const transferDepot = customDepots.find((row) => String(row?.id || '') === 'depot_transfer') || null;
-        const userDepots = customDepots.filter((row) => String(row?.id || '') !== 'depot_transfer');
         const unitDepots = StockModule.getUnitRowsMeta();
-        const workshopDepots = transferDepot ? [transferDepot, ...unitDepots] : unitDepots;
         const externalDepots = StockModule.getExternalRowsMeta();
         const overview = StockModule.getOverviewSummary();
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
+        const topManagedRows = [mainDepot, ...customDepots];
 
-        const customDepotSection = `
-            ${StockModule.renderSidebarSection('Kullanici depolari', userDepots, { canEdit: true })}
-            <div class="stock-side-row"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add">depo ekle +</button></div>
-        `;
         const sidebarHtml = `
             <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
-            ${StockModule.renderSidebarSection('Ana depo', [mainDepot], { canEdit: true })}
-            ${customDepotSection}
-            ${StockModule.renderSidebarSection('Birim / atolye depolari', workshopDepots, { canEdit: true })}
+            <div style="height:0.45rem;"></div>
+            <div class="stock-side-list">
+                ${topManagedRows.map((item) => {
+            const selected = String(StockModule.state.selectedKey || '') === String(item.key || '');
+            return `<div class="stock-side-row"><button onclick="StockModule.selectNode('${StockModule.escapeHtml(item.key || '')}')" class="stock-side-btn${selected ? ' active' : ''}">${StockModule.escapeHtml(item.name || '-')}</button></div>`;
+        }).join('')}
+            </div>
+            <div class="stock-side-row" style="margin-top:0.45rem;"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add" style="text-align:center;">Depo Olustur +</button></div>
+            <div style="height:1px; background:#cbd5e1; margin:0.85rem 0;"></div>
+            ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots, { canEdit: false })}
             ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
         `;
 

@@ -1609,11 +1609,16 @@ const UnitModule = {
             ].join(' ').toLowerCase();
             return hay.includes(search);
         });
-        const waitingRows = rows.filter(row => Number(row.metrics?.availableQty || 0) > 0 || Number(row.metrics?.inProcessQty || 0) > 0);
-        const nextRows = rows.filter(row => Number(row.metrics?.doneQty || 0) > 0);
+        const waitingRows = rows.filter((row) =>
+            Number(row.metrics?.availableQty || 0) > 0
+            || Number(row.metrics?.inProcessQty || 0) > 0
+            || Number(row.metrics?.depotPendingQty || 0) > 0
+        );
+        const transferReadyRows = rows.filter((row) => Number(row.metrics?.transferPendingQty || 0) > 0);
+        const storedStockRows = UnitModule.getUnitDepotStockRows(unitId);
         const waitingQty = rows.reduce((sum, row) => sum + Number(row.metrics?.availableQty || 0), 0);
         const inProcessQty = rows.reduce((sum, row) => sum + Number(row.metrics?.inProcessQty || 0), 0);
-        const readyQty = rows.reduce((sum, row) => sum + Number(row.metrics?.doneQty || 0), 0);
+        const storedQty = storedStockRows.reduce((sum, row) => sum + Number(row?.quantity || 0), 0);
         const renderRouteLabel = (row) => {
             const processName = UnitModule.getRouteProcessName(row?.metrics?.stationId, row?.metrics?.processId);
             return `
@@ -1633,7 +1638,7 @@ const UnitModule = {
                             <h2 class="page-title" style="margin:0; display:flex; align-items:center; gap:0.45rem;">
                                 <i data-lucide="warehouse" color="#059669"></i> ${UnitModule.escapeHtml(unit.name || '-')} - Birim Deposu
                             </h2>
-                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri goruntule, isleme al ve tamamlananlari sonraki rotaya hazir tut.</div>
+                            <div style="font-size:0.82rem; color:#64748b;">Bekleyen urunleri goruntule, isleme al ve final adimda depoya al.</div>
                         </div>
                     </div>
                     <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
@@ -1644,11 +1649,11 @@ const UnitModule = {
                 <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Bekleyen adet</div><div style="font-size:1.15rem; font-weight:800; color:#0f172a;">${waitingQty}</div></div>
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Islemde adet</div><div style="font-size:1.15rem; font-weight:800; color:#b45309;">${inProcessQty}</div></div>
-                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Sonraki rotaya hazir</div><div style="font-size:1.15rem; font-weight:800; color:#047857;">${readyQty}</div></div>
+                    <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem 0.9rem;"><div style="font-size:0.74rem; color:#64748b;">Birim stokta</div><div style="font-size:1.15rem; font-weight:800; color:#047857;">${storedQty}</div></div>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
-                    <div style="font-size:0.83rem; color:#64748b;">Bu ekranda urun once <strong>Bekleyen</strong>e duser, sonra <strong>Isleme Al</strong>, sonra <strong>Tamamla</strong> ile sonraki rotaya hazir olur.</div>
+                    <div style="font-size:0.83rem; color:#64748b;">Bu ekranda urun once <strong>Bekleyen</strong>e duser, sonra <strong>Isleme Al</strong>. Son adimdaysa <strong>Depoya Al</strong>, degilse <strong>Tamamla</strong> ile sonraki rotaya gider.</div>
                     <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya rota ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                 </div>
 
@@ -1675,10 +1680,24 @@ const UnitModule = {
                             <tbody>
                                 ${waitingRows.length === 0 ? `<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Bekleyen veya islemde kayit yok.</td></tr>` : waitingRows.map(row => {
             const canTake = Number(row.metrics?.availableQty || 0) > 0;
+            const hasNextRoute = !!String(row?.metrics?.nextStationId || '').trim();
+            const isFinalStep = !hasNextRoute;
+            const depotPendingQty = Math.max(0, Number(row.metrics?.depotPendingQty || 0));
             const canComplete = Number(row.metrics?.inProcessQty || 0) > 0;
+            const canStoreFinal = isFinalStep && (Number(row.metrics?.inProcessQty || 0) > 0 || depotPendingQty > 0);
             const takeInputId = `wo_wait_take_qty_${String(row.order?.id || '')}_${String(row.line?.id || '')}_${String(row.metrics?.stationId || '')}_${String(row.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
             const takeInputMax = Math.max(1, Math.floor(Number(row.metrics?.availableQty || 0)));
             const takeInputDefault = takeInputMax;
+            const completeInputId = `wo_wait_complete_qty_${String(row.order?.id || '')}_${String(row.line?.id || '')}_${String(row.metrics?.stationId || '')}_${String(row.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const completeInputMax = Math.max(1, Math.floor(isFinalStep
+                ? (Number(row.metrics?.inProcessQty || 0) + depotPendingQty)
+                : Number(row.metrics?.inProcessQty || 0)));
+            const completeInputDefault = completeInputMax;
+            const completionActionLabel = isFinalStep ? 'Depoya Al' : 'Tamamla';
+            const completionActionHandler = isFinalStep
+                ? `UnitModule.storeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${completeInputId}','${Number(row.metrics?.routeSeq || 0)}')`
+                : `UnitModule.completeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${completeInputId}','${Number(row.metrics?.routeSeq || 0)}')`;
+            const canCompletionAction = isFinalStep ? canStoreFinal : canComplete;
             return `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
                                         <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
@@ -1693,7 +1712,10 @@ const UnitModule = {
                                                     <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
                                                     <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${row.order.id}','${row.line.id}','${row.metrics.stationId}','${takeInputId}','${Number(row.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Isleme Al</button>
                                                 </span>
-                                                <button class="btn-sm" onclick="UnitModule.completeWorkOrderQty('${row.order.id}','${row.line.id}','${row.metrics.stationId}', null, { routeSeq: ${Number(row.metrics?.routeSeq || 0)} })" ${canComplete ? '' : 'disabled'} style="${canComplete ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">Tamamla</button>
+                                                <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                                    <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${canCompletionAction ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                    <button class="btn-sm" onclick="${completionActionHandler}" ${canCompletionAction ? '' : 'disabled'} style="${canCompletionAction ? 'border-color:#bbf7d0; color:#047857; background:#ecfdf5;' : 'opacity:0.45; cursor:not-allowed;'}">${completionActionLabel}</button>
+                                                </span>
                                             </div>
                                         </td>
                                     </tr>
@@ -1707,31 +1729,30 @@ const UnitModule = {
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.95rem;">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; margin-bottom:0.75rem; flex-wrap:wrap;">
                         <div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Sonraki Rotaya Verilecekler</div>
-                            <div style="font-size:0.8rem; color:#64748b;">Bu istasyonda tamamlanan ve sonraki adima hazir olan urunler.</div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a;">Birim Stok Deposu</div>
+                            <div style="font-size:0.8rem; color:#64748b;">Son adimda depoya alinan urunler bu listede gorunur.</div>
                         </div>
+                        <div style="font-size:0.76rem; color:#64748b;">Sonraki rotaya devir bekleyen: <strong style="color:#334155;">${transferReadyRows.length}</strong> satir</div>
                     </div>
                     <div class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
                             <thead>
                                 <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
-                                    <th style="padding:0.55rem; text-align:left;">Is emri</th>
                                     <th style="padding:0.55rem; text-align:left;">Urun</th>
-                                    <th style="padding:0.55rem; text-align:left;">Bilesen</th>
-                                    <th style="padding:0.55rem; text-align:center;">Hazir adet</th>
-                                    <th style="padding:0.55rem; text-align:left;">Sonraki rota</th>
+                                    <th style="padding:0.55rem; text-align:left;">ID Kod</th>
+                                    <th style="padding:0.55rem; text-align:center;">Adet</th>
+                                    <th style="padding:0.55rem; text-align:left;">Birim</th>
                                     <th style="padding:0.55rem; text-align:left;">Not</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${nextRows.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Sonraki rotaya hazir kayit yok.</td></tr>` : nextRows.map(row => `
+                                ${storedStockRows.length === 0 ? `<tr><td colspan="5" style="padding:1rem; text-align:center; color:#94a3b8;">Birim stok deposunda kayit yok.</td></tr>` : storedStockRows.map(row => `
                                     <tr style="border-bottom:1px solid #f1f5f9;">
-                                        <td style="padding:0.55rem;"><div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(row.order?.workOrderCode || '-')}</div><div style="font-family:monospace; font-size:0.74rem; color:#64748b;">${UnitModule.escapeHtml(row.line?.lineCode || '-')}</div></td>
-                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.order?.productName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.order?.productCode || '-')}</div></td>
-                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.line?.componentName || '-')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.line?.componentCode || '-')}</div></td>
-                                        <td style="padding:0.55rem; text-align:center; font-weight:800; color:#047857;">${Number(row.metrics?.doneQty || 0)}</td>
-                                        <td style="padding:0.55rem;"><div style="font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.nextRoute?.stationName || 'ROTA SONU')}</div><div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${UnitModule.escapeHtml(row.nextRoute?.processId || (row.nextRoute ? '-' : 'son adim'))}</div><div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(row.nextRoute ? (UnitModule.getRouteProcessName(row.nextRoute.stationId, row.nextRoute.processId) || '-') : 'sevk / depo asamasi')}</div></td>
-                                        <td style="padding:0.55rem; color:#475569;">${row.nextRoute ? 'Bu adet sonraki istasyonda bekleyen olarak gorunur.' : 'Son adim tamamlandi; sevk veya depo transfer akisina hazir.'}</td>
+                                        <td style="padding:0.55rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.name || '-')}</td>
+                                        <td style="padding:0.55rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.code || '-')}</td>
+                                        <td style="padding:0.55rem; text-align:center; font-weight:800; color:#047857;">${Number(row.quantity || 0)}</td>
+                                        <td style="padding:0.55rem; color:#334155;">${UnitModule.escapeHtml(row.unit || 'ADET')}</td>
+                                        <td style="padding:0.55rem; color:#64748b;">${UnitModule.escapeHtml(row.note || '-')}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -3193,7 +3214,10 @@ const UnitModule = {
         const availableQty = Math.max(0, stepTarget - taken);
         const inProcessQty = Math.max(0, taken - completed);
         const doneQty = Math.max(0, completed);
+        const storedRaw = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, route.stationId, 'STORE', currentFilter);
+        const storedQty = Math.min(doneQty, Math.max(0, Number(storedRaw || 0)));
         const transferPendingQty = nextRoute ? Math.max(0, doneQty - nextTaken) : 0;
+        const depotPendingQty = nextRoute ? 0 : Math.max(0, doneQty - storedQty);
         return {
             routeId: String(route?.id || '').trim(),
             routeSeq: routeIndex + 1,
@@ -3205,6 +3229,8 @@ const UnitModule = {
             availableQty,
             inProcessQty,
             doneQty,
+            storedQty,
+            depotPendingQty,
             isFinalStep: routeIndex === routes.length - 1,
             prevStationId: String(prevRoute?.stationId || ''),
             nextStationId: String(nextRoute?.stationId || ''),
@@ -3212,7 +3238,8 @@ const UnitModule = {
             nextRouteSeq: nextRoute ? routeIndex + 2 : 0,
             nextTakenQty: nextTaken,
             transferPendingQty,
-            isTransferPending: transferPendingQty > 0
+            isTransferPending: transferPendingQty > 0,
+            isDepotPending: depotPendingQty > 0
         };
     },
     computeWorkLineUnitMetrics: (order, line, unitId, txns, routeRef = null) => {
@@ -3337,7 +3364,86 @@ const UnitModule = {
             return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
         });
     },
-    addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '', routeRef = null) => {
+    getStockItemQty: (row) => {
+        const raw = Number(row?.quantity ?? row?.qty ?? row?.amount ?? 0);
+        return Number.isFinite(raw) ? Math.max(0, raw) : 0;
+    },
+    setStockItemQty: (row, qty) => {
+        const clean = Math.max(0, Number(qty || 0));
+        row.quantity = clean;
+        row.qty = clean;
+        row.amount = clean;
+        row.updated_at = new Date().toISOString();
+    },
+    addToUnitDepotStock: (order, line, stationId, qty) => {
+        const addQty = Math.max(0, Math.floor(Number(qty || 0)));
+        if (addQty <= 0) return;
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        const rows = DB.data.data.stockDepotItems;
+        const code = String(line?.componentCode || order?.productCode || '').trim().toUpperCase();
+        const name = String(line?.componentName || order?.productName || code || '-').trim();
+        const unit = String(line?.unit || order?.unit || 'ADET').trim() || 'ADET';
+        const unitId = String(stationId || '').trim();
+        const keyCode = String(code || '').trim().toUpperCase();
+        const existing = rows.find((row) => {
+            const rowUnitId = String(row?.unitId || row?.stationId || '').trim();
+            const rowCode = String(row?.productCode || row?.code || '').trim().toUpperCase();
+            const rowClass = String(row?.stockClass || row?.status || 'KULLANILABILIR').trim().toUpperCase();
+            return rowUnitId === unitId && rowCode === keyCode && rowClass !== 'WIP' && rowClass !== 'ISLEMDE';
+        });
+        if (existing) {
+            UnitModule.setStockItemQty(existing, UnitModule.getStockItemQty(existing) + addQty);
+            if (!String(existing?.unit || '').trim()) existing.unit = unit;
+            if (!String(existing?.name || '').trim()) existing.name = name;
+            if (!String(existing?.productName || '').trim()) existing.productName = name;
+            return;
+        }
+        const now = new Date().toISOString();
+        rows.push({
+            id: crypto.randomUUID(),
+            unitId,
+            stationId: unitId,
+            nodeKey: `unit:${unitId}`,
+            productCode: keyCode || '-',
+            code: keyCode || '-',
+            productName: name,
+            name,
+            quantity: addQty,
+            qty: addQty,
+            amount: addQty,
+            unit,
+            stockClass: 'KULLANILABILIR',
+            status: 'KULLANILABILIR',
+            locationCode: 'BIRIM-STOK',
+            note: `${UnitModule.getRouteStationName(unitId)} birim stogu`,
+            created_at: now,
+            updated_at: now
+        });
+    },
+    getUnitDepotStockRows: (unitId) => {
+        const keyUnitId = String(unitId || '').trim();
+        const sourceRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        return sourceRows
+            .filter((row) => {
+                const rowUnitId = String(row?.unitId || row?.stationId || '').trim();
+                const rowKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+                const rowClass = String(row?.stockClass || row?.status || '').trim().toUpperCase();
+                if (rowClass === 'WIP' || rowClass === 'ISLEMDE') return false;
+                if (rowUnitId === keyUnitId) return true;
+                return rowKey === `unit:${keyUnitId}`;
+            })
+            .map((row) => ({
+                id: String(row?.id || `${keyUnitId}_${String(row?.productCode || row?.code || '')}`),
+                code: String(row?.productCode || row?.code || '-').trim(),
+                name: String(row?.productName || row?.name || '-').trim(),
+                quantity: Math.max(0, Math.floor(UnitModule.getStockItemQty(row))),
+                unit: String(row?.unit || 'ADET').trim() || 'ADET',
+                note: String(row?.note || '').trim()
+            }))
+            .filter((row) => row.quantity > 0)
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+    addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '', routeRef = null, options = {}) => {
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
         const cleanQty = Number(qty || 0);
         if (!Number.isFinite(cleanQty) || cleanQty <= 0) return;
@@ -3360,6 +3466,7 @@ const UnitModule = {
         });
         const order = (DB.data.data.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (order) order.updated_at = new Date().toISOString();
+        if (options && options.skipSaveRender) return;
         await DB.save();
         UI.renderCurrentPage();
     },
@@ -3429,6 +3536,77 @@ const UnitModule = {
         const qty = Number(raw);
         await UnitModule.completeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true, routeSeq: Number(routeSeq || 0) });
     },
+    storeWorkOrderQty: async (workOrderId, lineId, stationId, presetQty = null, options = {}) => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return;
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(options?.routeSeq || 0) });
+        if (!metrics) return;
+        if (!metrics.isFinalStep) return alert('Depoya al islemi sadece son rota adiminda kullanilir.');
+        const fromInProcess = Math.max(0, Number(metrics?.inProcessQty || 0));
+        const fromReadyDone = Math.max(0, Number(metrics?.depotPendingQty || 0));
+        const maxStoreQty = Math.max(0, Math.floor(fromInProcess + fromReadyDone));
+        if (maxStoreQty <= 0) return alert('Depoya alinabilir miktar yok.');
+        const suggested = Math.max(1, maxStoreQty);
+        const skipPrompt = !!(options && options.skipPrompt);
+        let qty = Number(presetQty);
+        if (!skipPrompt) {
+            const raw = prompt(`Depoya alinacak adet kac? (Varsayilan: ${suggested})`, String(suggested));
+            if (raw === null) return;
+            qty = Number(raw);
+        }
+        if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
+        if (!Number.isInteger(qty)) return alert('Miktar tam sayi olmali.');
+        if (qty > maxStoreQty) return alert(`Maksimum depoya alinabilir miktar: ${maxStoreQty}`);
+
+        const completeQty = Math.min(fromInProcess, qty);
+        const now = new Date().toISOString();
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+        if (completeQty > 0) {
+            DB.data.data.workOrderTransactions.push({
+                id: crypto.randomUUID(),
+                workOrderId: String(workOrderId || ''),
+                lineId: String(lineId || ''),
+                stationId: String(stationId || ''),
+                routeId: String(metrics?.routeId || ''),
+                routeSeq: Math.max(0, Number(metrics?.routeSeq || 0)),
+                processId: String(metrics?.processId || '').trim().toUpperCase(),
+                type: 'COMPLETE',
+                qty: Number(completeQty || 0),
+                note: 'Istasyon tamamlandi (depoya al)',
+                user: 'Demo User',
+                created_at: now
+            });
+        }
+        DB.data.data.workOrderTransactions.push({
+            id: crypto.randomUUID(),
+            workOrderId: String(workOrderId || ''),
+            lineId: String(lineId || ''),
+            stationId: String(stationId || ''),
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Math.max(0, Number(metrics?.routeSeq || 0)),
+            processId: String(metrics?.processId || '').trim().toUpperCase(),
+            type: 'STORE',
+            qty: Number(qty || 0),
+            note: 'Birim depoya alindi',
+            user: 'Demo User',
+            created_at: now
+        });
+        UnitModule.addToUnitDepotStock(order, line, stationId, qty);
+        order.updated_at = now;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    storeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId, routeSeq = '') => {
+        const input = document.getElementById(String(inputId || '').trim());
+        if (!input) return alert('Adet giris kutusu bulunamadi.');
+        const raw = String(input.value || '').trim();
+        if (!raw) return alert('Lutfen depoya alinacak adet giriniz.');
+        const qty = Number(raw);
+        await UnitModule.storeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true, routeSeq: Number(routeSeq || 0) });
+    },
     takeAllWorkOrderQty: async (workOrderId, lineId, stationId, routeSeq = '') => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
         if (!order) return;
@@ -3487,10 +3665,15 @@ const UnitModule = {
             ? String(UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
             : 'Son adim (depo/sevk asamasi)';
         const transferPendingQty = Math.max(0, Number(metrics?.transferPendingQty || 0));
-        const nextUnitTakenQty = nextRoute ? Math.max(0, stepDoneQty - transferPendingQty) : stepDoneQty;
-        const nextUnitTakenLabel = nextRoute ? 'Sonraki istasyon teslim aldi' : 'Bu adim onaylanan';
-        const balanceLeftQty = Math.max(0, remainingQty + transferPendingQty + nextUnitTakenQty);
+        const storedQty = Math.max(0, Number(metrics?.storedQty || 0));
+        const depotPendingQty = Math.max(0, Number(metrics?.depotPendingQty || 0));
+        const nextUnitTakenQty = nextRoute ? Math.max(0, stepDoneQty - transferPendingQty) : storedQty;
+        const nextUnitTakenLabel = nextRoute ? 'Sonraki istasyon teslim aldi' : 'Depoya alinan';
+        const balanceLeftQty = nextRoute
+            ? Math.max(0, remainingQty + transferPendingQty + nextUnitTakenQty)
+            : Math.max(0, remainingQty + depotPendingQty);
         const showTransferFollowup = !!nextRoute && transferPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
+        const showDepotFollowup = !nextRoute && depotPendingQty > 0 && Number(metrics?.inProcessQty || 0) <= 0;
         const routeFilter = UnitModule.getRouteFilterForIndex(line, routeIdx);
         const takeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'TAKE', 'first', routeFilter);
         const completeAt = UnitModule.getWorkTxnTime(txns, order?.id, line?.id, stationId, 'COMPLETE', 'last', routeFilter);
@@ -3564,11 +3747,19 @@ const UnitModule = {
                     </div>
                 </div>
                 <div style="font-size:0.74rem; color:#475569; padding:0.28rem 0.1rem;">
-                    Kontrol: Kalan (${remainingQty}) + Devir bekleyen (${transferPendingQty}) + Sonraki istasyon teslim aldi (${nextUnitTakenQty}) = ${balanceLeftQty}
+                    ${nextRoute
+                ? `Kontrol: Kalan (${remainingQty}) + Devir bekleyen (${transferPendingQty}) + Sonraki istasyon teslim aldi (${nextUnitTakenQty}) = ${balanceLeftQty}`
+                : `Kontrol: Kalan (${remainingQty}) + Depoya alinacak (${depotPendingQty}) = ${balanceLeftQty}`
+            }
                 </div>
                 ${showTransferFollowup ? `
                     <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.55rem; padding:0.55rem; font-size:0.82rem; color:#991b1b; font-weight:700;">
                         Uyari: Sonraki birim henuz teslim almadi.
+                    </div>
+                ` : ''}
+                ${showDepotFollowup ? `
+                    <div style="border:1px solid #bbf7d0; background:#ecfdf5; border-radius:0.55rem; padding:0.55rem; font-size:0.82rem; color:#166534; font-weight:700;">
+                        Son adim tamamlandi. Kalan miktari birim depoya alabilirsiniz.
                     </div>
                 ` : ''}
                 <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.55rem; font-size:0.78rem; color:#475569;">
@@ -3832,12 +4023,14 @@ const UnitModule = {
                 return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
             });
         const isTransferPendingRow = (row) => Number(row?.metrics?.transferPendingQty || 0) > 0;
-        const isActiveRow = (row) => Number(row?.metrics?.inProcessQty || 0) > 0 || isTransferPendingRow(row);
+        const isDepotPendingRow = (row) => Number(row?.metrics?.depotPendingQty || 0) > 0;
+        const isActiveRow = (row) => Number(row?.metrics?.inProcessQty || 0) > 0 || isTransferPendingRow(row) || isDepotPendingRow(row);
         const isPoolRow = (row) =>
             Number(row?.upcomingQty || 0) > 0
             && Number(row?.metrics?.availableQty || 0) <= 0
             && Number(row?.metrics?.inProcessQty || 0) <= 0
-            && !isTransferPendingRow(row);
+            && !isTransferPendingRow(row)
+            && !isDepotPendingRow(row);
         const waitingRows = filtered.filter(r => Number(r?.metrics?.availableQty || 0) > 0);
         const activeRows = filtered.filter((r) => isActiveRow(r));
         const poolRows = filtered.filter((r) => isPoolRow(r));
@@ -3959,7 +4152,7 @@ const UnitModule = {
             </div>
         `;
         const getWorkOrderTabDescription = (tabKey) => {
-            if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis islemleri ve tamamlanip bir sonraki istasyona devir bekleyen satirlari gosterir.';
+            if (tabKey === 'AKTIF') return 'Bu sayfa, atolye tarafinda teslim alinmis islemleri; sonraki rotaya devir bekleyenleri ve son adimda depoya alinacak satirlari gosterir.';
             if (tabKey === 'BEKLEYEN') return 'Bu sayfa, atolyenin teslim alabilecegi isleri listeler.';
             if (tabKey === 'HAVUZ') return 'Bu sayfa, atolyeye gelecek isleri bilgilendirme amacli gosterir. Bu alanda planlama islemi kapatilidir.';
             if (tabKey === 'FASON') return 'Bu sayfa, depodan dis birimlere acilan sevk irsaliyelerini ve aldim/verdim akisini takip eder.';
@@ -4371,13 +4564,17 @@ const UnitModule = {
                                         ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}`
                                         : '-';
                                     const canTake = Number(r.metrics?.availableQty || 0) > 0;
+                                    const hasNextRoute = !!String(r?.metrics?.nextStationId || '').trim();
+                                    const isFinalStep = !hasNextRoute;
+                                    const depotPendingQty = Math.max(0, Number(r.metrics?.depotPendingQty || 0));
                                     const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
+                                    const canStoreFinal = isFinalStep && (Number(r.metrics?.inProcessQty || 0) > 0 || depotPendingQty > 0);
                                     const isWaitingTab = tab === 'BEKLEYEN';
                                     const isActiveTab = tab === 'AKTIF';
                                     const showTakeAction = isWaitingTab;
                                     const showCompleteAction = isActiveTab;
                                     const showPlanAction = isActiveTab && String(unitId || '') !== 'u_dtm';
-                                    const showDispatchSelection = isDepoTransferPlanning && isActiveTab && !!selectedTransferTargetId;
+                                    const showDispatchSelection = isDepoTransferPlanning && isActiveTab && !!selectedTransferTargetId && hasNextRoute;
                                     const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
                                     const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
                                     const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
@@ -4403,7 +4600,7 @@ const UnitModule = {
                                         : 'Baslangic';
                                     const toStationName = nextRoute
                                         ? String(UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
-                                        : 'Son adim / sevk';
+                                        : 'Birim stok deposu';
                                     const totalQtyForStep = Math.max(0, Number(r.metrics?.stepTarget || 0));
                                     const takenQtyForStep = Math.max(0, Number(r.metrics?.inProcessQty || 0) + Number(r.metrics?.doneQty || 0));
                                     const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
@@ -4412,8 +4609,10 @@ const UnitModule = {
                                     const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId, r.metrics);
                                     const dispatchChecked = !!(UnitModule.state.workOrderDispatchRows || {})[dispatchRowKey];
                                     const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
-                                    const completeInputDefault = showDispatchSelection ? dispatchQty : 0;
-                                    const completeInputMax = Math.max(1, Math.floor(Number(r.metrics?.inProcessQty || 0)));
+                                    const completeInputMax = Math.max(1, Math.floor(isFinalStep
+                                        ? (Number(r.metrics?.inProcessQty || 0) + depotPendingQty)
+                                        : Number(r.metrics?.inProcessQty || 0)));
+                                    const completeInputDefault = showDispatchSelection ? dispatchQty : completeInputMax;
                                     const takeInputId = `wo_take_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}_${String(r.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
                                     const takeInputMax = Math.max(1, Math.floor(Number(r.metrics?.availableQty || 0)));
                                     const takeInputDefault = takeInputMax;
@@ -4427,10 +4626,15 @@ const UnitModule = {
                                             </div>
                                         </div>
                                     `;
+                                    const actionButtonLabel = isFinalStep ? 'Depoya Al / Adet' : 'Tamamlanan Adedi Gir';
+                                    const actionButtonHandler = isFinalStep
+                                        ? `UnitModule.storeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`
+                                        : `UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`;
+                                    const canMainAction = isFinalStep ? canStoreFinal : canComplete;
                                     const completeActionBlock = showCompleteAction ? `
                                         <div style="margin-top:0.2rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
                                             ${qtyStatusBlock}
-                                            ${canComplete ? `
+                                            ${canMainAction ? `
                                                 <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${showDispatchSelection ? `onchange="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)"` : ''} style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
                                                     ${showDispatchSelection ? `
@@ -4441,12 +4645,16 @@ const UnitModule = {
                                                     ` : ''}
                                                     ${showDispatchSelection
                                                         ? ''
-                                                        : `<button class="btn-sm" onclick="UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">Tamamlanan Adedi Gir</button>`
+                                                        : `<button class="btn-sm" onclick="${actionButtonHandler}" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">${actionButtonLabel}</button>`
                                                     }
                                                 </div>
                                             ` : ''}
                                             ${showTransferPendingBadge
                                                 ? `<span style="display:inline-block; border-radius:999px; padding:0.16rem 0.58rem; font-size:0.72rem; font-weight:700; background:#ffedd5; color:#9a3412; border:1px solid #fed7aa;">Tamamlandi - Devir Bekliyor</span>`
+                                                : ''
+                                            }
+                                            ${isFinalStep && depotPendingQty > 0
+                                                ? `<span style="display:inline-block; border-radius:999px; padding:0.16rem 0.58rem; font-size:0.72rem; font-weight:700; background:#ecfdf5; color:#166534; border:1px solid #bbf7d0;">Depoya alinabilir: ${depotPendingQty}</span>`
                                                 : ''
                                             }
                                         </div>

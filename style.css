@@ -1188,13 +1188,13 @@ tr:hover {
 
 .stock-modal-grid {
     display: grid;
-    grid-template-columns: 1.1fr 1fr;
+    grid-template-columns: 0.95fr 1.35fr;
     gap: 0.85rem;
 }
 
 .stock-modal-row {
     display: grid;
-    grid-template-columns: 1fr 1fr 1.2fr auto;
+    grid-template-columns: 0.9fr 0.9fr 1.35fr 0.95fr auto;
     gap: 0.75rem;
     align-items: end;
 }
@@ -1220,7 +1220,18 @@ tr:hover {
 
 .stock-modal-action {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
+}
+
+.stock-btn-compact {
+    min-height: 32px;
+    padding: 0 0.65rem;
+    font-size: 0.8rem;
+    border-radius: 0.6rem;
+}
+
+.stock-btn-primary-compact {
+    min-width: 118px;
 }
 
 .stock-modal-footer {

@@ -26,6 +26,7 @@ const StockModule = {
         locationDraftRaf: '',
         locationDraftCell: '',
         locationDraftNote: '',
+        locationDraftIdCode: '',
         locationDraftEditIndex: -1,
         depotDraftLocations: [],
         depotEditingId: null
@@ -404,6 +405,22 @@ const StockModule = {
                 changed = true;
             }
         });
+        const usedLocationCodes = new Set();
+        (DB.data.data.stockDepotLocations || []).forEach((row) => {
+            const normalized = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (normalized && !usedLocationCodes.has(normalized)) {
+                if (String(row?.idCode || '') !== normalized) {
+                    row.idCode = normalized;
+                    changed = true;
+                }
+                usedLocationCodes.add(normalized);
+                return;
+            }
+            const autoCode = StockModule.getNextLocationIdCode(usedLocationCodes);
+            row.idCode = autoCode;
+            usedLocationCodes.add(autoCode);
+            changed = true;
+        });
 
         if (changed) DB.markDirty();
     },
@@ -424,6 +441,47 @@ const StockModule = {
         if (rafCode && cellCode) return `${rafCode}-${cellCode}`;
         if (rafCode) return rafCode;
         return cellCode || '-';
+    },
+
+    normalizeLocationIdCode: (value) => String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^A-Z0-9_-]/g, ''),
+
+    getUsedLocationIdCodes: (options = {}) => {
+        const excludeLocationId = String(options.excludeLocationId || '');
+        const codes = new Set();
+        (DB.data?.data?.stockDepotLocations || []).forEach((row) => {
+            if (excludeLocationId && String(row?.id || '') === excludeLocationId) return;
+            const code = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (code) codes.add(code);
+        });
+        (Array.isArray(StockModule.state?.depotDraftLocations) ? StockModule.state.depotDraftLocations : []).forEach((row) => {
+            if (excludeLocationId && String(row?.id || '') === excludeLocationId) return;
+            const code = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (code) codes.add(code);
+        });
+        return codes;
+    },
+
+    getNextLocationIdCode: (usedCodes = null) => {
+        const used = usedCodes instanceof Set ? usedCodes : StockModule.getUsedLocationIdCodes();
+        let seq = 1;
+        let candidate = `LOC-${String(seq).padStart(6, '0')}`;
+        while (used.has(candidate)) {
+            seq += 1;
+            candidate = `LOC-${String(seq).padStart(6, '0')}`;
+        }
+        return candidate;
+    },
+
+    resolveLocationIdCode: (rawCode, options = {}) => {
+        const excludeLocationId = String(options.excludeLocationId || '');
+        const used = StockModule.getUsedLocationIdCodes({ excludeLocationId });
+        const normalized = StockModule.normalizeLocationIdCode(rawCode || '');
+        if (normalized && !used.has(normalized)) return normalized;
+        return StockModule.getNextLocationIdCode(used);
     },
 
     getDepotLocations: (depotId) => {
@@ -1270,6 +1328,7 @@ const StockModule = {
         if (field === 'locRaf') StockModule.state.locationDraftRaf = String(value || '').toUpperCase();
         if (field === 'locCell') StockModule.state.locationDraftCell = String(value || '').toUpperCase();
         if (field === 'locNote') StockModule.state.locationDraftNote = String(value || '');
+        if (field === 'locIdCode') StockModule.state.locationDraftIdCode = StockModule.normalizeLocationIdCode(value || '');
     },
 
     resetDepotDraft: () => {
@@ -1279,6 +1338,7 @@ const StockModule = {
         StockModule.state.locationDraftRaf = '';
         StockModule.state.locationDraftCell = '';
         StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftIdCode = '';
         StockModule.state.locationDraftEditIndex = -1;
         StockModule.state.depotDraftLocations = [];
         StockModule.state.depotEditingId = null;
@@ -1322,7 +1382,8 @@ const StockModule = {
             id: String(row?.id || ''),
             rafCode: String(row?.rafCode || '').trim().toUpperCase(),
             cellCode: String(row?.cellCode || '').trim().toUpperCase(),
-            note: String(row?.note || '')
+            note: String(row?.note || ''),
+            idCode: StockModule.normalizeLocationIdCode(row?.idCode || '')
         }));
         StockModule.renderDepotModal();
     },
@@ -1353,7 +1414,8 @@ const StockModule = {
             id: String(row?.id || ''),
             rafCode: String(row?.rafCode || '').trim().toUpperCase(),
             cellCode: String(row?.cellCode || '').trim().toUpperCase(),
-            note: String(row?.note || '')
+            note: String(row?.note || ''),
+            idCode: StockModule.normalizeLocationIdCode(row?.idCode || '')
         }));
         StockModule.renderDepotModal();
     },
@@ -1362,28 +1424,47 @@ const StockModule = {
         const rafCode = String(StockModule.state.locationDraftRaf || '').trim().toUpperCase();
         const cellCode = String(StockModule.state.locationDraftCell || '').trim().toUpperCase();
         const note = String(StockModule.state.locationDraftNote || '').trim();
+        const draftIdCode = StockModule.normalizeLocationIdCode(StockModule.state.locationDraftIdCode || '');
         const editIndex = Number(StockModule.state.locationDraftEditIndex);
         if (!rafCode || !cellCode) return alert('Raf ve hucre kodu giriniz.');
+        const draftRows = StockModule.state.depotDraftLocations || [];
         const exists = (StockModule.state.depotDraftLocations || []).some((row, rowIndex) => {
             if (Number(editIndex) !== -1 && rowIndex === Number(editIndex)) return false;
             return String(row?.rafCode || '').trim().toUpperCase() === rafCode
                 && String(row?.cellCode || '').trim().toUpperCase() === cellCode;
         });
         if (exists) return alert('Bu raf / hucre zaten listede var.');
+        const usedCodes = new Set();
+        draftRows.forEach((row, rowIndex) => {
+            if (Number.isInteger(editIndex) && editIndex >= 0 && rowIndex === editIndex) return;
+            const code = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (code) usedCodes.add(code);
+        });
+        const editedRow = Number.isInteger(editIndex) && editIndex >= 0 ? (draftRows[editIndex] || {}) : {};
+        const editedRowId = String(editedRow?.id || '');
+        (DB.data?.data?.stockDepotLocations || []).forEach((row) => {
+            if (editedRowId && String(row?.id || '') === editedRowId) return;
+            const code = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (code) usedCodes.add(code);
+        });
+        if (draftIdCode && usedCodes.has(draftIdCode)) return alert('Bu ID kodu zaten kullanimda.');
+        const finalIdCode = draftIdCode || StockModule.getNextLocationIdCode(usedCodes);
         if (Number.isInteger(editIndex) && editIndex >= 0 && editIndex < (StockModule.state.depotDraftLocations || []).length) {
             const current = StockModule.state.depotDraftLocations[editIndex] || {};
             StockModule.state.depotDraftLocations[editIndex] = {
                 id: String(current?.id || ''),
                 rafCode,
                 cellCode,
-                note
+                note,
+                idCode: finalIdCode
             };
         } else {
-            StockModule.state.depotDraftLocations.push({ id: '', rafCode, cellCode, note });
+            StockModule.state.depotDraftLocations.push({ id: '', rafCode, cellCode, note, idCode: finalIdCode });
         }
         StockModule.state.locationDraftRaf = '';
         StockModule.state.locationDraftCell = '';
         StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftIdCode = '';
         StockModule.state.locationDraftEditIndex = -1;
         StockModule.renderDepotModal();
     },
@@ -1395,6 +1476,7 @@ const StockModule = {
         StockModule.state.locationDraftRaf = String(row?.rafCode || '').trim().toUpperCase();
         StockModule.state.locationDraftCell = String(row?.cellCode || '').trim().toUpperCase();
         StockModule.state.locationDraftNote = String(row?.note || '');
+        StockModule.state.locationDraftIdCode = StockModule.normalizeLocationIdCode(row?.idCode || '');
         StockModule.state.locationDraftEditIndex = idx;
         StockModule.renderDepotModal();
     },
@@ -1402,6 +1484,7 @@ const StockModule = {
         StockModule.state.locationDraftRaf = '';
         StockModule.state.locationDraftCell = '';
         StockModule.state.locationDraftNote = '';
+        StockModule.state.locationDraftIdCode = '';
         StockModule.state.locationDraftEditIndex = -1;
         StockModule.renderDepotModal();
     },
@@ -1417,6 +1500,7 @@ const StockModule = {
             StockModule.state.locationDraftRaf = '';
             StockModule.state.locationDraftCell = '';
             StockModule.state.locationDraftNote = '';
+            StockModule.state.locationDraftIdCode = '';
         } else if (editIndex > idx) {
             StockModule.state.locationDraftEditIndex = editIndex - 1;
         }
@@ -1426,18 +1510,19 @@ const StockModule = {
     renderDepotDraftRows: () => {
         const rows = StockModule.state.depotDraftLocations || [];
         if (rows.length === 0) {
-            return `<tr><td colspan="5" class="stock-empty">Henuz hucre eklenmedi. Istersen bos depo olarak da kaydedebilirsin.</td></tr>`;
+            return `<tr><td colspan="6" class="stock-empty">Henuz hucre eklenmedi. Istersen bos depo olarak da kaydedebilirsin.</td></tr>`;
         }
         return rows.map((row, index) => `
             <tr>
                 <td>${StockModule.escapeHtml(row.rafCode || '-')}</td>
                 <td>${StockModule.escapeHtml(row.cellCode || '-')}</td>
                 <td>${StockModule.escapeHtml(row.note || '-')}</td>
+                <td style="font-family:monospace; color:#0f172a; font-weight:700;">${StockModule.escapeHtml(StockModule.normalizeLocationIdCode(row?.idCode || '-') || '-')}</td>
                 <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</td>
                 <td style="text-align:right;">
                     <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
-                        <button class="btn-sm" onclick="StockModule.startEditDraftLocation(${index})">duzenle</button>
-                        <button class="btn-sm" onclick="StockModule.removeDraftLocation(${index})">sil</button>
+                        <button class="btn-sm stock-btn-compact" onclick="StockModule.startEditDraftLocation(${index})">duzenle</button>
+                        <button class="btn-sm stock-btn-compact" onclick="StockModule.removeDraftLocation(${index})">sil</button>
                     </div>
                 </td>
             </tr>
@@ -1485,8 +1570,12 @@ const StockModule = {
                         <label class="stock-modal-label">Hucre notu</label>
                         <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftNote)}" oninput="StockModule.setDraftField('locNote', this.value)" placeholder="opsiyonel">
                     </div>
+                    <div>
+                        <label class="stock-modal-label">ID kodu</label>
+                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(StockModule.state.locationDraftIdCode)}" oninput="StockModule.setDraftField('locIdCode', this.value)" placeholder="or: LOC-000123">
+                    </div>
                     <div class="stock-modal-action">
-                        <button class="btn-primary" onclick="StockModule.addDraftLocation()">${editingLocation ? 'hucreyi guncelle' : 'hucre ekle +'}</button>
+                        <button class="btn-primary stock-btn-compact stock-btn-primary-compact" onclick="StockModule.addDraftLocation()">${editingLocation ? 'hucreyi guncelle' : 'hucre ekle +'}</button>
                     </div>
                 </div>
                 ${editingLocation ? `
@@ -1502,6 +1591,7 @@ const StockModule = {
                                 <th style="text-align:left;">Raf</th>
                                 <th style="text-align:left;">Hucre</th>
                                 <th style="text-align:left;">Not</th>
+                                <th style="text-align:left;">ID kodu</th>
                                 <th style="text-align:left;">Kod</th>
                                 <th style="text-align:right;">Islem</th>
                             </tr>
@@ -1557,14 +1647,28 @@ const StockModule = {
             return alert('Hucre eklenecek depo secilemedi.');
         }
 
-        const nextLocations = (StockModule.state.depotDraftLocations || []).map((row) => ({
-            id: String(row?.id || '').trim() || crypto.randomUUID(),
-            depotId,
-            rafCode: String(row?.rafCode || '').trim().toUpperCase(),
-            cellCode: String(row?.cellCode || '').trim().toUpperCase(),
-            note: String(row?.note || '').trim(),
-            created_at: now
-        }));
+        const usedLocationCodes = new Set(
+            (DB.data.data.stockDepotLocations || [])
+                .filter((row) => String(row?.depotId || '') !== String(depotId || ''))
+                .map((row) => StockModule.normalizeLocationIdCode(row?.idCode || ''))
+                .filter(Boolean)
+        );
+        const nextLocations = (StockModule.state.depotDraftLocations || []).map((row) => {
+            const requestedIdCode = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            const finalIdCode = requestedIdCode && !usedLocationCodes.has(requestedIdCode)
+                ? requestedIdCode
+                : StockModule.getNextLocationIdCode(usedLocationCodes);
+            usedLocationCodes.add(finalIdCode);
+            return {
+                id: String(row?.id || '').trim() || crypto.randomUUID(),
+                depotId,
+                rafCode: String(row?.rafCode || '').trim().toUpperCase(),
+                cellCode: String(row?.cellCode || '').trim().toUpperCase(),
+                note: String(row?.note || '').trim(),
+                idCode: finalIdCode,
+                created_at: now
+            };
+        });
 
         DB.data.data.stockDepotLocations = (DB.data.data.stockDepotLocations || [])
             .filter((row) => String(row?.depotId || '') !== depotId)
@@ -1619,8 +1723,15 @@ const StockModule = {
         `;
     },
     renderInventoryGroups: (node) => {
-        const groups = StockModule.getInventoryGroups(node);
-        if (groups.length === 0) {
+        const baseGroups = StockModule.getInventoryGroups(node);
+        const groups = String(node?.key || '') === 'all'
+            ? [{
+                key: 'all_merged',
+                title: 'Tum depolar',
+                rows: baseGroups.flatMap((group) => (Array.isArray(group?.rows) ? group.rows : []))
+            }]
+            : baseGroups;
+        if (groups.length === 0 || groups.every((group) => !Array.isArray(group?.rows) || group.rows.length === 0)) {
             return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
         }
         const stockFilters = StockModule.getInventoryStockFilters();
@@ -1694,7 +1805,7 @@ const StockModule = {
             const mergedScopeKey = `${String(group?.key || 'group')}|filtered`;
             return `
                 <div class="stock-group-card">
-                    ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
+                    ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">TUM DEPOLAR / BIRLESIK LISTE</div>` : ''}
                     <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'}; padding:0.75rem;">
                         <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">STOK LISTESI</div>
                         ${renderCategoryBlocks(mergedScopeKey, filteredRows, 'Secilen filtrede kayit yok.', { includeEmpty: true })}

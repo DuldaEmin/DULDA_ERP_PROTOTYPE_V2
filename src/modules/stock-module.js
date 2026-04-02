@@ -9,6 +9,7 @@ const StockModule = {
             inProcess: true,
             reserve: true
         },
+        inventoryLocationFilter: null,
         inventoryOpenCategoryKeys: {},
         searchName: '',
         searchCode: '',
@@ -617,10 +618,10 @@ const StockModule = {
                 ...row,
                 key: `unit:${String(row?.id || '')}`,
                 name: formatName(row?.name || ''),
-                note: 'Bu alan fiziksel raf / hucre tanimi almaz. Sadece izleme icin gorunur.',
+                note: 'Bu alan izleme ekranidir. Gerekirse raf / hucre tanimi yapilip stok gorunumu filtrelenebilir.',
                 kind: 'unit',
                 editable: false,
-                allowLocations: false
+                allowLocations: true
             }));
         const ordered = ['EKSTRUDER', 'TESTERE', 'CNC', 'PLEKSI', 'MONTAJ'];
         return rows.sort((a, b) => {
@@ -637,10 +638,10 @@ const StockModule = {
                 ...row,
                 key: `external:${String(row?.id || '')}`,
                 name: String(row?.name || '').trim().toUpperCase(),
-                note: 'Dis birim veya fason nokta. Burada sadece izleme amacli gorunur.',
+                note: 'Dis birim veya fason nokta. Izleme amacli gorunur; istenirse raf / hucre tanimi yapilabilir.',
                 kind: 'external',
                 editable: false,
-                allowLocations: false
+                allowLocations: true
             }));
         const ordered = ['IBRAHIM POLISAJ', 'TEKIN ELOKSAL', 'HILAL PWD'];
         rows.sort((a, b) => {
@@ -660,7 +661,7 @@ const StockModule = {
             note: 'Kayitli olmayan dis birim referansi.',
             kind: 'external',
             editable: false,
-            allowLocations: false
+            allowLocations: true
         });
         return rows;
     },
@@ -683,7 +684,7 @@ const StockModule = {
         const managedIds = new Set(['main', ...StockModule.getCustomDepots().map((row) => String(row?.id || ''))]);
         return {
             managedCount: managedIds.size,
-            locationCount: (DB.data.data.stockDepotLocations || []).filter((row) => managedIds.has(String(row?.depotId || ''))).length,
+            locationCount: (DB.data.data.stockDepotLocations || []).length,
             unitCount: StockModule.getUnitRowsMeta().length,
             externalCount: StockModule.getExternalRowsMeta().length
         };
@@ -867,7 +868,8 @@ const StockModule = {
                     semiCardGroup: String(semiCard?.group || ''),
                     semiCardSubGroup: String(semiCard?.subGroup || ''),
                     locationId: String(raw?.locationId || ''),
-                    depotId: String(raw?.depotId || raw?.nodeId || '')
+                    depotId: String(raw?.depotId || raw?.nodeId || ''),
+                    unitId: String(raw?.unitId || raw?.stationId || ((node?.kind === 'unit' || node?.kind === 'external') ? node?.id : '') || '')
                 }
             };
         });
@@ -881,8 +883,24 @@ const StockModule = {
             if (targetKey !== 'all' && String(row?.depotNode?.key || '') !== targetKey) return false;
             return true;
         });
-        if (!query) return scopedRows;
-        return scopedRows
+        const activeLocationFilter = StockModule.getInventoryLocationFilterForNode(node);
+        const locationFilteredRows = !activeLocationFilter
+            ? scopedRows
+            : scopedRows.filter((row) => {
+                const rowLocationId = String(row?.searchMeta?.locationId || '').trim();
+                const rowLocationCode = String(row?.locationCode || '').trim().toUpperCase();
+                if (activeLocationFilter.locationId) {
+                    if (rowLocationId && rowLocationId === activeLocationFilter.locationId) return true;
+                    if (!rowLocationId && activeLocationFilter.locationCode) {
+                        return rowLocationCode === activeLocationFilter.locationCode;
+                    }
+                    return false;
+                }
+                if (activeLocationFilter.locationCode) return rowLocationCode === activeLocationFilter.locationCode;
+                return true;
+            });
+        if (!query) return locationFilteredRows;
+        return locationFilteredRows
             .map((row) => {
                 const match = StockModule.getInventorySearchMatch(row, query);
                 return { ...row, searchScore: match.score, searchMatchLabel: match.label, searchMatched: !!match.matched };
@@ -927,6 +945,7 @@ const StockModule = {
         const nextTab = String(tabId || 'all');
         StockModule.state.topTab = nextTab;
         StockModule.state.selectedKey = nextTab === 'transfer' ? 'managed:depot_transfer' : 'all';
+        StockModule.clearInventoryLocationFilter({ rerender: false });
         UI.renderCurrentPage();
     },
 
@@ -934,6 +953,60 @@ const StockModule = {
         const nextKey = String(key || 'all');
         StockModule.state.selectedKey = nextKey;
         StockModule.state.topTab = nextKey === 'managed:depot_transfer' ? 'transfer' : 'all';
+        StockModule.clearInventoryLocationFilter({ rerender: false });
+        UI.renderCurrentPage();
+    },
+
+    getInventoryLocationFilter: () => {
+        const raw = StockModule.state.inventoryLocationFilter;
+        if (!raw || typeof raw !== 'object') return null;
+        const scopeKey = String(raw?.scopeKey || '').trim();
+        const locationId = String(raw?.locationId || '').trim();
+        const locationCode = String(raw?.locationCode || '').trim().toUpperCase();
+        const locationLabel = String(raw?.locationLabel || '').trim();
+        const depotScopeId = String(raw?.depotScopeId || '').trim();
+        if (!scopeKey) return null;
+        if (!locationId && !locationCode) return null;
+        return { scopeKey, locationId, locationCode, locationLabel, depotScopeId };
+    },
+
+    getInventoryLocationFilterForNode: (node) => {
+        const filter = StockModule.getInventoryLocationFilter();
+        if (!filter) return null;
+        const nodeKey = String(node?.key || '').trim();
+        if (!nodeKey || filter.scopeKey !== nodeKey) return null;
+        return filter;
+    },
+
+    clearInventoryLocationFilter: (options = {}) => {
+        StockModule.state.inventoryLocationFilter = null;
+        if (options?.rerender === false) return;
+        UI.renderCurrentPage();
+    },
+
+    toggleInventoryLocationFilter: (scopeKey, locationId = '', locationCode = '', locationLabel = '', depotScopeId = '') => {
+        const nextScopeKey = String(scopeKey || '').trim();
+        const nextLocationId = String(locationId || '').trim();
+        const nextLocationCode = String(locationCode || '').trim().toUpperCase();
+        const nextLocationLabel = String(locationLabel || '').trim();
+        const nextDepotScopeId = String(depotScopeId || '').trim();
+        if (!nextScopeKey || (!nextLocationId && !nextLocationCode)) return;
+        const current = StockModule.getInventoryLocationFilter();
+        const sameTarget = !!current
+            && current.scopeKey === nextScopeKey
+            && String(current.locationId || '') === nextLocationId
+            && String(current.locationCode || '') === nextLocationCode;
+        if (sameTarget) {
+            StockModule.clearInventoryLocationFilter();
+            return;
+        }
+        StockModule.state.inventoryLocationFilter = {
+            scopeKey: nextScopeKey,
+            locationId: nextLocationId,
+            locationCode: nextLocationCode,
+            locationLabel: nextLocationLabel || nextLocationCode || '-',
+            depotScopeId: nextDepotScopeId
+        };
         UI.renderCurrentPage();
     },
 
@@ -1831,6 +1904,9 @@ const StockModule = {
                     : (statusMeta.key === 'wip' ? 'stock-item-state-wip' : 'stock-item-state-available');
                 const modelText = StockModule.getInventoryRowModelText(row);
                 const qtyText = `${row?.quantity ?? '-'}${row?.unit ? ` ${row.unit}` : ''}`.trim();
+                const depotText = String(row?.depotName || '-').trim() || '-';
+                const unitIdText = String(row?.searchMeta?.unitId || '').trim() || '-';
+                const locationText = String(row?.locationCode || '-').trim() || '-';
                 const safeCode = StockModule.escapeJsString(row?.code || '');
                 const safeId = StockModule.escapeJsString(row?.id || '');
                 return `
@@ -1840,7 +1916,10 @@ const StockModule = {
                         <div class="stock-item-name">${StockModule.escapeHtml(row?.name || '-')}</div>
                         <div class="stock-item-model">${StockModule.escapeHtml(modelText)}</div>
                         <div class="stock-item-qty">${StockModule.escapeHtml(qtyText || '-')}</div>
-                        <div class="stock-item-location">${StockModule.escapeHtml(row?.locationCode || '-')}</div>
+                        <div class="stock-item-location">
+                            <div class="stock-item-location-main">${StockModule.escapeHtml(locationText)}</div>
+                            <div class="stock-item-location-meta">Depo: ${StockModule.escapeHtml(depotText)} | Birim ID: ${StockModule.escapeHtml(unitIdText)}</div>
+                        </div>
                         <span class="stock-item-state ${statusClass}">${StockModule.escapeHtml(statusMeta.text)}</span>
                         <button type="button" class="stock-item-action" onclick="StockModule.openInventoryRowHistory('${safeCode}','${safeId}')">Goruntule / Duzenle</button>
                     </div>
@@ -1900,23 +1979,43 @@ const StockModule = {
     },
 
     renderLocationsCard: (node) => {
-        if (node.kind !== 'managed') return '';
-        const locations = StockModule.getDepotLocations(node.id);
+        const scopeId = StockModule.getNodeLocationScopeId(node);
+        if (!scopeId) return '';
+        const locations = StockModule.getDepotLocations(scopeId);
+        if (locations.length === 0) return '';
+        const activeFilter = StockModule.getInventoryLocationFilterForNode(node);
+        const scopeKey = String(node?.key || '');
         return `
             <div class="stock-location-card">
                 <div class="stock-location-head">
                     <div class="stock-location-title">tanimli konumlar</div>
+                    ${activeFilter ? `<button type="button" class="btn-sm stock-location-clear-btn" onclick="StockModule.clearInventoryLocationFilter()">Hepsini goster</button>` : ''}
                 </div>
-                ${locations.length === 0 ? `<div class="stock-location-empty">Bu depoda henuz raf / hucre tanimi yok.</div>` : `
-                    <div class="stock-location-list">
-                        ${locations.map((row) => `
-                            <div class="stock-location-chip">
-                                <div class="stock-location-chip-code">${StockModule.escapeHtml(StockModule.getLocationCode(row))}</div>
+                <div class="stock-location-list">
+                    ${locations.map((row) => {
+            const locationId = String(row?.id || '').trim();
+            const locationCode = String(StockModule.getLocationCode(row) || '').trim().toUpperCase();
+            const label = locationCode || '-';
+            const idCode = String(StockModule.normalizeLocationIdCode(row?.idCode || '') || '-').trim();
+            const isActive = !!activeFilter
+                && (
+                    (locationId && activeFilter.locationId === locationId)
+                    || (!locationId && !!activeFilter.locationCode && activeFilter.locationCode === locationCode)
+                );
+            const safeScopeKey = StockModule.escapeJsString(scopeKey);
+            const safeLocationId = StockModule.escapeJsString(locationId);
+            const safeLocationCode = StockModule.escapeJsString(locationCode);
+            const safeLabel = StockModule.escapeJsString(label);
+            const safeScopeId = StockModule.escapeJsString(scopeId);
+            return `
+                            <button type="button" class="stock-location-chip${isActive ? ' active' : ''}" onclick="StockModule.toggleInventoryLocationFilter('${safeScopeKey}','${safeLocationId}','${safeLocationCode}','${safeLabel}','${safeScopeId}')">
+                                <div class="stock-location-chip-code">${StockModule.escapeHtml(label)}</div>
+                                <div class="stock-location-chip-id">ID: ${StockModule.escapeHtml(idCode)}</div>
                                 <div class="stock-location-chip-note">${StockModule.escapeHtml(row.note || 'not yok')}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                `}
+                            </button>
+                        `;
+        }).join('')}
+                </div>
             </div>
         `;
     },
@@ -2087,6 +2186,7 @@ const StockModule = {
         const topManagedRows = [mainDepot, ...customDepots];
         const canOpenLocationEditor = String(node?.key || '') !== 'all';
         const stockFilterState = StockModule.getInventoryStockFilters();
+        const activeLocationFilter = StockModule.getInventoryLocationFilterForNode(node);
 
         const sidebarHtml = `
             <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
@@ -2159,6 +2259,12 @@ const StockModule = {
                                 <button type="button" class="stock-status-filter-btn${stockFilterState.reserve ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('reserve')">Rezerve</button>
                             </div>
                         </div>
+                        ${activeLocationFilter ? `
+                            <div class="stock-location-filter-inline">
+                                <span>Hucre filtresi: <strong>${StockModule.escapeHtml(activeLocationFilter.locationLabel || activeLocationFilter.locationCode || '-')}</strong></span>
+                                <button type="button" class="btn-sm stock-location-clear-btn" onclick="StockModule.clearInventoryLocationFilter()">Temizle</button>
+                            </div>
+                        ` : ''}
 
                         ${StockModule.renderInventoryGroups(node)}
                         ${StockModule.renderLocationsCard(node)}

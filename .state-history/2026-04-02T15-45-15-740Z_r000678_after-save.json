@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-02T15:47:05.733Z",
+    "updated_at": "2026-04-02T15:45:15.605Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 679
+    "revision": 678
   },
   "data": {
     "products": [
@@ -3376,15 +3376,6 @@
         "note": "deneme",
         "idCode": "LOC-000010",
         "created_at": "2026-04-02T15:42:04.845Z"
-      },
-      {
-        "id": "0c755e22-3751-41d0-96ab-ad08e5050f15",
-        "depotId": "unit:u2",
-        "rafCode": "A1",
-        "cellCode": "013",
-        "note": "büyük raf",
-        "idCode": "LOC-000011",
-        "created_at": "2026-04-02T15:47:05.733Z"
       }
     ],
     "stockDepotItems": [

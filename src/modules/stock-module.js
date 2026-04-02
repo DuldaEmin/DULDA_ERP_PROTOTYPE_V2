@@ -1312,26 +1312,6 @@ const StockModule = {
                             <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="clipboard-plus" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Envantere Elle Kayit</div>
                         </button>
-                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('production-receipt')">
-                            <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="boxes" width="24" height="24"></i></div>
-                            <div class="stock-hub-label">Uretimden Gelen Kabul</div>
-                        </button>
-                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('outsource-shipment')">
-                            <div class="stock-hub-icon stock-hub-icon-purple"><i data-lucide="truck" width="24" height="24"></i></div>
-                            <div class="stock-hub-label">Dis Fason Sevk</div>
-                        </button>
-                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('shipment-prep')">
-                            <div class="stock-hub-icon stock-hub-icon-orange"><i data-lucide="package-open" width="24" height="24"></i></div>
-                            <div class="stock-hub-label">Sevkiyat Hazirlama</div>
-                        </button>
-                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('dispatch-note')">
-                            <div class="stock-hub-icon stock-hub-icon-pink"><i data-lucide="file-text" width="24" height="24"></i></div>
-                            <div class="stock-hub-label">Irsaliye ve Teslim Takibi</div>
-                        </button>
-                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('ready-flow')">
-                            <div class="stock-hub-icon stock-hub-icon-yellow"><i data-lucide="bell-ring" width="24" height="24"></i></div>
-                            <div class="stock-hub-label">Montaj ve Satis Uyarilari</div>
-                        </button>
                         <button class="stock-hub-card" onclick="StockModule.openWorkspace('depots')">
                             <div class="stock-hub-icon"><i data-lucide="warehouse" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Tum depolar</div>

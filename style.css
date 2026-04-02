@@ -775,6 +775,10 @@ tr:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.stock-search-grid-1 {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .stock-input {
     width: 100%;
     height: 33px;
@@ -1407,7 +1411,8 @@ tr:hover {
 
     .stock-modal-grid,
     .stock-modal-row,
-    .stock-search-grid-2 {
+    .stock-search-grid-2,
+    .stock-search-grid-1 {
         grid-template-columns: 1fr;
     }
 }

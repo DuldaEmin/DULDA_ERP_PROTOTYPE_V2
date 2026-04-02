@@ -3,6 +3,7 @@ const StockModule = {
         workspaceView: 'menu',
         topTab: 'all',
         selectedKey: 'all',
+        searchQuery: '',
         searchName: '',
         searchCode: '',
         operationSearchName: '',
@@ -105,6 +106,79 @@ const StockModule = {
         .replace(/'/g, '&#39;'),
 
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
+
+    getInventorySearchMatch: (row, rawQuery) => {
+        const q = StockModule.normalize(rawQuery);
+        if (!q) return { matched: true, score: 0, label: '' };
+
+        const labels = {
+            code: 'ID kodu',
+            name: 'Urun adi',
+            locationCode: 'Raf kodu',
+            planCodeId: 'Plan kod ID',
+            modelCode: 'Model kodu',
+            masterCode: 'Master kodu',
+            productType: 'Urun tipi',
+            note: 'Not',
+            depotName: 'Depo'
+        };
+
+        const idEntries = [];
+        const textEntries = [];
+        const pushEntry = (bucket, value, key, fallbackLabel = '') => {
+            const raw = String(value || '').trim();
+            if (!raw) return;
+            bucket.push({
+                norm: StockModule.normalize(raw),
+                label: labels[key] || fallbackLabel || key || 'Alan'
+            });
+        };
+
+        pushEntry(idEntries, row?.code, 'code');
+        pushEntry(idEntries, row?.id, 'code');
+        pushEntry(idEntries, row?.locationCode, 'locationCode');
+        pushEntry(idEntries, row?.planCodeId, 'planCodeId');
+        pushEntry(idEntries, row?.modelCode, 'modelCode');
+        pushEntry(idEntries, row?.masterCode, 'masterCode');
+        pushEntry(idEntries, row?.depotNode?.id, 'depotName', 'Depo ID');
+        pushEntry(idEntries, row?.depotNode?.key, 'depotName', 'Depo anahtar');
+        pushEntry(idEntries, row?.searchMeta?.productId, 'code', 'Urun ID');
+        pushEntry(idEntries, row?.searchMeta?.productCode, 'code');
+        pushEntry(idEntries, row?.searchMeta?.partCardCode, 'code');
+        pushEntry(idEntries, row?.searchMeta?.semiCardCode, 'code');
+        pushEntry(idEntries, row?.searchMeta?.locationId, 'locationCode', 'Lokasyon ID');
+        pushEntry(idEntries, row?.searchMeta?.depotId, 'depotName', 'Depo ID');
+
+        pushEntry(textEntries, row?.name, 'name');
+        pushEntry(textEntries, row?.depotName, 'depotName');
+        pushEntry(textEntries, row?.status, 'productType', 'Durum');
+        pushEntry(textEntries, row?.stockClass, 'productType', 'Stok sinifi');
+        pushEntry(textEntries, row?.note, 'note');
+        pushEntry(textEntries, row?.productType, 'productType');
+        pushEntry(textEntries, row?.searchMeta?.productName, 'name');
+        pushEntry(textEntries, row?.searchMeta?.productCategory, 'productType', 'Kategori');
+        pushEntry(textEntries, row?.searchMeta?.productBrandModel, 'modelCode');
+        pushEntry(textEntries, row?.searchMeta?.partCardName, 'name');
+        pushEntry(textEntries, row?.searchMeta?.partCardGroup, 'productType', 'Parca grubu');
+        pushEntry(textEntries, row?.searchMeta?.partCardSubGroup, 'productType', 'Parca alt grubu');
+        pushEntry(textEntries, row?.searchMeta?.semiCardName, 'name');
+        pushEntry(textEntries, row?.searchMeta?.semiCardGroup, 'productType', 'Yari mamul grubu');
+        pushEntry(textEntries, row?.searchMeta?.semiCardSubGroup, 'productType', 'Yari mamul alt grubu');
+
+        const exactId = idEntries.find((entry) => entry.norm === q);
+        if (exactId) return { matched: true, score: 400, label: exactId.label };
+
+        const prefixId = idEntries.find((entry) => entry.norm.startsWith(q));
+        if (prefixId) return { matched: true, score: 300, label: prefixId.label };
+
+        const prefixName = textEntries.find((entry) => entry.norm.startsWith(q));
+        if (prefixName) return { matched: true, score: 200, label: prefixName.label };
+
+        const containsAny = [...idEntries, ...textEntries].find((entry) => entry.norm.includes(q));
+        if (containsAny) return { matched: true, score: 100, label: containsAny.label };
+
+        return { matched: false, score: 0, label: '' };
+    },
 
     getStockPersonnelRows: () => {
         if (typeof PersonnelModule !== 'undefined' && typeof PersonnelModule.ensureData === 'function') {
@@ -492,10 +566,31 @@ const StockModule = {
                         unit: 'adet',
                         status: 'ISLEMDE (WIP)',
                         stockClass: 'WIP',
+                        productType: 'WIP',
+                        modelCode: '',
+                        planCodeId: '',
+                        masterCode: '',
                         note: `Is emri: ${String(order?.workOrderCode || '-')} | Rota: ${Number(metrics?.routeSeq || idx + 1)}`,
                         locationCode: `ROTA-${Number(metrics?.routeSeq || idx + 1)}`,
                         depotNode: node,
-                        depotName: node?.name || String(metrics?.stationName || stationId || '-')
+                        depotName: node?.name || String(metrics?.stationName || stationId || '-'),
+                        searchMeta: {
+                            productId: '',
+                            productCode: String(line?.componentCode || order?.productCode || '').trim(),
+                            productName: String(line?.componentName || order?.productName || '').trim(),
+                            productCategory: '',
+                            productBrandModel: '',
+                            partCardCode: '',
+                            partCardName: '',
+                            partCardGroup: '',
+                            partCardSubGroup: '',
+                            semiCardCode: '',
+                            semiCardName: '',
+                            semiCardGroup: '',
+                            semiCardSubGroup: '',
+                            locationId: '',
+                            depotId: String(node?.id || '')
+                        }
                     });
                 });
             });
@@ -522,45 +617,113 @@ const StockModule = {
 
     getInventoryRows: () => {
         const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        const productById = new Map(products.map((row) => [String(row?.id || ''), row]));
+        const productByCode = new Map(
+            products
+                .map((row) => [StockModule.normalize(row?.code), row])
+                .filter(([key]) => !!key)
+        );
+        const partCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        const semiCards = Array.isArray(DB.data?.data?.semiFinishedCards) ? DB.data.data.semiFinishedCards : [];
+        const partByCode = new Map(
+            partCards
+                .map((row) => [StockModule.normalize(row?.code), row])
+                .filter(([key]) => !!key)
+        );
+        const semiByCode = new Map(
+            semiCards
+                .map((row) => [StockModule.normalize(row?.code), row])
+                .filter(([key]) => !!key)
+        );
         const locationMap = new Map((DB.data.data.stockDepotLocations || []).map((row) => [String(row?.id || ''), row]));
         const stockRows = (DB.data.data.stockDepotItems || []).map((raw) => {
-            const product = products.find((row) => String(row?.id || '') === String(raw?.productId || '')) || null;
+            const rawProductId = String(raw?.productId || '');
+            const rawCode = String(raw?.productCode || raw?.code || '').trim();
+            const normalizedCode = StockModule.normalize(rawCode);
+            const product = (rawProductId ? productById.get(rawProductId) : null) || productByCode.get(normalizedCode) || null;
+            const partCard = partByCode.get(normalizedCode) || null;
+            const semiCard = semiByCode.get(normalizedCode) || null;
             const node = StockModule.resolveInventoryNode(raw);
             const location = locationMap.get(String(raw?.locationId || '')) || null;
             const quantity = raw?.quantity ?? raw?.qty ?? raw?.amount ?? '';
             const stockClass = StockModule.normalizeStockClass(raw?.stockClass || raw?.status || 'KULLANILABILIR');
             const status = String(raw?.status || '').trim() || (stockClass === 'WIP' ? 'ISLEMDE (WIP)' : 'KULLANILABILIR');
+            const locationCode = raw?.locationCode
+                ? String(raw.locationCode)
+                : location
+                    ? StockModule.getLocationCode(location)
+                    : [raw?.rafCode, raw?.cellCode].filter(Boolean).join('-');
+            const modelCode = String(raw?.modelCode || raw?.modelId || product?.specs?.brandModel || '').trim();
+            const planCodeId = String(raw?.planCodeId || raw?.planCode || raw?.planId || product?.planCodeId || product?.specs?.planCodeId || '').trim();
+            const masterCode = String(raw?.masterCode || partCard?.masterCode || semiCard?.masterCode || product?.supplierProductCode || '').trim();
+            const productType = String(
+                raw?.productType
+                || raw?.type
+                || (semiCard ? 'YARI MAMUL' : '')
+                || (partCard ? 'PARCA/BILESEN' : '')
+                || product?.type
+                || ''
+            ).trim();
             return {
                 id: String(raw?.id || product?.id || ''),
                 name: String(raw?.productName || raw?.name || product?.name || '').trim(),
-                code: String(raw?.productCode || raw?.code || product?.code || '').trim(),
+                code: String(rawCode || product?.code || '').trim(),
                 quantity,
                 unit: String(raw?.unit || product?.unit || product?.specs?.unit || '').trim(),
                 status,
                 stockClass,
+                productType,
+                modelCode,
+                planCodeId,
+                masterCode,
                 note: String(raw?.note || '').trim(),
-                locationCode: raw?.locationCode
-                    ? String(raw.locationCode)
-                    : location
-                        ? StockModule.getLocationCode(location)
-                        : [raw?.rafCode, raw?.cellCode].filter(Boolean).join('-'),
+                locationCode,
                 depotNode: node,
-                depotName: node?.name || String(raw?.depotName || '-')
+                depotName: node?.name || String(raw?.depotName || '-'),
+                searchMeta: {
+                    productId: String(product?.id || rawProductId || ''),
+                    productCode: String(product?.code || rawCode || ''),
+                    productName: String(product?.name || ''),
+                    productCategory: String(product?.category || ''),
+                    productBrandModel: String(product?.specs?.brandModel || ''),
+                    partCardCode: String(partCard?.code || ''),
+                    partCardName: String(partCard?.name || ''),
+                    partCardGroup: String(partCard?.group || ''),
+                    partCardSubGroup: String(partCard?.subGroup || ''),
+                    semiCardCode: String(semiCard?.code || ''),
+                    semiCardName: String(semiCard?.name || ''),
+                    semiCardGroup: String(semiCard?.group || ''),
+                    semiCardSubGroup: String(semiCard?.subGroup || ''),
+                    locationId: String(raw?.locationId || ''),
+                    depotId: String(raw?.depotId || raw?.nodeId || '')
+                }
             };
         });
         return [...stockRows, ...StockModule.getWorkflowWipRows()];
     },
 
     getFilteredInventoryRows: (node) => {
-        const qName = StockModule.normalize(StockModule.state.searchName);
-        const qCode = StockModule.normalize(StockModule.state.searchCode);
+        const query = StockModule.normalize(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode);
         const targetKey = String(node?.key || 'all');
-        return StockModule.getInventoryRows().filter((row) => {
+        const scopedRows = StockModule.getInventoryRows().filter((row) => {
             if (targetKey !== 'all' && String(row?.depotNode?.key || '') !== targetKey) return false;
-            const hayName = [row?.name, row?.depotName, row?.note, row?.status].map(StockModule.normalize).join(' ');
-            const hayCode = [row?.code, row?.locationCode, row?.stockClass].map(StockModule.normalize).join(' ');
-            return (!qName || hayName.includes(qName)) && (!qCode || hayCode.includes(qCode));
+            return true;
         });
+        if (!query) return scopedRows;
+        return scopedRows
+            .map((row) => {
+                const match = StockModule.getInventorySearchMatch(row, query);
+                return { ...row, searchScore: match.score, searchMatchLabel: match.label, searchMatched: !!match.matched };
+            })
+            .filter((row) => row.searchMatched)
+            .sort((a, b) => {
+                if (Number(b?.searchScore || 0) !== Number(a?.searchScore || 0)) {
+                    return Number(b?.searchScore || 0) - Number(a?.searchScore || 0);
+                }
+                const nameCmp = String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+                if (nameCmp !== 0) return nameCmp;
+                return String(a?.code || '').localeCompare(String(b?.code || ''), 'tr');
+            });
     },
 
     getInventoryGroups: (node) => {
@@ -603,7 +766,10 @@ const StockModule = {
     },
 
     restoreSearchFocus: (field) => {
-        const targetId = field === 'code' ? 'stock-search-code' : 'stock-search-name';
+        const normalizedField = String(field || '').trim();
+        const targetId = normalizedField === 'code'
+            ? 'stock-search-code'
+            : (normalizedField === 'name' ? 'stock-search-name' : 'stock-search-query');
         requestAnimationFrame(() => {
             const input = document.getElementById(targetId);
             if (!input) return;
@@ -614,10 +780,20 @@ const StockModule = {
     },
 
     setSearch: (field, value) => {
-        if (field === 'name') StockModule.state.searchName = String(value || '');
-        if (field === 'code') StockModule.state.searchCode = String(value || '');
+        const next = String(value || '');
+        if (field === 'name') {
+            StockModule.state.searchName = next;
+            StockModule.state.searchQuery = next;
+        } else if (field === 'code') {
+            StockModule.state.searchCode = next;
+            StockModule.state.searchQuery = next;
+        } else {
+            StockModule.state.searchQuery = next;
+            StockModule.state.searchName = next;
+            StockModule.state.searchCode = next;
+        }
         UI.renderCurrentPage();
-        StockModule.restoreSearchFocus(field);
+        StockModule.restoreSearchFocus(field || 'inventory');
     },
 
     setOperationFilter: (field, value, focusId = '') => {
@@ -1501,15 +1677,14 @@ const StockModule = {
                     <div class="stock-content">
                         <div class="stock-section-head">
                             <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
-                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir.' : 'Arama secili deponun icinde urun adi ve ID koduna gore calisir.'}</div>
+                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir.'}</div>
                             <div style="margin-left:auto;">
                                 <button class="btn-sm" onclick="StockModule.openLocationManagerForSelectedNode()" ${canOpenLocationEditor ? '' : 'disabled'} style="${canOpenLocationEditor ? 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;' : 'opacity:0.45; cursor:not-allowed;'}">DUZENLE / HUCRE EKLE</button>
                             </div>
                         </div>
 
-                        <div class="stock-search-grid stock-search-grid-2">
-                            <input id="stock-search-name" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchName)}" oninput="StockModule.setSearch('name', this.value)" placeholder="urun adi ile ara">
-                            <input id="stock-search-code" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchCode)}" oninput="StockModule.setSearch('code', this.value)" placeholder="ID kod ile ara">
+                        <div class="stock-search-grid stock-search-grid-1">
+                            <input id="stock-search-query" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
                         </div>
 
                         ${StockModule.renderInventoryGroups(node)}

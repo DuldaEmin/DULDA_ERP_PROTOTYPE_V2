@@ -894,6 +894,71 @@ tr:hover {
     color: #8a99ab;
 }
 
+.stock-category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.stock-category-item {
+    width: 100%;
+}
+
+.stock-category-header {
+    width: 100%;
+    min-height: 43px;
+    border: 1.6px solid #1f2937;
+    border-radius: 0.6rem;
+    background: #f8fafc;
+    padding: 0.45rem 0.65rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 1rem;
+    color: #1f2937;
+    font-weight: 700;
+    text-align: left;
+    cursor: pointer;
+}
+
+.stock-category-header.open {
+    border-color: #0f172a;
+    background: #f1f5f9;
+}
+
+.stock-category-chevron {
+    width: 18px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    font-size: 0.85rem;
+}
+
+.stock-category-label {
+    display: inline-flex;
+    align-items: center;
+    color: #1f2937;
+    font-weight: 700;
+}
+
+.stock-category-count {
+    display: inline-flex;
+    align-items: center;
+    color: #64748b;
+    font-weight: 700;
+    font-size: 0.92rem;
+}
+
+.stock-category-body {
+    margin-top: 0.42rem;
+    border: 2px solid #0f172a;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    padding: 0.55rem;
+    overflow: hidden;
+}
+
 .stock-group-card {
     margin-top: 0.75rem;
 }

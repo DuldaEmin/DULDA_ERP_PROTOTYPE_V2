@@ -4,6 +4,7 @@ const StockModule = {
         topTab: 'all',
         selectedKey: 'all',
         searchQuery: '',
+        inventoryOpenCategoryKeys: {},
         searchName: '',
         searchCode: '',
         operationSearchName: '',
@@ -807,6 +808,60 @@ const StockModule = {
         StockModule.restoreSearchFocus(field || 'inventory');
     },
 
+    getInventoryCategoryDefs: () => ([
+        { id: 'component', title: 'Parca & bilesen' },
+        { id: 'model', title: 'Urun modelleri' },
+        { id: 'master', title: 'Master urun' },
+        { id: 'semi', title: 'Yari mamul' }
+    ]),
+
+    resolveInventoryCategoryId: (row) => {
+        const typeNorm = StockModule.normalize(row?.productType);
+        const code = String(row?.code || '').trim().toUpperCase();
+        const partCode = String(row?.searchMeta?.partCardCode || '').trim();
+        const semiCode = String(row?.searchMeta?.semiCardCode || '').trim();
+        const modelText = [
+            row?.modelCode,
+            row?.searchMeta?.productBrandModel,
+            row?.searchMeta?.productCategory
+        ].map((val) => StockModule.normalize(val)).join(' ');
+
+        if (semiCode || code.startsWith('YRM-') || typeNorm.includes('yari')) return 'semi';
+        if (partCode || code.startsWith('PRC-') || typeNorm.includes('parca') || typeNorm.includes('bilesen')) return 'component';
+        if (typeNorm.includes('model') || modelText.includes('model') || code.startsWith('MDL-') || code.startsWith('MOD-') || code.startsWith('VRN-')) return 'model';
+        return 'master';
+    },
+
+    groupInventoryRowsByCategory: (rows) => {
+        const defs = StockModule.getInventoryCategoryDefs();
+        const bucketMap = new Map(defs.map((def) => [def.id, []]));
+        (Array.isArray(rows) ? rows : []).forEach((row) => {
+            const categoryId = StockModule.resolveInventoryCategoryId(row);
+            if (!bucketMap.has(categoryId)) bucketMap.set(categoryId, []);
+            bucketMap.get(categoryId).push(row);
+        });
+        return defs
+            .map((def) => ({ ...def, rows: bucketMap.get(def.id) || [] }))
+            .filter((entry) => entry.rows.length > 0);
+    },
+
+    getInventoryCategoryToggleKey: (scopeKey, categoryId) => `${String(scopeKey || 'scope')}|${String(categoryId || 'category')}`,
+
+    isInventoryCategoryOpen: (scopeKey, categoryId) => {
+        const key = StockModule.getInventoryCategoryToggleKey(scopeKey, categoryId);
+        return !!StockModule.state.inventoryOpenCategoryKeys?.[key];
+    },
+
+    toggleInventoryCategory: (scopeKey, categoryId) => {
+        const key = StockModule.getInventoryCategoryToggleKey(scopeKey, categoryId);
+        const current = StockModule.state.inventoryOpenCategoryKeys && typeof StockModule.state.inventoryOpenCategoryKeys === 'object'
+            ? { ...StockModule.state.inventoryOpenCategoryKeys }
+            : {};
+        current[key] = !current[key];
+        StockModule.state.inventoryOpenCategoryKeys = current;
+        UI.renderCurrentPage();
+    },
+
     setOperationFilter: (field, value, focusId = '') => {
         if (field === 'name') StockModule.state.operationSearchName = String(value || '');
         if (field === 'code') StockModule.state.operationSearchCode = String(value || '');
@@ -1390,11 +1445,8 @@ const StockModule = {
         if (groups.length === 0 || groups.every((group) => group.rows.length === 0)) {
             return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
         }
-        const renderRows = (rows, emptyMessage) => {
-            if (!Array.isArray(rows) || rows.length === 0) {
-                return `<tr><td colspan="3" style="padding:0.85rem; color:#94a3b8; text-align:center;">${StockModule.escapeHtml(emptyMessage || 'Kayit yok.')}</td></tr>`;
-            }
-            return rows.map((row) => {
+        const renderRows = (rows) => {
+            return (Array.isArray(rows) ? rows : []).map((row) => {
                 const detail = [];
                 if (row.locationCode) detail.push(`Konum: ${row.locationCode}`);
                 if (row.quantity !== '' && row.quantity !== null && row.quantity !== undefined) detail.push(`Miktar: ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`);
@@ -1408,37 +1460,57 @@ const StockModule = {
                 `;
             }).join('');
         };
+        const renderCategoryBlocks = (scopeKey, rows, emptyMessage) => {
+            const categories = StockModule.groupInventoryRowsByCategory(rows);
+            if (!Array.isArray(categories) || categories.length === 0) {
+                return `<div class="stock-empty" style="padding:0.85rem; color:#94a3b8;">${StockModule.escapeHtml(emptyMessage || 'Kayit yok.')}</div>`;
+            }
+            return `
+                <div class="stock-category-list">
+                    ${categories.map((category) => {
+            const isOpen = StockModule.isInventoryCategoryOpen(scopeKey, category.id);
+            return `
+                            <div class="stock-category-item">
+                                <button type="button" class="stock-category-header${isOpen ? ' open' : ''}" onclick="StockModule.toggleInventoryCategory('${StockModule.escapeHtml(scopeKey)}','${StockModule.escapeHtml(category.id)}')">
+                                    <span class="stock-category-chevron">${isOpen ? '&#9662;' : '&#9656;'}</span>
+                                    <span class="stock-category-label">${StockModule.escapeHtml(category.title || '-')}</span>
+                                    <span class="stock-category-count">(${Number(category.rows.length || 0)})</span>
+                                </button>
+                                ${isOpen ? `
+                                    <div class="stock-category-body">
+                                        <table>
+                                            <thead>
+                                                <tr>
+                                                    <th style="text-align:left;">Urun adi</th>
+                                                    <th style="text-align:left;">ID kodu</th>
+                                                    <th style="text-align:left;">Detay</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${renderRows(category.rows)}</tbody>
+                                        </table>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+        }).join('')}
+                </div>
+            `;
+        };
         return groups.map((group) => {
             const rows = Array.isArray(group?.rows) ? group.rows : [];
             const usableRows = rows.filter((row) => String(row?.stockClass || 'KULLANILABILIR') !== 'WIP');
             const wipRows = rows.filter((row) => String(row?.stockClass || '') === 'WIP');
+            const usableScopeKey = `${String(group?.key || 'group')}|usable`;
+            const wipScopeKey = `${String(group?.key || 'group')}|wip`;
             return `
                 <div class="stock-group-card">
                     ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
                     <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'}; padding:0.75rem;">
                         <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">KULLANILABILIR STOK</div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="text-align:left;">Urun adi</th>
-                                    <th style="text-align:left;">ID kodu</th>
-                                    <th style="text-align:left;">Detay</th>
-                                </tr>
-                            </thead>
-                            <tbody>${renderRows(usableRows, 'Kullanilabilir stok kaydi yok.')}</tbody>
-                        </table>
+                        ${renderCategoryBlocks(usableScopeKey, usableRows, 'Kullanilabilir stok kaydi yok.')}
                         <div style="height:10px;"></div>
                         <div style="font-size:0.78rem; font-weight:800; color:#9a3412; margin-bottom:0.35rem;">ISLEMDE / WIP</div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="text-align:left;">Urun adi</th>
-                                    <th style="text-align:left;">ID kodu</th>
-                                    <th style="text-align:left;">Detay</th>
-                                </tr>
-                            </thead>
-                            <tbody>${renderRows(wipRows, 'Islemde (WIP) kaydi yok.')}</tbody>
-                        </table>
+                        ${renderCategoryBlocks(wipScopeKey, wipRows, 'Islemde (WIP) kaydi yok.')}
                     </div>
                 </div>
             `;

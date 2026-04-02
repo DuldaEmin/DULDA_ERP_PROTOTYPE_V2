@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-02T16:28:39.502Z",
+    "updated_at": "2026-04-02T16:27:04.076Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 703
+    "revision": 692
   },
   "data": {
     "products": [
@@ -2423,7 +2423,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:39.502Z"
+        "updated_at": "2026-04-02T16:27:04.076Z"
       },
       {
         "id": "537bfbec-4299-481e-96c3-bf559aa8621b",
@@ -2494,7 +2494,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:12.192Z"
+        "updated_at": "2026-04-02T16:25:32.476Z"
       },
       {
         "id": "78b57050-659e-4a42-841b-d3515f58e739",
@@ -2572,7 +2572,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:12.894Z"
+        "updated_at": "2026-04-02T16:26:32.578Z"
       },
       {
         "id": "cfd02d5b-b1fd-4063-ace6-c481cf3128c6",
@@ -2622,7 +2622,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:13.456Z"
+        "updated_at": "2026-04-02T16:25:58.942Z"
       },
       {
         "id": "5302a32b-c7c3-4a6d-8e96-9997e1fbd9b5",
@@ -2679,7 +2679,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:13.976Z"
+        "updated_at": "2026-04-02T16:25:32.476Z"
       },
       {
         "id": "4a44acd9-a2ef-42a0-825a-609a9f1fdf01",
@@ -2729,7 +2729,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:14.792Z"
+        "updated_at": "2026-04-02T16:26:00.998Z"
       },
       {
         "id": "54b05f58-2ec6-4c4a-901b-aeff19b1c784",
@@ -2786,7 +2786,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:15.780Z"
+        "updated_at": "2026-04-02T16:25:32.476Z"
       }
     ],
     "workOrderTransactions": [
@@ -3097,174 +3097,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-04-02T16:27:04.076Z"
-      },
-      {
-        "id": "c6ec534e-4165-492d-bb89-462096d88e0f",
-        "workOrderId": "78b57050-659e-4a42-841b-d3515f58e739",
-        "lineId": "5726e99f-995a-4679-8274-c48843b7f822",
-        "stationId": "u1",
-        "routeId": "5a82c30a-ce1e-4682-a5b1-0d1a3701b0c8",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "COMPLETE",
-        "qty": 50,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:27:05.474Z"
-      },
-      {
-        "id": "c52e72cc-7e5d-4d50-8c1a-566e1d9615c0",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u5",
-        "routeId": "4398d937-b095-4940-9e2e-c5a9410e20a7",
-        "routeSeq": 3,
-        "processId": "PLSJ-000001",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:27:14.478Z"
-      },
-      {
-        "id": "f263513b-1095-4276-bebc-271cb0ac0f24",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u5",
-        "routeId": "4398d937-b095-4940-9e2e-c5a9410e20a7",
-        "routeSeq": 3,
-        "processId": "PLSJ-000001",
-        "type": "COMPLETE",
-        "qty": 50,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:27:20.894Z"
-      },
-      {
-        "id": "a1592360-d8c9-4df3-8a91-f91263e6b028",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u_dtm",
-        "routeId": "c7fd367d-79d7-4b15-bc0b-b6c8059e8727",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:11.032Z"
-      },
-      {
-        "id": "80e235d7-5cc7-47ff-b129-d57e1b0d951b",
-        "workOrderId": "537bfbec-4299-481e-96c3-bf559aa8621b",
-        "lineId": "1c0d1740-b7b6-485e-a422-84423a663949",
-        "stationId": "u_dtm",
-        "routeId": "c48ef883-6b84-42ec-a8b6-452ef2e2ce0c",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:12.192Z"
-      },
-      {
-        "id": "75397c93-0f1a-4ce2-acbc-c1ada6cbf128",
-        "workOrderId": "78b57050-659e-4a42-841b-d3515f58e739",
-        "lineId": "5726e99f-995a-4679-8274-c48843b7f822",
-        "stationId": "u_dtm",
-        "routeId": "06390db7-95a3-42cf-88ac-efb8e4237294",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:12.894Z"
-      },
-      {
-        "id": "979590d4-5cdc-48f1-86a1-74a5833b2180",
-        "workOrderId": "cfd02d5b-b1fd-4063-ace6-c481cf3128c6",
-        "lineId": "b330e069-0550-47ae-8b95-1247a98cc57f",
-        "stationId": "u_dtm",
-        "routeId": "28363d86-9836-4bed-8f9a-ed9b8d209fda",
-        "routeSeq": 2,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:13.456Z"
-      },
-      {
-        "id": "bec62567-925d-4908-94ca-761247351e6e",
-        "workOrderId": "5302a32b-c7c3-4a6d-8e96-9997e1fbd9b5",
-        "lineId": "551b3dc4-d613-4bdf-a092-e699ecc1722b",
-        "stationId": "u_dtm",
-        "routeId": "64990e24-4bf3-47c3-b4b5-875948ed04c5",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:13.976Z"
-      },
-      {
-        "id": "d4b6dc6c-55da-4421-b5dd-be73b12667cc",
-        "workOrderId": "4a44acd9-a2ef-42a0-825a-609a9f1fdf01",
-        "lineId": "24bbcaaf-be42-458c-8ea6-a7d9a321b891",
-        "stationId": "u_dtm",
-        "routeId": "db4c5bb5-1654-428f-9a08-cb4a666a05fd",
-        "routeSeq": 2,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 50,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:14.792Z"
-      },
-      {
-        "id": "0d6e1990-03d0-4a5c-9185-28af4ab77395",
-        "workOrderId": "54b05f58-2ec6-4c4a-901b-aeff19b1c784",
-        "lineId": "e2d4de71-6a36-467f-a06d-698d2d1f0f76",
-        "stationId": "u_dtm",
-        "routeId": "5df1cd31-540d-4b16-a235-f81f8593701f",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 100,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:15.780Z"
-      },
-      {
-        "id": "5301d30d-9af0-4647-8a97-9e14c9098aa2",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u_dtm",
-        "routeId": "c7fd367d-79d7-4b15-bc0b-b6c8059e8727",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 50,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:39.502Z"
-      },
-      {
-        "id": "e1f1754c-21e9-4cde-9386-3f2a4815ffe9",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u_dtm",
-        "routeId": "c7fd367d-79d7-4b15-bc0b-b6c8059e8727",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 50,
-        "note": "Birim depoya alindi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:39.502Z"
       }
     ],
     "outsourceTransfers": [
@@ -3631,26 +3463,6 @@
         "note": "DEPO TRANSFER birim stogu",
         "created_at": "2026-04-01T12:35:43.705Z",
         "updated_at": "2026-04-01T12:35:43.705Z"
-      },
-      {
-        "id": "a385e9c0-b2a5-4ac2-92f5-02edec80fa72",
-        "unitId": "u_dtm",
-        "stationId": "u_dtm",
-        "nodeKey": "unit:u_dtm",
-        "productCode": "PRC-000007",
-        "code": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "name": "2008 bombeli 40 lık dikme pleksi",
-        "quantity": 50,
-        "qty": 50,
-        "amount": 50,
-        "unit": "ADET",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "locationCode": "BIRIM-STOK",
-        "note": "DEPO TRANSFER birim stogu",
-        "created_at": "2026-04-02T16:28:39.502Z",
-        "updated_at": "2026-04-02T16:28:39.502Z"
       }
     ],
     "freeExternalVendorJobs": [],

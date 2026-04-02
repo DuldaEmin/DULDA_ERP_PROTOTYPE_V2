@@ -709,6 +709,257 @@ const StockModule = {
         ];
         return nodes.find((row) => String(row?.key || '') === nodeKey || String(row?.id || '') === nodeId) || null;
     },
+
+    resolveScopeIdFromStockRow: (row) => {
+        const direct = String(row?.depotId || row?.nodeId || '').trim();
+        if (direct) return direct;
+        const nodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+        if (nodeKey.startsWith('managed:')) return nodeKey.slice('managed:'.length);
+        if (nodeKey.startsWith('unit:') || nodeKey.startsWith('external:')) return nodeKey;
+        const unitId = String(row?.unitId || row?.stationId || '').trim();
+        if (unitId) return `unit:${unitId}`;
+        return '';
+    },
+
+    resolveNodeKeyFromScopeId: (scopeId) => {
+        const key = String(scopeId || '').trim();
+        if (!key) return '';
+        if (key.startsWith('unit:') || key.startsWith('external:')) return key;
+        return `managed:${key}`;
+    },
+
+    getScopeNameById: (scopeId) => {
+        const key = String(scopeId || '').trim();
+        if (!key) return '-';
+        const nodes = [
+            StockModule.getMainDepot(),
+            ...StockModule.getCustomDepots(),
+            ...StockModule.getUnitRowsMeta(),
+            ...StockModule.getExternalRowsMeta()
+        ];
+        const hit = nodes.find((row) => String(row?.id || '') === key || String(row?.key || '') === key) || null;
+        return String(hit?.name || key).trim() || key;
+    },
+
+    getStockRowQty: (row) => {
+        const num = Number(row?.quantity ?? row?.qty ?? row?.amount ?? 0);
+        if (!Number.isFinite(num)) return 0;
+        return Math.max(0, Math.floor(num));
+    },
+
+    setStockRowQty: (row, qty) => {
+        const safeQty = Math.max(0, Math.floor(Number(qty || 0)));
+        row.quantity = safeQty;
+        row.qty = safeQty;
+        row.amount = safeQty;
+        row.updated_at = new Date().toISOString();
+    },
+
+    getLocationLabel: (locationRow) => {
+        if (!locationRow) return '-';
+        const code = String(StockModule.getLocationCode(locationRow) || '').trim().toUpperCase() || '-';
+        const idCode = String(StockModule.normalizeLocationIdCode(locationRow?.idCode || '') || '-');
+        return `${code} | ID:${idCode}`;
+    },
+
+    getTransferScopeOptions: () => {
+        const scopes = new Set(
+            (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+                .map((row) => String(row?.depotId || '').trim())
+                .filter(Boolean)
+        );
+        return Array.from(scopes)
+            .map((scopeId) => ({
+                scopeId,
+                name: StockModule.getScopeNameById(scopeId)
+            }))
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+
+    findLocationByIdCodeOrCode: (rawValue) => {
+        const value = String(rawValue || '').trim();
+        if (!value) return null;
+        const normalizedIdCode = StockModule.normalizeLocationIdCode(value);
+        const normalizedCode = String(value || '').trim().toUpperCase();
+        const rows = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
+        return rows.find((row) => {
+            const rowIdCode = StockModule.normalizeLocationIdCode(row?.idCode || '');
+            if (normalizedIdCode && rowIdCode === normalizedIdCode) return true;
+            const rowCode = String(StockModule.getLocationCode(row) || '').trim().toUpperCase();
+            return !!normalizedCode && rowCode === normalizedCode;
+        }) || null;
+    },
+
+    refreshInventoryTransferLocationOptions: () => {
+        const depotSelect = document.getElementById('stock-transfer-target-scope');
+        const locationSelect = document.getElementById('stock-transfer-target-location');
+        if (!depotSelect || !locationSelect) return;
+        const selectedScopeId = String(depotSelect.value || '').trim();
+        const selectedBefore = String(locationSelect.value || '').trim();
+        const locations = StockModule.getDepotLocations(selectedScopeId);
+        const optionsHtml = locations.length === 0
+            ? '<option value="">Bu depoda hucre yok</option>'
+            : ['<option value="">Hucre sec</option>']
+                .concat(locations.map((row) => {
+                    const id = String(row?.id || '').trim();
+                    return `<option value="${StockModule.escapeHtml(id)}">${StockModule.escapeHtml(StockModule.getLocationLabel(row))}</option>`;
+                }))
+                .join('');
+        locationSelect.innerHTML = optionsHtml;
+        if (selectedBefore && locations.some((row) => String(row?.id || '').trim() === selectedBefore)) {
+            locationSelect.value = selectedBefore;
+        }
+    },
+
+    updateInventoryTransferModeUi: () => {
+        const modeSelect = document.getElementById('stock-transfer-mode');
+        const bySelectWrap = document.getElementById('stock-transfer-by-select');
+        const byIdCodeWrap = document.getElementById('stock-transfer-by-idcode');
+        if (!modeSelect || !bySelectWrap || !byIdCodeWrap) return;
+        const mode = String(modeSelect.value || 'select').trim();
+        const useIdCode = mode === 'idcode';
+        bySelectWrap.style.display = useIdCode ? 'none' : '';
+        byIdCodeWrap.style.display = useIdCode ? '' : 'none';
+    },
+
+    onInventoryTransferModeChange: () => {
+        StockModule.updateInventoryTransferModeUi();
+    },
+
+    onInventoryTransferDepotChange: () => {
+        StockModule.refreshInventoryTransferLocationOptions();
+    },
+
+    submitInventoryTransferFromModal: async (sourceRowId, sourceCode) => {
+        const sourceId = String(sourceRowId || '').trim();
+        const sourceCodeText = String(sourceCode || '').trim();
+        if (!sourceId || !sourceCodeText) return alert('Transfer kaynagi bulunamadi.');
+        const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const sourceRow = stockRows.find((row) => String(row?.id || '') === sourceId) || null;
+        if (!sourceRow) return alert('Kaynak stok satiri bulunamadi.');
+
+        const sourceQty = StockModule.getStockRowQty(sourceRow);
+        if (sourceQty <= 0) return alert('Kaynak satirda transfer edilecek stok yok.');
+        const sourceStatusMeta = StockModule.getInventoryRowStatusMeta(sourceRow || {});
+        if (sourceStatusMeta.key !== 'available') {
+            return alert('Bu adimda sadece kullanilabilir stok transferine izin verilir.');
+        }
+
+        const qtyRaw = Number(document.getElementById('stock-transfer-qty')?.value || 0);
+        const transferQty = Math.max(0, Math.floor(qtyRaw));
+        if (!Number.isFinite(transferQty) || transferQty <= 0) return alert('Transfer adedi 0 dan buyuk olmali.');
+        if (transferQty > sourceQty) return alert(`Kaynak stok yetersiz. Maksimum: ${sourceQty}`);
+
+        const mode = String(document.getElementById('stock-transfer-mode')?.value || 'select').trim();
+        let targetLocation = null;
+        if (mode === 'idcode') {
+            const locationInput = String(document.getElementById('stock-transfer-target-idcode')?.value || '').trim();
+            targetLocation = StockModule.findLocationByIdCodeOrCode(locationInput);
+            if (!targetLocation) return alert('Hedef hucre ID kodu / konumu bulunamadi.');
+        } else {
+            const targetScopeId = String(document.getElementById('stock-transfer-target-scope')?.value || '').trim();
+            const targetLocationId = String(document.getElementById('stock-transfer-target-location')?.value || '').trim();
+            if (!targetScopeId) return alert('Hedef depo seciniz.');
+            if (!targetLocationId) return alert('Hedef hucre seciniz.');
+            targetLocation = (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+                .find((row) => String(row?.id || '').trim() === targetLocationId && String(row?.depotId || '').trim() === targetScopeId) || null;
+            if (!targetLocation) return alert('Hedef hucre bulunamadi.');
+        }
+
+        const sourceScopeId = StockModule.resolveScopeIdFromStockRow(sourceRow);
+        const sourceLocationId = String(sourceRow?.locationId || '').trim();
+        const sourceLocationCode = String(sourceRow?.locationCode || '').trim().toUpperCase();
+        const targetScopeId = String(targetLocation?.depotId || '').trim();
+        const targetLocationId = String(targetLocation?.id || '').trim();
+        const targetLocationCode = String(StockModule.getLocationCode(targetLocation) || '').trim().toUpperCase();
+
+        if (!targetScopeId || !targetLocationId) return alert('Hedef lokasyon gecersiz.');
+        const sameScope = sourceScopeId === targetScopeId;
+        const sameLocation = sourceLocationId
+            ? sourceLocationId === targetLocationId
+            : (!!sourceLocationCode && sourceLocationCode === targetLocationCode);
+        if (sameScope && sameLocation) return alert('Kaynak ve hedef ayni lokasyon olamaz.');
+
+        const normalizedCode = StockModule.normalize(sourceRow?.productCode || sourceRow?.code || sourceCodeText);
+        const sourceStockClass = StockModule.normalizeStockClass(sourceRow?.stockClass || sourceRow?.status || 'KULLANILABILIR');
+        const sourceStatus = String(sourceRow?.status || 'KULLANILABILIR').trim() || 'KULLANILABILIR';
+        const targetNodeKey = StockModule.resolveNodeKeyFromScopeId(targetScopeId);
+        const targetUnitRawId = targetScopeId.startsWith('unit:') ? targetScopeId.slice('unit:'.length) : '';
+
+        const targetRow = stockRows.find((row) => {
+            if (StockModule.normalize(row?.productCode || row?.code || '') !== normalizedCode) return false;
+            if (StockModule.normalizeStockClass(row?.stockClass || row?.status || 'KULLANILABILIR') !== sourceStockClass) return false;
+            const rowScopeId = StockModule.resolveScopeIdFromStockRow(row);
+            if (rowScopeId !== targetScopeId) return false;
+            return String(row?.locationId || '').trim() === targetLocationId;
+        }) || null;
+
+        StockModule.setStockRowQty(sourceRow, sourceQty - transferQty);
+        const now = new Date().toISOString();
+        const unitText = String(sourceRow?.unit || 'ADET').trim() || 'ADET';
+        if (targetRow) {
+            StockModule.setStockRowQty(targetRow, StockModule.getStockRowQty(targetRow) + transferQty);
+        } else {
+            stockRows.push({
+                id: crypto.randomUUID(),
+                productId: String(sourceRow?.productId || ''),
+                productCode: String(sourceRow?.productCode || sourceRow?.code || sourceCodeText).trim().toUpperCase(),
+                code: String(sourceRow?.code || sourceRow?.productCode || sourceCodeText).trim().toUpperCase(),
+                productName: String(sourceRow?.productName || sourceRow?.name || '').trim(),
+                name: String(sourceRow?.name || sourceRow?.productName || '').trim(),
+                quantity: transferQty,
+                qty: transferQty,
+                amount: transferQty,
+                unit: unitText,
+                stockClass: sourceStockClass,
+                status: sourceStatus,
+                productType: String(sourceRow?.productType || sourceRow?.type || '').trim(),
+                modelCode: String(sourceRow?.modelCode || '').trim(),
+                planCodeId: String(sourceRow?.planCodeId || '').trim(),
+                masterCode: String(sourceRow?.masterCode || '').trim(),
+                note: String(sourceRow?.note || '').trim(),
+                depotId: targetScopeId,
+                nodeKey: targetNodeKey,
+                locationId: targetLocationId,
+                locationCode: targetLocationCode,
+                unitId: targetUnitRawId || undefined,
+                stationId: targetUnitRawId || undefined,
+                created_at: now,
+                updated_at: now
+            });
+        }
+
+        if (!Array.isArray(DB.data?.data?.stock_movements)) DB.data.data.stock_movements = [];
+        DB.data.data.stock_movements.push({
+            id: crypto.randomUUID(),
+            movementType: 'TRANSFER',
+            type: 'TRANSFER',
+            productCode: String(sourceRow?.productCode || sourceRow?.code || sourceCodeText).trim().toUpperCase(),
+            code: String(sourceRow?.code || sourceRow?.productCode || sourceCodeText).trim().toUpperCase(),
+            productName: String(sourceRow?.productName || sourceRow?.name || '').trim(),
+            quantity: transferQty,
+            qty: transferQty,
+            unit: unitText,
+            sourceDepotId: sourceScopeId,
+            sourceDepotName: StockModule.getScopeNameById(sourceScopeId),
+            sourceLocationId: sourceLocationId,
+            sourceLocationCode: sourceLocationCode || '-',
+            targetDepotId: targetScopeId,
+            targetDepotName: StockModule.getScopeNameById(targetScopeId),
+            targetLocationId: targetLocationId,
+            targetLocationCode: targetLocationCode || '-',
+            depotId: targetScopeId,
+            depotName: StockModule.getScopeNameById(targetScopeId),
+            note: `Depo/raf transferi: ${sourceLocationCode || '-'} -> ${targetLocationCode || '-'}`,
+            created_at: now,
+            updated_at: now
+        });
+
+        await DB.save();
+        UI.renderCurrentPage();
+        StockModule.openInventoryRowHistory(sourceCodeText, sourceId);
+        alert('Transfer tamamlandi.');
+    },
     normalizeStockClass: (value) => {
         const raw = String(value || '').trim().toUpperCase();
         if (raw === 'WIP' || raw === 'ISLEMDE') return 'WIP';
@@ -1174,8 +1425,84 @@ const StockModule = {
                 return !!mvCode && mvCode === normalizedCode;
             })
             .sort((a, b) => new Date(b?.created_at || b?.updated_at || 0) - new Date(a?.created_at || a?.updated_at || 0));
-        const statusMeta = StockModule.getInventoryRowStatusMeta(selectedRow || {});
+        const selectedNode = StockModule.getSelectedNode();
+        const allowTransferInCurrentScope = String(selectedNode?.key || '') !== 'all';
+        const stockDepotRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const sourceStockRow = stockDepotRows.find((row) => String(row?.id || '') === id) || null;
+        const statusMeta = StockModule.getInventoryRowStatusMeta(sourceStockRow || selectedRow || {});
         const infoRow = selectedRow || { code, name: '-', locationCode: '-', quantity: '-', unit: '', depotName: '-', modelCode: '-', productType: '-' };
+        const sourceQty = sourceStockRow ? StockModule.getStockRowQty(sourceStockRow) : 0;
+        const sourceScopeId = sourceStockRow ? StockModule.resolveScopeIdFromStockRow(sourceStockRow) : '';
+        const sourceScopeName = StockModule.getScopeNameById(sourceScopeId);
+        const sourceLocationId = String(sourceStockRow?.locationId || '').trim();
+        const sourceLocation = sourceLocationId
+            ? (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+                .find((row) => String(row?.id || '') === sourceLocationId)
+            : null;
+        const sourceLocationCode = String(sourceStockRow?.locationCode || (sourceLocation ? StockModule.getLocationCode(sourceLocation) : '') || '-').trim();
+        const canTransfer = !!sourceStockRow && statusMeta.key === 'available' && sourceQty > 0;
+        const transferScopeOptions = StockModule.getTransferScopeOptions();
+        const defaultTargetScopeId = transferScopeOptions.some((row) => String(row?.scopeId || '') === sourceScopeId)
+            ? sourceScopeId
+            : String(transferScopeOptions[0]?.scopeId || '');
+        const defaultTargetLocations = StockModule.getDepotLocations(defaultTargetScopeId);
+        const transferScopeOptionsHtml = transferScopeOptions.length === 0
+            ? '<option value="">Hedef depo bulunamadi</option>'
+            : transferScopeOptions.map((option) => `
+                <option value="${StockModule.escapeHtml(option.scopeId || '')}" ${String(option.scopeId || '') === defaultTargetScopeId ? 'selected' : ''}>${StockModule.escapeHtml(option.name || option.scopeId || '-')}</option>
+            `).join('');
+        const transferLocationOptionsHtml = defaultTargetLocations.length === 0
+            ? '<option value="">Bu depoda hucre yok</option>'
+            : ['<option value="">Hucre sec</option>'].concat(defaultTargetLocations.map((row) => `
+                <option value="${StockModule.escapeHtml(String(row?.id || ''))}">${StockModule.escapeHtml(StockModule.getLocationLabel(row))}</option>
+            `)).join('');
+        const transferPanel = !allowTransferInCurrentScope
+            ? ''
+            : (!sourceStockRow
+            ? `<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.6rem; color:#64748b;">Bu satir gercek stok kaydi degil. Transfer icin fiziksel stok satiri secin.</div>`
+            : (statusMeta.key !== 'available'
+                ? `<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.6rem; color:#64748b;">Bu adimda sadece kullanilabilir stok transferine izin verilir.</div>`
+                : (sourceQty <= 0
+                    ? `<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.6rem; color:#64748b;">Kaynak lokasyonda transfer edilecek stok yok.</div>`
+                    : `
+                        <div style="display:grid; gap:0.65rem;">
+                            <div style="font-size:0.82rem; color:#475569;">
+                                Kaynak: <strong>${StockModule.escapeHtml(sourceScopeName || '-')}</strong> | Konum: <strong>${StockModule.escapeHtml(sourceLocationCode || '-')}</strong> | Mevcut: <strong>${StockModule.escapeHtml(String(sourceQty))} ${StockModule.escapeHtml(String(sourceStockRow?.unit || 'ADET'))}</strong>
+                            </div>
+                            <div style="display:grid; grid-template-columns:180px 180px 1fr auto; gap:0.55rem; align-items:end;">
+                                <div>
+                                    <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Transfer adedi</label>
+                                    <input id="stock-transfer-qty" type="number" min="1" max="${StockModule.escapeHtml(String(sourceQty))}" value="1" class="stock-input stock-input-tall">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef secim tipi</label>
+                                    <select id="stock-transfer-mode" class="stock-input stock-input-tall" onchange="StockModule.onInventoryTransferModeChange()">
+                                        <option value="select" selected>Depo + hucre sec</option>
+                                        <option value="idcode">Hucre ID kodu gir</option>
+                                    </select>
+                                </div>
+                                <div id="stock-transfer-by-select" style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                                    <div>
+                                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef birim / atolye / depo</label>
+                                        <select id="stock-transfer-target-scope" class="stock-input stock-input-tall" onchange="StockModule.onInventoryTransferDepotChange()">
+                                            ${transferScopeOptionsHtml}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef hucre</label>
+                                        <select id="stock-transfer-target-location" class="stock-input stock-input-tall">
+                                            ${transferLocationOptionsHtml}
+                                        </select>
+                                    </div>
+                                </div>
+                                <div id="stock-transfer-by-idcode" style="display:none;">
+                                    <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hucre ID kodu / konum</label>
+                                    <input id="stock-transfer-target-idcode" class="stock-input stock-input-tall" placeholder="or: LOC-000123 veya R02-A1">
+                                </div>
+                                <button class="btn-primary" onclick="StockModule.submitInventoryTransferFromModal('${StockModule.escapeJsString(String(sourceStockRow?.id || ''))}','${StockModule.escapeJsString(String(infoRow?.code || code || ''))}')">Transfer Et</button>
+                                </div>
+                        </div>
+                    `)));
         const movementTable = movementRows.length === 0
             ? `<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.6rem; color:#64748b;">Bu urun icin henuz stok hareket kaydi yok.</div>`
             : `
@@ -1251,8 +1578,20 @@ const StockModule = {
                     <div style="font-weight:800; color:#0f172a;">Hareket gecmisi</div>
                     ${movementTable}
                 </div>
+                ${allowTransferInCurrentScope ? `
+                    <div style="display:grid; gap:0.45rem;">
+                        <div style="font-weight:800; color:#0f172a;">Baska depoya / rafa transfer et</div>
+                        ${transferPanel}
+                    </div>
+                ` : ''}
             </div>
         `, { maxWidth: '980px' });
+        if (allowTransferInCurrentScope && canTransfer) {
+            requestAnimationFrame(() => {
+                StockModule.refreshInventoryTransferLocationOptions();
+                StockModule.updateInventoryTransferModeUi();
+            });
+        }
     },
 
     setOperationFilter: (field, value, focusId = '') => {
@@ -1959,6 +2298,8 @@ const StockModule = {
         return groups.map((group) => {
             const rows = Array.isArray(group?.rows) ? group.rows : [];
             const filteredRows = rows.filter((row) => {
+                const qty = StockModule.getStockRowQty(row);
+                if (qty <= 0) return false;
                 const statusKey = StockModule.getInventoryRowStatusMeta(row).key;
                 if (statusKey === 'available') return !!stockFilters.available;
                 if (statusKey === 'wip') return !!stockFilters.inProcess;

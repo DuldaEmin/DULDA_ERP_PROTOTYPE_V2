@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-02T16:28:39.502Z",
+    "updated_at": "2026-04-02T16:28:14.792Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 703
+    "revision": 701
   },
   "data": {
     "products": [
@@ -2423,7 +2423,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:39.502Z"
+        "updated_at": "2026-04-02T16:28:11.032Z"
       },
       {
         "id": "537bfbec-4299-481e-96c3-bf559aa8621b",
@@ -2786,7 +2786,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:28:15.780Z"
+        "updated_at": "2026-04-02T16:25:32.476Z"
       }
     ],
     "workOrderTransactions": [
@@ -3223,48 +3223,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-04-02T16:28:14.792Z"
-      },
-      {
-        "id": "0d6e1990-03d0-4a5c-9185-28af4ab77395",
-        "workOrderId": "54b05f58-2ec6-4c4a-901b-aeff19b1c784",
-        "lineId": "e2d4de71-6a36-467f-a06d-698d2d1f0f76",
-        "stationId": "u_dtm",
-        "routeId": "5df1cd31-540d-4b16-a235-f81f8593701f",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 100,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:15.780Z"
-      },
-      {
-        "id": "5301d30d-9af0-4647-8a97-9e14c9098aa2",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u_dtm",
-        "routeId": "c7fd367d-79d7-4b15-bc0b-b6c8059e8727",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 50,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:39.502Z"
-      },
-      {
-        "id": "e1f1754c-21e9-4cde-9386-3f2a4815ffe9",
-        "workOrderId": "e3f9a756-3dd4-443e-a451-eed6c0ef6d08",
-        "lineId": "216d8167-f1ee-47e6-8007-69e9bc2be1fc",
-        "stationId": "u_dtm",
-        "routeId": "c7fd367d-79d7-4b15-bc0b-b6c8059e8727",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 50,
-        "note": "Birim depoya alindi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:28:39.502Z"
       }
     ],
     "outsourceTransfers": [
@@ -3631,26 +3589,6 @@
         "note": "DEPO TRANSFER birim stogu",
         "created_at": "2026-04-01T12:35:43.705Z",
         "updated_at": "2026-04-01T12:35:43.705Z"
-      },
-      {
-        "id": "a385e9c0-b2a5-4ac2-92f5-02edec80fa72",
-        "unitId": "u_dtm",
-        "stationId": "u_dtm",
-        "nodeKey": "unit:u_dtm",
-        "productCode": "PRC-000007",
-        "code": "PRC-000007",
-        "productName": "2008 bombeli 40 lık dikme pleksi",
-        "name": "2008 bombeli 40 lık dikme pleksi",
-        "quantity": 50,
-        "qty": 50,
-        "amount": 50,
-        "unit": "ADET",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "locationCode": "BIRIM-STOK",
-        "note": "DEPO TRANSFER birim stogu",
-        "created_at": "2026-04-02T16:28:39.502Z",
-        "updated_at": "2026-04-02T16:28:39.502Z"
       }
     ],
     "freeExternalVendorJobs": [],

@@ -421,6 +421,90 @@ const StockModule = {
             usedLocationCodes.add(autoCode);
             changed = true;
         });
+        const locationById = new Map();
+        const locationByDepotAndCode = new Map();
+        (DB.data.data.stockDepotLocations || []).forEach((locationRow) => {
+            const locationId = String(locationRow?.id || '').trim();
+            const depotId = String(locationRow?.depotId || '').trim();
+            if (locationId) locationById.set(locationId, locationRow);
+            if (!depotId) return;
+            const locationCode = String(StockModule.getLocationCode(locationRow) || '').trim().toUpperCase();
+            if (!locationCode) return;
+            const key = `${depotId}|${locationCode}`;
+            if (!locationByDepotAndCode.has(key)) locationByDepotAndCode.set(key, locationRow);
+        });
+        (DB.data.data.stockDepotItems || []).forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            if (!String(row?.id || '').trim()) {
+                row.id = crypto.randomUUID();
+                changed = true;
+            }
+            if (!row.created_at) {
+                row.created_at = now;
+                changed = true;
+            }
+            if (!row.updated_at) {
+                row.updated_at = now;
+                changed = true;
+            }
+            const nodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+            if (!String(row?.depotId || '').trim() && nodeKey.startsWith('managed:')) {
+                row.depotId = nodeKey.slice('managed:'.length);
+                changed = true;
+            }
+            let locationId = String(row?.locationId || '').trim();
+            let matchedLocation = locationId ? (locationById.get(locationId) || null) : null;
+            if (matchedLocation && !String(row?.depotId || '').trim()) {
+                row.depotId = String(matchedLocation?.depotId || '').trim();
+                changed = true;
+            }
+            const depotId = String(row?.depotId || '').trim();
+            const rafCode = String(row?.rafCode || '').trim().toUpperCase();
+            const cellCode = String(row?.cellCode || '').trim().toUpperCase();
+            const fallbackLocationCode = String(row?.locationCode || '').trim().toUpperCase()
+                || (rafCode && cellCode ? `${rafCode}-${cellCode}` : (rafCode || cellCode || ''));
+            if (!matchedLocation && depotId && fallbackLocationCode) {
+                const byCode = locationByDepotAndCode.get(`${depotId}|${fallbackLocationCode}`) || null;
+                if (byCode) {
+                    matchedLocation = byCode;
+                    const nextLocationId = String(byCode?.id || '').trim();
+                    if (nextLocationId && nextLocationId !== locationId) {
+                        row.locationId = nextLocationId;
+                        locationId = nextLocationId;
+                        changed = true;
+                    }
+                }
+            }
+            if (!matchedLocation && depotId && (rafCode || cellCode)) {
+                const byPair = (DB.data.data.stockDepotLocations || []).find((locationRow) =>
+                    String(locationRow?.depotId || '').trim() === depotId
+                    && String(locationRow?.rafCode || '').trim().toUpperCase() === rafCode
+                    && String(locationRow?.cellCode || '').trim().toUpperCase() === cellCode
+                ) || null;
+                if (byPair) {
+                    matchedLocation = byPair;
+                    const nextLocationId = String(byPair?.id || '').trim();
+                    if (nextLocationId && nextLocationId !== locationId) {
+                        row.locationId = nextLocationId;
+                        changed = true;
+                    }
+                }
+            }
+            if (matchedLocation) {
+                const canonicalCode = String(StockModule.getLocationCode(matchedLocation) || '').trim().toUpperCase();
+                if (canonicalCode && String(row?.locationCode || '').trim().toUpperCase() !== canonicalCode) {
+                    row.locationCode = canonicalCode;
+                    changed = true;
+                }
+                if (!String(row?.depotId || '').trim()) {
+                    row.depotId = String(matchedLocation?.depotId || '').trim();
+                    changed = true;
+                }
+            } else if (fallbackLocationCode && String(row?.locationCode || '').trim().toUpperCase() !== fallbackLocationCode) {
+                row.locationCode = fallbackLocationCode;
+                changed = true;
+            }
+        });
 
         if (changed) DB.markDirty();
     },

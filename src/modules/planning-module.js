@@ -239,15 +239,16 @@ const PlanningModule = {
         return sumFromOrders > 0 ? sumFromOrders : baseQty;
     },
 
-    getDepotQuantityByCode: (code) => {
+    getDepotQuantityByCode: (code, options = {}) => {
         const target = String(code || '').trim().toUpperCase();
         if (!target) return 0;
         const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
         const legacyRows = Array.isArray(DB.data?.data?.inventory) ? DB.data.data.inventory : [];
         const allRows = [...stockRows, ...legacyRows];
         return allRows.reduce((sum, row) => {
-            const rowCode = String(row?.productCode || row?.code || row?.itemCode || '').trim().toUpperCase();
+            const rowCode = PlanningModule.getDepotRowCode(row);
             if (!rowCode || rowCode !== target) return sum;
+            if (!PlanningModule.matchesDepotRowScope(row, options)) return sum;
             const qty = Number(row?.quantity ?? row?.qty ?? row?.amount ?? row?.value ?? 0);
             if (!Number.isFinite(qty) || qty <= 0) return sum;
             return sum + qty;
@@ -255,6 +256,62 @@ const PlanningModule = {
     },
 
     getDepotRowCode: (row) => String(row?.productCode || row?.code || row?.itemCode || '').trim().toUpperCase(),
+
+    getDepotRowDepotId: (row) => {
+        const direct = String(row?.depotId || row?.nodeId || '').trim();
+        if (direct) return direct;
+        const nodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+        if (nodeKey.startsWith('managed:')) return nodeKey.slice('managed:'.length);
+        const unitId = String(row?.unitId || row?.stationId || '').trim();
+        if (unitId) return `unit:${unitId}`;
+        return '';
+    },
+
+    getDepotRowLocationId: (row) => String(row?.locationId || '').trim(),
+
+    getDepotRowLocationCode: (row) => {
+        const direct = String(row?.locationCode || '').trim().toUpperCase();
+        if (direct) return direct;
+        const rafCode = String(row?.rafCode || '').trim().toUpperCase();
+        const cellCode = String(row?.cellCode || '').trim().toUpperCase();
+        if (rafCode && cellCode) return `${rafCode}-${cellCode}`;
+        if (rafCode) return rafCode;
+        return cellCode;
+    },
+
+    getDefaultLocationIdForDepot: (depotId) => {
+        const key = String(depotId || '').trim();
+        if (!key) return '';
+        const locations = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
+        const hit = locations.find((row) => String(row?.depotId || '').trim() === key) || null;
+        return String(hit?.id || '').trim();
+    },
+
+    matchesDepotRowScope: (row, options = {}) => {
+        const depotIdScope = String(options?.depotId || '').trim();
+        const locationIdScope = String(options?.locationId || '').trim();
+        const locationCodeScope = String(options?.locationCode || '').trim().toUpperCase();
+        if (depotIdScope) {
+            const rowDepotId = PlanningModule.getDepotRowDepotId(row);
+            if (rowDepotId !== depotIdScope) return false;
+        }
+        if (locationIdScope) {
+            const rowLocationId = PlanningModule.getDepotRowLocationId(row);
+            if (rowLocationId !== locationIdScope) return false;
+        }
+        if (locationCodeScope) {
+            const rowLocationCode = PlanningModule.getDepotRowLocationCode(row);
+            if (String(rowLocationCode || '').trim().toUpperCase() !== locationCodeScope) return false;
+        }
+        return true;
+    },
+
+    getDepotRowStockKey: (row, fallback = {}) => {
+        const code = PlanningModule.getDepotRowCode(row) || String(fallback?.code || '').trim().toUpperCase();
+        const depotId = PlanningModule.getDepotRowDepotId(row) || String(fallback?.depotId || '').trim();
+        const locationId = PlanningModule.getDepotRowLocationId(row) || String(fallback?.locationId || '').trim();
+        return `${code}|${depotId}|${locationId}`;
+    },
 
     getDepotRowQty: (row) => {
         const qty = Number(row?.quantity ?? row?.qty ?? row?.amount ?? row?.value ?? 0);
@@ -275,7 +332,7 @@ const PlanningModule = {
         row.updated_at = new Date().toISOString();
     },
 
-    consumeDepotQuantityByCode: (code, qty) => {
+    consumeDepotQuantityByCode: (code, qty, options = {}) => {
         const target = String(code || '').trim().toUpperCase();
         let remaining = PlanningModule.parseQty(qty, 0);
         if (!target || remaining <= 0) return 0;
@@ -284,7 +341,14 @@ const PlanningModule = {
         const consumeFromRows = (rows) => {
             const candidates = rows
                 .filter((row) => PlanningModule.getDepotRowCode(row) === target)
-                .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')));
+                .filter((row) => PlanningModule.matchesDepotRowScope(row, options))
+                .sort((a, b) => {
+                    const timeCmp = String(a?.created_at || '').localeCompare(String(b?.created_at || ''));
+                    if (timeCmp !== 0) return timeCmp;
+                    const depotCmp = PlanningModule.getDepotRowDepotId(a).localeCompare(PlanningModule.getDepotRowDepotId(b), 'tr');
+                    if (depotCmp !== 0) return depotCmp;
+                    return PlanningModule.getDepotRowLocationId(a).localeCompare(PlanningModule.getDepotRowLocationId(b), 'tr');
+                });
             candidates.forEach((row) => {
                 if (remaining <= 0) return;
                 const available = PlanningModule.getDepotRowQty(row);
@@ -295,23 +359,54 @@ const PlanningModule = {
             });
         };
         consumeFromRows(stockRows);
-        if (remaining > 0) consumeFromRows(legacyRows);
+        const hasScopedFilter = !!String(options?.depotId || '').trim()
+            || !!String(options?.locationId || '').trim()
+            || !!String(options?.locationCode || '').trim();
+        if (remaining > 0 && !hasScopedFilter) consumeFromRows(legacyRows);
         return PlanningModule.parseQty(qty, 0) - remaining;
     },
 
-    increaseDepotQuantityByCode: (code, name, qty) => {
+    increaseDepotQuantityByCode: (code, name, qty, options = {}) => {
         const target = String(code || '').trim().toUpperCase();
         const addQty = PlanningModule.parseQty(qty, 0);
         if (!target || addQty <= 0) return;
         if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
         const stockRows = DB.data.data.stockDepotItems;
-        const existing = stockRows.find((row) => PlanningModule.getDepotRowCode(row) === target);
+        const targetDepotId = String(options?.depotId || 'main').trim() || 'main';
+        let targetLocationId = String(options?.locationId || '').trim();
+        if (!targetLocationId && targetDepotId && !targetDepotId.startsWith('unit:')) {
+            targetLocationId = PlanningModule.getDefaultLocationIdForDepot(targetDepotId);
+        }
+        const targetKey = PlanningModule.getDepotRowStockKey(null, {
+            code: target,
+            depotId: targetDepotId,
+            locationId: targetLocationId
+        });
+        const existing = stockRows.find((row) => PlanningModule.getDepotRowStockKey(row) === targetKey);
         if (existing) {
             PlanningModule.setDepotRowQty(existing, PlanningModule.getDepotRowQty(existing) + addQty);
+            if (!String(existing?.productName || '').trim()) existing.productName = String(name || target || '-');
+            if (!String(existing?.name || '').trim()) existing.name = String(name || target || '-');
+            if (!String(existing?.depotId || '').trim()) existing.depotId = targetDepotId;
+            if (!String(existing?.locationId || '').trim() && targetLocationId) existing.locationId = targetLocationId;
+            if (!String(existing?.stockClass || '').trim()) existing.stockClass = String(options?.stockClass || 'KULLANILABILIR');
+            if (!String(existing?.status || '').trim()) existing.status = String(options?.status || options?.stockClass || 'KULLANILABILIR');
             return;
         }
         const locations = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
-        const mainLocation = locations.find((row) => String(row?.depotId || '') === 'main') || null;
+        const location = targetLocationId
+            ? (locations.find((row) => String(row?.id || '').trim() === targetLocationId) || null)
+            : null;
+        const explicitLocationCode = String(options?.locationCode || '').trim().toUpperCase();
+        let derivedLocationCode = '';
+        if (location) {
+            const raf = String(location?.rafCode || '').trim().toUpperCase();
+            const cell = String(location?.cellCode || '').trim().toUpperCase();
+            if (raf && cell) derivedLocationCode = `${raf}-${cell}`;
+            else if (raf) derivedLocationCode = raf;
+            else if (cell) derivedLocationCode = cell;
+        }
+        const locationCode = explicitLocationCode || derivedLocationCode;
         const now = new Date().toISOString();
         stockRows.push({
             id: crypto.randomUUID(),
@@ -322,10 +417,13 @@ const PlanningModule = {
             quantity: addQty,
             qty: addQty,
             amount: addQty,
-            unit: 'ADET',
-            status: 'bitmis',
-            depotId: 'main',
-            locationId: String(mainLocation?.id || ''),
+            unit: String(options?.unit || 'ADET').trim() || 'ADET',
+            stockClass: String(options?.stockClass || 'KULLANILABILIR'),
+            status: String(options?.status || options?.stockClass || 'KULLANILABILIR'),
+            depotId: targetDepotId,
+            locationId: targetLocationId,
+            locationCode: locationCode || undefined,
+            note: String(options?.note || ''),
             created_at: now,
             updated_at: now
         });

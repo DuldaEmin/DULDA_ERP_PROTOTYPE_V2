@@ -959,6 +959,110 @@ tr:hover {
     overflow: hidden;
 }
 
+.stock-item-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.stock-item-row {
+    border: 1.7px solid #1f2937;
+    border-radius: 0.8rem;
+    background: #ffffff;
+    padding: 0.48rem 0.62rem;
+    display: grid;
+    grid-template-columns: auto auto minmax(180px, 1.8fr) minmax(120px, 1fr) auto auto auto auto;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.stock-item-code {
+    border: none;
+    background: none;
+    padding: 0;
+    margin: 0;
+    font-family: Consolas, monospace;
+    color: #1d4ed8;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.stock-item-code:hover {
+    text-decoration: underline;
+}
+
+.stock-item-divider {
+    width: 1px;
+    height: 28px;
+    background: #1f2937;
+    opacity: 0.55;
+}
+
+.stock-item-name {
+    color: #1f2937;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.stock-item-model,
+.stock-item-qty,
+.stock-item-location {
+    color: #334155;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.stock-item-state {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 0.75rem;
+    border-radius: 0.65rem;
+    border: 1px solid #94a3b8;
+    background: #f8fafc;
+    font-weight: 700;
+    color: #334155;
+    white-space: nowrap;
+}
+
+.stock-item-state-available {
+    border-color: #86efac;
+    background: #ecfdf5;
+    color: #047857;
+}
+
+.stock-item-state-reserve {
+    border-color: #fecaca;
+    background: #fff1f2;
+    color: #b91c1c;
+}
+
+.stock-item-state-wip {
+    border-color: #fed7aa;
+    background: #fff7ed;
+    color: #b45309;
+}
+
+.stock-item-action {
+    min-height: 34px;
+    border: 1px solid #9ca3af;
+    border-radius: 0.65rem;
+    background: #f8fafc;
+    color: #1f2937;
+    font-weight: 700;
+    padding: 0 0.75rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.stock-item-action:hover {
+    border-color: #0f172a;
+    background: #ffffff;
+}
+
 .stock-group-card {
     margin-top: 0.75rem;
 }
@@ -1506,6 +1610,16 @@ tr:hover {
 
     .stock-search-grid-compact {
         max-width: 100%;
+    }
+
+    .stock-item-row {
+        grid-template-columns: 1fr;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
+
+    .stock-item-divider {
+        display: none;
     }
 }
 

@@ -106,7 +106,20 @@ const StockModule = {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;'),
 
+    escapeJsString: (value) => String(value ?? '')
+        .replace(/\\/g, '\\\\')
+        .replace(/'/g, "\\'")
+        .replace(/\r/g, '\\r')
+        .replace(/\n/g, '\\n'),
+
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
+
+    formatDateTimeLabel: (value) => {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return String(value || '-');
+        return date.toLocaleString('tr-TR');
+    },
 
     getInventorySearchMatch: (row, rawQuery) => {
         const q = StockModule.normalize(rawQuery).replace(/\s+/g, ' ').trim();
@@ -832,7 +845,8 @@ const StockModule = {
         return 'master';
     },
 
-    groupInventoryRowsByCategory: (rows) => {
+    groupInventoryRowsByCategory: (rows, options = {}) => {
+        const includeEmpty = !!options.includeEmpty;
         const defs = StockModule.getInventoryCategoryDefs();
         const bucketMap = new Map(defs.map((def) => [def.id, []]));
         (Array.isArray(rows) ? rows : []).forEach((row) => {
@@ -840,9 +854,8 @@ const StockModule = {
             if (!bucketMap.has(categoryId)) bucketMap.set(categoryId, []);
             bucketMap.get(categoryId).push(row);
         });
-        return defs
-            .map((def) => ({ ...def, rows: bucketMap.get(def.id) || [] }))
-            .filter((entry) => entry.rows.length > 0);
+        const grouped = defs.map((def) => ({ ...def, rows: bucketMap.get(def.id) || [] }));
+        return includeEmpty ? grouped : grouped.filter((entry) => entry.rows.length > 0);
     },
 
     getInventoryCategoryToggleKey: (scopeKey, categoryId) => `${String(scopeKey || 'scope')}|${String(categoryId || 'category')}`,
@@ -860,6 +873,136 @@ const StockModule = {
         current[key] = !current[key];
         StockModule.state.inventoryOpenCategoryKeys = current;
         UI.renderCurrentPage();
+    },
+
+    getInventoryRowModelText: (row) => {
+        const candidates = [
+            row?.modelCode,
+            row?.searchMeta?.productBrandModel,
+            row?.searchMeta?.partCardSubGroup,
+            row?.searchMeta?.semiCardSubGroup,
+            row?.searchMeta?.productCategory,
+            row?.productType
+        ].map((value) => String(value || '').trim()).filter(Boolean);
+        return candidates.length > 0 ? candidates[0] : '-';
+    },
+
+    getInventoryRowStatusMeta: (row) => {
+        const raw = StockModule.normalize([row?.status, row?.stockClass].filter(Boolean).join(' '));
+        if (raw.includes('rezerve') || raw.includes('rezerv')) return { key: 'reserve', text: 'rezerve' };
+        if (raw.includes('wip') || raw.includes('islemde')) return { key: 'wip', text: 'islemde' };
+        return { key: 'available', text: 'kullanilabilir' };
+    },
+
+    openInventoryItemCard: (rawCode) => {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+        if (typeof ReadOnlyViewer !== 'undefined' && ReadOnlyViewer && typeof ReadOnlyViewer.openByCode === 'function') {
+            const opened = ReadOnlyViewer.openByCode(code, { silentNotFound: true });
+            if (opened) return;
+        }
+        alert('Bu kod icin urun karti bulunamadi.');
+    },
+
+    openInventoryRowHistory: (rawCode, rawId = '') => {
+        const code = String(rawCode || '').trim();
+        const id = String(rawId || '').trim();
+        const normalizedCode = StockModule.normalize(code);
+        const rows = StockModule.getInventoryRows();
+        const selectedRow = (id
+            ? rows.find((row) => String(row?.id || '') === id && StockModule.normalize(row?.code) === normalizedCode)
+            : null)
+            || rows.find((row) => StockModule.normalize(row?.code) === normalizedCode)
+            || null;
+        const sameCodeRows = rows
+            .filter((row) => StockModule.normalize(row?.code) === normalizedCode)
+            .sort((a, b) => String(a?.depotName || '').localeCompare(String(b?.depotName || ''), 'tr'));
+        const stockMovements = Array.isArray(DB.data?.data?.stock_movements) ? DB.data.data.stock_movements : [];
+        const movementRows = stockMovements
+            .filter((mv) => {
+                const mvCode = StockModule.normalize(mv?.productCode || mv?.code || mv?.itemCode || '');
+                return !!mvCode && mvCode === normalizedCode;
+            })
+            .sort((a, b) => new Date(b?.created_at || b?.updated_at || 0) - new Date(a?.created_at || a?.updated_at || 0));
+        const statusMeta = StockModule.getInventoryRowStatusMeta(selectedRow || {});
+        const infoRow = selectedRow || { code, name: '-', locationCode: '-', quantity: '-', unit: '', depotName: '-', modelCode: '-', productType: '-' };
+        const movementTable = movementRows.length === 0
+            ? `<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.6rem; color:#64748b;">Bu urun icin henuz stok hareket kaydi yok.</div>`
+            : `
+                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; overflow:hidden;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="text-align:left;">Tarih</th>
+                                <th style="text-align:left;">Tip</th>
+                                <th style="text-align:left;">Miktar</th>
+                                <th style="text-align:left;">Depo</th>
+                                <th style="text-align:left;">Not</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${movementRows.slice(0, 20).map((mv) => `
+                                <tr>
+                                    <td>${StockModule.escapeHtml(StockModule.formatDateTimeLabel(mv?.created_at || mv?.updated_at || ''))}</td>
+                                    <td>${StockModule.escapeHtml(mv?.movementType || mv?.type || '-')}</td>
+                                    <td>${StockModule.escapeHtml(`${mv?.quantity ?? mv?.qty ?? '-'} ${mv?.unit || ''}`.trim())}</td>
+                                    <td>${StockModule.escapeHtml(mv?.depotName || mv?.depotId || '-')}</td>
+                                    <td>${StockModule.escapeHtml(mv?.note || '-')}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        const allDepotSummary = sameCodeRows.length === 0
+            ? `<div style="color:#64748b;">Bu kod icin depot ozeti bulunamadi.</div>`
+            : `
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:0.55rem;">
+                    ${sameCodeRows.map((row) => `
+                        <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem 0.6rem; background:#fff;">
+                            <div style="font-size:0.75rem; color:#64748b;">Depo</div>
+                            <div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row?.depotName || '-')}</div>
+                            <div style="font-size:0.78rem; color:#475569; margin-top:0.2rem;">Konum: ${StockModule.escapeHtml(row?.locationCode || '-')}</div>
+                            <div style="font-size:0.78rem; color:#475569;">Miktar: ${StockModule.escapeHtml(`${row?.quantity ?? '-'} ${row?.unit || ''}`.trim())}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        Modal.open(`Stok detay - ${StockModule.escapeHtml(infoRow?.code || '-')}`, `
+            <div style="display:grid; gap:0.8rem;">
+                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">ID kodu</div>
+                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${StockModule.escapeHtml(infoRow?.code || '-')}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Urun adi</div>
+                        <div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(infoRow?.name || '-')}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Durum</div>
+                        <div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(statusMeta.text)}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Miktar</div>
+                        <div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(`${infoRow?.quantity ?? '-'} ${infoRow?.unit || ''}`.trim())}</div>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.75rem; background:#f8fafc;">
+                    <div style="display:flex; justify-content:space-between; gap:0.55rem; align-items:center; flex-wrap:wrap;">
+                        <div style="font-weight:800; color:#0f172a;">Depolardaki gorunum</div>
+                        <button class="btn-sm" onclick="StockModule.openInventoryItemCard('${StockModule.escapeJsString(infoRow?.code || '')}')">ID kartini ac</button>
+                    </div>
+                    <div style="margin-top:0.6rem;">${allDepotSummary}</div>
+                </div>
+
+                <div style="display:grid; gap:0.45rem;">
+                    <div style="font-weight:800; color:#0f172a;">Hareket gecmisi</div>
+                    ${movementTable}
+                </div>
+            </div>
+        `, { maxWidth: '980px' });
     },
 
     setOperationFilter: (field, value, focusId = '') => {
@@ -1442,26 +1585,36 @@ const StockModule = {
     },
     renderInventoryGroups: (node) => {
         const groups = StockModule.getInventoryGroups(node);
-        if (groups.length === 0 || groups.every((group) => group.rows.length === 0)) {
+        if (groups.length === 0) {
             return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
         }
         const renderRows = (rows) => {
             return (Array.isArray(rows) ? rows : []).map((row) => {
-                const detail = [];
-                if (row.locationCode) detail.push(`Konum: ${row.locationCode}`);
-                if (row.quantity !== '' && row.quantity !== null && row.quantity !== undefined) detail.push(`Miktar: ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`);
-                if (row.status) detail.push(`Durum: ${row.status}`);
+                const statusMeta = StockModule.getInventoryRowStatusMeta(row);
+                const statusClass = statusMeta.key === 'reserve'
+                    ? 'stock-item-state-reserve'
+                    : (statusMeta.key === 'wip' ? 'stock-item-state-wip' : 'stock-item-state-available');
+                const modelText = StockModule.getInventoryRowModelText(row);
+                const qtyText = `${row?.quantity ?? '-'}${row?.unit ? ` ${row.unit}` : ''}`.trim();
+                const safeCode = StockModule.escapeJsString(row?.code || '');
+                const safeId = StockModule.escapeJsString(row?.id || '');
                 return `
-                    <tr>
-                        <td style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(row.name || '-')}</td>
-                        <td style="font-family:monospace; color:#1d4ed8; font-weight:700;">${StockModule.escapeHtml(row.code || '-')}</td>
-                        <td style="color:#64748b;">${StockModule.escapeHtml(detail.join(' | ') || 'Detay daha sonra zenginlestirilecek.')}</td>
-                    </tr>
+                    <div class="stock-item-row">
+                        <button type="button" class="stock-item-code" onclick="StockModule.openInventoryItemCard('${safeCode}')">${StockModule.escapeHtml(row?.code || '-')}</button>
+                        <div class="stock-item-divider"></div>
+                        <div class="stock-item-name">${StockModule.escapeHtml(row?.name || '-')}</div>
+                        <div class="stock-item-model">${StockModule.escapeHtml(modelText)}</div>
+                        <div class="stock-item-qty">${StockModule.escapeHtml(qtyText || '-')}</div>
+                        <div class="stock-item-location">${StockModule.escapeHtml(row?.locationCode || '-')}</div>
+                        <span class="stock-item-state ${statusClass}">${StockModule.escapeHtml(statusMeta.text)}</span>
+                        <button type="button" class="stock-item-action" onclick="StockModule.openInventoryRowHistory('${safeCode}','${safeId}')">Goruntule / Duzenle</button>
+                    </div>
                 `;
             }).join('');
         };
-        const renderCategoryBlocks = (scopeKey, rows, emptyMessage) => {
-            const categories = StockModule.groupInventoryRowsByCategory(rows);
+        const renderCategoryBlocks = (scopeKey, rows, emptyMessage, options = {}) => {
+            const includeEmpty = !!options.includeEmpty;
+            const categories = StockModule.groupInventoryRowsByCategory(rows, { includeEmpty });
             if (!Array.isArray(categories) || categories.length === 0) {
                 return `<div class="stock-empty" style="padding:0.85rem; color:#94a3b8;">${StockModule.escapeHtml(emptyMessage || 'Kayit yok.')}</div>`;
             }
@@ -1478,16 +1631,9 @@ const StockModule = {
                                 </button>
                                 ${isOpen ? `
                                     <div class="stock-category-body">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th style="text-align:left;">Urun adi</th>
-                                                    <th style="text-align:left;">ID kodu</th>
-                                                    <th style="text-align:left;">Detay</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${renderRows(category.rows)}</tbody>
-                                        </table>
+                                        ${category.rows.length === 0
+                ? `<div class="stock-empty" style="padding:0.7rem; color:#94a3b8; text-align:left;">Bu depoda bu kategoride urun kaydi yok.</div>`
+                : `<div class="stock-item-list">${renderRows(category.rows)}</div>`}
                                     </div>
                                 ` : ''}
                             </div>
@@ -1507,10 +1653,10 @@ const StockModule = {
                     ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
                     <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'}; padding:0.75rem;">
                         <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">KULLANILABILIR STOK</div>
-                        ${renderCategoryBlocks(usableScopeKey, usableRows, 'Kullanilabilir stok kaydi yok.')}
+                        ${renderCategoryBlocks(usableScopeKey, usableRows, 'Kullanilabilir stok kaydi yok.', { includeEmpty: true })}
                         <div style="height:10px;"></div>
                         <div style="font-size:0.78rem; font-weight:800; color:#9a3412; margin-bottom:0.35rem;">ISLEMDE / WIP</div>
-                        ${renderCategoryBlocks(wipScopeKey, wipRows, 'Islemde (WIP) kaydi yok.')}
+                        ${renderCategoryBlocks(wipScopeKey, wipRows, 'Islemde (WIP) kaydi yok.', { includeEmpty: false })}
                     </div>
                 </div>
             `;
@@ -1772,7 +1918,6 @@ const StockModule = {
 
                         ${StockModule.renderInventoryGroups(node)}
                         ${StockModule.renderLocationsCard(node)}
-                        ${StockModule.renderReferenceNotice(node)}
                     </div>
                 </div>
             </section>

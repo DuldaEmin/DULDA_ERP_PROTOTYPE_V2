@@ -3360,6 +3360,176 @@ const UnitModule = {
             return String(a.order?.workOrderCode || '').localeCompare(String(b.order?.workOrderCode || ''));
         });
     },
+    ensureStockLocationData: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
+        if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data.data.stock_movements)) DB.data.data.stock_movements = [];
+    },
+    getDepotLocationCode: (row) => {
+        const raf = String(row?.rafCode || '').trim().toUpperCase();
+        const cell = String(row?.cellCode || '').trim().toUpperCase();
+        if (raf && cell) return `${raf}-${cell}`;
+        if (raf) return raf;
+        return cell || '';
+    },
+    getDepotLocationCodeById: (locationId) => {
+        const id = String(locationId || '').trim();
+        if (!id) return '';
+        const row = (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+            .find((item) => String(item?.id || '').trim() === id) || null;
+        return row ? UnitModule.getDepotLocationCode(row) : '';
+    },
+    normalizeLocationIdCode: (value) => String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '-')
+        .replace(/[^A-Z0-9_-]/g, ''),
+    getStoreScopeName: (scopeId) => {
+        const key = String(scopeId || '').trim();
+        if (!key) return '-';
+        if (typeof StockModule !== 'undefined' && StockModule && typeof StockModule.getScopeNameById === 'function') {
+            const label = String(StockModule.getScopeNameById(key) || '').trim();
+            if (label) return label;
+        }
+        const units = Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [];
+        if (key.startsWith('unit:') || key.startsWith('external:')) {
+            const rawId = key.split(':').slice(1).join(':');
+            const unit = units.find((row) => String(row?.id || '') === rawId) || null;
+            return String(unit?.name || key).trim().toUpperCase();
+        }
+        if (key === 'main') return 'ANA DEPO';
+        const depots = Array.isArray(DB.data?.data?.stockDepots) ? DB.data.data.stockDepots : [];
+        const depot = depots.find((row) => String(row?.id || '') === key) || null;
+        return String(depot?.name || key).trim().toUpperCase();
+    },
+    getStockRowScopeId: (row) => {
+        const nodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
+        if (nodeKey.startsWith('unit:') || nodeKey.startsWith('external:')) return nodeKey;
+        if (nodeKey.startsWith('managed:')) return nodeKey.slice('managed:'.length);
+        const depotId = String(row?.depotId || row?.nodeId || '').trim();
+        if (depotId.startsWith('unit:') || depotId.startsWith('external:')) return depotId;
+        if (depotId) return depotId;
+        const unitId = String(row?.unitId || row?.stationId || '').trim();
+        if (unitId) return `unit:${unitId}`;
+        return '';
+    },
+    getStoreScopeOptions: () => {
+        UnitModule.ensureStockLocationData();
+        const scopes = new Set(
+            (DB.data.data.stockDepotLocations || [])
+                .map((row) => String(row?.depotId || '').trim())
+                .filter(Boolean)
+        );
+        return Array.from(scopes)
+            .map((scopeId) => ({ scopeId, name: UnitModule.getStoreScopeName(scopeId) }))
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+    getScopeLocations: (scopeId) => {
+        const target = String(scopeId || '').trim();
+        if (!target) return [];
+        return (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+            .filter((row) => String(row?.depotId || '').trim() === target)
+            .slice()
+            .sort((a, b) => {
+                const rafCmp = String(a?.rafCode || '').localeCompare(String(b?.rafCode || ''), 'tr');
+                if (rafCmp !== 0) return rafCmp;
+                return String(a?.cellCode || '').localeCompare(String(b?.cellCode || ''), 'tr');
+            });
+    },
+    findLocationByIdCodeOrCode: (rawValue) => {
+        const value = String(rawValue || '').trim();
+        if (!value) return null;
+        const normalizedIdCode = UnitModule.normalizeLocationIdCode(value);
+        const normalizedCode = String(value || '').trim().toUpperCase();
+        return (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+            .find((row) => {
+                const rowIdCode = UnitModule.normalizeLocationIdCode(row?.idCode || '');
+                if (normalizedIdCode && rowIdCode === normalizedIdCode) return true;
+                const rowCode = UnitModule.getDepotLocationCode(row);
+                return !!normalizedCode && rowCode === normalizedCode;
+            }) || null;
+    },
+    getLocationLabel: (locationRow) => {
+        const code = UnitModule.getDepotLocationCode(locationRow) || '-';
+        const idCode = UnitModule.normalizeLocationIdCode(locationRow?.idCode || '') || '-';
+        return `${code} | ID:${idCode}`;
+    },
+    refreshStoreLocationModalTargets: () => {
+        const scopeSelect = document.getElementById('wo-store-target-scope');
+        const locationSelect = document.getElementById('wo-store-target-location');
+        const preview = document.getElementById('wo-store-target-preview');
+        if (!scopeSelect || !locationSelect) return;
+        const scopeId = String(scopeSelect.value || '').trim();
+        const selectedBefore = String(locationSelect.value || '').trim();
+        const locations = UnitModule.getScopeLocations(scopeId);
+        locationSelect.innerHTML = locations.length === 0
+            ? '<option value="">Bu depoda hucre yok</option>'
+            : ['<option value="">Hucre sec</option>'].concat(locations.map((row) => `
+                <option value="${UnitModule.escapeHtml(String(row?.id || ''))}">${UnitModule.escapeHtml(UnitModule.getLocationLabel(row))}</option>
+            `)).join('');
+        if (selectedBefore && locations.some((row) => String(row?.id || '') === selectedBefore)) {
+            locationSelect.value = selectedBefore;
+        }
+        UnitModule.updateStoreLocationModalPreview();
+        if (preview && !locations.length) {
+            preview.textContent = 'Secili depoda tanimli hucre yok.';
+        }
+    },
+    updateStoreLocationModalPreview: () => {
+        const modeSelect = document.getElementById('wo-store-mode');
+        const bySelect = document.getElementById('wo-store-by-select');
+        const byIdCode = document.getElementById('wo-store-by-idcode');
+        const preview = document.getElementById('wo-store-target-preview');
+        if (!modeSelect || !bySelect || !byIdCode || !preview) return;
+        const mode = String(modeSelect.value || 'select').trim();
+        const useId = mode === 'idcode';
+        bySelect.style.display = useId ? 'none' : '';
+        byIdCode.style.display = useId ? '' : 'none';
+        if (useId) {
+            const raw = String(document.getElementById('wo-store-target-idcode')?.value || '').trim();
+            if (!raw) {
+                preview.textContent = 'ID kodu veya konum kodu giriniz.';
+                return;
+            }
+            const hit = UnitModule.findLocationByIdCodeOrCode(raw);
+            if (!hit) {
+                preview.textContent = 'Lokasyon bulunamadi.';
+                return;
+            }
+            preview.textContent = `Hedef: ${UnitModule.getStoreScopeName(hit.depotId)} / ${UnitModule.getLocationLabel(hit)}`;
+            return;
+        }
+        const scopeId = String(document.getElementById('wo-store-target-scope')?.value || '').trim();
+        const locationId = String(document.getElementById('wo-store-target-location')?.value || '').trim();
+        if (!scopeId) {
+            preview.textContent = 'Hedef depo seciniz.';
+            return;
+        }
+        if (!locationId) {
+            preview.textContent = 'Hedef hucre seciniz.';
+            return;
+        }
+        const row = UnitModule.getScopeLocations(scopeId).find((item) => String(item?.id || '') === locationId) || null;
+        if (!row) {
+            preview.textContent = 'Hedef hucre bulunamadi.';
+            return;
+        }
+        preview.textContent = `Hedef: ${UnitModule.getStoreScopeName(scopeId)} / ${UnitModule.getLocationLabel(row)}`;
+    },
+    onStoreLocationModalModeChange: () => {
+        UnitModule.updateStoreLocationModalPreview();
+    },
+    onStoreLocationModalScopeChange: () => {
+        UnitModule.refreshStoreLocationModalTargets();
+    },
+    onStoreLocationModalLocationChange: () => {
+        UnitModule.updateStoreLocationModalPreview();
+    },
+    onStoreLocationModalIdInput: () => {
+        UnitModule.updateStoreLocationModalPreview();
+    },
     getStockItemQty: (row) => {
         const raw = Number(row?.quantity ?? row?.qty ?? row?.amount ?? 0);
         return Number.isFinite(raw) ? Math.max(0, raw) : 0;
@@ -3371,35 +3541,50 @@ const UnitModule = {
         row.amount = clean;
         row.updated_at = new Date().toISOString();
     },
-    addToUnitDepotStock: (order, line, stationId, qty) => {
+    addToUnitDepotStock: (order, line, stationId, qty, options = {}) => {
         const addQty = Math.max(0, Math.floor(Number(qty || 0)));
         if (addQty <= 0) return;
-        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        UnitModule.ensureStockLocationData();
         const rows = DB.data.data.stockDepotItems;
         const code = String(line?.componentCode || order?.productCode || '').trim().toUpperCase();
         const name = String(line?.componentName || order?.productName || code || '-').trim();
         const unit = String(line?.unit || order?.unit || 'ADET').trim() || 'ADET';
-        const unitId = String(stationId || '').trim();
+        const fallbackScopeId = `unit:${String(stationId || '').trim()}`;
+        const targetScopeId = String(options?.targetScopeId || fallbackScopeId).trim() || fallbackScopeId;
+        const targetLocationId = String(options?.targetLocationId || '').trim();
+        const targetLocationCode = String(options?.targetLocationCode || '').trim().toUpperCase()
+            || (targetLocationId ? UnitModule.getDepotLocationCodeById(targetLocationId) : '')
+            || (targetScopeId.startsWith('unit:') ? 'BIRIM-STOK' : '');
+        const targetUnitId = (targetScopeId.startsWith('unit:') || targetScopeId.startsWith('external:'))
+            ? targetScopeId.split(':').slice(1).join(':')
+            : '';
+        const targetNodeKey = targetScopeId.startsWith('unit:') || targetScopeId.startsWith('external:')
+            ? targetScopeId
+            : `managed:${targetScopeId}`;
         const keyCode = String(code || '').trim().toUpperCase();
         const existing = rows.find((row) => {
-            const rowUnitId = String(row?.unitId || row?.stationId || '').trim();
+            const rowScopeId = UnitModule.getStockRowScopeId(row);
             const rowCode = String(row?.productCode || row?.code || '').trim().toUpperCase();
             const rowClass = String(row?.stockClass || row?.status || 'KULLANILABILIR').trim().toUpperCase();
-            return rowUnitId === unitId && rowCode === keyCode && rowClass !== 'WIP' && rowClass !== 'ISLEMDE';
+            if (rowClass === 'WIP' || rowClass === 'ISLEMDE') return false;
+            if (rowScopeId !== targetScopeId) return false;
+            if (rowCode !== keyCode) return false;
+            const rowLocationId = String(row?.locationId || '').trim();
+            if (targetLocationId) return rowLocationId === targetLocationId;
+            return String(row?.locationCode || '').trim().toUpperCase() === targetLocationCode;
         });
         if (existing) {
             UnitModule.setStockItemQty(existing, UnitModule.getStockItemQty(existing) + addQty);
             if (!String(existing?.unit || '').trim()) existing.unit = unit;
             if (!String(existing?.name || '').trim()) existing.name = name;
             if (!String(existing?.productName || '').trim()) existing.productName = name;
+            if (!String(existing?.locationId || '').trim() && targetLocationId) existing.locationId = targetLocationId;
+            if (!String(existing?.locationCode || '').trim() && targetLocationCode) existing.locationCode = targetLocationCode;
             return;
         }
         const now = new Date().toISOString();
-        rows.push({
+        const newRow = {
             id: crypto.randomUUID(),
-            unitId,
-            stationId: unitId,
-            nodeKey: `unit:${unitId}`,
             productCode: keyCode || '-',
             code: keyCode || '-',
             productName: name,
@@ -3410,11 +3595,28 @@ const UnitModule = {
             unit,
             stockClass: 'KULLANILABILIR',
             status: 'KULLANILABILIR',
-            locationCode: 'BIRIM-STOK',
-            note: `${UnitModule.getRouteStationName(unitId)} birim stogu`,
+            locationId: targetLocationId || undefined,
+            locationCode: targetLocationCode || undefined,
+            note: String(options?.targetNote || ''),
             created_at: now,
             updated_at: now
-        });
+        };
+        if (targetScopeId.startsWith('unit:') || targetScopeId.startsWith('external:')) {
+            newRow.unitId = targetUnitId;
+            newRow.stationId = targetUnitId;
+            newRow.nodeKey = targetNodeKey;
+        } else {
+            newRow.depotId = targetScopeId;
+            newRow.nodeKey = targetNodeKey;
+        }
+        if (!String(newRow.note || '').trim()) {
+            if (targetScopeId.startsWith('unit:') || targetScopeId.startsWith('external:')) {
+                newRow.note = `${UnitModule.getStoreScopeName(targetScopeId)} birim stogu`;
+            } else {
+                newRow.note = `${UnitModule.getStoreScopeName(targetScopeId)} depo stogu`;
+            }
+        }
+        rows.push(newRow);
     },
     getUnitDepotStockRows: (unitId) => {
         const keyUnitId = String(unitId || '').trim();
@@ -3532,30 +3734,166 @@ const UnitModule = {
         const qty = Number(raw);
         await UnitModule.completeWorkOrderQty(workOrderId, lineId, stationId, qty, { skipPrompt: true, routeSeq: Number(routeSeq || 0) });
     },
+    openStoreWorkOrderLocationModal: (workOrderId, lineId, stationId, inputId, routeSeq = '') => {
+        UnitModule.ensureStockLocationData();
+        const input = document.getElementById(String(inputId || '').trim());
+        if (!input) return alert('Adet giris kutusu bulunamadi.');
+        const raw = String(input.value || '').trim();
+        if (!raw) return alert('Lutfen depoya alinacak adet giriniz.');
+        const qty = Number(raw);
+        if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) return alert('Depoya alinacak adet tam sayi olmali.');
+
+        const scopeOptions = UnitModule.getStoreScopeOptions();
+        if (scopeOptions.length === 0) return alert('Hedef depo/hucre tanimi bulunamadi.');
+        const defaultScopeId = scopeOptions.some((row) => String(row?.scopeId || '') === `unit:${String(stationId || '').trim()}`)
+            ? `unit:${String(stationId || '').trim()}`
+            : String(scopeOptions[0]?.scopeId || '');
+        const defaultLocations = UnitModule.getScopeLocations(defaultScopeId);
+        const scopeOptionsHtml = scopeOptions.map((row) => `
+            <option value="${UnitModule.escapeHtml(String(row?.scopeId || ''))}" ${String(row?.scopeId || '') === defaultScopeId ? 'selected' : ''}>${UnitModule.escapeHtml(row?.name || row?.scopeId || '-')}</option>
+        `).join('');
+        const locationOptionsHtml = defaultLocations.length === 0
+            ? '<option value="">Bu depoda hucre yok</option>'
+            : ['<option value="">Hucre sec</option>'].concat(defaultLocations.map((row) => `
+                <option value="${UnitModule.escapeHtml(String(row?.id || ''))}">${UnitModule.escapeHtml(UnitModule.getLocationLabel(row))}</option>
+            `)).join('');
+        Modal.open('Depoya Al - Hedef Lokasyon Sec', `
+            <div style="display:grid; gap:0.75rem;">
+                <div style="font-size:0.86rem; color:#334155;">
+                    Bu satirdaki adet kullanilacak: <strong>${UnitModule.escapeHtml(String(Math.max(0, Math.floor(qty))))}</strong>
+                </div>
+                <div style="display:grid; grid-template-columns:220px 1fr; gap:0.55rem; align-items:end;">
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef secim tipi</label>
+                        <select id="wo-store-mode" class="stock-input stock-input-tall" onchange="UnitModule.onStoreLocationModalModeChange()">
+                            <option value="select" selected>Depo + hucre sec</option>
+                            <option value="idcode">ID kodu ile gonder</option>
+                        </select>
+                    </div>
+                    <div id="wo-store-by-select" style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef depo</label>
+                            <select id="wo-store-target-scope" class="stock-input stock-input-tall" onchange="UnitModule.onStoreLocationModalScopeChange()">
+                                ${scopeOptionsHtml}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hedef hucre/raf</label>
+                            <select id="wo-store-target-location" class="stock-input stock-input-tall" onchange="UnitModule.onStoreLocationModalLocationChange()">
+                                ${locationOptionsHtml}
+                            </select>
+                        </div>
+                    </div>
+                    <div id="wo-store-by-idcode" style="display:none;">
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Hucre ID kodu / konum</label>
+                        <input id="wo-store-target-idcode" class="stock-input stock-input-tall" placeholder="or: LOC-000123 veya R02-A1" oninput="UnitModule.onStoreLocationModalIdInput()">
+                    </div>
+                </div>
+                <div id="wo-store-target-preview" style="font-size:0.82rem; color:#475569; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.45rem 0.55rem;">
+                    Hedef lokasyon seciniz.
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.55rem;">
+                    <button class="btn-sm" onclick="Modal.close()">Vazgec</button>
+                    <button class="btn-primary" onclick="UnitModule.submitStoreWorkOrderLocationModal('${String(workOrderId || '')}','${String(lineId || '')}','${String(stationId || '')}','${String(Math.max(0, Math.floor(qty)))}','${String(routeSeq || '')}')">Depoya Al</button>
+                </div>
+            </div>
+        `, { maxWidth: '820px' });
+        requestAnimationFrame(() => {
+            UnitModule.refreshStoreLocationModalTargets();
+            UnitModule.updateStoreLocationModalPreview();
+        });
+    },
+    submitStoreWorkOrderLocationModal: async (workOrderId, lineId, stationId, qtyRaw, routeSeq = '') => {
+        UnitModule.ensureStockLocationData();
+        const qty = Number(qtyRaw || 0);
+        if (!Number.isFinite(qty) || qty <= 0) return alert('Depoya alinacak adet gecersiz.');
+        const mode = String(document.getElementById('wo-store-mode')?.value || 'select').trim();
+        let targetScopeId = '';
+        let targetLocationId = '';
+        let targetLocation = null;
+        if (mode === 'idcode') {
+            const rawCode = String(document.getElementById('wo-store-target-idcode')?.value || '').trim();
+            if (!rawCode) return alert('Hucre ID kodu veya konum giriniz.');
+            targetLocation = UnitModule.findLocationByIdCodeOrCode(rawCode);
+            if (!targetLocation) return alert('Girilen ID kodu / konum bulunamadi.');
+            targetScopeId = String(targetLocation?.depotId || '').trim();
+            targetLocationId = String(targetLocation?.id || '').trim();
+        } else {
+            targetScopeId = String(document.getElementById('wo-store-target-scope')?.value || '').trim();
+            targetLocationId = String(document.getElementById('wo-store-target-location')?.value || '').trim();
+            if (!targetScopeId) return alert('Hedef depo seciniz.');
+            if (!targetLocationId) return alert('Hedef hucre seciniz.');
+            targetLocation = UnitModule.getScopeLocations(targetScopeId)
+                .find((row) => String(row?.id || '') === targetLocationId) || null;
+            if (!targetLocation) return alert('Hedef hucre bulunamadi.');
+        }
+        const ok = await UnitModule.storeWorkOrderQty(workOrderId, lineId, stationId, qty, {
+            skipPrompt: true,
+            routeSeq: Number(routeSeq || 0),
+            targetScopeId,
+            targetLocationId,
+            targetLocationCode: UnitModule.getDepotLocationCode(targetLocation),
+            targetLocationIdCode: UnitModule.normalizeLocationIdCode(targetLocation?.idCode || '')
+        });
+        if (ok) Modal.close();
+    },
     storeWorkOrderQty: async (workOrderId, lineId, stationId, presetQty = null, options = {}) => {
         const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
-        if (!order) return;
+        if (!order) return false;
         const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
-        if (!line) return;
+        if (!line) return false;
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(options?.routeSeq || 0) });
-        if (!metrics) return;
-        if (!metrics.isFinalStep) return alert('Depoya al islemi sadece son rota adiminda kullanilir.');
+        if (!metrics) return false;
+        if (!metrics.isFinalStep) {
+            alert('Depoya al islemi sadece son rota adiminda kullanilir.');
+            return false;
+        }
         const fromInProcess = Math.max(0, Number(metrics?.inProcessQty || 0));
         const fromReadyDone = Math.max(0, Number(metrics?.depotPendingQty || 0));
         const maxStoreQty = Math.max(0, Math.floor(fromInProcess + fromReadyDone));
-        if (maxStoreQty <= 0) return alert('Depoya alinabilir miktar yok.');
+        if (maxStoreQty <= 0) {
+            alert('Depoya alinabilir miktar yok.');
+            return false;
+        }
         const suggested = Math.max(1, maxStoreQty);
         const skipPrompt = !!(options && options.skipPrompt);
         let qty = Number(presetQty);
         if (!skipPrompt) {
             const raw = prompt(`Depoya alinacak adet kac? (Varsayilan: ${suggested})`, String(suggested));
-            if (raw === null) return;
+            if (raw === null) return false;
             qty = Number(raw);
         }
-        if (!Number.isFinite(qty) || qty <= 0) return alert('Gecerli bir miktar girin.');
-        if (!Number.isInteger(qty)) return alert('Miktar tam sayi olmali.');
-        if (qty > maxStoreQty) return alert(`Maksimum depoya alinabilir miktar: ${maxStoreQty}`);
+        if (!Number.isFinite(qty) || qty <= 0) {
+            alert('Gecerli bir miktar girin.');
+            return false;
+        }
+        if (!Number.isInteger(qty)) {
+            alert('Miktar tam sayi olmali.');
+            return false;
+        }
+        if (qty > maxStoreQty) {
+            alert(`Maksimum depoya alinabilir miktar: ${maxStoreQty}`);
+            return false;
+        }
+
+        UnitModule.ensureStockLocationData();
+        const targetScopeId = String(options?.targetScopeId || `unit:${String(stationId || '').trim()}`).trim() || `unit:${String(stationId || '').trim()}`;
+        const targetLocationId = String(options?.targetLocationId || '').trim();
+        let targetLocation = null;
+        if (targetLocationId) {
+            targetLocation = (DB.data.data.stockDepotLocations || []).find((row) =>
+                String(row?.id || '').trim() === targetLocationId
+                && String(row?.depotId || '').trim() === targetScopeId
+            ) || null;
+            if (!targetLocation) {
+                alert('Secilen hedef hucre bulunamadi.');
+                return false;
+            }
+        }
+        const targetLocationCode = String(options?.targetLocationCode || UnitModule.getDepotLocationCode(targetLocation) || '').trim().toUpperCase();
+        const targetLocationIdCode = String(options?.targetLocationIdCode || UnitModule.normalizeLocationIdCode(targetLocation?.idCode || '') || '').trim();
+        const targetLabel = `${UnitModule.getStoreScopeName(targetScopeId)} / ${targetLocationCode || 'BIRIM-STOK'}${targetLocationIdCode ? ` (${targetLocationIdCode})` : ''}`;
 
         const completeQty = Math.min(fromInProcess, qty);
         const now = new Date().toISOString();
@@ -3586,14 +3924,38 @@ const UnitModule = {
             processId: String(metrics?.processId || '').trim().toUpperCase(),
             type: 'STORE',
             qty: Number(qty || 0),
-            note: 'Birim depoya alindi',
+            note: `Depoya alindi: ${targetLabel}`,
             user: 'Demo User',
             created_at: now
         });
-        UnitModule.addToUnitDepotStock(order, line, stationId, qty);
+        UnitModule.addToUnitDepotStock(order, line, stationId, qty, {
+            targetScopeId,
+            targetLocationId,
+            targetLocationCode,
+            targetNote: `Depoya alindi: ${targetLabel}`
+        });
+        DB.data.data.stock_movements.push({
+            id: crypto.randomUUID(),
+            movementType: 'STORE',
+            type: 'STORE',
+            productCode: String(line?.componentCode || order?.productCode || '').trim().toUpperCase(),
+            code: String(line?.componentCode || order?.productCode || '').trim().toUpperCase(),
+            productName: String(line?.componentName || order?.productName || '').trim(),
+            quantity: Number(qty || 0),
+            qty: Number(qty || 0),
+            unit: String(line?.unit || order?.unit || 'ADET').trim() || 'ADET',
+            depotId: targetScopeId,
+            depotName: UnitModule.getStoreScopeName(targetScopeId),
+            locationId: targetLocationId,
+            locationCode: targetLocationCode || '',
+            note: `Depoya al / is emri ${String(order?.workOrderCode || '-')}`,
+            created_at: now,
+            updated_at: now
+        });
         order.updated_at = now;
         await DB.save();
         UI.renderCurrentPage();
+        return true;
     },
     storeWorkOrderQtyFromInput: async (workOrderId, lineId, stationId, inputId, routeSeq = '') => {
         const input = document.getElementById(String(inputId || '').trim());
@@ -4624,7 +4986,7 @@ const UnitModule = {
                                     `;
                                     const actionButtonLabel = isFinalStep ? 'Depoya Al / Adet' : 'Tamamlanan Adedi Gir';
                                     const actionButtonHandler = isFinalStep
-                                        ? `UnitModule.storeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`
+                                        ? `UnitModule.openStoreWorkOrderLocationModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`
                                         : `UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`;
                                     const canMainAction = isFinalStep ? canStoreFinal : canComplete;
                                     const completeActionBlock = showCompleteAction ? `

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-02T16:47:31.159Z",
+    "updated_at": "2026-04-02T16:28:39.502Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 704
+    "revision": 703
   },
   "data": {
     "products": [
@@ -1919,26 +1919,7 @@
         }
       }
     ],
-    "stock_movements": [
-      {
-        "id": "e158bb2f-9573-4175-8730-8ec69b380a6b",
-        "movementType": "STORE",
-        "type": "STORE",
-        "productCode": "PRC-000001",
-        "code": "PRC-000001",
-        "productName": "aluminyum dikme üst boru 70 mm",
-        "quantity": 50,
-        "qty": 50,
-        "unit": "ADET",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
-        "locationCode": "R02-A1",
-        "note": "Depoya al / is emri WO-000007",
-        "created_at": "2026-04-02T16:47:31.159Z",
-        "updated_at": "2026-04-02T16:47:31.159Z"
-      }
-    ],
+    "stock_movements": [],
     "orders": [],
     "units": [
       {
@@ -2748,7 +2729,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 50,
         "created_at": "2026-04-02T16:25:32.476Z",
-        "updated_at": "2026-04-02T16:47:31.159Z"
+        "updated_at": "2026-04-02T16:28:14.792Z"
       },
       {
         "id": "54b05f58-2ec6-4c4a-901b-aeff19b1c784",
@@ -3284,34 +3265,6 @@
         "note": "Birim depoya alindi",
         "user": "Demo User",
         "created_at": "2026-04-02T16:28:39.502Z"
-      },
-      {
-        "id": "6f64148b-82af-456d-9eb8-6846fd022dac",
-        "workOrderId": "4a44acd9-a2ef-42a0-825a-609a9f1fdf01",
-        "lineId": "24bbcaaf-be42-458c-8ea6-a7d9a321b891",
-        "stationId": "u_dtm",
-        "routeId": "db4c5bb5-1654-428f-9a08-cb4a666a05fd",
-        "routeSeq": 2,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 50,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:47:31.159Z"
-      },
-      {
-        "id": "f0d4cd27-fc5c-4ea5-8367-e87c05df5946",
-        "workOrderId": "4a44acd9-a2ef-42a0-825a-609a9f1fdf01",
-        "lineId": "24bbcaaf-be42-458c-8ea6-a7d9a321b891",
-        "stationId": "u_dtm",
-        "routeId": "db4c5bb5-1654-428f-9a08-cb4a666a05fd",
-        "routeSeq": 2,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 50,
-        "note": "Depoya alindi: ANA DEPO / R02-A1 (LOC-000005)",
-        "user": "Demo User",
-        "created_at": "2026-04-02T16:47:31.159Z"
       }
     ],
     "outsourceTransfers": [
@@ -3647,16 +3600,16 @@
         "code": "PRC-000001",
         "productName": "aluminyum dikme üst boru 70 mm",
         "name": "aluminyum dikme üst boru 70 mm",
-        "quantity": 50,
-        "qty": 50,
-        "amount": 50,
+        "quantity": 0,
+        "qty": 0,
+        "amount": 0,
         "unit": "ADET",
         "status": "bitmis",
         "depotId": "main",
         "locationId": "589bcf2d-9546-4ef8-b436-5aac966d523c",
         "note": "Ana depo kabul / TLT-000003",
         "created_at": "2026-03-30T12:31:24.914Z",
-        "updated_at": "2026-04-02T16:47:31.159Z",
+        "updated_at": "2026-03-30T16:47:56.723Z",
         "locationCode": "R02-A1"
       },
       {

@@ -108,8 +108,9 @@ const StockModule = {
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
 
     getInventorySearchMatch: (row, rawQuery) => {
-        const q = StockModule.normalize(rawQuery);
+        const q = StockModule.normalize(rawQuery).replace(/\s+/g, ' ').trim();
         if (!q) return { matched: true, score: 0, label: '' };
+        const tokens = q.split(' ').filter(Boolean);
 
         const labels = {
             code: 'ID kodu',
@@ -175,7 +176,17 @@ const StockModule = {
         if (prefixName) return { matched: true, score: 200, label: prefixName.label };
 
         const containsAny = [...idEntries, ...textEntries].find((entry) => entry.norm.includes(q));
-        if (containsAny) return { matched: true, score: 100, label: containsAny.label };
+        if (containsAny) return { matched: true, score: 160, label: containsAny.label };
+
+        if (tokens.length > 1) {
+            const allEntries = [...idEntries, ...textEntries];
+            const combined = allEntries.map((entry) => entry.norm).join(' ');
+            const tokenMatcher = (value) => tokens.every((token) => String(value || '').includes(token));
+            const tokenFieldMatch = allEntries.find((entry) => tokenMatcher(entry.norm));
+            if (tokenFieldMatch) return { matched: true, score: 130, label: tokenFieldMatch.label };
+            if (tokenMatcher(combined)) return { matched: true, score: 120, label: 'Genel eslesme' };
+            return { matched: false, score: 0, label: '' };
+        }
 
         return { matched: false, score: 0, label: '' };
     },
@@ -1677,14 +1688,14 @@ const StockModule = {
                     <div class="stock-content">
                         <div class="stock-section-head">
                             <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
-                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir.'}</div>
+                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar. Coklu kelimede tum kelimeler eslesmelidir.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir. Coklu kelimede tum kelimeler eslesmelidir.'}</div>
                             <div style="margin-left:auto;">
                                 <button class="btn-sm" onclick="StockModule.openLocationManagerForSelectedNode()" ${canOpenLocationEditor ? '' : 'disabled'} style="${canOpenLocationEditor ? 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;' : 'opacity:0.45; cursor:not-allowed;'}">DUZENLE / HUCRE EKLE</button>
                             </div>
                         </div>
 
-                        <div class="stock-search-grid stock-search-grid-1">
-                            <input id="stock-search-query" class="stock-input" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
+                        <div class="stock-search-grid stock-search-grid-1 stock-search-grid-compact">
+                            <input id="stock-search-query" class="stock-input stock-input-strong" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
                         </div>
 
                         ${StockModule.renderInventoryGroups(node)}

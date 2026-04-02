@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-02T13:45:15.266Z",
+    "updated_at": "2026-04-02T13:44:49.014Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 670
+    "revision": 668
   },
   "data": {
     "products": [
@@ -2572,7 +2572,7 @@
         "sourceItemCode": "URM-000001-V01",
         "sourceItemQty": 1,
         "created_at": "2026-04-01T14:28:26.674Z",
-        "updated_at": "2026-04-02T13:45:13.508Z"
+        "updated_at": "2026-04-01T14:28:26.674Z"
       },
       {
         "id": "122fb741-2ef4-4905-8032-02467ae9bb72",
@@ -2864,7 +2864,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 1,
         "created_at": "2026-04-02T13:44:49.014Z",
-        "updated_at": "2026-04-02T13:45:15.266Z"
+        "updated_at": "2026-04-02T13:44:49.014Z"
       }
     ],
     "workOrderTransactions": [
@@ -3049,34 +3049,6 @@
         "note": "Birim depoya alindi",
         "user": "Demo User",
         "created_at": "2026-04-01T12:35:43.704Z"
-      },
-      {
-        "id": "3d4bbf35-974b-4ab4-a96d-e1ecf0679a64",
-        "workOrderId": "eea8eb5c-0ef7-4810-b25e-6f7701df1b21",
-        "lineId": "0054df85-6641-40fe-b14e-31f92886770e",
-        "stationId": "u1",
-        "routeId": "9d506013-fcf3-47bb-9c4c-ff482376505f",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "TAKE",
-        "qty": 1,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T13:45:13.508Z"
-      },
-      {
-        "id": "dd6669a3-93c6-4f81-a28d-d3102752e71f",
-        "workOrderId": "e7876e0e-1cf7-4f11-a7e0-b5cacaef58ae",
-        "lineId": "3649079d-d0ca-45e6-b3a0-fb0599cd31b3",
-        "stationId": "u1",
-        "routeId": "65bb7a1f-7d24-4883-bb90-d83674ab3ad3",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "TAKE",
-        "qty": 1,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-02T13:45:15.266Z"
       }
     ],
     "outsourceTransfers": [

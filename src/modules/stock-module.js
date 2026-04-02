@@ -4,6 +4,11 @@ const StockModule = {
         topTab: 'all',
         selectedKey: 'all',
         searchQuery: '',
+        inventoryStockFilters: {
+            available: true,
+            inProcess: true,
+            reserve: true
+        },
         inventoryOpenCategoryKeys: {},
         searchName: '',
         searchCode: '',
@@ -589,7 +594,7 @@ const StockModule = {
                         code: String(line?.componentCode || order?.productCode || '-').trim(),
                         quantity: inProcessQty,
                         unit: 'adet',
-                        status: 'ISLEMDE (WIP)',
+                        status: 'ISLEMDE OLANLAR',
                         stockClass: 'WIP',
                         productType: 'WIP',
                         modelCode: '',
@@ -672,7 +677,7 @@ const StockModule = {
             const location = locationMap.get(String(raw?.locationId || '')) || null;
             const quantity = raw?.quantity ?? raw?.qty ?? raw?.amount ?? '';
             const stockClass = StockModule.normalizeStockClass(raw?.stockClass || raw?.status || 'KULLANILABILIR');
-            const status = String(raw?.status || '').trim() || (stockClass === 'WIP' ? 'ISLEMDE (WIP)' : 'KULLANILABILIR');
+            const status = String(raw?.status || '').trim() || (stockClass === 'WIP' ? 'ISLEMDE OLANLAR' : 'KULLANILABILIR');
             const locationCode = raw?.locationCode
                 ? String(raw.locationCode)
                 : location
@@ -821,6 +826,36 @@ const StockModule = {
         StockModule.restoreSearchFocus(field || 'inventory');
     },
 
+    getInventoryStockFilterDefaults: () => ({
+        available: true,
+        inProcess: true,
+        reserve: true
+    }),
+
+    getInventoryStockFilters: () => {
+        const defaults = StockModule.getInventoryStockFilterDefaults();
+        const current = StockModule.state.inventoryStockFilters && typeof StockModule.state.inventoryStockFilters === 'object'
+            ? StockModule.state.inventoryStockFilters
+            : {};
+        return {
+            available: current.available !== false ? true : false,
+            inProcess: current.inProcess !== false ? true : false,
+            reserve: current.reserve !== false ? true : false,
+            ...defaults,
+            ...current
+        };
+    },
+
+    toggleInventoryStockFilter: (key) => {
+        const valid = ['available', 'inProcess', 'reserve'];
+        const normalizedKey = String(key || '');
+        if (!valid.includes(normalizedKey)) return;
+        const current = StockModule.getInventoryStockFilters();
+        current[normalizedKey] = !current[normalizedKey];
+        StockModule.state.inventoryStockFilters = current;
+        UI.renderCurrentPage();
+    },
+
     getInventoryCategoryDefs: () => ([
         { id: 'component', title: 'Parca & bilesen' },
         { id: 'model', title: 'Urun modelleri' },
@@ -890,7 +925,7 @@ const StockModule = {
     getInventoryRowStatusMeta: (row) => {
         const raw = StockModule.normalize([row?.status, row?.stockClass].filter(Boolean).join(' '));
         if (raw.includes('rezerve') || raw.includes('rezerv')) return { key: 'reserve', text: 'rezerve' };
-        if (raw.includes('wip') || raw.includes('islemde')) return { key: 'wip', text: 'islemde' };
+        if (raw.includes('wip') || raw.includes('islemde')) return { key: 'wip', text: 'islemde olanlar' };
         return { key: 'available', text: 'kullanilabilir' };
     },
 
@@ -1588,6 +1623,11 @@ const StockModule = {
         if (groups.length === 0) {
             return `<div class="stock-table-card"><div class="stock-empty">Bu alanda listelenecek urun henuz yok. Diger moduller malzeme yerlestirdikce burada gorunecek.</div></div>`;
         }
+        const stockFilters = StockModule.getInventoryStockFilters();
+        const activeFilterCount = Object.values(stockFilters).filter(Boolean).length;
+        if (activeFilterCount === 0) {
+            return `<div class="stock-table-card"><div class="stock-empty" style="text-align:left;">En az bir stok durumu seciniz.</div></div>`;
+        }
         const renderRows = (rows) => {
             return (Array.isArray(rows) ? rows : []).map((row) => {
                 const statusMeta = StockModule.getInventoryRowStatusMeta(row);
@@ -1644,19 +1684,20 @@ const StockModule = {
         };
         return groups.map((group) => {
             const rows = Array.isArray(group?.rows) ? group.rows : [];
-            const usableRows = rows.filter((row) => String(row?.stockClass || 'KULLANILABILIR') !== 'WIP');
-            const wipRows = rows.filter((row) => String(row?.stockClass || '') === 'WIP');
-            const usableScopeKey = `${String(group?.key || 'group')}|usable`;
-            const wipScopeKey = `${String(group?.key || 'group')}|wip`;
+            const filteredRows = rows.filter((row) => {
+                const statusKey = StockModule.getInventoryRowStatusMeta(row).key;
+                if (statusKey === 'available') return !!stockFilters.available;
+                if (statusKey === 'wip') return !!stockFilters.inProcess;
+                if (statusKey === 'reserve') return !!stockFilters.reserve;
+                return false;
+            });
+            const mergedScopeKey = `${String(group?.key || 'group')}|filtered`;
             return `
                 <div class="stock-group-card">
                     ${String(node?.key || '') === 'all' ? `<div class="stock-group-title">${StockModule.escapeHtml(group.title)}</div>` : ''}
                     <div class="stock-table-card" style="margin-top:${String(node?.key || '') === 'all' ? '0.65rem' : '0'}; padding:0.75rem;">
-                        <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">KULLANILABILIR STOK</div>
-                        ${renderCategoryBlocks(usableScopeKey, usableRows, 'Kullanilabilir stok kaydi yok.', { includeEmpty: true })}
-                        <div style="height:10px;"></div>
-                        <div style="font-size:0.78rem; font-weight:800; color:#9a3412; margin-bottom:0.35rem;">ISLEMDE / WIP</div>
-                        ${renderCategoryBlocks(wipScopeKey, wipRows, 'Islemde (WIP) kaydi yok.', { includeEmpty: false })}
+                        <div style="font-size:0.78rem; font-weight:800; color:#0f766e; margin-bottom:0.35rem;">STOK LISTESI</div>
+                        ${renderCategoryBlocks(mergedScopeKey, filteredRows, 'Secilen filtrede kayit yok.', { includeEmpty: true })}
                     </div>
                 </div>
             `;
@@ -1850,6 +1891,7 @@ const StockModule = {
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
         const topManagedRows = [mainDepot, ...customDepots];
         const canOpenLocationEditor = String(node?.key || '') !== 'all';
+        const stockFilterState = StockModule.getInventoryStockFilters();
 
         const sidebarHtml = `
             <div class="stock-side-row"><button onclick="StockModule.selectNode('all')" class="stock-side-btn${String(StockModule.state.selectedKey || '') === 'all' ? ' active' : ''}">TUM DEPOLAR</button></div>
@@ -1906,14 +1948,21 @@ const StockModule = {
                     <div class="stock-content">
                         <div class="stock-section-head">
                             <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
-                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar. Coklu kelimede tum kelimeler eslesmelidir.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir. Coklu kelimede tum kelimeler eslesmelidir.'}</div>
+                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.'}</div>
                             <div style="margin-left:auto;">
                                 <button class="btn-sm" onclick="StockModule.openLocationManagerForSelectedNode()" ${canOpenLocationEditor ? '' : 'disabled'} style="${canOpenLocationEditor ? 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;' : 'opacity:0.45; cursor:not-allowed;'}">DUZENLE / HUCRE EKLE</button>
                             </div>
                         </div>
 
-                        <div class="stock-search-grid stock-search-grid-1 stock-search-grid-compact">
-                            <input id="stock-search-query" class="stock-input stock-input-strong" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
+                        <div class="stock-search-toolbar">
+                            <div class="stock-search-grid stock-search-grid-1 stock-search-grid-compact">
+                                <input id="stock-search-query" class="stock-input stock-input-strong" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
+                            </div>
+                            <div class="stock-status-filter-group">
+                                <button type="button" class="stock-status-filter-btn${stockFilterState.available ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('available')">Kullanilabilir</button>
+                                <button type="button" class="stock-status-filter-btn${stockFilterState.inProcess ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('inProcess')">Islemde Olanlar</button>
+                                <button type="button" class="stock-status-filter-btn${stockFilterState.reserve ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('reserve')">Rezerve</button>
+                            </div>
                         </div>
 
                         ${StockModule.renderInventoryGroups(node)}

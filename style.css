@@ -771,6 +771,19 @@ tr:hover {
     margin-top: 0.95rem;
 }
 
+.stock-search-toolbar {
+    margin-top: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.stock-search-toolbar .stock-search-grid {
+    margin-top: 0;
+    flex: 1 1 360px;
+}
+
 .stock-search-grid-2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -781,6 +794,32 @@ tr:hover {
 
 .stock-search-grid-compact {
     max-width: 640px;
+}
+
+.stock-status-filter-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+}
+
+.stock-status-filter-btn {
+    min-height: 31px;
+    padding: 0 0.6rem;
+    border-radius: 0.6rem;
+    border: 1px solid #94a3b8;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.stock-status-filter-btn.active {
+    border-color: #22c55e;
+    background: #ecfdf5;
+    color: #15803d;
 }
 
 .stock-input {
@@ -1610,6 +1649,14 @@ tr:hover {
 
     .stock-search-grid-compact {
         max-width: 100%;
+    }
+
+    .stock-search-toolbar {
+        align-items: stretch;
+    }
+
+    .stock-status-filter-group {
+        width: 100%;
     }
 
     .stock-item-row {

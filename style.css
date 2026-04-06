@@ -1010,7 +1010,7 @@ tr:hover {
     background: #ffffff;
     padding: 0.48rem 0.62rem;
     display: grid;
-    grid-template-columns: auto auto minmax(180px, 1.8fr) minmax(120px, 1fr) auto auto auto auto;
+    grid-template-columns: auto auto minmax(220px, 2fr) minmax(150px, 1.1fr) minmax(95px, 0.7fr) minmax(220px, 1.2fr) auto auto;
     align-items: center;
     gap: 0.55rem;
 }
@@ -1052,25 +1052,25 @@ tr:hover {
     white-space: nowrap;
 }
 
+.stock-item-qty {
+    color: #0b1220;
+    font-size: 1.08rem;
+    font-weight: 900;
+    letter-spacing: 0.01em;
+    text-align: right;
+}
+
 .stock-item-location {
     color: #334155;
     font-weight: 600;
-    display: flex;
-    flex-direction: column;
-    gap: 0.12rem;
-    min-width: 0;
-}
-
-.stock-item-location-main {
     white-space: nowrap;
 }
 
-.stock-item-location-meta {
-    font-size: 0.72rem;
-    color: #64748b;
+.stock-item-location-inline {
+    color: #111827;
+    font-weight: 600;
+    font-size: 0.95rem;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .stock-item-state {

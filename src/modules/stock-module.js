@@ -2244,8 +2244,8 @@ const StockModule = {
                 const modelText = StockModule.getInventoryRowModelText(row);
                 const qtyText = `${row?.quantity ?? '-'}${row?.unit ? ` ${row.unit}` : ''}`.trim();
                 const depotText = String(row?.depotName || '-').trim() || '-';
-                const unitIdText = String(row?.searchMeta?.unitId || '').trim() || '-';
                 const locationText = String(row?.locationCode || '-').trim() || '-';
+                const locationSummary = `Depo: ${depotText}${locationText && locationText !== '-' ? ` / ${locationText}` : ''}`;
                 const safeCode = StockModule.escapeJsString(row?.code || '');
                 const safeId = StockModule.escapeJsString(row?.id || '');
                 return `
@@ -2255,10 +2255,7 @@ const StockModule = {
                         <div class="stock-item-name">${StockModule.escapeHtml(row?.name || '-')}</div>
                         <div class="stock-item-model">${StockModule.escapeHtml(modelText)}</div>
                         <div class="stock-item-qty">${StockModule.escapeHtml(qtyText || '-')}</div>
-                        <div class="stock-item-location">
-                            <div class="stock-item-location-main">${StockModule.escapeHtml(locationText)}</div>
-                            <div class="stock-item-location-meta">Depo: ${StockModule.escapeHtml(depotText)} | Birim ID: ${StockModule.escapeHtml(unitIdText)}</div>
-                        </div>
+                        <div class="stock-item-location stock-item-location-inline">${StockModule.escapeHtml(locationSummary)}</div>
                         <span class="stock-item-state ${statusClass}">${StockModule.escapeHtml(statusMeta.text)}</span>
                         <button type="button" class="stock-item-action" onclick="StockModule.openInventoryRowHistory('${safeCode}','${safeId}')">Goruntule / Duzenle</button>
                     </div>

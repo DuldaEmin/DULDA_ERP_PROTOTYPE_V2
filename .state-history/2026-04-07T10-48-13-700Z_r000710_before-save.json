@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-07T10:48:13.596Z",
+    "updated_at": "2026-04-07T10:48:04.548Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 711
+    "revision": 710
   },
   "data": {
     "products": [
@@ -1985,27 +1985,6 @@
         "note": "Depo/raf transferi: AÇIK ALAN-- -> R01-A1",
         "created_at": "2026-04-02T17:10:26.337Z",
         "updated_at": "2026-04-02T17:10:26.337Z"
-      },
-      {
-        "id": "d76904a4-71d2-4248-bc4e-fa5935b8a18b",
-        "movementType": "GOODS_RECEIPT",
-        "type": "GOODS_RECEIPT",
-        "productCode": "ALM0001",
-        "code": "ALM0001",
-        "productName": "40X2.5 aluminyum tırtıllı dikme borusu",
-        "quantity": 25,
-        "qty": 25,
-        "unit": "MT",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
-        "locationCode": "R01-A1",
-        "supplierId": "sup1",
-        "supplierName": "AKPA ALUMINYUM",
-        "docNo": "MK-2026-000001",
-        "note": "Mal kabul / MK-2026-000001",
-        "created_at": "2026-04-07T10:48:13.596Z",
-        "updated_at": "2026-04-07T10:48:13.596Z"
       }
     ],
     "orders": [],
@@ -3884,31 +3863,6 @@
         "locationCode": "R01-A1",
         "created_at": "2026-04-02T17:10:26.337Z",
         "updated_at": "2026-04-02T17:10:26.337Z"
-      },
-      {
-        "id": "4b58dde5-a81d-46ad-9097-536aa54072c4",
-        "productId": "31e1ace1-e804-4bc1-b869-08fe2288f28d",
-        "productCode": "ALM0001",
-        "code": "ALM0001",
-        "productName": "40X2.5 aluminyum tırtıllı dikme borusu",
-        "name": "40X2.5 aluminyum tırtıllı dikme borusu",
-        "quantity": 25,
-        "qty": 25,
-        "amount": 25,
-        "unit": "MT",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "productType": "MASTER",
-        "modelCode": "",
-        "planCodeId": "",
-        "masterCode": "",
-        "note": "Mal kabul / MK-2026-000001",
-        "depotId": "main",
-        "nodeKey": "managed:main",
-        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
-        "locationCode": "R01-A1",
-        "created_at": "2026-04-07T10:48:13.596Z",
-        "updated_at": "2026-04-07T10:48:13.596Z"
       }
     ],
     "freeExternalVendorJobs": [],
@@ -5282,7 +5236,7 @@
       {
         "id": "e25b52b9-6033-4dec-b0d3-b3ef6e958bea",
         "docNo": "MK-2026-000001",
-        "status": "ONAYLANDI",
+        "status": "TASLAK",
         "poId": "",
         "poNo": "bcvxb",
         "dispatchNo": "ddt15",
@@ -5309,8 +5263,8 @@
           }
         ],
         "created_at": "2026-04-07T10:46:12.056Z",
-        "updated_at": "2026-04-07T10:48:13.596Z",
-        "approved_at": "2026-04-07T10:48:13.596Z",
+        "updated_at": "2026-04-07T10:48:04.548Z",
+        "approved_at": null,
         "cancelled_at": null,
         "created_by": "Demo User"
       }

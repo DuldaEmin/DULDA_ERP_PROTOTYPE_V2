@@ -34,6 +34,7 @@ const StockModule = {
         goodsReceiptDraft: null,
         goodsReceiptEditingId: null,
         goodsReceiptSubView: 'hub',
+        goodsReceiptPickerLineId: '',
         goodsReceiptFilters: {
             docNo: '',
             supplierId: '',
@@ -1419,6 +1420,7 @@ const StockModule = {
         const key = String(field || '').trim();
         const text = String(value ?? '');
         if (!draft || !key) return;
+        let shouldRender = true;
         if (key === 'supplierId') {
             draft.supplierId = text.trim();
             const supplier = StockModule.getGoodsReceiptSupplierOptions().find((row) => row.id === draft.supplierId) || null;
@@ -1436,8 +1438,9 @@ const StockModule = {
             }
         } else {
             draft[key] = text;
+            shouldRender = false;
         }
-        UI.renderCurrentPage();
+        if (shouldRender) UI.renderCurrentPage();
     },
 
     addGoodsReceiptLine: () => {
@@ -1461,13 +1464,15 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
-    setGoodsReceiptLineField: (lineId, field, value) => {
+    setGoodsReceiptLineField: (lineId, field, value, options = null) => {
         StockModule.ensureGoodsReceiptDraftState();
         const draft = StockModule.state.goodsReceiptDraft;
         const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '') === String(lineId || ''));
         if (!line) return;
         const key = String(field || '').trim();
         if (!key) return;
+        const skipRender = !!(options && options.skipRender);
+        let shouldRender = true;
 
         if (key === 'productId') {
             const productId = String(value || '').trim();
@@ -1489,10 +1494,11 @@ const StockModule = {
             line[key] = StockModule.normalizeGoodsReceiptQty(value, line?.unit || 'ADET');
         } else if (key === 'damageNote') {
             line.damageNote = String(value || '').trim();
+            shouldRender = false;
         } else {
             line[key] = String(value || '');
         }
-        UI.renderCurrentPage();
+        if (shouldRender && !skipRender) UI.renderCurrentPage();
     },
 
     setGoodsReceiptSubView: (nextView) => {
@@ -1515,6 +1521,19 @@ const StockModule = {
         StockModule.ensureGoodsReceiptDraftState();
         const safeLineId = String(lineId || '').trim();
         if (!safeLineId) return;
+        StockModule.state.goodsReceiptPickerLineId = safeLineId;
+
+        if (typeof ProductLibraryModule !== 'undefined' && typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            ProductLibraryModule.state.masterPickerSource = 'stock-goods-receipt';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.masterFormOpen = false;
+            ProductLibraryModule.state.masterEditingId = null;
+            ProductLibraryModule.state.workspaceView = 'master';
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            return;
+        }
+
         const products = StockModule.getGoodsReceiptProductOptions();
         const rowsHtml = products.length === 0
             ? '<tr><td colspan="5" style="padding:1rem; text-align:center; color:#94a3b8;">Master urun bulunamadi.</td></tr>'
@@ -1563,6 +1582,56 @@ const StockModule = {
         });
     },
 
+    openGoodsReceiptProductCard: (lineId) => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const safeLineId = String(lineId || '').trim();
+        if (!safeLineId) return;
+        const draft = StockModule.state.goodsReceiptDraft || {};
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '') === safeLineId) || null;
+        const productId = String(line?.productId || '').trim();
+        if (!productId) {
+            alert('Once bu satir icin master urun seciniz.');
+            return;
+        }
+        if (typeof ProductLibraryModule === 'undefined') {
+            alert('Urun kutuphanesi modulu bulunamadi.');
+            return;
+        }
+        const record = (typeof ProductLibraryModule.getMasterProductById === 'function')
+            ? ProductLibraryModule.getMasterProductById(productId)
+            : null;
+        if (!record) {
+            alert('Secili urun karti bulunamadi.');
+            return;
+        }
+
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'master';
+        ProductLibraryModule.state.masterCategoryExpanded = {};
+        ProductLibraryModule.state.masterFilters = {
+            categoryId: String(record?.categoryId || '').trim(),
+            name: '',
+            length: '',
+            colorType: '',
+            color: '',
+            code: String(record?.code || line?.productCode || '').trim()
+        };
+
+        if (typeof ProductLibraryModule.loadMasterDraftFromRecord === 'function') {
+            ProductLibraryModule.loadMasterDraftFromRecord(record);
+        } else {
+            ProductLibraryModule.state.masterSelectedId = String(record?.id || productId).trim();
+        }
+
+        if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('products', { preserveProductsState: true });
+            return;
+        }
+        UI.renderCurrentPage();
+    },
+
     filterGoodsReceiptProductPicker: (rawQuery) => {
         const q = StockModule.normalize(rawQuery || '');
         const rows = Array.from(document.querySelectorAll('#goods_receipt_product_picker_rows .goods-receipt-product-row'));
@@ -1575,7 +1644,28 @@ const StockModule = {
 
     selectGoodsReceiptProductFromPicker: (lineId, productId) => {
         StockModule.setGoodsReceiptLineField(lineId, 'productId', productId);
+        StockModule.state.goodsReceiptPickerLineId = '';
         Modal.close();
+    },
+
+    selectGoodsReceiptProductFromMasterLibrary: (productId) => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const pendingLineId = String(StockModule.state.goodsReceiptPickerLineId || '').trim();
+        if (!pendingLineId) {
+            alert('Mal kabul satiri bulunamadi.');
+            return false;
+        }
+        StockModule.state.workspaceView = 'goods-receipt';
+        StockModule.state.goodsReceiptSubView = 'receipt';
+        StockModule.setGoodsReceiptLineField(pendingLineId, 'productId', productId, { skipRender: true });
+        StockModule.state.goodsReceiptPickerLineId = '';
+        return true;
+    },
+
+    cancelGoodsReceiptProductMasterPicker: () => {
+        StockModule.state.workspaceView = 'goods-receipt';
+        StockModule.state.goodsReceiptSubView = 'receipt';
+        StockModule.state.goodsReceiptPickerLineId = '';
     },
 
     resetGoodsReceiptDraft: () => {
@@ -3368,14 +3458,14 @@ const StockModule = {
                         <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
                     </div>
                     <div class="card-table" style="padding:1.2rem;">
-                        <div style="display:flex; gap:0.65rem; flex-wrap:wrap;">
-                            <button class="stock-hub-card" type="button" onclick="StockModule.setGoodsReceiptSubView('receipt')" style="width:140px; min-height:78px;">
-                                <div class="stock-hub-icon stock-hub-icon-emerald"><i data-lucide="package-check" width="20" height="20"></i></div>
-                                <div class="stock-hub-label">Mal Kabul</div>
+                        <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; align-items:center; min-height:170px;">
+                            <button class="stock-hub-card" type="button" onclick="StockModule.setGoodsReceiptSubView('receipt')" style="width:180px; min-height:112px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.55rem;">
+                                <div class="stock-hub-icon stock-hub-icon-emerald" style="width:44px; height:44px;"><i data-lucide="package-check" width="24" height="24"></i></div>
+                                <div class="stock-hub-label" style="font-size:1rem;">Mal Kabul</div>
                             </button>
-                            <button class="stock-hub-card" type="button" onclick="StockModule.setGoodsReceiptSubView('archive')" style="width:140px; min-height:78px;">
-                                <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="archive" width="20" height="20"></i></div>
-                                <div class="stock-hub-label">Arsiv</div>
+                            <button class="stock-hub-card" type="button" onclick="StockModule.setGoodsReceiptSubView('archive')" style="width:180px; min-height:112px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0.55rem;">
+                                <div class="stock-hub-icon stock-hub-icon-blue" style="width:44px; height:44px;"><i data-lucide="archive" width="24" height="24"></i></div>
+                                <div class="stock-hub-label" style="font-size:1rem;">Arsiv</div>
                             </button>
                         </div>
                     </div>
@@ -3487,6 +3577,7 @@ const StockModule = {
             const acceptedValue = Number(line?.acceptedQty || 0) > 0 ? String(line.acceptedQty) : '';
             const damagedValue = Number(line?.damagedQty || 0) > 0 ? String(line.damagedQty) : '';
             const missingValue = Number(line?.missingQty || 0) > 0 ? String(line.missingQty) : '';
+            const hasLinkedMaster = !!String(line?.productId || '').trim();
             const lineProductLabel = String(line?.productCode || '').trim()
                 ? `${String(line?.productCode || '-').trim()} - ${String(line?.productName || '-').trim()}`
                 : '';
@@ -3498,7 +3589,11 @@ const StockModule = {
                                                     <button class="btn-sm" type="button" onclick="StockModule.openGoodsReceiptProductPicker('${lineId}')" ${disabledAttr}>kutuphaneden sec</button>
                                                 </div>
                                             </td>
-                                            <td style="padding:0.5rem; font-family:Consolas, monospace; font-weight:700; color:#1d4ed8;">${StockModule.escapeHtml(String(line?.productCode || '-'))}</td>
+                                            <td style="padding:0.5rem; font-family:Consolas, monospace; font-weight:700; color:#1d4ed8;">
+                                                ${hasLinkedMaster
+                ? `<button type="button" onclick="StockModule.openGoodsReceiptProductCard('${lineId}')" style="border:none; background:none; padding:0; margin:0; color:#1d4ed8; text-decoration:underline; font-family:Consolas, monospace; font-weight:800; cursor:pointer;">${StockModule.escapeHtml(String(line?.productCode || '-'))}</button>`
+                : StockModule.escapeHtml(String(line?.productCode || '-'))}
+                                            </td>
                                             <td style="padding:0.5rem; text-align:center; font-weight:700; color:#334155;">${StockModule.escapeHtml(String(line?.unit || '-'))}</td>
                                             <td style="padding:0.5rem;">
                                                 <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(qtyStep)}" value="${StockModule.escapeHtml(acceptedValue)}" onchange="StockModule.setGoodsReceiptLineField('${lineId}','acceptedQty',this.value)" ${disabledAttr}>
@@ -3544,6 +3639,92 @@ const StockModule = {
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
                             <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${StockModule.escapeHtml(currentRecordId)}')" ${currentRecordId ? '' : 'disabled'}>PDF indir</button>
                             <button class="btn-sm" onclick="StockModule.printGoodsReceiptSavedDocument('${StockModule.escapeHtml(currentRecordId)}')" ${currentRecordId ? '' : 'disabled'}>yazdir</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
+    renderGoodsReceiptArchiveLayout: () => {
+        const suppliers = StockModule.getGoodsReceiptSupplierOptions();
+        const depots = StockModule.getGoodsReceiptDepotOptions();
+        const filters = (StockModule.state.goodsReceiptFilters && typeof StockModule.state.goodsReceiptFilters === 'object')
+            ? StockModule.state.goodsReceiptFilters
+            : { docNo: '', supplierId: '', depotId: '', status: '', dateFrom: '', dateTo: '' };
+        const records = StockModule.getFilteredGoodsReceiptRecords();
+
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">depo & stok / mal kabul / arsiv</h2>
+                        <button class="btn-sm" onclick="StockModule.setGoodsReceiptSubView('hub')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli mal kabul fisleri</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${records.length} kayit</div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.55rem; margin-bottom:0.7rem;">
+                            <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.docNo || ''))}" oninput="StockModule.setGoodsReceiptFilter('docNo', this.value)" placeholder="fis no ara">
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('supplierId', this.value)">
+                                <option value="">tum tedarikciler</option>
+                                ${suppliers.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.supplierId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                            </select>
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('depotId', this.value)">
+                                <option value="">tum depolar</option>
+                                ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                            </select>
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('status', this.value)">
+                                <option value="">tum durumlar</option>
+                                <option value="TASLAK" ${String(filters.status || '') === 'TASLAK' ? 'selected' : ''}>Taslak</option>
+                                <option value="ONAYLANDI" ${String(filters.status || '') === 'ONAYLANDI' ? 'selected' : ''}>Onaylandi</option>
+                                <option value="IPTAL" ${String(filters.status || '') === 'IPTAL' ? 'selected' : ''}>Iptal</option>
+                            </select>
+                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateFrom || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateFrom', this.value)">
+                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateTo || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateTo', this.value)">
+                        </div>
+
+                        <div style="overflow:auto;">
+                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Fis no</th>
+                                        <th style="padding:0.55rem; text-align:left;">Tarih</th>
+                                        <th style="padding:0.55rem; text-align:left;">Tedarikci</th>
+                                        <th style="padding:0.55rem; text-align:left;">Depo</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:right;">Toplam kabul</th>
+                                        <th style="padding:0.55rem; text-align:center;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${records.length === 0 ? '<tr><td colspan="7" style="padding:1.1rem; color:#94a3b8; text-align:center;">Kayit yok.</td></tr>' : records.map((row) => {
+            const rowTotals = StockModule.getGoodsReceiptTotals(row?.lines || []);
+            const rowStatus = StockModule.getGoodsReceiptStatusMeta(row?.status || 'TASLAK');
+            const rowId = StockModule.escapeHtml(String(row?.id || ''));
+            return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(row?.docNo || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(StockModule.formatDateTimeLabel(row?.receiptDate || row?.created_at || ''))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.supplierName || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.depotName || '-'))}</td>
+                                            <td style="padding:0.55rem;"><span style="display:inline-flex; align-items:center; padding:0.22rem 0.64rem; border:1px solid ${StockModule.escapeHtml(rowStatus.border)}; border-radius:999px; font-size:0.75rem; font-weight:700; background:${StockModule.escapeHtml(rowStatus.bg)}; color:${StockModule.escapeHtml(rowStatus.color)};">${StockModule.escapeHtml(rowStatus.text)}</span></td>
+                                            <td style="padding:0.55rem; text-align:right; font-weight:800;">${StockModule.escapeHtml(String(rowTotals.accepted || 0))}</td>
+                                            <td style="padding:0.55rem; text-align:center;">
+                                                <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">
+                                                    <button class="btn-sm" onclick="StockModule.openGoodsReceiptRecord('${rowId}')">ac</button>
+                                                    <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${rowId}')">pdf</button>
+                                                    <button class="btn-sm" onclick="StockModule.printGoodsReceiptSavedDocument('${rowId}')">yazdir</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -3800,6 +3981,9 @@ const StockModule = {
             const subView = String(StockModule.state.goodsReceiptSubView || 'hub').trim().toLowerCase();
             if (subView === 'hub') {
                 return StockModule.renderGoodsReceiptHubLayout();
+            }
+            if (subView === 'archive') {
+                return StockModule.renderGoodsReceiptArchiveLayout();
             }
             return StockModule.renderGoodsReceiptLayout();
         }

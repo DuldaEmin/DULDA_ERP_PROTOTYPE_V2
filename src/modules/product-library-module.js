@@ -5243,7 +5243,8 @@ const ProductLibraryModule = {
         const isComponentPicker = state.masterPickerSource === 'component';
         const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
         const isModelMasterPicker = state.masterPickerSource === 'model-master' || state.masterPickerSource === 'model-master-row';
-        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker;
+        const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
+        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker;
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -5420,8 +5421,8 @@ const ProductLibraryModule = {
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
                 ${isMasterPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : (isModelMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.')}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : (isModelMasterPicker ? 'urun modeli formuna don' : 'parca formuna don')}</button>
+                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : (isModelMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : (isStockGoodsReceiptPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu mal kabul satirina baglarsin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.'))}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : (isModelMasterPicker ? 'urun modeli formuna don' : (isStockGoodsReceiptPicker ? 'mal kabule don' : 'parca formuna don'))}</button>
                     </div>
                 ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
@@ -5863,6 +5864,18 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;
             ProductLibraryModule.state.assemblyViewingId = null;
+        } else if (ProductLibraryModule.state.masterPickerSource === 'stock-goods-receipt') {
+            const applied = (typeof StockModule !== 'undefined' && typeof StockModule.selectGoodsReceiptProductFromMasterLibrary === 'function')
+                ? StockModule.selectGoodsReceiptProductFromMasterLibrary(record.id)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
         }
         UI.renderCurrentPage();
     },
@@ -5877,6 +5890,15 @@ const ProductLibraryModule = {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;
             ProductLibraryModule.state.assemblyViewingId = null;
+        } else if (src === 'stock-goods-receipt') {
+            if (typeof StockModule !== 'undefined' && typeof StockModule.cancelGoodsReceiptProductMasterPicker === 'function') {
+                StockModule.cancelGoodsReceiptProductMasterPicker();
+            }
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
         } else if (src === 'model-master' || src === 'model-master-row') {
             if (src === 'model-master-row' && pendingRowId) {
                 const rows = Array.isArray(ProductLibraryModule.state.modelDraftMasterRefs) ? ProductLibraryModule.state.modelDraftMasterRefs : [];

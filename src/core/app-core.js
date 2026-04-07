@@ -678,6 +678,12 @@ const Router = {
         if (pageId === 'planlama' && Router.currentPage !== 'planlama' && !fromBack) {
             PlanningModule.state.workspaceView = 'menu';
         }
+        if (pageId === 'sales' && Router.currentPage !== 'sales' && !fromBack) {
+            SalesModule.state.workspaceView = 'menu';
+            SalesModule.state.customerDetailId = null;
+            SalesModule.state.customerDetailMode = 'view';
+            SalesModule.state.customerEditDraft = null;
+        }
         Router.currentPage = pageId;
         UI.renderCurrentPage();
     },
@@ -712,6 +718,21 @@ const Router = {
             PlanningModule.state.workspaceView = 'menu';
             UI.renderCurrentPage();
             return;
+        }
+
+        if (Router.currentPage === 'sales') {
+            if (String(SalesModule.state.customerDetailId || '').trim()) {
+                SalesModule.state.customerDetailId = null;
+                SalesModule.state.customerDetailMode = 'view';
+                SalesModule.state.customerEditDraft = null;
+                UI.renderCurrentPage();
+                return;
+            }
+            if (String(SalesModule.state.workspaceView || 'menu') !== 'menu') {
+                SalesModule.state.workspaceView = 'menu';
+                UI.renderCurrentPage();
+                return;
+            }
         }
 
         if (Router.currentPage === 'aluminum-inventory') {
@@ -800,6 +821,7 @@ const UI = {
 
         if (page === 'dashboard') UI.renderDashboard(container);
         else if (page === 'planlama') { pageTitle.innerText = 'PLANLAMA'; PlanningModule.render(container); }
+        else if (page === 'sales') { pageTitle.innerText = 'SATIŞ'; SalesModule.render(container); }
         else if (page === 'stock') { pageTitle.innerText = 'STOK YÖNETİMİ'; StockModule.render(container); }
         else if (page === 'purchasing') { pageTitle.innerText = 'SATIN ALMA'; PurchasingModule.render(container); }
         else if (page === 'units') { pageTitle.innerText = 'BİRİM YÖNETİMİ'; UnitModule.render(container); }
@@ -825,7 +847,7 @@ const UI = {
         const apps = [
             { id: 'planlama', title: 'Planlama', icon: 'calendar', gradient: 'g-blue' },
             { id: 'purchasing', title: 'Satın Alma', icon: 'shopping-cart', gradient: 'g-purple' },
-            { id: 'sales', title: 'Satış', icon: 'shopping-bag', gradient: 'g-orange' },
+            { id: 'sales', title: 'Satış & Pazarlama', icon: 'shopping-bag', gradient: 'g-orange' },
             { id: 'stock', title: 'Depo & Stok', icon: 'package', gradient: 'g-emerald' },
             { id: 'units', title: 'Birimler & Atölyeler', icon: 'hammer', gradient: 'g-yellow' },
             { id: 'products', title: 'Ürün ve Parça Oluşturma', icon: 'boxes', gradient: 'g-pink' },

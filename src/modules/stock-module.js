@@ -33,7 +33,7 @@ const StockModule = {
         depotEditingId: null,
         goodsReceiptDraft: null,
         goodsReceiptEditingId: null,
-        goodsReceiptSubView: 'hub',
+        goodsReceiptSubView: 'archive',
         goodsReceiptPickerLineId: '',
         goodsReceiptFilters: {
             docNo: '',
@@ -1223,7 +1223,7 @@ const StockModule = {
         StockModule.state.workspaceView = String(viewId || 'menu');
         if (String(viewId || '') === 'goods-receipt') {
             StockModule.ensureGoodsReceiptDraftState();
-            StockModule.state.goodsReceiptSubView = 'hub';
+            StockModule.state.goodsReceiptSubView = 'archive';
         }
         UI.renderCurrentPage();
     },
@@ -1254,12 +1254,27 @@ const StockModule = {
     },
 
     getGoodsReceiptDepotOptions: () => {
-        return [StockModule.getMainDepot(), ...StockModule.getCustomDepots()]
+        const managed = [StockModule.getMainDepot(), ...StockModule.getCustomDepots()]
             .map((row) => ({
                 id: String(row?.id || '').trim(),
                 name: String(row?.name || '').trim()
-            }))
-            .filter((row) => row.id && row.name);
+            }));
+        const units = StockModule.getUnitRowsMeta()
+            .map((row) => ({
+                id: String(row?.key || (`unit:${String(row?.id || '').trim()}`)).trim(),
+                name: String(row?.name || '').trim()
+            }));
+        const externals = StockModule.getExternalRowsMeta()
+            .map((row) => ({
+                id: String(row?.key || (`external:${String(row?.id || '').trim()}`)).trim(),
+                name: String(row?.name || '').trim()
+            }));
+        const all = [...managed, ...units, ...externals].filter((row) => row.id && row.name);
+        const uniq = new Map();
+        all.forEach((row) => {
+            if (!uniq.has(row.id)) uniq.set(row.id, row);
+        });
+        return Array.from(uniq.values());
     },
 
     normalizeGoodsReceiptUnit: (value) => {
@@ -1406,12 +1421,26 @@ const StockModule = {
     },
 
     setGoodsReceiptFilter: (field, value) => {
+        const key = String(field || '').trim();
+        const active = document.activeElement;
+        const shouldRestoreFocus = !!(active && String(active.id || '') === `goods_receipt_filter_${key}`);
+        const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
+        const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
         const current = (StockModule.state.goodsReceiptFilters && typeof StockModule.state.goodsReceiptFilters === 'object')
             ? StockModule.state.goodsReceiptFilters
             : {};
-        current[String(field || '')] = String(value || '');
+        current[key] = String(value || '');
         StockModule.state.goodsReceiptFilters = current;
         UI.renderCurrentPage();
+        if (shouldRestoreFocus) {
+            const next = document.getElementById(`goods_receipt_filter_${key}`);
+            if (next) {
+                next.focus();
+                if (start !== null && end !== null) {
+                    try { next.setSelectionRange(start, end); } catch (_) { }
+                }
+            }
+        }
     },
 
     setGoodsReceiptDraftField: (field, value) => {
@@ -1504,7 +1533,7 @@ const StockModule = {
     setGoodsReceiptSubView: (nextView) => {
         const view = String(nextView || 'receipt').trim().toLowerCase();
         if (view === 'hub') {
-            StockModule.state.goodsReceiptSubView = 'hub';
+            StockModule.state.goodsReceiptSubView = 'archive';
             UI.renderCurrentPage();
             return;
         }
@@ -1674,6 +1703,13 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
+    startNewGoodsReceipt: () => {
+        StockModule.state.goodsReceiptEditingId = null;
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft();
+        StockModule.state.goodsReceiptSubView = 'receipt';
+        UI.renderCurrentPage();
+    },
+
     openGoodsReceiptRecord: (recordId) => {
         const id = String(recordId || '').trim();
         const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
@@ -1683,6 +1719,10 @@ const StockModule = {
         StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(record);
         StockModule.state.goodsReceiptSubView = 'receipt';
         UI.renderCurrentPage();
+    },
+
+    viewGoodsReceiptRecord: (recordId) => {
+        StockModule.openGoodsReceiptSavedDocument(recordId, false);
     },
 
     getGoodsReceiptRecordById: (recordId) => {
@@ -2027,6 +2067,7 @@ const StockModule = {
         await DB.save();
         StockModule.state.goodsReceiptEditingId = String(nextRecord.id || '');
         StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(nextRecord);
+        StockModule.state.goodsReceiptSubView = 'archive';
         UI.renderCurrentPage();
         alert(`${nextRecord.docNo} onaylandi ve stok hareketine islendi.`);
     },
@@ -2062,6 +2103,7 @@ const StockModule = {
         await DB.save();
         StockModule.state.goodsReceiptEditingId = String(cancelled.id || '');
         StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(cancelled);
+        StockModule.state.goodsReceiptSubView = 'archive';
         UI.renderCurrentPage();
         alert(`${cancelled.docNo} iptal edildi.`);
     },
@@ -2966,8 +3008,11 @@ const StockModule = {
     getNodeLocationScopeId: (node) => {
         const kind = String(node?.kind || '').trim().toLowerCase();
         if (kind === 'managed') return String(node?.id || '').trim();
-        if (kind === 'unit') return `unit:${String(node?.id || '').trim()}`;
-        if (kind === 'external') return `external:${String(node?.id || '').trim()}`;
+        if (kind === 'unit' || kind === 'external') {
+            const byKey = String(node?.key || '').trim();
+            if (byKey.startsWith('unit:') || byKey.startsWith('external:')) return byKey;
+            return `${kind}:${String(node?.id || '').trim()}`;
+        }
         return '';
     },
     openLocationManagerForSelectedNode: () => {
@@ -3492,7 +3537,7 @@ const StockModule = {
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
                         <h2 class="stock-title">depo & stok / mal kabul</h2>
-                        <button class="btn-sm" onclick="StockModule.setGoodsReceiptSubView('hub')">geri</button>
+                        <button class="btn-sm" onclick="StockModule.setGoodsReceiptSubView('archive')">geri</button>
                     </div>
 
                     <div class="card-table" style="padding:1.05rem 1.2rem; margin-bottom:0.9rem;">
@@ -3658,33 +3703,37 @@ const StockModule = {
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
-                        <h2 class="stock-title">depo & stok / mal kabul / arsiv</h2>
-                        <button class="btn-sm" onclick="StockModule.setGoodsReceiptSubView('hub')">geri</button>
+                        <h2 class="stock-title">depo & stok / mal kabul</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
                     </div>
 
                     <div class="card-table" style="padding:1rem 1.1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Gecmis mal kabul islemleri</div>
+                            <button class="btn-primary" onclick="StockModule.startNewGoodsReceipt()">yeni mal kabul +</button>
+                        </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.65rem;">
                             <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli mal kabul fisleri</div>
                             <div style="font-size:0.8rem; color:#64748b;">${records.length} kayit</div>
                         </div>
                         <div style="display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.55rem; margin-bottom:0.7rem;">
-                            <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.docNo || ''))}" oninput="StockModule.setGoodsReceiptFilter('docNo', this.value)" placeholder="fis no ara">
-                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('supplierId', this.value)">
+                            <input id="goods_receipt_filter_docNo" class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.docNo || ''))}" oninput="StockModule.setGoodsReceiptFilter('docNo', this.value)" placeholder="fis no ara">
+                            <select id="goods_receipt_filter_supplierId" class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('supplierId', this.value)">
                                 <option value="">tum tedarikciler</option>
                                 ${suppliers.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.supplierId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
                             </select>
-                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('depotId', this.value)">
+                            <select id="goods_receipt_filter_depotId" class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('depotId', this.value)">
                                 <option value="">tum depolar</option>
                                 ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
                             </select>
-                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('status', this.value)">
+                            <select id="goods_receipt_filter_status" class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('status', this.value)">
                                 <option value="">tum durumlar</option>
                                 <option value="TASLAK" ${String(filters.status || '') === 'TASLAK' ? 'selected' : ''}>Taslak</option>
                                 <option value="ONAYLANDI" ${String(filters.status || '') === 'ONAYLANDI' ? 'selected' : ''}>Onaylandi</option>
                                 <option value="IPTAL" ${String(filters.status || '') === 'IPTAL' ? 'selected' : ''}>Iptal</option>
                             </select>
-                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateFrom || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateFrom', this.value)">
-                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateTo || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateTo', this.value)">
+                            <input id="goods_receipt_filter_dateFrom" class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateFrom || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateFrom', this.value)">
+                            <input id="goods_receipt_filter_dateTo" class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateTo || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateTo', this.value)">
                         </div>
 
                         <div style="overflow:auto;">
@@ -3705,6 +3754,7 @@ const StockModule = {
             const rowTotals = StockModule.getGoodsReceiptTotals(row?.lines || []);
             const rowStatus = StockModule.getGoodsReceiptStatusMeta(row?.status || 'TASLAK');
             const rowId = StockModule.escapeHtml(String(row?.id || ''));
+            const rowIsDraft = rowStatus.key === 'TASLAK';
             return `
                                         <tr style="border-bottom:1px solid #f1f5f9;">
                                             <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(row?.docNo || '-'))}</td>
@@ -3715,7 +3765,9 @@ const StockModule = {
                                             <td style="padding:0.55rem; text-align:right; font-weight:800;">${StockModule.escapeHtml(String(rowTotals.accepted || 0))}</td>
                                             <td style="padding:0.55rem; text-align:center;">
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">
-                                                    <button class="btn-sm" onclick="StockModule.openGoodsReceiptRecord('${rowId}')">ac</button>
+                                                    ${rowIsDraft
+                ? `<button class="btn-sm" onclick="StockModule.openGoodsReceiptRecord('${rowId}')">duzenle</button>`
+                : `<button class="btn-sm" onclick="StockModule.viewGoodsReceiptRecord('${rowId}')">goruntule</button>`}
                                                     <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${rowId}')">pdf</button>
                                                     <button class="btn-sm" onclick="StockModule.printGoodsReceiptSavedDocument('${rowId}')">yazdir</button>
                                                 </div>
@@ -3978,7 +4030,7 @@ const StockModule = {
     renderLayout: () => {
         const workspaceView = String(StockModule.state.workspaceView || 'menu');
         if (workspaceView === 'goods-receipt') {
-            const subView = String(StockModule.state.goodsReceiptSubView || 'hub').trim().toLowerCase();
+            const subView = String(StockModule.state.goodsReceiptSubView || 'archive').trim().toLowerCase();
             if (subView === 'hub') {
                 return StockModule.renderGoodsReceiptHubLayout();
             }

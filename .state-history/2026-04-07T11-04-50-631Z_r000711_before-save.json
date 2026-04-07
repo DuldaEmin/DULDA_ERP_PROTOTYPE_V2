@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-07T11:04:50.534Z",
+    "updated_at": "2026-04-07T10:48:13.596Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 712
+    "revision": 711
   },
   "data": {
     "products": [
@@ -2006,27 +2006,6 @@
         "note": "Mal kabul / MK-2026-000001",
         "created_at": "2026-04-07T10:48:13.596Z",
         "updated_at": "2026-04-07T10:48:13.596Z"
-      },
-      {
-        "id": "51deb3f8-9db9-4b06-b69b-4bf7f36ffe8a",
-        "movementType": "GOODS_RECEIPT",
-        "type": "GOODS_RECEIPT",
-        "productCode": "ALM0002",
-        "code": "ALM0002",
-        "productName": "35 lik ankraj profili",
-        "quantity": 30,
-        "qty": 30,
-        "unit": "MT",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
-        "locationCode": "R01-A1",
-        "supplierId": "sup1",
-        "supplierName": "AKPA ALUMINYUM",
-        "docNo": "MK-2026-000002",
-        "note": "Mal kabul / MK-2026-000002",
-        "created_at": "2026-04-07T11:04:50.534Z",
-        "updated_at": "2026-04-07T11:04:50.534Z"
       }
     ],
     "orders": [],
@@ -3930,31 +3909,6 @@
         "locationCode": "R01-A1",
         "created_at": "2026-04-07T10:48:13.596Z",
         "updated_at": "2026-04-07T10:48:13.596Z"
-      },
-      {
-        "id": "43b29253-23bc-4a1e-abb5-e99a6c3a0660",
-        "productId": "778a087e-c7de-4700-8597-5606b4c5c8ab",
-        "productCode": "ALM0002",
-        "code": "ALM0002",
-        "productName": "35 lik ankraj profili",
-        "name": "35 lik ankraj profili",
-        "quantity": 30,
-        "qty": 30,
-        "amount": 30,
-        "unit": "MT",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "productType": "MASTER",
-        "modelCode": "",
-        "planCodeId": "",
-        "masterCode": "",
-        "note": "Mal kabul / MK-2026-000002",
-        "depotId": "main",
-        "nodeKey": "managed:main",
-        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
-        "locationCode": "R01-A1",
-        "created_at": "2026-04-07T11:04:50.534Z",
-        "updated_at": "2026-04-07T11:04:50.534Z"
       }
     ],
     "freeExternalVendorJobs": [],
@@ -5357,41 +5311,6 @@
         "created_at": "2026-04-07T10:46:12.056Z",
         "updated_at": "2026-04-07T10:48:13.596Z",
         "approved_at": "2026-04-07T10:48:13.596Z",
-        "cancelled_at": null,
-        "created_by": "Demo User"
-      },
-      {
-        "id": "6e923a0c-8795-44e4-a208-19080b5b8aef",
-        "docNo": "MK-2026-000002",
-        "status": "ONAYLANDI",
-        "poId": "",
-        "poNo": "fhggf",
-        "dispatchNo": "ghsfdh",
-        "receiptDate": "2026-04-07T14:03",
-        "supplierId": "sup1",
-        "supplierName": "AKPA ALUMINYUM",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "receiverName": "yunus",
-        "note": "beş adet",
-        "lines": [
-          {
-            "id": "49c90a72-e37c-406c-a3d8-d1156aec3510",
-            "productId": "778a087e-c7de-4700-8597-5606b4c5c8ab",
-            "productCode": "ALM0002",
-            "productName": "35 lik ankraj profili",
-            "unit": "MT",
-            "acceptedQty": 30,
-            "damagedQty": 2,
-            "missingQty": 0,
-            "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
-            "locationCode": "R01-A1",
-            "damageNote": "gfdg"
-          }
-        ],
-        "created_at": "2026-04-07T11:03:16.033Z",
-        "updated_at": "2026-04-07T11:04:50.533Z",
-        "approved_at": "2026-04-07T11:04:50.533Z",
         "cancelled_at": null,
         "created_by": "Demo User"
       }

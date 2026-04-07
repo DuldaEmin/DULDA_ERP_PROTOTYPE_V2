@@ -35,6 +35,17 @@ const StockModule = {
         goodsReceiptEditingId: null,
         goodsReceiptSubView: 'archive',
         goodsReceiptPickerLineId: '',
+        inventoryRegistrationFormOpen: false,
+        inventoryRegistrationDraft: null,
+        inventoryRegistrationPickerPending: false,
+        inventoryRegistrationPickerKind: 'master',
+        inventoryRegistrationFilters: {
+            docNo: '',
+            productQuery: '',
+            depotId: '',
+            dateFrom: '',
+            dateTo: ''
+        },
         goodsReceiptFilters: {
             docNo: '',
             supplierId: '',
@@ -272,6 +283,7 @@ const StockModule = {
         if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
         if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
         if (!Array.isArray(DB.data.data.stockGoodsReceipts)) DB.data.data.stockGoodsReceipts = [];
+        if (!Array.isArray(DB.data.data.stockManualEntries)) DB.data.data.stockManualEntries = [];
         if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
 
         let changed = false;

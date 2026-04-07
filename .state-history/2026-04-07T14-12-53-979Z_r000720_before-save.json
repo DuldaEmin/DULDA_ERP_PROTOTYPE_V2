@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-07T14:13:05.294Z",
+    "updated_at": "2026-04-07T13:28:17.187Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 722
+    "revision": 720
   },
   "data": {
     "products": [
@@ -692,8 +692,7 @@
             "approve": true
           }
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "394c3196-c4d1-4cb2-aed9-9a6db49b5b3e",
@@ -818,8 +817,7 @@
             "approve": false
           }
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "6483d38b-81ce-4e18-b93a-94139968e140",
@@ -944,8 +942,7 @@
             "approve": true
           }
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "6af46f3f-14f9-4921-a984-867073cf106f",
@@ -1070,8 +1067,7 @@
             "approve": false
           }
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "bc9edfe4-edcc-4ada-a2d1-a62766ff543a",
@@ -1196,8 +1192,7 @@
             "approve": false
           }
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "345921d9-defb-4bc1-bd12-391b40a11d1b",
@@ -1322,8 +1317,7 @@
           "waste": false,
           "admin": false
         },
-        "isStockPersonnel": false,
-        "isSalesMarketingPersonnel": false
+        "isStockPersonnel": false
       },
       {
         "id": "72829b0f-b2d7-4f67-a580-1d857655cd92",
@@ -1446,8 +1440,7 @@
           "production": false,
           "waste": false,
           "admin": true
-        },
-        "isSalesMarketingPersonnel": false
+        }
       },
       {
         "id": "4388eca5-3ac2-46b7-9859-75e25e32c54c",
@@ -1572,8 +1565,7 @@
           "production": false,
           "waste": false,
           "admin": true
-        },
-        "isSalesMarketingPersonnel": false
+        }
       },
       {
         "id": "33657ba9-0ffb-4532-901b-babe099584d5",
@@ -1698,8 +1690,7 @@
           "production": false,
           "waste": false,
           "admin": false
-        },
-        "isSalesMarketingPersonnel": false
+        }
       },
       {
         "id": "cda92cb7-a0e9-492e-9e3a-b623303e65b0",
@@ -1824,8 +1815,7 @@
           "production": false,
           "waste": false,
           "admin": true
-        },
-        "isSalesMarketingPersonnel": false
+        }
       },
       {
         "id": "7202be69-4287-478e-9bd1-38a333291a9a",
@@ -1948,8 +1938,7 @@
           "production": false,
           "waste": false,
           "admin": true
-        },
-        "isSalesMarketingPersonnel": false
+        }
       }
     ],
     "stock_movements": [

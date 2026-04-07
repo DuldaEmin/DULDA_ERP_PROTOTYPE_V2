@@ -2918,7 +2918,7 @@ const StockModule = {
         return StockModule.applyInventoryRegistrationProductSeed(seed);
     },
 
-    openInventoryRegistrationProductCardByMeta: (sourceKind, productRefId, productCode = '') => {
+    openInventoryRegistrationProductCardByMeta: (sourceKind, productRefId, productCode = '', returnContext = null) => {
         if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof Router === 'undefined' || !Router || typeof Router.navigate !== 'function') {
             return;
         }
@@ -2953,6 +2953,9 @@ const StockModule = {
             }
             ProductLibraryModule.state.componentLibraryKind = isSemi ? 'SEMI' : 'PART';
             ProductLibraryModule.state.workspaceView = isSemi ? 'semi-components' : 'components';
+            ProductLibraryModule.state.componentViewReturnContext = returnContext && typeof returnContext === 'object'
+                ? { ...returnContext }
+                : { page: 'stock', view: 'inventory-registration', formOpen: false };
             ProductLibraryModule.state.componentViewingId = targetId || null;
             ProductLibraryModule.state.componentFormOpen = false;
             Router.navigate('products', { fromBack: true, preserveProductsState: true });
@@ -2980,7 +2983,8 @@ const StockModule = {
         StockModule.openInventoryRegistrationProductCardByMeta(
             String(draft?.sourceKind || 'master'),
             String(draft?.productRefId || draft?.productId || ''),
-            String(draft?.productCode || '')
+            String(draft?.productCode || ''),
+            { page: 'stock', view: 'inventory-registration', formOpen: true }
         );
     },
 
@@ -2992,7 +2996,8 @@ const StockModule = {
         StockModule.openInventoryRegistrationProductCardByMeta(
             String(row?.sourceKind || 'master'),
             String(row?.productRefId || row?.productId || ''),
-            String(row?.productCode || '')
+            String(row?.productCode || ''),
+            { page: 'stock', view: 'inventory-registration', formOpen: false }
         );
     },
 

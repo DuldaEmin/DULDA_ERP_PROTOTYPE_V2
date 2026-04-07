@@ -1550,6 +1550,22 @@ const ProductLibraryModule = {
                 return;
             }
         }
+        if (returnContext?.page === 'stock' && returnContext?.view === 'inventory-registration') {
+            if (typeof Router !== 'undefined') Router.navigate('stock', { fromBack: true });
+            if (typeof StockModule !== 'undefined' && StockModule) {
+                StockModule.state.workspaceView = 'inventory-registration';
+                if (typeof StockModule.ensureInventoryRegistrationDraftState === 'function') {
+                    StockModule.ensureInventoryRegistrationDraftState();
+                }
+                if (typeof returnContext?.formOpen === 'boolean') {
+                    StockModule.state.inventoryRegistrationFormOpen = returnContext.formOpen;
+                }
+                if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') {
+                    UI.renderCurrentPage();
+                    return;
+                }
+            }
+        }
         if (returnContext?.workspaceView === 'assembly') {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;

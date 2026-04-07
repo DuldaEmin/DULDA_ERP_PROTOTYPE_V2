@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-07T12:36:06.171Z",
+    "updated_at": "2026-04-07T12:25:33.762Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -40,7 +40,7 @@
         "ankrajlar"
       ]
     },
-    "revision": 715
+    "revision": 714
   },
   "data": {
     "products": [
@@ -2027,25 +2027,6 @@
         "note": "Mal kabul / MK-2026-000002",
         "created_at": "2026-04-07T11:04:50.534Z",
         "updated_at": "2026-04-07T11:04:50.534Z"
-      },
-      {
-        "id": "e176498d-7f9f-4cd1-9cf1-febda66037e9",
-        "movementType": "MANUAL_ENTRY",
-        "type": "MANUAL_ENTRY",
-        "productCode": "PRC-000003",
-        "code": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "quantity": 220,
-        "qty": 220,
-        "unit": "ADET",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "688ca280-fe92-4644-a57c-048222de6e41",
-        "locationCode": "R01-A2",
-        "docNo": "EK-2026-000001",
-        "note": "agdsfgdsgf",
-        "created_at": "2026-04-07T12:36:06.170Z",
-        "updated_at": "2026-04-07T12:36:06.170Z"
       }
     ],
     "orders": [],
@@ -3988,31 +3969,6 @@
         "locationCode": "R01-A1",
         "created_at": "2026-04-07T11:04:50.534Z",
         "updated_at": "2026-04-07T11:04:50.534Z"
-      },
-      {
-        "id": "5a5c5c19-487e-475c-af70-904583459a45",
-        "productId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-        "productCode": "PRC-000003",
-        "code": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "name": "40 lık aluminyum dikme yarıklı tapa",
-        "quantity": 220,
-        "qty": 220,
-        "amount": 220,
-        "unit": "ADET",
-        "stockClass": "KULLANILABILIR",
-        "status": "KULLANILABILIR",
-        "productType": "PARCA/BILESEN",
-        "modelCode": "",
-        "planCodeId": "",
-        "masterCode": "DIK0001",
-        "note": "agdsfgdsgf",
-        "depotId": "main",
-        "nodeKey": "managed:main",
-        "locationId": "688ca280-fe92-4644-a57c-048222de6e41",
-        "locationCode": "R01-A2",
-        "created_at": "2026-04-07T12:36:06.170Z",
-        "updated_at": "2026-04-07T12:36:06.170Z"
       }
     ],
     "freeExternalVendorJobs": [],
@@ -5492,32 +5448,6 @@
         "created_by": "Demo User"
       }
     ],
-    "stockManualEntries": [
-      {
-        "id": "46b9107a-c000-4d4d-a405-ea647d160ba0",
-        "docNo": "EK-2026-000001",
-        "entryDate": "2026-04-07T15:34",
-        "sourceKind": "component",
-        "sourceLabel": "Parca & Bilesen",
-        "productRefId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-        "productId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-        "productCode": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "productType": "PARCA/BILESEN",
-        "modelCode": "",
-        "masterCode": "DIK0001",
-        "unit": "ADET",
-        "qty": 220,
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "688ca280-fe92-4644-a57c-048222de6e41",
-        "locationCode": "R01-A2",
-        "note": "agdsfgdsgf",
-        "status": "ISLENDI",
-        "created_at": "2026-04-07T12:34:44.516Z",
-        "updated_at": "2026-04-07T12:36:06.170Z",
-        "created_by": "Demo User"
-      }
-    ]
+    "stockManualEntries": []
   }
 }

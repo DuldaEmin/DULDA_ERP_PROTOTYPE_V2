@@ -1710,6 +1710,13 @@ const StockModule = {
         UI.renderCurrentPage();
     },
 
+    closeGoodsReceiptForm: () => {
+        StockModule.state.goodsReceiptEditingId = null;
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft();
+        StockModule.state.goodsReceiptSubView = 'archive';
+        UI.renderCurrentPage();
+    },
+
     openGoodsReceiptRecord: (recordId) => {
         const id = String(recordId || '').trim();
         const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
@@ -3676,10 +3683,8 @@ const StockModule = {
 
                     <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
-                            <button class="btn-sm" onclick="StockModule.resetGoodsReceiptDraft()">yeni fis</button>
-                            <button class="btn-primary" onclick="StockModule.saveGoodsReceiptDraft()" ${isEditable ? '' : 'disabled'}>taslak kaydet</button>
                             <button class="btn-primary" style="background:#166534; border-color:#166534;" onclick="StockModule.approveGoodsReceipt()" ${isEditable ? '' : 'disabled'}>onayla ve stoga isle</button>
-                            <button class="btn-sm" style="border-color:#ef4444; color:#b91c1c; background:#fff5f5;" onclick="StockModule.cancelGoodsReceipt()">fisi iptal et</button>
+                            <button class="btn-sm" style="border-color:#ef4444; color:#b91c1c; background:#fff5f5;" onclick="StockModule.closeGoodsReceiptForm()">iptal</button>
                         </div>
                         <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
                             <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${StockModule.escapeHtml(currentRecordId)}')" ${currentRecordId ? '' : 'disabled'}>PDF indir</button>

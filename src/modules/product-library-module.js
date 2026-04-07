@@ -242,6 +242,15 @@ const ProductLibraryModule = {
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
+        if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
+            if (typeof StockModule.cancelInventoryRegistrationProductPicker === 'function') {
+                StockModule.cancelInventoryRegistrationProductPicker();
+            }
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
+        }
         Router.navigate('planlama', { fromBack: true });
     },
 
@@ -2086,6 +2095,9 @@ const ProductLibraryModule = {
         const isModelComponentPicker = state.componentPickerSource === 'model-component' || state.componentPickerSource === 'model-component-row';
         const planningPickerSource = String(state.planningPickerSource || '');
         const isPlanningComponentPicker = planningPickerSource === 'component' || planningPickerSource === 'semi';
+        const isStockInventoryPicker = isPlanningComponentPicker
+            && typeof StockModule !== 'undefined'
+            && !!StockModule?.state?.inventoryRegistrationPickerPending;
         const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker || isPlanningComponentPicker;
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getActiveComponentCards();
@@ -2205,8 +2217,8 @@ const ProductLibraryModule = {
             <div style="max-width:1360px; margin:0 auto;">
                 ${isComponentPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isPlanningComponentPicker ? (planningPickerSource === 'semi' ? 'Planlama icin yari mamul secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.' : 'Planlama icin parca/bilesen secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.') : (isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.')}</div>
-                        <button class="btn-sm" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.cancelComponentPicker()'}">${isPlanningComponentPicker ? 'planlamaya don' : (isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don')}</button>
+                        <div style="font-weight:700;">${isPlanningComponentPicker ? (isStockInventoryPicker ? (planningPickerSource === 'semi' ? 'Envantere elle kayit icin yari mamul secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.' : 'Envantere elle kayit icin parca/bilesen secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.') : (planningPickerSource === 'semi' ? 'Planlama icin yari mamul secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.' : 'Planlama icin parca/bilesen secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.')) : (isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.')}</div>
+                        <button class="btn-sm" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.cancelComponentPicker()'}">${isPlanningComponentPicker ? (isStockInventoryPicker ? 'envantere don' : 'planlamaya don') : (isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don')}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
@@ -4140,7 +4152,23 @@ const ProductLibraryModule = {
     },
     selectPlanningModel: (id) => {
         const row = ProductLibraryModule.getCatalogVariantById(id);
-        if (!row || typeof PlanningModule?.applyPickedModel !== 'function') return;
+        if (!row) return;
+        if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
+            const applied = typeof StockModule.selectInventoryRegistrationProductFromLibrary === 'function'
+                ? StockModule.selectInventoryRegistrationProductFromLibrary('model', id)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.resetLibraryAccordionState();
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
+            UI.renderCurrentPage();
+            return;
+        }
+        if (typeof PlanningModule?.applyPickedModel !== 'function') return;
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
@@ -4148,7 +4176,24 @@ const ProductLibraryModule = {
     },
     selectPlanningComponent: (id) => {
         const row = ProductLibraryModule.getComponentCardById(id);
-        if (!row || typeof PlanningModule?.applyPickedComponent !== 'function') return;
+        if (!row) return;
+        if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
+            const applied = typeof StockModule.selectInventoryRegistrationProductFromLibrary === 'function'
+                ? StockModule.selectInventoryRegistrationProductFromLibrary('component', id)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.resetLibraryAccordionState();
+            ProductLibraryModule.state.componentLibraryKind = 'PART';
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
+            UI.renderCurrentPage();
+            return;
+        }
+        if (typeof PlanningModule?.applyPickedComponent !== 'function') return;
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.componentLibraryKind = 'PART';
         ProductLibraryModule.state.planningPickerSource = '';
@@ -4157,7 +4202,24 @@ const ProductLibraryModule = {
     },
     selectPlanningSemiFinished: (id) => {
         const row = ProductLibraryModule.getSemiFinishedCardById(id);
-        if (!row || typeof PlanningModule?.applyPickedSemiFinished !== 'function') return;
+        if (!row) return;
+        if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
+            const applied = typeof StockModule.selectInventoryRegistrationProductFromLibrary === 'function'
+                ? StockModule.selectInventoryRegistrationProductFromLibrary('semi', id)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.resetLibraryAccordionState();
+            ProductLibraryModule.state.componentLibraryKind = 'SEMI';
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
+            UI.renderCurrentPage();
+            return;
+        }
+        if (typeof PlanningModule?.applyPickedSemiFinished !== 'function') return;
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.componentLibraryKind = 'SEMI';
         ProductLibraryModule.state.planningPickerSource = '';
@@ -4621,6 +4683,9 @@ const ProductLibraryModule = {
     renderModelsPage: (container) => {
         const state = ProductLibraryModule.state;
         const isPlanningModelPicker = String(state.planningPickerSource || '') === 'model';
+        const isStockInventoryPicker = isPlanningModelPicker
+            && typeof StockModule !== 'undefined'
+            && !!StockModule?.state?.inventoryRegistrationPickerPending;
         if (state.modelViewingId && !isPlanningModelPicker) state.modelViewingId = null;
 
         const filters = state.modelFilters || { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
@@ -4748,8 +4813,8 @@ const ProductLibraryModule = {
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
                 ${isPlanningModelPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">Planlama icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok icin uretim ekranina baglanir.</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">planlamaya don</button>
+                        <div style="font-weight:700;">${isStockInventoryPicker ? 'Envantere elle kayit icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok giris formuna baglanir.' : 'Planlama icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok icin uretim ekranina baglanir.'}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; flex-wrap:wrap; margin-bottom:1rem;">
@@ -5244,7 +5309,24 @@ const ProductLibraryModule = {
         const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
         const isModelMasterPicker = state.masterPickerSource === 'model-master' || state.masterPickerSource === 'model-master-row';
         const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
-        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker;
+        const isStockInventoryRegistrationPicker = state.masterPickerSource === 'stock-inventory-registration';
+        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
+        const masterPickerHint = isAssemblyMasterPicker
+            ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'
+            : (isModelMasterPicker
+                ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.'
+                : (isStockGoodsReceiptPicker
+                    ? 'Master urun secimi modundasin. "ekle" ile secilen urunu mal kabul satirina baglarsin.'
+                    : (isStockInventoryRegistrationPicker
+                        ? 'Master urun secimi modundasin. "ekle" ile secilen urunu envantere elle kayit formuna baglarsin.'
+                        : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.')));
+        const masterPickerBackLabel = isAssemblyMasterPicker
+            ? 'parca grup formuna don'
+            : (isModelMasterPicker
+                ? 'urun modeli formuna don'
+                : (isStockGoodsReceiptPicker
+                    ? 'mal kabule don'
+                    : (isStockInventoryRegistrationPicker ? 'envantere don' : 'parca formuna don')));
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -5421,8 +5503,8 @@ const ProductLibraryModule = {
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
                 ${isMasterPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isAssemblyMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.' : (isModelMasterPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : (isStockGoodsReceiptPicker ? 'Master urun secimi modundasin. "ekle" ile secilen urunu mal kabul satirina baglarsin.' : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.'))}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${isAssemblyMasterPicker ? 'parca grup formuna don' : (isModelMasterPicker ? 'urun modeli formuna don' : (isStockGoodsReceiptPicker ? 'mal kabule don' : 'parca formuna don'))}</button>
+                        <div style="font-weight:700;">${masterPickerHint}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelMasterPicker()">${masterPickerBackLabel}</button>
                     </div>
                 ` : ''}
                 <div style="background:rgba(255,255,255,0.86); border:1px solid #e2e8f0; border-radius:1.25rem; padding:1rem; margin-bottom:1.2rem;">
@@ -5876,6 +5958,18 @@ const ProductLibraryModule = {
                 Router.navigate('stock', { fromBack: true });
                 return;
             }
+        } else if (ProductLibraryModule.state.masterPickerSource === 'stock-inventory-registration') {
+            const applied = (typeof StockModule !== 'undefined' && typeof StockModule.selectInventoryRegistrationProductFromMasterLibrary === 'function')
+                ? StockModule.selectInventoryRegistrationProductFromMasterLibrary(record.id)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
         }
         UI.renderCurrentPage();
     },
@@ -5893,6 +5987,15 @@ const ProductLibraryModule = {
         } else if (src === 'stock-goods-receipt') {
             if (typeof StockModule !== 'undefined' && typeof StockModule.cancelGoodsReceiptProductMasterPicker === 'function') {
                 StockModule.cancelGoodsReceiptProductMasterPicker();
+            }
+            ProductLibraryModule.state.workspaceView = 'menu';
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('stock', { fromBack: true });
+                return;
+            }
+        } else if (src === 'stock-inventory-registration') {
+            if (typeof StockModule !== 'undefined' && typeof StockModule.cancelInventoryRegistrationProductPicker === 'function') {
+                StockModule.cancelInventoryRegistrationProductPicker();
             }
             ProductLibraryModule.state.workspaceView = 'menu';
             if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {

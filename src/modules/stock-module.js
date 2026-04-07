@@ -1237,6 +1237,11 @@ const StockModule = {
             StockModule.ensureGoodsReceiptDraftState();
             StockModule.state.goodsReceiptSubView = 'archive';
         }
+        if (String(viewId || '') === 'inventory-registration') {
+            StockModule.ensureInventoryRegistrationDraftState();
+            StockModule.state.inventoryRegistrationFormOpen = false;
+            StockModule.state.inventoryRegistrationPickerPending = false;
+        }
         UI.renderCurrentPage();
     },
 
@@ -2326,6 +2331,827 @@ const StockModule = {
             `teslim-fisi-${docNo}`
         );
         if (!ok) alert('PDF otomatik indirilemedi. Yazdir ile "PDF olarak kaydet" secenegini kullanabilirsiniz.');
+    },
+
+    normalizeInventoryRegistrationSourceKind: (value) => {
+        const raw = String(value || '').trim().toLowerCase();
+        if (raw === 'component') return 'component';
+        if (raw === 'semi') return 'semi';
+        if (raw === 'model') return 'model';
+        return 'master';
+    },
+
+    getInventoryRegistrationSourceMeta: (kind) => {
+        const key = StockModule.normalizeInventoryRegistrationSourceKind(kind);
+        if (key === 'component') return { key, label: 'Parca & Bilesen', productType: 'PARCA/BILESEN' };
+        if (key === 'semi') return { key, label: 'Yari Mamul', productType: 'YARI MAMUL' };
+        if (key === 'model') return { key, label: 'Urun Modelleri', productType: 'URUN MODELI' };
+        return { key: 'master', label: 'Master Urun Kutuphanesi', productType: 'MASTER' };
+    },
+
+    generateInventoryRegistrationDocNo: (dateLike = new Date()) => {
+        const date = dateLike instanceof Date ? dateLike : new Date(dateLike || Date.now());
+        const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
+        const rows = Array.isArray(DB.data?.data?.stockManualEntries) ? DB.data.data.stockManualEntries : [];
+        let maxSeq = 0;
+        rows.forEach((row) => {
+            const docNo = String(row?.docNo || '').trim().toUpperCase();
+            const match = docNo.match(/^EK-(\d{4})-(\d{6})$/);
+            if (!match) return;
+            const docYear = Number(match[1] || 0);
+            const seq = Number(match[2] || 0);
+            if (docYear !== year) return;
+            if (seq > maxSeq) maxSeq = seq;
+        });
+        return `EK-${year}-${String(maxSeq + 1).padStart(6, '0')}`;
+    },
+
+    getMasterProductById: (id) => {
+        return (Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [])
+            .find((row) => String(row?.id || '') === String(id || '') && String(row?.type || '').trim().toUpperCase() === 'MASTER') || null;
+    },
+
+    getMasterProductByCode: (code) => {
+        const norm = StockModule.normalize(code || '');
+        if (!norm) return null;
+        return (Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [])
+            .find((row) =>
+                String(row?.type || '').trim().toUpperCase() === 'MASTER'
+                && StockModule.normalize(row?.code || '') === norm
+            ) || null;
+    },
+
+    resolveInventoryRegistrationUnitFromMasterCode: (masterCode) => {
+        const master = StockModule.getMasterProductByCode(masterCode);
+        if (!master) return 'ADET';
+        return StockModule.normalizeGoodsReceiptUnit(
+            master?.specs?.unit || master?.unit || master?.unitAmountType || 'ADET'
+        );
+    },
+
+    buildEmptyInventoryRegistrationDraft: (seed = {}) => {
+        const now = new Date();
+        const isoNow = now.toISOString();
+        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        const depots = StockModule.getGoodsReceiptDepotOptions();
+        const defaultDepot = depots[0] || { id: 'main', name: 'ANA DEPO' };
+        const depotId = String(seed?.depotId || defaultDepot.id || 'main').trim() || 'main';
+        const depotName = String(seed?.depotName || '').trim() || StockModule.getScopeNameById(depotId);
+        const locations = StockModule.getGoodsReceiptLocationOptions(depotId);
+        const selectedLocationId = String(seed?.locationId || '').trim();
+        const defaultLocationId = selectedLocationId && locations.some((row) => String(row?.id || '') === selectedLocationId)
+            ? selectedLocationId
+            : String(locations[0]?.id || '').trim();
+        const location = locations.find((row) => String(row?.id || '') === defaultLocationId) || null;
+        const sourceMeta = StockModule.getInventoryRegistrationSourceMeta(seed?.sourceKind || 'master');
+        const unit = StockModule.normalizeGoodsReceiptUnit(seed?.unit || 'ADET');
+        return {
+            id: String(seed?.id || '').trim(),
+            docNo: String(seed?.docNo || '').trim() || StockModule.generateInventoryRegistrationDocNo(now),
+            entryDate: String(seed?.entryDate || localDate).trim() || localDate,
+            sourceKind: sourceMeta.key,
+            sourceLabel: String(seed?.sourceLabel || sourceMeta.label).trim(),
+            productRefId: String(seed?.productRefId || '').trim(),
+            productId: String(seed?.productId || '').trim(),
+            productCode: String(seed?.productCode || '').trim().toUpperCase(),
+            productName: String(seed?.productName || '').trim(),
+            productType: String(seed?.productType || sourceMeta.productType).trim() || sourceMeta.productType,
+            modelCode: String(seed?.modelCode || '').trim(),
+            masterCode: String(seed?.masterCode || '').trim().toUpperCase(),
+            unit,
+            qty: StockModule.normalizeGoodsReceiptQty(seed?.qty || 0, unit),
+            depotId,
+            depotName,
+            locationId: defaultLocationId,
+            locationCode: String(seed?.locationCode || location?.code || '').trim().toUpperCase(),
+            note: String(seed?.note || '').trim(),
+            status: String(seed?.status || 'ISLENDI').trim().toUpperCase() || 'ISLENDI',
+            created_at: String(seed?.created_at || isoNow),
+            updated_at: String(seed?.updated_at || isoNow),
+            created_by: String(seed?.created_by || 'Demo User')
+        };
+    },
+
+    ensureInventoryRegistrationDraftState: () => {
+        const defaultFilters = { docNo: '', productQuery: '', depotId: '', dateFrom: '', dateTo: '' };
+        if (!StockModule.state.inventoryRegistrationFilters || typeof StockModule.state.inventoryRegistrationFilters !== 'object') {
+            StockModule.state.inventoryRegistrationFilters = { ...defaultFilters };
+        } else {
+            StockModule.state.inventoryRegistrationFilters = { ...defaultFilters, ...StockModule.state.inventoryRegistrationFilters };
+        }
+        if (StockModule.state.inventoryRegistrationDraft && typeof StockModule.state.inventoryRegistrationDraft === 'object') return;
+        StockModule.state.inventoryRegistrationDraft = StockModule.buildEmptyInventoryRegistrationDraft();
+    },
+
+    openInventoryRegistrationForm: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        StockModule.state.inventoryRegistrationFormOpen = true;
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.inventoryRegistrationDraft = StockModule.buildEmptyInventoryRegistrationDraft();
+        UI.renderCurrentPage();
+    },
+
+    closeInventoryRegistrationForm: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        StockModule.state.inventoryRegistrationFormOpen = false;
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.inventoryRegistrationDraft = StockModule.buildEmptyInventoryRegistrationDraft();
+        UI.renderCurrentPage();
+    },
+
+    setInventoryRegistrationDraftField: (field, value) => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const draft = StockModule.state.inventoryRegistrationDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const key = String(field || '').trim();
+        if (!key) return;
+        const text = String(value ?? '');
+        let shouldRender = true;
+        if (key === 'depotId') {
+            draft.depotId = text.trim();
+            draft.depotName = StockModule.getScopeNameById(draft.depotId);
+            const locations = StockModule.getGoodsReceiptLocationOptions(draft.depotId);
+            const selectedLocation = locations.find((row) => String(row?.id || '') === String(draft.locationId || '')) || null;
+            if (selectedLocation) {
+                draft.locationCode = String(selectedLocation.code || '').trim().toUpperCase();
+            } else {
+                draft.locationId = String(locations[0]?.id || '').trim();
+                draft.locationCode = String(locations[0]?.code || '').trim().toUpperCase();
+            }
+        } else if (key === 'locationId') {
+            draft.locationId = text.trim();
+            const location = StockModule.getGoodsReceiptLocationOptions(String(draft.depotId || '')).find((row) =>
+                String(row?.id || '') === String(draft.locationId || '')
+            ) || null;
+            draft.locationCode = String(location?.code || '').trim().toUpperCase();
+        } else if (key === 'qty') {
+            draft.qty = StockModule.normalizeGoodsReceiptQty(text, draft.unit || 'ADET');
+            shouldRender = false;
+        } else if (key === 'entryDate') {
+            draft.entryDate = text.trim();
+            shouldRender = false;
+        } else if (key === 'note') {
+            draft.note = text;
+            shouldRender = false;
+        } else {
+            draft[key] = text;
+            shouldRender = false;
+        }
+        if (shouldRender) UI.renderCurrentPage();
+    },
+
+    setInventoryRegistrationFilter: (field, value) => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const key = String(field || '').trim();
+        const active = document.activeElement;
+        const shouldRestoreFocus = !!(active && String(active.id || '') === `inventory_registration_filter_${key}`);
+        const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
+        const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
+        const current = (StockModule.state.inventoryRegistrationFilters && typeof StockModule.state.inventoryRegistrationFilters === 'object')
+            ? StockModule.state.inventoryRegistrationFilters
+            : {};
+        current[key] = String(value || '');
+        StockModule.state.inventoryRegistrationFilters = current;
+        UI.renderCurrentPage();
+        if (shouldRestoreFocus) {
+            const next = document.getElementById(`inventory_registration_filter_${key}`);
+            if (next) {
+                next.focus();
+                if (start !== null && end !== null) {
+                    try { next.setSelectionRange(start, end); } catch (_) { }
+                }
+            }
+        }
+    },
+
+    getInventoryRegistrationRecords: () => {
+        const rows = Array.isArray(DB.data?.data?.stockManualEntries) ? DB.data.data.stockManualEntries : [];
+        return rows
+            .map((row) => {
+                const sourceMeta = StockModule.getInventoryRegistrationSourceMeta(row?.sourceKind || 'master');
+                const depotId = String(row?.depotId || '').trim();
+                const locationId = String(row?.locationId || '').trim();
+                const location = (Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [])
+                    .find((item) => String(item?.id || '') === locationId && (!depotId || String(item?.depotId || '') === depotId)) || null;
+                const locationCode = String(row?.locationCode || (location ? StockModule.getLocationCode(location) : '') || '').trim().toUpperCase();
+                const unit = StockModule.normalizeGoodsReceiptUnit(row?.unit || 'ADET');
+                return {
+                    ...row,
+                    sourceKind: sourceMeta.key,
+                    sourceLabel: String(row?.sourceLabel || sourceMeta.label).trim() || sourceMeta.label,
+                    productType: String(row?.productType || sourceMeta.productType).trim() || sourceMeta.productType,
+                    unit,
+                    qty: StockModule.normalizeGoodsReceiptQty(row?.qty || 0, unit),
+                    depotId,
+                    depotName: String(row?.depotName || '').trim() || StockModule.getScopeNameById(depotId),
+                    locationId,
+                    locationCode,
+                    status: String(row?.status || 'ISLENDI').trim().toUpperCase() || 'ISLENDI'
+                };
+            })
+            .sort((a, b) => {
+                const aDate = Date.parse(String(a?.entryDate || a?.created_at || ''));
+                const bDate = Date.parse(String(b?.entryDate || b?.created_at || ''));
+                return (Number.isFinite(bDate) ? bDate : 0) - (Number.isFinite(aDate) ? aDate : 0);
+            });
+    },
+
+    getFilteredInventoryRegistrationRecords: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const filters = StockModule.state.inventoryRegistrationFilters || {};
+        const qDocNo = StockModule.normalize(filters.docNo || '');
+        const qProduct = StockModule.normalize(filters.productQuery || '');
+        const qDepot = String(filters.depotId || '').trim();
+        const qFrom = String(filters.dateFrom || '').trim();
+        const qTo = String(filters.dateTo || '').trim();
+        return StockModule.getInventoryRegistrationRecords().filter((row) => {
+            if (qDocNo && !StockModule.normalize(row?.docNo || '').includes(qDocNo)) return false;
+            if (qProduct) {
+                const haystack = StockModule.normalize([
+                    row?.productCode,
+                    row?.productName,
+                    row?.modelCode,
+                    row?.masterCode,
+                    row?.sourceLabel
+                ].join(' '));
+                if (!haystack.includes(qProduct)) return false;
+            }
+            if (qDepot && String(row?.depotId || '').trim() !== qDepot) return false;
+            const rowDate = new Date(String(row?.entryDate || row?.created_at || ''));
+            const rowDay = Number.isNaN(rowDate.getTime()) ? '' : rowDate.toISOString().slice(0, 10);
+            if (qFrom && rowDay && rowDay < qFrom) return false;
+            if (qTo && rowDay && rowDay > qTo) return false;
+            return true;
+        });
+    },
+
+    validateInventoryRegistrationDraft: (draft) => {
+        if (!draft || typeof draft !== 'object') return { ok: false, message: 'Kayit taslagi bulunamadi.' };
+        if (!String(draft.productCode || '').trim() || !String(draft.productName || '').trim()) {
+            return { ok: false, message: 'Once kutuphaneden bir urun seciniz.' };
+        }
+        const qty = StockModule.normalizeGoodsReceiptQty(draft.qty || 0, draft.unit || 'ADET');
+        if (!(qty > 0)) return { ok: false, message: 'Miktar 0 dan buyuk olmali.' };
+        const depotId = String(draft.depotId || '').trim();
+        if (!depotId) return { ok: false, message: 'Depo seciniz.' };
+        const locations = StockModule.getGoodsReceiptLocationOptions(depotId);
+        if (locations.length === 0) {
+            return { ok: false, message: 'Secili depoda hucre tanimli degil. Once hucre ekleyiniz.' };
+        }
+        const locationId = String(draft.locationId || '').trim();
+        if (!locationId) return { ok: false, message: 'Hucre seciniz.' };
+        const hitLocation = locations.find((row) => String(row?.id || '') === locationId) || null;
+        if (!hitLocation) return { ok: false, message: 'Secilen hucre depoda bulunamadi.' };
+        return { ok: true };
+    },
+
+    buildInventoryRegistrationRecordFromDraft: (draft) => {
+        const now = new Date().toISOString();
+        const sourceMeta = StockModule.getInventoryRegistrationSourceMeta(draft?.sourceKind || 'master');
+        const depotId = String(draft?.depotId || '').trim() || 'main';
+        const depotName = StockModule.getScopeNameById(depotId);
+        const location = StockModule.getGoodsReceiptLocationOptions(depotId).find((row) =>
+            String(row?.id || '') === String(draft?.locationId || '')
+        ) || null;
+        const unit = StockModule.normalizeGoodsReceiptUnit(draft?.unit || 'ADET');
+        return {
+            id: String(draft?.id || crypto.randomUUID()).trim(),
+            docNo: String(draft?.docNo || '').trim() || StockModule.generateInventoryRegistrationDocNo(draft?.entryDate || Date.now()),
+            entryDate: String(draft?.entryDate || '').trim(),
+            sourceKind: sourceMeta.key,
+            sourceLabel: String(draft?.sourceLabel || sourceMeta.label).trim() || sourceMeta.label,
+            productRefId: String(draft?.productRefId || '').trim(),
+            productId: String(draft?.productId || '').trim(),
+            productCode: String(draft?.productCode || '').trim().toUpperCase(),
+            productName: String(draft?.productName || '').trim(),
+            productType: String(draft?.productType || sourceMeta.productType).trim() || sourceMeta.productType,
+            modelCode: String(draft?.modelCode || '').trim(),
+            masterCode: String(draft?.masterCode || '').trim().toUpperCase(),
+            unit,
+            qty: StockModule.normalizeGoodsReceiptQty(draft?.qty || 0, unit),
+            depotId,
+            depotName,
+            locationId: String(location?.id || '').trim(),
+            locationCode: String(location?.code || '').trim().toUpperCase(),
+            note: String(draft?.note || '').trim(),
+            status: 'ISLENDI',
+            created_at: String(draft?.created_at || now),
+            updated_at: now,
+            created_by: String(draft?.created_by || 'Demo User')
+        };
+    },
+
+    applyInventoryRegistrationToStock: (record) => {
+        if (!record || typeof record !== 'object') return;
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data?.data?.stock_movements)) DB.data.data.stock_movements = [];
+        const stockRows = DB.data.data.stockDepotItems;
+        const movements = DB.data.data.stock_movements;
+        const now = new Date().toISOString();
+
+        const qty = StockModule.normalizeGoodsReceiptQty(record?.qty || 0, record?.unit || 'ADET');
+        if (!(qty > 0)) return;
+
+        const scopeId = String(record?.depotId || '').trim() || 'main';
+        const locationId = String(record?.locationId || '').trim();
+        const locationCode = String(record?.locationCode || '').trim().toUpperCase();
+        const productCode = String(record?.productCode || '').trim().toUpperCase();
+        const productName = String(record?.productName || '').trim();
+        const unit = String(record?.unit || 'ADET').trim().toUpperCase() || 'ADET';
+        const note = String(record?.note || '').trim();
+
+        const hit = stockRows.find((row) => {
+            if (StockModule.normalize(row?.productCode || row?.code || '') !== StockModule.normalize(productCode)) return false;
+            if (StockModule.resolveScopeIdFromStockRow(row) !== scopeId) return false;
+            if (String(row?.locationId || '').trim() !== locationId) return false;
+            return StockModule.normalizeStockClass(row?.stockClass || row?.status || 'KULLANILABILIR') === 'KULLANILABILIR';
+        }) || null;
+
+        if (hit) {
+            const prevQty = Number(hit?.quantity ?? hit?.qty ?? hit?.amount ?? 0);
+            const nextQty = Number((Math.max(0, prevQty) + qty).toFixed(3));
+            hit.quantity = nextQty;
+            hit.qty = nextQty;
+            hit.amount = nextQty;
+            hit.updated_at = now;
+            hit.status = 'KULLANILABILIR';
+            hit.stockClass = 'KULLANILABILIR';
+            if (!String(hit?.note || '').trim() && note) hit.note = note;
+        } else {
+            stockRows.push({
+                id: crypto.randomUUID(),
+                productId: String(record?.productId || '').trim(),
+                productCode,
+                code: productCode,
+                productName,
+                name: productName,
+                quantity: qty,
+                qty,
+                amount: qty,
+                unit,
+                stockClass: 'KULLANILABILIR',
+                status: 'KULLANILABILIR',
+                productType: String(record?.productType || '').trim() || 'MASTER',
+                modelCode: String(record?.modelCode || '').trim(),
+                planCodeId: '',
+                masterCode: String(record?.masterCode || '').trim().toUpperCase(),
+                note: note || `Envantere elle kayit / ${String(record?.docNo || '-')}`,
+                depotId: scopeId,
+                nodeKey: StockModule.resolveNodeKeyFromScopeId(scopeId),
+                locationId,
+                locationCode,
+                created_at: now,
+                updated_at: now
+            });
+        }
+
+        movements.push({
+            id: crypto.randomUUID(),
+            movementType: 'MANUAL_ENTRY',
+            type: 'MANUAL_ENTRY',
+            productCode,
+            code: productCode,
+            productName,
+            quantity: qty,
+            qty,
+            unit,
+            depotId: scopeId,
+            depotName: StockModule.getScopeNameById(scopeId),
+            locationId,
+            locationCode,
+            docNo: String(record?.docNo || '').trim(),
+            note: note || `Envantere elle kayit / ${String(record?.docNo || '-')}`,
+            created_at: now,
+            updated_at: now
+        });
+    },
+
+    saveInventoryRegistrationEntry: async () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const draft = StockModule.state.inventoryRegistrationDraft;
+        const validation = StockModule.validateInventoryRegistrationDraft(draft);
+        if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const rows = Array.isArray(DB.data?.data?.stockManualEntries) ? DB.data.data.stockManualEntries : [];
+        if (!Array.isArray(DB.data?.data?.stockManualEntries)) DB.data.data.stockManualEntries = rows;
+        const record = StockModule.buildInventoryRegistrationRecordFromDraft(draft);
+        rows.push(record);
+        StockModule.applyInventoryRegistrationToStock(record);
+        await DB.save();
+        StockModule.state.inventoryRegistrationFormOpen = false;
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.inventoryRegistrationDraft = StockModule.buildEmptyInventoryRegistrationDraft();
+        UI.renderCurrentPage();
+        alert(`${record.docNo} envantere islendi.`);
+    },
+
+    openInventoryRegistrationProductSourcePicker: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        StockModule.state.inventoryRegistrationFormOpen = true;
+        const html = `
+            <div style="display:grid; gap:0.75rem;">
+                <div style="font-size:0.9rem; color:#64748b;">Hangi kutuphaneden urun secmek istiyorsun?</div>
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('master')">Master Urun Kutuphanesi</button>
+                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('component')">Parca & Bilesen</button>
+                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('semi')">Yari Mamul</button>
+                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('model')">Urun Modelleri</button>
+                </div>
+                <div style="font-size:0.78rem; color:#94a3b8;">Secimden sonra ilgili kutuphane acilir, urune "ekle" dediginde bu forma geri donersin.</div>
+            </div>
+        `;
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.open === 'function') {
+            Modal.open('Urun Kutuphanesi Sec', html, { maxWidth: '640px' });
+            return;
+        }
+        alert('Modal acilamadi. Lutfen tekrar deneyin.');
+    },
+
+    openInventoryRegistrationProductPicker: (kind) => {
+        const sourceMeta = StockModule.getInventoryRegistrationSourceMeta(kind);
+        StockModule.state.inventoryRegistrationPickerPending = true;
+        StockModule.state.inventoryRegistrationPickerKind = sourceMeta.key;
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof Router === 'undefined' || !Router || typeof Router.navigate !== 'function') {
+            alert('Urun kutuphanesi acilamadi.');
+            return;
+        }
+        if (sourceMeta.key === 'master') {
+            ProductLibraryModule.state.masterPickerSource = 'stock-inventory-registration';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.masterFormOpen = false;
+            ProductLibraryModule.state.masterEditingId = null;
+            ProductLibraryModule.state.workspaceView = 'master';
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            return;
+        }
+        if (typeof ProductLibraryModule.openPlanningPicker === 'function') {
+            ProductLibraryModule.openPlanningPicker(sourceMeta.key);
+            return;
+        }
+        alert('Secim ekrani acilamadi.');
+    },
+
+    cancelInventoryRegistrationProductPicker: () => {
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.workspaceView = 'inventory-registration';
+        StockModule.state.inventoryRegistrationFormOpen = true;
+        UI.renderCurrentPage();
+    },
+
+    resolveInventoryRegistrationProductSeed: (kind, id) => {
+        const source = StockModule.getInventoryRegistrationSourceMeta(kind);
+        const refId = String(id || '').trim();
+        if (!refId) return null;
+        if (source.key === 'master') {
+            const master = StockModule.getMasterProductById(refId);
+            if (!master) return null;
+            const unit = StockModule.normalizeGoodsReceiptUnit(master?.specs?.unit || master?.unit || master?.unitAmountType || 'ADET');
+            const code = String(master?.code || '').trim().toUpperCase();
+            return {
+                sourceKind: source.key,
+                sourceLabel: source.label,
+                productRefId: String(master?.id || '').trim(),
+                productId: String(master?.id || '').trim(),
+                productCode: code,
+                productName: String(master?.name || '').trim(),
+                productType: source.productType,
+                modelCode: '',
+                masterCode: code,
+                unit
+            };
+        }
+        if (source.key === 'component') {
+            const row = typeof ProductLibraryModule !== 'undefined' && typeof ProductLibraryModule.getComponentCardById === 'function'
+                ? ProductLibraryModule.getComponentCardById(refId)
+                : ((Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : []).find((item) => String(item?.id || '') === refId) || null);
+            if (!row) return null;
+            const masterCode = String(row?.masterCode || '').trim().toUpperCase();
+            return {
+                sourceKind: source.key,
+                sourceLabel: source.label,
+                productRefId: String(row?.id || '').trim(),
+                productId: String(row?.id || '').trim(),
+                productCode: String(row?.code || '').trim().toUpperCase(),
+                productName: String(row?.name || '').trim(),
+                productType: source.productType,
+                modelCode: '',
+                masterCode,
+                unit: StockModule.resolveInventoryRegistrationUnitFromMasterCode(masterCode || '')
+            };
+        }
+        if (source.key === 'semi') {
+            const row = typeof ProductLibraryModule !== 'undefined' && typeof ProductLibraryModule.getSemiFinishedCardById === 'function'
+                ? ProductLibraryModule.getSemiFinishedCardById(refId)
+                : ((Array.isArray(DB.data?.data?.semiFinishedCards) ? DB.data.data.semiFinishedCards : []).find((item) => String(item?.id || '') === refId) || null);
+            if (!row) return null;
+            const masterCode = String(row?.masterCode || '').trim().toUpperCase();
+            return {
+                sourceKind: source.key,
+                sourceLabel: source.label,
+                productRefId: String(row?.id || '').trim(),
+                productId: String(row?.id || '').trim(),
+                productCode: String(row?.code || '').trim().toUpperCase(),
+                productName: String(row?.name || '').trim(),
+                productType: source.productType,
+                modelCode: '',
+                masterCode,
+                unit: StockModule.resolveInventoryRegistrationUnitFromMasterCode(masterCode || '')
+            };
+        }
+        const variant = typeof ProductLibraryModule !== 'undefined' && typeof ProductLibraryModule.getCatalogVariantById === 'function'
+            ? ProductLibraryModule.getCatalogVariantById(refId)
+            : ((Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : []).find((item) => String(item?.id || '') === refId) || null);
+        if (!variant) return null;
+        const masterRefs = Array.isArray(variant?.masterRefs) ? variant.masterRefs : [];
+        const firstMasterCode = String(masterRefs[0]?.code || variant?.masterRef?.code || '').trim().toUpperCase();
+        return {
+            sourceKind: source.key,
+            sourceLabel: source.label,
+            productRefId: String(variant?.id || '').trim(),
+            productId: String(variant?.id || '').trim(),
+            productCode: String(variant?.variantCode || '').trim().toUpperCase(),
+            productName: String(variant?.productName || variant?.familyName || '').trim(),
+            productType: source.productType,
+            modelCode: String(variant?.variantCode || '').trim().toUpperCase(),
+            masterCode: firstMasterCode,
+            unit: 'ADET'
+        };
+    },
+
+    applyInventoryRegistrationProductSeed: (seed) => {
+        if (!seed || typeof seed !== 'object') return false;
+        StockModule.ensureInventoryRegistrationDraftState();
+        const draft = StockModule.state.inventoryRegistrationDraft || StockModule.buildEmptyInventoryRegistrationDraft();
+        const unit = StockModule.normalizeGoodsReceiptUnit(seed?.unit || draft.unit || 'ADET');
+        const nextQty = StockModule.normalizeGoodsReceiptQty(draft.qty || 0, unit);
+        StockModule.state.inventoryRegistrationDraft = {
+            ...draft,
+            sourceKind: StockModule.normalizeInventoryRegistrationSourceKind(seed?.sourceKind || draft.sourceKind || 'master'),
+            sourceLabel: String(seed?.sourceLabel || draft.sourceLabel || '').trim(),
+            productRefId: String(seed?.productRefId || '').trim(),
+            productId: String(seed?.productId || '').trim(),
+            productCode: String(seed?.productCode || '').trim().toUpperCase(),
+            productName: String(seed?.productName || '').trim(),
+            productType: String(seed?.productType || draft.productType || '').trim(),
+            modelCode: String(seed?.modelCode || '').trim(),
+            masterCode: String(seed?.masterCode || '').trim().toUpperCase(),
+            unit,
+            qty: nextQty
+        };
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.inventoryRegistrationFormOpen = true;
+        StockModule.state.workspaceView = 'inventory-registration';
+        UI.renderCurrentPage();
+        return true;
+    },
+
+    selectInventoryRegistrationProductFromMasterLibrary: (productId) => {
+        const seed = StockModule.resolveInventoryRegistrationProductSeed('master', productId);
+        if (!seed) return false;
+        return StockModule.applyInventoryRegistrationProductSeed(seed);
+    },
+
+    selectInventoryRegistrationProductFromLibrary: (kind, id) => {
+        const seed = StockModule.resolveInventoryRegistrationProductSeed(kind, id);
+        if (!seed) return false;
+        return StockModule.applyInventoryRegistrationProductSeed(seed);
+    },
+
+    openInventoryRegistrationProductCardByMeta: (sourceKind, productRefId, productCode = '') => {
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof Router === 'undefined' || !Router || typeof Router.navigate !== 'function') {
+            return;
+        }
+        const source = StockModule.normalizeInventoryRegistrationSourceKind(sourceKind);
+        const refId = String(productRefId || '').trim();
+        const code = String(productCode || '').trim().toUpperCase();
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = '';
+        if (source === 'master') {
+            let targetId = refId;
+            if (!targetId && code) {
+                const hit = StockModule.getMasterProductByCode(code);
+                targetId = String(hit?.id || '').trim();
+            }
+            ProductLibraryModule.state.workspaceView = 'master';
+            ProductLibraryModule.state.masterFormOpen = false;
+            ProductLibraryModule.state.masterEditingId = null;
+            ProductLibraryModule.state.masterSelectedId = targetId || null;
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            return;
+        }
+        if (source === 'component' || source === 'semi') {
+            const isSemi = source === 'semi';
+            let targetId = refId;
+            if (!targetId && code) {
+                const list = isSemi
+                    ? (Array.isArray(DB.data?.data?.semiFinishedCards) ? DB.data.data.semiFinishedCards : [])
+                    : (Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : []);
+                const hit = list.find((row) => StockModule.normalize(row?.code || '') === StockModule.normalize(code));
+                targetId = String(hit?.id || '').trim();
+            }
+            ProductLibraryModule.state.componentLibraryKind = isSemi ? 'SEMI' : 'PART';
+            ProductLibraryModule.state.workspaceView = isSemi ? 'semi-components' : 'components';
+            ProductLibraryModule.state.componentViewingId = targetId || null;
+            ProductLibraryModule.state.componentFormOpen = false;
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            return;
+        }
+        let targetId = refId;
+        if (!targetId && code) {
+            const hit = (Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : [])
+                .find((row) => StockModule.normalize(row?.variantCode || '') === StockModule.normalize(code));
+            targetId = String(hit?.id || '').trim();
+        }
+        ProductLibraryModule.state.workspaceView = 'models';
+        ProductLibraryModule.state.modelViewingId = null;
+        ProductLibraryModule.state.modelFormOpen = false;
+        Router.navigate('products', { fromBack: true, preserveProductsState: true });
+        if (targetId && typeof ProductLibraryModule.openModelVariantView === 'function') {
+            setTimeout(() => ProductLibraryModule.openModelVariantView(targetId), 0);
+        }
+    },
+
+    openInventoryRegistrationDraftProductCard: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const draft = StockModule.state.inventoryRegistrationDraft || {};
+        if (!String(draft?.productCode || '').trim()) return;
+        StockModule.openInventoryRegistrationProductCardByMeta(
+            String(draft?.sourceKind || 'master'),
+            String(draft?.productRefId || draft?.productId || ''),
+            String(draft?.productCode || '')
+        );
+    },
+
+    openInventoryRegistrationRecordProductCard: (recordId) => {
+        const id = String(recordId || '').trim();
+        if (!id) return;
+        const row = StockModule.getInventoryRegistrationRecords().find((item) => String(item?.id || '') === id) || null;
+        if (!row) return;
+        StockModule.openInventoryRegistrationProductCardByMeta(
+            String(row?.sourceKind || 'master'),
+            String(row?.productRefId || row?.productId || ''),
+            String(row?.productCode || '')
+        );
+    },
+
+    renderInventoryRegistrationLayout: () => {
+        StockModule.ensureInventoryRegistrationDraftState();
+        const filters = StockModule.state.inventoryRegistrationFilters || { docNo: '', productQuery: '', depotId: '', dateFrom: '', dateTo: '' };
+        const records = StockModule.getFilteredInventoryRegistrationRecords();
+        const depots = StockModule.getGoodsReceiptDepotOptions();
+        const draft = StockModule.state.inventoryRegistrationDraft || StockModule.buildEmptyInventoryRegistrationDraft();
+        const isFormOpen = !!StockModule.state.inventoryRegistrationFormOpen;
+        const locations = StockModule.getGoodsReceiptLocationOptions(String(draft?.depotId || depots[0]?.id || 'main'));
+        const qtyStep = StockModule.getGoodsReceiptQtyStep(draft?.unit || 'ADET');
+        const qtyValue = Number(draft?.qty || 0) > 0 ? String(draft.qty) : '';
+        const selectedProductLabel = String(draft?.productCode || '').trim()
+            ? `${String(draft?.productCode || '').trim()} - ${String(draft?.productName || '').trim()}`
+            : '';
+
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">depo & stok / envantere elle kayit</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem; margin-bottom:${isFormOpen ? '1rem' : '0'};">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli envanter girisleri</div>
+                            <button class="btn-primary" onclick="StockModule.openInventoryRegistrationForm()">depoya urun ekle +</button>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                            <div style="font-size:0.88rem; color:#64748b;">Tek seferde tek urun kaydi acilir. Ayni urun farkli hucrelere ayri satirlar olarak kaydedilir.</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${records.length} kayit</div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:1.05fr 1.4fr 1fr 0.8fr 0.8fr; gap:0.55rem; margin-bottom:0.7rem;">
+                            <input id="inventory_registration_filter_docNo" class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.docNo || ''))}" oninput="StockModule.setInventoryRegistrationFilter('docNo', this.value)" placeholder="kayit no ara">
+                            <input id="inventory_registration_filter_productQuery" class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.productQuery || ''))}" oninput="StockModule.setInventoryRegistrationFilter('productQuery', this.value)" placeholder="urun kodu / urun adi / kaynak ile ara">
+                            <select id="inventory_registration_filter_depotId" class="stock-input stock-input-tall" onchange="StockModule.setInventoryRegistrationFilter('depotId', this.value)">
+                                <option value="">tum depolar</option>
+                                ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                            </select>
+                            <input id="inventory_registration_filter_dateFrom" class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateFrom || ''))}" onchange="StockModule.setInventoryRegistrationFilter('dateFrom', this.value)">
+                            <input id="inventory_registration_filter_dateTo" class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateTo || ''))}" onchange="StockModule.setInventoryRegistrationFilter('dateTo', this.value)">
+                        </div>
+
+                        <div style="overflow:auto;">
+                            <table style="width:100%; min-width:1120px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Kayit no</th>
+                                        <th style="padding:0.55rem; text-align:left;">Tarih</th>
+                                        <th style="padding:0.55rem; text-align:left;">Urun</th>
+                                        <th style="padding:0.55rem; text-align:left;">Kaynak</th>
+                                        <th style="padding:0.55rem; text-align:left;">Depo</th>
+                                        <th style="padding:0.55rem; text-align:left;">Lokasyon</th>
+                                        <th style="padding:0.55rem; text-align:right;">Miktar</th>
+                                        <th style="padding:0.55rem; text-align:center;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${records.length === 0 ? '<tr><td colspan="8" style="padding:1.1rem; color:#94a3b8; text-align:center;">Kayit yok.</td></tr>' : records.map((row) => {
+            const rowId = StockModule.escapeHtml(String(row?.id || ''));
+            const productLabel = `${String(row?.productCode || '-').trim()} - ${String(row?.productName || '-').trim()}`;
+            return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(row?.docNo || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(StockModule.formatDateTimeLabel(row?.entryDate || row?.created_at || ''))}</td>
+                                            <td style="padding:0.55rem; font-weight:700; color:#334155;">${StockModule.escapeHtml(productLabel)}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.sourceLabel || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.depotName || '-'))}</td>
+                                            <td style="padding:0.55rem; font-family:Consolas, monospace;">${StockModule.escapeHtml(String(row?.locationCode || '-'))}</td>
+                                            <td style="padding:0.55rem; text-align:right; font-weight:800;">${StockModule.escapeHtml(String(row?.qty || 0))} ${StockModule.escapeHtml(String(row?.unit || 'ADET'))}</td>
+                                            <td style="padding:0.55rem; text-align:center;">
+                                                <button class="btn-sm" onclick="StockModule.openInventoryRegistrationRecordProductCard('${rowId}')">urun karti</button>
+                                            </td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    ${isFormOpen ? `
+                        <div class="card-table" style="padding:1rem 1.1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                                <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Depoya urun ekle</div>
+                                <div style="font-size:0.79rem; color:#64748b;">Kayit no: <span style="font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(draft?.docNo || '-'))}</span></div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem; margin-bottom:0.7rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kayit no</label>
+                                    <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.docNo || '-'))}" readonly style="font-family:Consolas, monospace; font-weight:800; background:#f8fafc;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kayit tarihi</label>
+                                    <input class="stock-input stock-input-tall" type="datetime-local" value="${StockModule.escapeHtml(String(draft?.entryDate || ''))}" onchange="StockModule.setInventoryRegistrationDraftField('entryDate', this.value)">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kutuphane kaynagi</label>
+                                    <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.sourceLabel || '-'))}" readonly style="background:#f8fafc;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Urun secimi</label>
+                                    <div style="display:grid; grid-template-columns:1fr auto; gap:0.45rem;">
+                                        <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(selectedProductLabel || '')}" readonly placeholder="urun secilmedi" style="background:#f8fafc;">
+                                        <button class="btn-sm" type="button" onclick="StockModule.openInventoryRegistrationProductSourcePicker()">kutuphaneden sec</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:0.9fr 0.95fr 1fr 1fr; gap:0.55rem; margin-bottom:0.7rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Urun kodu</label>
+                                    ${String(draft?.productCode || '').trim()
+                ? `<button class="stock-input stock-input-tall" type="button" onclick="StockModule.openInventoryRegistrationDraftProductCard()" style="text-align:left; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; text-decoration:underline; cursor:pointer;">${StockModule.escapeHtml(String(draft?.productCode || '-'))}</button>`
+                : `<input class="stock-input stock-input-tall" value="-" readonly style="background:#f8fafc;">`}
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Birim</label>
+                                    <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.unit || 'ADET'))}" readonly style="background:#f8fafc; font-weight:800;">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Miktar</label>
+                                    <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(qtyStep)}" value="${StockModule.escapeHtml(qtyValue)}" oninput="StockModule.setInventoryRegistrationDraftField('qty', this.value)">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Depo</label>
+                                    <select class="stock-input stock-input-tall" onchange="StockModule.setInventoryRegistrationDraftField('depotId', this.value)">
+                                        ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(draft?.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:1fr 2fr; gap:0.55rem; margin-bottom:0.75rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Hucre</label>
+                                    <select class="stock-input stock-input-tall" onchange="StockModule.setInventoryRegistrationDraftField('locationId', this.value)">
+                                        <option value="">Hucre sec</option>
+                                        ${locations.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(draft?.locationId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.label)}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
+                                    <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.note || ''))}" oninput="StockModule.setInventoryRegistrationDraftField('note', this.value)" placeholder="opsiyonel aciklama">
+                                </div>
+                            </div>
+
+                            <div style="display:flex; justify-content:flex-start; gap:0.45rem; flex-wrap:wrap;">
+                                <button class="btn-primary" style="background:#166534; border-color:#166534;" onclick="StockModule.saveInventoryRegistrationEntry()">kaydet ve stoga isle</button>
+                                <button class="btn-sm" style="border-color:#ef4444; color:#b91c1c; background:#fff5f5;" onclick="StockModule.closeInventoryRegistrationForm()">iptal</button>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </section>
+        `;
     },
 
     openOperationLibrary: () => {
@@ -4055,6 +4881,9 @@ const StockModule = {
                 return StockModule.renderGoodsReceiptArchiveLayout();
             }
             return StockModule.renderGoodsReceiptLayout();
+        }
+        if (workspaceView === 'inventory-registration') {
+            return StockModule.renderInventoryRegistrationLayout();
         }
         if (StockModule.moduleBlueprints[workspaceView]) {
             return StockModule.renderBlueprintWorkspace(workspaceView);

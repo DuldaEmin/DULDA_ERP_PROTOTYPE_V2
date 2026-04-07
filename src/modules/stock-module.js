@@ -30,7 +30,17 @@ const StockModule = {
         locationDraftIdCode: '',
         locationDraftEditIndex: -1,
         depotDraftLocations: [],
-        depotEditingId: null
+        depotEditingId: null,
+        goodsReceiptDraft: null,
+        goodsReceiptEditingId: null,
+        goodsReceiptFilters: {
+            docNo: '',
+            supplierId: '',
+            depotId: '',
+            status: '',
+            dateFrom: '',
+            dateTo: ''
+        }
     },
 
     moduleBlueprints: {
@@ -259,6 +269,7 @@ const StockModule = {
         if (!Array.isArray(DB.data.data.stockDepots)) DB.data.data.stockDepots = [];
         if (!Array.isArray(DB.data.data.stockDepotLocations)) DB.data.data.stockDepotLocations = [];
         if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data.data.stockGoodsReceipts)) DB.data.data.stockGoodsReceipts = [];
         if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
 
         let changed = false;
@@ -506,6 +517,30 @@ const StockModule = {
                 changed = true;
             }
         });
+        (DB.data.data.stockGoodsReceipts || []).forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const safeStatus = StockModule.normalizeGoodsReceiptStatus(row?.status || 'TASLAK');
+            if (String(row?.status || '') !== safeStatus) {
+                row.status = safeStatus;
+                changed = true;
+            }
+            if (!String(row?.docNo || '').trim()) {
+                row.docNo = `MK-${new Date().getFullYear()}-000001`;
+                changed = true;
+            }
+            if (!Array.isArray(row.lines)) {
+                row.lines = [];
+                changed = true;
+            }
+            if (!row.created_at) {
+                row.created_at = now;
+                changed = true;
+            }
+            if (!row.updated_at) {
+                row.updated_at = now;
+                changed = true;
+            }
+        });
 
         if (changed) DB.markDirty();
     },
@@ -744,11 +779,11 @@ const StockModule = {
     getStockRowQty: (row) => {
         const num = Number(row?.quantity ?? row?.qty ?? row?.amount ?? 0);
         if (!Number.isFinite(num)) return 0;
-        return Math.max(0, Math.floor(num));
+        return Math.max(0, Number(num.toFixed(3)));
     },
 
     setStockRowQty: (row, qty) => {
-        const safeQty = Math.max(0, Math.floor(Number(qty || 0)));
+        const safeQty = Math.max(0, Number(Number(qty || 0).toFixed(3)));
         row.quantity = safeQty;
         row.qty = safeQty;
         row.amount = safeQty;
@@ -1184,7 +1219,858 @@ const StockModule = {
 
     openWorkspace: (viewId) => {
         StockModule.state.workspaceView = String(viewId || 'menu');
+        if (String(viewId || '') === 'goods-receipt') StockModule.ensureGoodsReceiptDraftState();
         UI.renderCurrentPage();
+    },
+
+    normalizeGoodsReceiptStatus: (value) => {
+        const raw = String(value || '').trim().toUpperCase();
+        if (raw === 'ONAYLI') return 'ONAYLANDI';
+        if (raw === 'ONAYLANDI') return 'ONAYLANDI';
+        if (raw === 'IPTAL') return 'IPTAL';
+        return 'TASLAK';
+    },
+
+    getGoodsReceiptStatusMeta: (status) => {
+        const key = StockModule.normalizeGoodsReceiptStatus(status);
+        if (key === 'ONAYLANDI') return { key, text: 'Onaylandi', color: '#065f46', bg: '#d1fae5', border: '#6ee7b7' };
+        if (key === 'IPTAL') return { key, text: 'Iptal', color: '#991b1b', bg: '#fee2e2', border: '#fecaca' };
+        return { key: 'TASLAK', text: 'Taslak', color: '#1e3a8a', bg: '#dbeafe', border: '#bfdbfe' };
+    },
+
+    getGoodsReceiptSupplierOptions: () => {
+        return (Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [])
+            .map((row) => ({
+                id: String(row?.id || '').trim(),
+                name: String(row?.name || '').trim()
+            }))
+            .filter((row) => row.id && row.name)
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+    },
+
+    getGoodsReceiptDepotOptions: () => {
+        return [StockModule.getMainDepot(), ...StockModule.getCustomDepots()]
+            .map((row) => ({
+                id: String(row?.id || '').trim(),
+                name: String(row?.name || '').trim()
+            }))
+            .filter((row) => row.id && row.name);
+    },
+
+    getGoodsReceiptProductOptions: () => {
+        const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        return products
+            .map((row) => {
+                const id = String(row?.id || '').trim();
+                const code = String(row?.code || '').trim().toUpperCase();
+                const name = String(row?.name || '').trim();
+                const unitRaw = String(row?.specs?.unit || row?.unit || row?.unitAmountType || 'adet').trim();
+                const unit = unitRaw ? unitRaw.toUpperCase() : 'ADET';
+                return { id, code, name, unit };
+            })
+            .filter((row) => row.id && row.code && row.name)
+            .sort((a, b) => {
+                const codeCmp = String(a?.code || '').localeCompare(String(b?.code || ''), 'tr');
+                if (codeCmp !== 0) return codeCmp;
+                return String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+            });
+    },
+
+    getGoodsReceiptLocationOptions: (depotId) => {
+        return StockModule.getDepotLocations(depotId).map((row) => ({
+            id: String(row?.id || '').trim(),
+            code: String(StockModule.getLocationCode(row) || '').trim().toUpperCase(),
+            label: StockModule.getLocationLabel(row)
+        }));
+    },
+
+    normalizeGoodsReceiptQty: (value, unit = '') => {
+        const num = Number(String(value ?? '').replace(',', '.'));
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        const unitText = String(unit || '').trim().toUpperCase();
+        if (unitText === 'ADET' || unitText === 'PCS') return Math.floor(num);
+        return Math.max(0, Number(num.toFixed(3)));
+    },
+
+    getGoodsReceiptQtyStep: (unit = '') => {
+        const unitText = String(unit || '').trim().toUpperCase();
+        if (unitText === 'ADET' || unitText === 'PCS') return '1';
+        return '0.001';
+    },
+
+    buildEmptyGoodsReceiptLine: (seed = {}) => ({
+        id: String(seed?.id || crypto.randomUUID()),
+        productId: String(seed?.productId || '').trim(),
+        productCode: String(seed?.productCode || '').trim().toUpperCase(),
+        productName: String(seed?.productName || '').trim(),
+        unit: String(seed?.unit || 'ADET').trim().toUpperCase(),
+        acceptedQty: StockModule.normalizeGoodsReceiptQty(seed?.acceptedQty || 0, seed?.unit || 'ADET'),
+        damagedQty: StockModule.normalizeGoodsReceiptQty(seed?.damagedQty || 0, seed?.unit || 'ADET'),
+        missingQty: StockModule.normalizeGoodsReceiptQty(seed?.missingQty || 0, seed?.unit || 'ADET'),
+        locationId: String(seed?.locationId || '').trim(),
+        locationCode: String(seed?.locationCode || '').trim().toUpperCase(),
+        damageNote: String(seed?.damageNote || '').trim()
+    }),
+
+    generateGoodsReceiptDocNo: (dateLike = new Date()) => {
+        const date = dateLike instanceof Date ? dateLike : new Date(dateLike || Date.now());
+        const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        let maxSeq = 0;
+        rows.forEach((row) => {
+            const docNo = String(row?.docNo || '').trim().toUpperCase();
+            const match = docNo.match(/^MK-(\d{4})-(\d{6})$/);
+            if (!match) return;
+            const docYear = Number(match[1] || 0);
+            const seq = Number(match[2] || 0);
+            if (docYear !== year) return;
+            if (seq > maxSeq) maxSeq = seq;
+        });
+        return `MK-${year}-${String(maxSeq + 1).padStart(6, '0')}`;
+    },
+
+    buildEmptyGoodsReceiptDraft: (seed = {}) => {
+        const now = new Date();
+        const isoNow = now.toISOString();
+        const localDate = new Date(now.getTime() - (now.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        const defaultDepot = StockModule.getGoodsReceiptDepotOptions()[0] || { id: 'main', name: 'ANA DEPO' };
+        const docNo = String(seed?.docNo || '').trim() || StockModule.generateGoodsReceiptDocNo(now);
+        const status = StockModule.normalizeGoodsReceiptStatus(seed?.status || 'TASLAK');
+        const linesSeed = Array.isArray(seed?.lines) ? seed.lines : [StockModule.buildEmptyGoodsReceiptLine()];
+        const lines = linesSeed.map((line) => StockModule.buildEmptyGoodsReceiptLine(line));
+        const supplierId = String(seed?.supplierId || '').trim();
+        const supplierName = String(seed?.supplierName || '').trim();
+        const depotId = String(seed?.depotId || defaultDepot.id || 'main').trim() || 'main';
+        const depotName = String(seed?.depotName || '').trim() || StockModule.getScopeNameById(depotId);
+        return {
+            id: String(seed?.id || '').trim(),
+            docNo,
+            status,
+            poId: String(seed?.poId || '').trim(),
+            poNo: String(seed?.poNo || '').trim(),
+            dispatchNo: String(seed?.dispatchNo || '').trim(),
+            receiptDate: String(seed?.receiptDate || localDate).trim() || localDate,
+            supplierId,
+            supplierName,
+            depotId,
+            depotName,
+            receiverName: String(seed?.receiverName || '').trim(),
+            note: String(seed?.note || '').trim(),
+            lines,
+            created_at: String(seed?.created_at || isoNow),
+            updated_at: String(seed?.updated_at || isoNow),
+            approved_at: seed?.approved_at || null,
+            cancelled_at: seed?.cancelled_at || null,
+            created_by: String(seed?.created_by || 'Demo User')
+        };
+    },
+
+    ensureGoodsReceiptDraftState: () => {
+        if (StockModule.state.goodsReceiptDraft && typeof StockModule.state.goodsReceiptDraft === 'object') return;
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft();
+        StockModule.state.goodsReceiptEditingId = String(StockModule.state.goodsReceiptDraft?.id || '') || null;
+    },
+
+    getGoodsReceiptTotals: (lines) => {
+        const rows = Array.isArray(lines) ? lines : [];
+        return rows.reduce((acc, line) => {
+            const accepted = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, line?.unit || 'ADET');
+            const damaged = StockModule.normalizeGoodsReceiptQty(line?.damagedQty || 0, line?.unit || 'ADET');
+            const missing = StockModule.normalizeGoodsReceiptQty(line?.missingQty || 0, line?.unit || 'ADET');
+            acc.accepted += accepted;
+            acc.damaged += damaged;
+            acc.missing += missing;
+            return acc;
+        }, { accepted: 0, damaged: 0, missing: 0 });
+    },
+
+    setGoodsReceiptFilter: (field, value) => {
+        const current = (StockModule.state.goodsReceiptFilters && typeof StockModule.state.goodsReceiptFilters === 'object')
+            ? StockModule.state.goodsReceiptFilters
+            : {};
+        current[String(field || '')] = String(value || '');
+        StockModule.state.goodsReceiptFilters = current;
+        UI.renderCurrentPage();
+    },
+
+    setGoodsReceiptDraftField: (field, value) => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const key = String(field || '').trim();
+        const text = String(value ?? '');
+        if (!draft || !key) return;
+        if (key === 'supplierId') {
+            draft.supplierId = text.trim();
+            const supplier = StockModule.getGoodsReceiptSupplierOptions().find((row) => row.id === draft.supplierId) || null;
+            draft.supplierName = String(supplier?.name || '').trim();
+        } else if (key === 'depotId') {
+            const prevDepot = String(draft.depotId || '').trim();
+            draft.depotId = text.trim() || 'main';
+            draft.depotName = StockModule.getScopeNameById(draft.depotId);
+            if (prevDepot && prevDepot !== draft.depotId) {
+                draft.lines = (Array.isArray(draft.lines) ? draft.lines : []).map((line) => ({
+                    ...line,
+                    locationId: '',
+                    locationCode: ''
+                }));
+            }
+        } else {
+            draft[key] = text;
+        }
+        UI.renderCurrentPage();
+    },
+
+    addGoodsReceiptLine: () => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        if (!Array.isArray(draft.lines)) draft.lines = [];
+        draft.lines.push(StockModule.buildEmptyGoodsReceiptLine());
+        UI.renderCurrentPage();
+    },
+
+    removeGoodsReceiptLine: (lineId) => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const id = String(lineId || '').trim();
+        const lines = Array.isArray(draft.lines) ? draft.lines : [];
+        if (lines.length <= 1) {
+            alert('En az bir satir kalmali.');
+            return;
+        }
+        draft.lines = lines.filter((line) => String(line?.id || '') !== id);
+        UI.renderCurrentPage();
+    },
+
+    setGoodsReceiptLineField: (lineId, field, value) => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '') === String(lineId || ''));
+        if (!line) return;
+        const key = String(field || '').trim();
+        if (!key) return;
+
+        if (key === 'productId') {
+            const productId = String(value || '').trim();
+            line.productId = productId;
+            const product = StockModule.getGoodsReceiptProductOptions().find((row) => row.id === productId) || null;
+            line.productCode = String(product?.code || '').trim().toUpperCase();
+            line.productName = String(product?.name || '').trim();
+            line.unit = String(product?.unit || line.unit || 'ADET').trim().toUpperCase();
+            line.acceptedQty = StockModule.normalizeGoodsReceiptQty(line.acceptedQty || 0, line.unit);
+            line.damagedQty = StockModule.normalizeGoodsReceiptQty(line.damagedQty || 0, line.unit);
+            line.missingQty = StockModule.normalizeGoodsReceiptQty(line.missingQty || 0, line.unit);
+        } else if (key === 'locationId') {
+            const locationId = String(value || '').trim();
+            line.locationId = locationId;
+            const depotId = String(draft.depotId || '').trim() || 'main';
+            const location = StockModule.getGoodsReceiptLocationOptions(depotId).find((row) => row.id === locationId) || null;
+            line.locationCode = String(location?.code || '').trim().toUpperCase();
+        } else if (key === 'acceptedQty' || key === 'damagedQty' || key === 'missingQty') {
+            line[key] = StockModule.normalizeGoodsReceiptQty(value, line?.unit || 'ADET');
+        } else if (key === 'damageNote') {
+            line.damageNote = String(value || '').trim();
+        } else {
+            line[key] = String(value || '');
+        }
+        UI.renderCurrentPage();
+    },
+
+    resetGoodsReceiptDraft: () => {
+        StockModule.state.goodsReceiptEditingId = null;
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft();
+        UI.renderCurrentPage();
+    },
+
+    openGoodsReceiptRecord: (recordId) => {
+        const id = String(recordId || '').trim();
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        const record = rows.find((row) => String(row?.id || '') === id) || null;
+        if (!record) return alert('Mal kabul fisi bulunamadi.');
+        StockModule.state.goodsReceiptEditingId = id;
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(record);
+        UI.renderCurrentPage();
+    },
+
+    getGoodsReceiptRecordById: (recordId) => {
+        const id = String(recordId || '').trim();
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        return rows.find((row) => String(row?.id || '') === id) || null;
+    },
+
+    getGoodsReceiptRecords: () => {
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        return rows.slice().sort((a, b) => {
+            const aTime = new Date(a?.receiptDate || a?.created_at || 0).getTime();
+            const bTime = new Date(b?.receiptDate || b?.created_at || 0).getTime();
+            return bTime - aTime;
+        });
+    },
+
+    getFilteredGoodsReceiptRecords: () => {
+        const filters = (StockModule.state.goodsReceiptFilters && typeof StockModule.state.goodsReceiptFilters === 'object')
+            ? StockModule.state.goodsReceiptFilters
+            : {};
+        const docNoFilter = StockModule.normalize(filters.docNo || '');
+        const supplierFilter = String(filters.supplierId || '').trim();
+        const depotFilter = String(filters.depotId || '').trim();
+        const statusFilter = StockModule.normalizeGoodsReceiptStatus(filters.status || '');
+        const dateFrom = String(filters.dateFrom || '').trim();
+        const dateTo = String(filters.dateTo || '').trim();
+        return StockModule.getGoodsReceiptRecords().filter((row) => {
+            if (docNoFilter && !StockModule.normalize(row?.docNo || '').includes(docNoFilter)) return false;
+            if (supplierFilter && String(row?.supplierId || '') !== supplierFilter) return false;
+            if (depotFilter && String(row?.depotId || '') !== depotFilter) return false;
+            if (filters.status && StockModule.normalizeGoodsReceiptStatus(row?.status || '') !== statusFilter) return false;
+            const receiptDate = String(row?.receiptDate || '').slice(0, 10);
+            if (dateFrom && receiptDate && receiptDate < dateFrom) return false;
+            if (dateTo && receiptDate && receiptDate > dateTo) return false;
+            return true;
+        });
+    },
+
+    validateGoodsReceiptDraft: (draft, options = {}) => {
+        const forApproval = options?.forApproval === true;
+        if (!draft || typeof draft !== 'object') return { ok: false, message: 'Fis taslagi bulunamadi.' };
+        if (!String(draft?.supplierId || '').trim()) return { ok: false, message: 'Tedarikci seciniz.' };
+        if (!String(draft?.depotId || '').trim()) return { ok: false, message: 'Depo seciniz.' };
+        if (!String(draft?.receiptDate || '').trim()) return { ok: false, message: 'Teslim tarihini giriniz.' };
+        if (!String(draft?.receiverName || '').trim()) return { ok: false, message: 'Teslim alan personel bilgisini giriniz.' };
+        const lines = Array.isArray(draft?.lines) ? draft.lines : [];
+        if (lines.length === 0) return { ok: false, message: 'En az bir urun satiri ekleyiniz.' };
+
+        let hasQty = false;
+        for (let idx = 0; idx < lines.length; idx += 1) {
+            const line = lines[idx];
+            const lineNo = idx + 1;
+            if (!String(line?.productId || '').trim()) return { ok: false, message: `${lineNo}. satir icin urun seciniz.` };
+            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const accepted = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
+            const damaged = StockModule.normalizeGoodsReceiptQty(line?.damagedQty || 0, unit);
+            const missing = StockModule.normalizeGoodsReceiptQty(line?.missingQty || 0, unit);
+            if (accepted > 0 || damaged > 0 || missing > 0) hasQty = true;
+            if (accepted > 0 && !String(line?.locationId || '').trim()) {
+                return { ok: false, message: `${lineNo}. satirda kabul miktari var. Lokasyon seciniz.` };
+            }
+            if (damaged > 0 && !String(line?.damageNote || '').trim()) {
+                return { ok: false, message: `${lineNo}. satirda hasar miktari var. Hasar notu giriniz.` };
+            }
+        }
+        if (!hasQty) return { ok: false, message: 'En az bir satirda miktar giriniz.' };
+        if (forApproval) {
+            const totals = StockModule.getGoodsReceiptTotals(lines);
+            if (totals.accepted <= 0 && totals.damaged <= 0 && totals.missing <= 0) {
+                return { ok: false, message: 'Onay icin satir miktarlari bos olamaz.' };
+            }
+        }
+        return { ok: true };
+    },
+
+    buildGoodsReceiptRecordFromDraft: (draft, statusOverride = null) => {
+        const suppliers = StockModule.getGoodsReceiptSupplierOptions();
+        const depots = StockModule.getGoodsReceiptDepotOptions();
+        const products = StockModule.getGoodsReceiptProductOptions();
+        const supplier = suppliers.find((row) => row.id === String(draft?.supplierId || '').trim()) || null;
+        const depotId = String(draft?.depotId || '').trim() || 'main';
+        const depot = depots.find((row) => row.id === depotId) || null;
+        const locationRows = StockModule.getGoodsReceiptLocationOptions(depotId);
+        const nowIso = new Date().toISOString();
+        const lines = (Array.isArray(draft?.lines) ? draft.lines : []).map((raw) => {
+            const product = products.find((row) => row.id === String(raw?.productId || '').trim()) || null;
+            const unit = String(raw?.unit || product?.unit || 'ADET').trim().toUpperCase();
+            const locationId = String(raw?.locationId || '').trim();
+            const location = locationRows.find((row) => row.id === locationId) || null;
+            return StockModule.buildEmptyGoodsReceiptLine({
+                id: String(raw?.id || crypto.randomUUID()),
+                productId: String(raw?.productId || '').trim(),
+                productCode: String(raw?.productCode || product?.code || '').trim().toUpperCase(),
+                productName: String(raw?.productName || product?.name || '').trim(),
+                unit,
+                acceptedQty: StockModule.normalizeGoodsReceiptQty(raw?.acceptedQty || 0, unit),
+                damagedQty: StockModule.normalizeGoodsReceiptQty(raw?.damagedQty || 0, unit),
+                missingQty: StockModule.normalizeGoodsReceiptQty(raw?.missingQty || 0, unit),
+                locationId,
+                locationCode: String(raw?.locationCode || location?.code || '').trim().toUpperCase(),
+                damageNote: String(raw?.damageNote || '').trim()
+            });
+        });
+        return {
+            id: String(draft?.id || crypto.randomUUID()).trim(),
+            docNo: String(draft?.docNo || '').trim() || StockModule.generateGoodsReceiptDocNo(draft?.receiptDate || Date.now()),
+            status: StockModule.normalizeGoodsReceiptStatus(statusOverride || draft?.status || 'TASLAK'),
+            poId: String(draft?.poId || '').trim(),
+            poNo: String(draft?.poNo || '').trim(),
+            dispatchNo: String(draft?.dispatchNo || '').trim(),
+            receiptDate: String(draft?.receiptDate || '').trim(),
+            supplierId: String(draft?.supplierId || '').trim(),
+            supplierName: String(draft?.supplierName || supplier?.name || '').trim(),
+            depotId,
+            depotName: String(draft?.depotName || depot?.name || StockModule.getScopeNameById(depotId)).trim(),
+            receiverName: String(draft?.receiverName || '').trim(),
+            note: String(draft?.note || '').trim(),
+            lines,
+            created_at: String(draft?.created_at || nowIso),
+            updated_at: nowIso,
+            approved_at: draft?.approved_at || null,
+            cancelled_at: draft?.cancelled_at || null,
+            created_by: String(draft?.created_by || 'Demo User')
+        };
+    },
+
+    saveGoodsReceiptDraft: async () => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const validation = StockModule.validateGoodsReceiptDraft(draft, { forApproval: false });
+        if (!validation.ok) return alert(validation.message || 'Fis kaydedilemedi.');
+
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        if (!Array.isArray(DB.data?.data?.stockGoodsReceipts)) DB.data.data.stockGoodsReceipts = rows;
+        const existingIndex = rows.findIndex((row) => String(row?.id || '') === String(draft?.id || StockModule.state.goodsReceiptEditingId || ''));
+        const existing = existingIndex >= 0 ? rows[existingIndex] : null;
+        if (existing && StockModule.normalizeGoodsReceiptStatus(existing.status) === 'ONAYLANDI') {
+            return alert('Onayli fis duzenlenemez. Iptal/iade adimini kullaniniz.');
+        }
+
+        const base = existing || draft;
+        const nextRecord = StockModule.buildGoodsReceiptRecordFromDraft({
+            ...base,
+            ...draft,
+            status: 'TASLAK'
+        }, 'TASLAK');
+        if (!nextRecord.docNo) nextRecord.docNo = StockModule.generateGoodsReceiptDocNo(nextRecord.receiptDate || Date.now());
+        if (existingIndex >= 0) rows[existingIndex] = nextRecord;
+        else rows.push(nextRecord);
+
+        await DB.save();
+        StockModule.state.goodsReceiptEditingId = String(nextRecord.id || '');
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(nextRecord);
+        UI.renderCurrentPage();
+        alert(`${nextRecord.docNo} taslak olarak kaydedildi.`);
+    },
+
+    applyGoodsReceiptInventoryIn: (record) => {
+        if (!record || typeof record !== 'object') return;
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data?.data?.stock_movements)) DB.data.data.stock_movements = [];
+        const stockRows = DB.data.data.stockDepotItems;
+        const movements = DB.data.data.stock_movements;
+        const now = new Date().toISOString();
+        const targetScopeId = String(record?.depotId || '').trim() || 'main';
+        const targetNodeKey = StockModule.resolveNodeKeyFromScopeId(targetScopeId);
+        const targetDepotName = StockModule.getScopeNameById(targetScopeId);
+
+        (Array.isArray(record?.lines) ? record.lines : []).forEach((line) => {
+            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const acceptedQty = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
+            if (acceptedQty <= 0) return;
+            const productCode = String(line?.productCode || '').trim().toUpperCase();
+            const productName = String(line?.productName || '').trim();
+            const locationId = String(line?.locationId || '').trim();
+            const locationCode = String(line?.locationCode || '').trim().toUpperCase();
+
+            const hit = stockRows.find((row) => {
+                if (StockModule.normalize(row?.productCode || row?.code || '') !== StockModule.normalize(productCode)) return false;
+                if (StockModule.resolveScopeIdFromStockRow(row) !== targetScopeId) return false;
+                if (String(row?.locationId || '').trim() !== locationId) return false;
+                return StockModule.normalizeStockClass(row?.stockClass || row?.status || 'KULLANILABILIR') === 'KULLANILABILIR';
+            }) || null;
+
+            if (hit) {
+                const prevQty = Number(hit?.quantity ?? hit?.qty ?? hit?.amount ?? 0);
+                const nextQty = Number((Math.max(0, prevQty) + acceptedQty).toFixed(3));
+                hit.quantity = nextQty;
+                hit.qty = nextQty;
+                hit.amount = nextQty;
+                hit.updated_at = now;
+                hit.status = 'KULLANILABILIR';
+                hit.stockClass = 'KULLANILABILIR';
+            } else {
+                stockRows.push({
+                    id: crypto.randomUUID(),
+                    productId: String(line?.productId || '').trim(),
+                    productCode,
+                    code: productCode,
+                    productName,
+                    name: productName,
+                    quantity: acceptedQty,
+                    qty: acceptedQty,
+                    amount: acceptedQty,
+                    unit,
+                    stockClass: 'KULLANILABILIR',
+                    status: 'KULLANILABILIR',
+                    productType: 'MASTER',
+                    modelCode: '',
+                    planCodeId: '',
+                    masterCode: '',
+                    note: `Mal kabul / ${String(record?.docNo || '-')}`,
+                    depotId: targetScopeId,
+                    nodeKey: targetNodeKey,
+                    locationId,
+                    locationCode,
+                    created_at: now,
+                    updated_at: now
+                });
+            }
+
+            movements.push({
+                id: crypto.randomUUID(),
+                movementType: 'GOODS_RECEIPT',
+                type: 'GOODS_RECEIPT',
+                productCode,
+                code: productCode,
+                productName,
+                quantity: acceptedQty,
+                qty: acceptedQty,
+                unit,
+                depotId: targetScopeId,
+                depotName: targetDepotName,
+                locationId,
+                locationCode,
+                supplierId: String(record?.supplierId || '').trim(),
+                supplierName: String(record?.supplierName || '').trim(),
+                docNo: String(record?.docNo || '').trim(),
+                note: `Mal kabul / ${String(record?.docNo || '-')}`,
+                created_at: now,
+                updated_at: now
+            });
+        });
+    },
+
+    getGoodsReceiptRollbackErrors: (record) => {
+        const errors = [];
+        const rows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const scopeId = String(record?.depotId || '').trim() || 'main';
+        (Array.isArray(record?.lines) ? record.lines : []).forEach((line, idx) => {
+            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const accepted = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
+            if (accepted <= 0) return;
+            const hit = rows.find((row) =>
+                StockModule.normalize(row?.productCode || row?.code || '') === StockModule.normalize(line?.productCode || '')
+                && StockModule.resolveScopeIdFromStockRow(row) === scopeId
+                && String(row?.locationId || '').trim() === String(line?.locationId || '').trim()
+            ) || null;
+            const currentQty = Number(hit?.quantity ?? hit?.qty ?? hit?.amount ?? 0);
+            if (!hit || currentQty < accepted) {
+                errors.push(`${idx + 1}. satir (${String(line?.productCode || '-')}) icin iptal stogu yetersiz.`);
+            }
+        });
+        return errors;
+    },
+
+    rollbackGoodsReceiptInventory: (record) => {
+        if (!Array.isArray(DB.data?.data?.stockDepotItems)) DB.data.data.stockDepotItems = [];
+        if (!Array.isArray(DB.data?.data?.stock_movements)) DB.data.data.stock_movements = [];
+        const stockRows = DB.data.data.stockDepotItems;
+        const movements = DB.data.data.stock_movements;
+        const now = new Date().toISOString();
+        const scopeId = String(record?.depotId || '').trim() || 'main';
+        const depotName = StockModule.getScopeNameById(scopeId);
+        (Array.isArray(record?.lines) ? record.lines : []).forEach((line) => {
+            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const accepted = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
+            if (accepted <= 0) return;
+            const hit = stockRows.find((row) =>
+                StockModule.normalize(row?.productCode || row?.code || '') === StockModule.normalize(line?.productCode || '')
+                && StockModule.resolveScopeIdFromStockRow(row) === scopeId
+                && String(row?.locationId || '').trim() === String(line?.locationId || '').trim()
+            ) || null;
+            if (!hit) return;
+            const prevQty = Number(hit?.quantity ?? hit?.qty ?? hit?.amount ?? 0);
+            const nextQty = Number(Math.max(0, prevQty - accepted).toFixed(3));
+            hit.quantity = nextQty;
+            hit.qty = nextQty;
+            hit.amount = nextQty;
+            hit.updated_at = now;
+            movements.push({
+                id: crypto.randomUUID(),
+                movementType: 'GOODS_RECEIPT_CANCEL',
+                type: 'GOODS_RECEIPT_CANCEL',
+                productCode: String(line?.productCode || '').trim().toUpperCase(),
+                code: String(line?.productCode || '').trim().toUpperCase(),
+                productName: String(line?.productName || '').trim(),
+                quantity: -accepted,
+                qty: -accepted,
+                unit,
+                depotId: scopeId,
+                depotName,
+                locationId: String(line?.locationId || '').trim(),
+                locationCode: String(line?.locationCode || '').trim().toUpperCase(),
+                docNo: String(record?.docNo || '').trim(),
+                note: `Mal kabul iptal / ${String(record?.docNo || '-')}`,
+                created_at: now,
+                updated_at: now
+            });
+        });
+    },
+
+    approveGoodsReceipt: async () => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const validation = StockModule.validateGoodsReceiptDraft(draft, { forApproval: true });
+        if (!validation.ok) return alert(validation.message || 'Onay verilemedi.');
+
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        if (!Array.isArray(DB.data?.data?.stockGoodsReceipts)) DB.data.data.stockGoodsReceipts = rows;
+        const existingIndex = rows.findIndex((row) => String(row?.id || '') === String(draft?.id || StockModule.state.goodsReceiptEditingId || ''));
+        const existing = existingIndex >= 0 ? rows[existingIndex] : null;
+        if (existing && StockModule.normalizeGoodsReceiptStatus(existing.status) === 'ONAYLANDI') {
+            return alert('Fis zaten onayli.');
+        }
+
+        const nextRecord = StockModule.buildGoodsReceiptRecordFromDraft({
+            ...(existing || {}),
+            ...draft,
+            status: 'ONAYLANDI',
+            approved_at: new Date().toISOString(),
+            cancelled_at: null
+        }, 'ONAYLANDI');
+        nextRecord.approved_at = String(nextRecord.approved_at || new Date().toISOString());
+        nextRecord.cancelled_at = null;
+
+        StockModule.applyGoodsReceiptInventoryIn(nextRecord);
+        if (existingIndex >= 0) rows[existingIndex] = nextRecord;
+        else rows.push(nextRecord);
+
+        await DB.save();
+        StockModule.state.goodsReceiptEditingId = String(nextRecord.id || '');
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(nextRecord);
+        UI.renderCurrentPage();
+        alert(`${nextRecord.docNo} onaylandi ve stok hareketine islendi.`);
+    },
+
+    cancelGoodsReceipt: async () => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft;
+        const targetId = String(draft?.id || StockModule.state.goodsReceiptEditingId || '').trim();
+        if (!targetId) return alert('Iptal icin once fisi kaydediniz.');
+        const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
+        const idx = rows.findIndex((row) => String(row?.id || '') === targetId);
+        if (idx === -1) return alert('Fis kaydi bulunamadi.');
+        const record = rows[idx];
+        const currentStatus = StockModule.normalizeGoodsReceiptStatus(record?.status || 'TASLAK');
+        if (currentStatus === 'IPTAL') return alert('Fis zaten iptal.');
+        if (!window.confirm(`${String(record?.docNo || 'Fis')} iptal edilsin mi?`)) return;
+
+        if (currentStatus === 'ONAYLANDI') {
+            const rollbackErrors = StockModule.getGoodsReceiptRollbackErrors(record);
+            if (rollbackErrors.length > 0) {
+                return alert(`Iptal islemi durduruldu:\n${rollbackErrors.join('\n')}`);
+            }
+            StockModule.rollbackGoodsReceiptInventory(record);
+        }
+
+        const cancelled = {
+            ...record,
+            status: 'IPTAL',
+            cancelled_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+        rows[idx] = cancelled;
+        await DB.save();
+        StockModule.state.goodsReceiptEditingId = String(cancelled.id || '');
+        StockModule.state.goodsReceiptDraft = StockModule.buildEmptyGoodsReceiptDraft(cancelled);
+        UI.renderCurrentPage();
+        alert(`${cancelled.docNo} iptal edildi.`);
+    },
+
+    getGoodsReceiptPrintableHtml: (html) => String(html || '').replace(/<div class="screen-tools">[\s\S]*?<\/div>/i, ''),
+
+    buildGoodsReceiptPdfHtml: (record) => {
+        const rows = Array.isArray(record?.lines) ? record.lines : [];
+        const statusMeta = StockModule.getGoodsReceiptStatusMeta(record?.status || 'TASLAK');
+        const totals = StockModule.getGoodsReceiptTotals(rows);
+        const createdLabel = StockModule.formatDateTimeLabel(record?.receiptDate || record?.created_at || '');
+        const printedLabel = StockModule.formatDateTimeLabel(new Date().toISOString());
+        const isDraft = statusMeta.key === 'TASLAK';
+        return `
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Teslim Fisi ${StockModule.escapeHtml(String(record?.docNo || '-'))}</title>
+  <style>
+    body { margin:0; font-family:Segoe UI,Tahoma,Arial,sans-serif; color:#0f172a; background:#f1f5f9; }
+    .screen-tools { max-width:900px; margin:12px auto 0; display:flex; justify-content:flex-end; gap:8px; }
+    .tool-btn { border:1px solid #334155; background:#0f172a; color:#fff; border-radius:8px; height:34px; padding:0 12px; font-size:12px; font-weight:700; cursor:pointer; }
+    .tool-btn.secondary { background:#fff; color:#0f172a; border-color:#94a3b8; }
+    .sheet { width:210mm; min-height:297mm; margin:10px auto 22px; background:#fff; border:1px solid #dbe3ef; box-shadow:0 18px 45px rgba(15,23,42,0.16); padding:12mm; position:relative; }
+    .watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; font-size:96px; color:rgba(15,23,42,0.08); font-weight:900; letter-spacing:0.08em; transform:rotate(-25deg); }
+    .head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; border:2px solid #1e293b; border-radius:12px; padding:10px 12px; margin-bottom:10px; }
+    .docno { border:1px solid #93c5fd; background:#dbeafe; color:#1d4ed8; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:800; font-family:Consolas, monospace; white-space:nowrap; }
+    .meta { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; margin-bottom:10px; }
+    .meta-card { border:1px solid #cbd5e1; border-radius:10px; padding:7px 9px; min-height:66px; }
+    .meta-k { color:#64748b; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
+    .meta-v { color:#0f172a; font-size:13px; font-weight:800; line-height:1.35; word-break:break-word; }
+    .status-chip { display:inline-flex; border:1px solid ${StockModule.escapeHtml(statusMeta.border)}; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:800; background:${StockModule.escapeHtml(statusMeta.bg)}; color:${StockModule.escapeHtml(statusMeta.color)}; }
+    table { width:100%; border-collapse:collapse; margin-top:8px; }
+    thead th { border:1px solid #cbd5e1; background:#f8fafc; color:#334155; font-size:10px; letter-spacing:0.04em; text-transform:uppercase; padding:8px 7px; text-align:left; }
+    tbody td { border:1px solid #cbd5e1; font-size:12px; padding:7px; vertical-align:top; }
+    .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }
+    .right { text-align:right; }
+    .center { text-align:center; }
+    .sum-row td { background:#f8fafc; font-weight:900; }
+    .footer-sign { margin-top:16px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+    .sign-box { border:1px solid #cbd5e1; border-radius:10px; min-height:78px; padding:8px; display:flex; flex-direction:column; justify-content:flex-end; }
+    .sign-line { border-top:1px solid #94a3b8; padding-top:5px; text-align:center; font-size:10px; color:#64748b; font-weight:700; text-transform:uppercase; letter-spacing:0.04em; }
+    .note { margin-top:10px; font-size:10px; color:#64748b; display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    @page { size:A4; margin:10mm; }
+    @media print {
+      body { background:#fff; }
+      .screen-tools { display:none !important; }
+      .sheet { margin:0; border:none; box-shadow:none; width:auto; min-height:auto; padding:0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen-tools">
+    <button class="tool-btn" onclick="window.print()">PDF indir / Yazdir</button>
+    <button class="tool-btn secondary" onclick="window.close()">Kapat</button>
+  </div>
+  <section class="sheet">
+    ${isDraft ? '<div class="watermark">TASLAK</div>' : ''}
+    <div class="head">
+      <div>
+        <div style="font-size:20px; font-weight:900; color:#0b3a8f;">MAL KABUL TESLIM FISI</div>
+        <div style="font-size:12px; color:#64748b; margin-top:3px;">Depo giris ve teslim dokumani</div>
+      </div>
+      <div class="docno">${StockModule.escapeHtml(String(record?.docNo || '-'))}</div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-card"><div class="meta-k">Tedarikci</div><div class="meta-v">${StockModule.escapeHtml(String(record?.supplierName || '-'))}</div></div>
+      <div class="meta-card"><div class="meta-k">Depo</div><div class="meta-v">${StockModule.escapeHtml(String(record?.depotName || '-'))}</div></div>
+      <div class="meta-card"><div class="meta-k">Belge Tarihi</div><div class="meta-v">${StockModule.escapeHtml(createdLabel)}</div></div>
+      <div class="meta-card"><div class="meta-k">Durum</div><div class="meta-v"><span class="status-chip">${StockModule.escapeHtml(statusMeta.text)}</span></div></div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-card"><div class="meta-k">Irsaliye No</div><div class="meta-v">${StockModule.escapeHtml(String(record?.dispatchNo || '-'))}</div></div>
+      <div class="meta-card"><div class="meta-k">Siparis No</div><div class="meta-v">${StockModule.escapeHtml(String(record?.poNo || '-'))}</div></div>
+      <div class="meta-card"><div class="meta-k">Teslim Alan</div><div class="meta-v">${StockModule.escapeHtml(String(record?.receiverName || '-'))}</div></div>
+      <div class="meta-card"><div class="meta-k">Not</div><div class="meta-v">${StockModule.escapeHtml(String(record?.note || '-'))}</div></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:40px;" class="center">Sira</th>
+          <th style="width:140px;">Urun Kodu</th>
+          <th>Urun Adi</th>
+          <th style="width:95px;">Lokasyon</th>
+          <th style="width:70px;" class="right">Birim</th>
+          <th style="width:90px;" class="right">Kabul</th>
+          <th style="width:90px;" class="right">Hasar</th>
+          <th style="width:90px;" class="right">Eksik</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.length === 0 ? '<tr><td colspan="8" style="text-align:center; color:#94a3b8;">Satir yok.</td></tr>' : rows.map((line, idx) => `
+          <tr>
+            <td class="center">${idx + 1}</td>
+            <td class="mono">${StockModule.escapeHtml(String(line?.productCode || '-'))}</td>
+            <td><div style="font-weight:700;">${StockModule.escapeHtml(String(line?.productName || '-'))}</div>${String(line?.damageNote || '').trim() ? `<div style="font-size:11px; color:#b45309; margin-top:3px;">Hasar notu: ${StockModule.escapeHtml(String(line?.damageNote || '').trim())}</div>` : ''}</td>
+            <td>${StockModule.escapeHtml(String(line?.locationCode || '-'))}</td>
+            <td class="right">${StockModule.escapeHtml(String(line?.unit || '-'))}</td>
+            <td class="right"><strong>${StockModule.escapeHtml(String(line?.acceptedQty || 0))}</strong></td>
+            <td class="right">${StockModule.escapeHtml(String(line?.damagedQty || 0))}</td>
+            <td class="right">${StockModule.escapeHtml(String(line?.missingQty || 0))}</td>
+          </tr>
+        `).join('')}
+        <tr class="sum-row">
+          <td colspan="5" class="right">TOPLAM</td>
+          <td class="right">${StockModule.escapeHtml(String(totals.accepted || 0))}</td>
+          <td class="right">${StockModule.escapeHtml(String(totals.damaged || 0))}</td>
+          <td class="right">${StockModule.escapeHtml(String(totals.missing || 0))}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="footer-sign">
+      <div class="sign-box"><div class="sign-line">Teslim Eden Imza</div></div>
+      <div class="sign-box"><div class="sign-line">Teslim Alan Imza</div></div>
+      <div class="sign-box"><div class="sign-line">Kontrol Eden Imza</div></div>
+    </div>
+    <div class="note">
+      <span>Kayit sorumlusu: ${StockModule.escapeHtml(String(record?.created_by || 'Demo User'))}</span>
+      <span>PDF olusturma: ${StockModule.escapeHtml(printedLabel)}</span>
+    </div>
+  </section>
+</body>
+</html>
+        `;
+    },
+
+    openGoodsReceiptSavedDocument: (recordId, autoPrint = false) => {
+        const record = StockModule.getGoodsReceiptRecordById(recordId);
+        if (!record) return alert('Fis kaydi bulunamadi.');
+        const win = window.open('', '_blank');
+        if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
+        win.document.open();
+        win.document.write(StockModule.buildGoodsReceiptPdfHtml(record));
+        win.document.close();
+        try { win.document.title = `Teslim Fisi ${String(record?.docNo || '-')}`; } catch (_) { }
+        if (autoPrint) {
+            setTimeout(() => {
+                try {
+                    win.focus();
+                    win.print();
+                } catch (_) { }
+            }, 260);
+        }
+        return win;
+    },
+
+    printGoodsReceiptSavedDocument: (recordId) => {
+        StockModule.openGoodsReceiptSavedDocument(recordId, true);
+    },
+
+    downloadGoodsReceiptPdfHtml: async (html, fileNameBase = 'teslim-fisi') => {
+        try {
+            const printableHtml = StockModule.getGoodsReceiptPrintableHtml(html);
+            const payload = {
+                html: String(printableHtml || ''),
+                fileName: String(fileNameBase || 'teslim-fisi')
+            };
+            const res = await fetch('/api/dispatch-pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                const raw = await res.text().catch(() => '');
+                let detail = raw;
+                try {
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    detail = String(parsed?.message || parsed?.error || raw || '');
+                } catch (_) { }
+                throw new Error(detail || `HTTP ${res.status}`);
+            }
+            const blob = await res.blob();
+            const safeName = String(fileNameBase || 'teslim-fisi').replace(/[^a-zA-Z0-9_-]+/g, '_');
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${safeName || 'teslim-fisi'}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            return true;
+        } catch (error) {
+            console.error('Mal kabul PDF indirme hatasi:', error);
+            return false;
+        }
+    },
+
+    downloadGoodsReceiptSavedDocument: async (recordId) => {
+        const record = StockModule.getGoodsReceiptRecordById(recordId);
+        if (!record) return alert('Fis kaydi bulunamadi.');
+        const docNo = String(record?.docNo || 'teslim-fisi');
+        const ok = await StockModule.downloadGoodsReceiptPdfHtml(
+            StockModule.buildGoodsReceiptPdfHtml(record),
+            `teslim-fisi-${docNo}`
+        );
+        if (!ok) alert('PDF otomatik indirilemedi. Yazdir ile "PDF olarak kaydet" secenegini kullanabilirsiniz.');
     },
 
     openOperationLibrary: () => {
@@ -2369,6 +3255,241 @@ const StockModule = {
         `;
     },
 
+    renderGoodsReceiptLayout: () => {
+        StockModule.ensureGoodsReceiptDraftState();
+        const draft = StockModule.state.goodsReceiptDraft || StockModule.buildEmptyGoodsReceiptDraft();
+        const statusMeta = StockModule.getGoodsReceiptStatusMeta(draft?.status || 'TASLAK');
+        const isEditable = statusMeta.key === 'TASLAK';
+        const disabledAttr = isEditable ? '' : 'disabled';
+        const suppliers = StockModule.getGoodsReceiptSupplierOptions();
+        const depots = StockModule.getGoodsReceiptDepotOptions();
+        const products = StockModule.getGoodsReceiptProductOptions();
+        const locations = StockModule.getGoodsReceiptLocationOptions(String(draft?.depotId || 'main'));
+        const totals = StockModule.getGoodsReceiptTotals(draft?.lines || []);
+        const lines = Array.isArray(draft?.lines) && draft.lines.length > 0 ? draft.lines : [StockModule.buildEmptyGoodsReceiptLine()];
+        const filters = (StockModule.state.goodsReceiptFilters && typeof StockModule.state.goodsReceiptFilters === 'object')
+            ? StockModule.state.goodsReceiptFilters
+            : { docNo: '', supplierId: '', depotId: '', status: '', dateFrom: '', dateTo: '' };
+        const records = StockModule.getFilteredGoodsReceiptRecords();
+        const currentRecordId = String(draft?.id || StockModule.state.goodsReceiptEditingId || '').trim();
+
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">depo & stok / mal kabul</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1.05rem 1.2rem; margin-bottom:0.9rem;">
+                        <div style="display:flex; justify-content:space-between; gap:0.8rem; align-items:flex-start; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Mal kabul fis kaydi</div>
+                                <div style="font-size:0.86rem; color:#64748b; margin-top:0.3rem;">PO baglantisi opsiyonel, teslim fisi PDF indir/yazdir destekli.</div>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                                <span style="display:inline-flex; align-items:center; padding:0.24rem 0.72rem; border:1px solid ${StockModule.escapeHtml(statusMeta.border)}; border-radius:999px; font-size:0.78rem; font-weight:800; background:${StockModule.escapeHtml(statusMeta.bg)}; color:${StockModule.escapeHtml(statusMeta.color)};">${StockModule.escapeHtml(statusMeta.text)}</span>
+                                <span style="font-family:Consolas, monospace; font-size:0.82rem; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(draft?.docNo || '-'))}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem; margin-bottom:1rem;">
+                        <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.6rem;">
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Fis no</label>
+                                <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.docNo || '-'))}" readonly style="font-family:Consolas, monospace; font-weight:800; background:#f8fafc;">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Teslim tarihi</label>
+                                <input class="stock-input stock-input-tall" type="datetime-local" value="${StockModule.escapeHtml(String(draft?.receiptDate || ''))}" onchange="StockModule.setGoodsReceiptDraftField('receiptDate', this.value)" ${disabledAttr}>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Tedarikci</label>
+                                <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptDraftField('supplierId', this.value)" ${disabledAttr}>
+                                    <option value="">Tedarikci sec</option>
+                                    ${suppliers.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(draft?.supplierId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Depo</label>
+                                <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptDraftField('depotId', this.value)" ${disabledAttr}>
+                                    ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(draft?.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Irsaliye no</label>
+                                <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.dispatchNo || ''))}" oninput="StockModule.setGoodsReceiptDraftField('dispatchNo', this.value)" placeholder="or: IRS-2026-001" ${disabledAttr}>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Siparis no (ops.)</label>
+                                <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.poNo || ''))}" oninput="StockModule.setGoodsReceiptDraftField('poNo', this.value)" placeholder="or: PO-2026-001" ${disabledAttr}>
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Teslim alan personel</label>
+                                <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(draft?.receiverName || ''))}" oninput="StockModule.setGoodsReceiptDraftField('receiverName', this.value)" placeholder="personel adi" ${disabledAttr}>
+                            </div>
+                            <div style="grid-column:span 4;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
+                                <textarea class="stock-textarea" style="min-height:72px;" oninput="StockModule.setGoodsReceiptDraftField('note', this.value)" placeholder="opsiyonel aciklama" ${disabledAttr}>${StockModule.escapeHtml(String(draft?.note || ''))}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem; margin-bottom:1rem;">
+                        <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:center; flex-wrap:wrap; margin-bottom:0.65rem;">
+                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Urun satirlari</div>
+                            <button class="btn-sm" onclick="StockModule.addGoodsReceiptLine()" ${isEditable ? '' : 'disabled'}>satir ekle +</button>
+                        </div>
+                        <div style="overflow:auto;">
+                            <table style="width:100%; min-width:1220px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Urun</th>
+                                        <th style="padding:0.55rem; text-align:left;">Kod</th>
+                                        <th style="padding:0.55rem; text-align:center;">Birim</th>
+                                        <th style="padding:0.55rem; text-align:right;">Kabul</th>
+                                        <th style="padding:0.55rem; text-align:right;">Hasar</th>
+                                        <th style="padding:0.55rem; text-align:right;">Eksik</th>
+                                        <th style="padding:0.55rem; text-align:left;">Lokasyon</th>
+                                        <th style="padding:0.55rem; text-align:left;">Hasar notu</th>
+                                        <th style="padding:0.55rem; text-align:center;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${lines.map((line, idx) => {
+            const lineId = StockModule.escapeHtml(String(line?.id || ''));
+            const qtyStep = StockModule.getGoodsReceiptQtyStep(line?.unit || 'ADET');
+            const acceptedValue = Number(line?.acceptedQty || 0) > 0 ? String(line.acceptedQty) : '';
+            const damagedValue = Number(line?.damagedQty || 0) > 0 ? String(line.damagedQty) : '';
+            const missingValue = Number(line?.missingQty || 0) > 0 ? String(line.missingQty) : '';
+            return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.5rem;">
+                                                <select class="stock-input stock-input-tall" style="min-width:260px;" onchange="StockModule.setGoodsReceiptLineField('${lineId}','productId',this.value)" ${disabledAttr}>
+                                                    <option value="">Urun sec</option>
+                                                    ${products.map((product) => `<option value="${StockModule.escapeHtml(product.id)}" ${String(line?.productId || '') === String(product.id) ? 'selected' : ''}>${StockModule.escapeHtml(`${product.code} - ${product.name}`)}</option>`).join('')}
+                                                </select>
+                                            </td>
+                                            <td style="padding:0.5rem; font-family:Consolas, monospace; font-weight:700; color:#1d4ed8;">${StockModule.escapeHtml(String(line?.productCode || '-'))}</td>
+                                            <td style="padding:0.5rem; text-align:center; font-weight:700; color:#334155;">${StockModule.escapeHtml(String(line?.unit || '-'))}</td>
+                                            <td style="padding:0.5rem;">
+                                                <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(qtyStep)}" value="${StockModule.escapeHtml(acceptedValue)}" onchange="StockModule.setGoodsReceiptLineField('${lineId}','acceptedQty',this.value)" ${disabledAttr}>
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(qtyStep)}" value="${StockModule.escapeHtml(damagedValue)}" onchange="StockModule.setGoodsReceiptLineField('${lineId}','damagedQty',this.value)" ${disabledAttr}>
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(qtyStep)}" value="${StockModule.escapeHtml(missingValue)}" onchange="StockModule.setGoodsReceiptLineField('${lineId}','missingQty',this.value)" ${disabledAttr}>
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <select class="stock-input stock-input-tall" style="min-width:170px;" onchange="StockModule.setGoodsReceiptLineField('${lineId}','locationId',this.value)" ${disabledAttr}>
+                                                    <option value="">Lokasyon sec</option>
+                                                    ${locations.map((location) => `<option value="${StockModule.escapeHtml(location.id)}" ${String(line?.locationId || '') === String(location.id) ? 'selected' : ''}>${StockModule.escapeHtml(location.label)}</option>`).join('')}
+                                                </select>
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(line?.damageNote || ''))}" oninput="StockModule.setGoodsReceiptLineField('${lineId}','damageNote',this.value)" placeholder="hasar aciklamasi" ${disabledAttr}>
+                                            </td>
+                                            <td style="padding:0.5rem; text-align:center;">
+                                                <button class="btn-sm" onclick="StockModule.removeGoodsReceiptLine('${lineId}')" ${isEditable ? '' : 'disabled'}>sil</button>
+                                            </td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="display:flex; justify-content:flex-end; gap:1.2rem; margin-top:0.8rem; font-size:0.83rem; color:#334155; font-weight:700; flex-wrap:wrap;">
+                            <div>Kabul: <span style="color:#0f172a;">${StockModule.escapeHtml(String(totals.accepted || 0))}</span></div>
+                            <div>Hasar: <span style="color:#b45309;">${StockModule.escapeHtml(String(totals.damaged || 0))}</span></div>
+                            <div>Eksik: <span style="color:#991b1b;">${StockModule.escapeHtml(String(totals.missing || 0))}</span></div>
+                        </div>
+                    </div>
+
+                    <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">
+                        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                            <button class="btn-sm" onclick="StockModule.resetGoodsReceiptDraft()">yeni fis</button>
+                            <button class="btn-primary" onclick="StockModule.saveGoodsReceiptDraft()" ${isEditable ? '' : 'disabled'}>taslak kaydet</button>
+                            <button class="btn-primary" style="background:#166534; border-color:#166534;" onclick="StockModule.approveGoodsReceipt()" ${isEditable ? '' : 'disabled'}>onayla ve stoga isle</button>
+                            <button class="btn-sm" style="border-color:#ef4444; color:#b91c1c; background:#fff5f5;" onclick="StockModule.cancelGoodsReceipt()">fisi iptal et</button>
+                        </div>
+                        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                            <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${StockModule.escapeHtml(currentRecordId)}')" ${currentRecordId ? '' : 'disabled'}>PDF indir</button>
+                            <button class="btn-sm" onclick="StockModule.printGoodsReceiptSavedDocument('${StockModule.escapeHtml(currentRecordId)}')" ${currentRecordId ? '' : 'disabled'}>yazdir</button>
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli mal kabul fisleri</div>
+                            <div style="font-size:0.8rem; color:#64748b;">${records.length} kayit</div>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.55rem; margin-bottom:0.7rem;">
+                            <input class="stock-input stock-input-tall" value="${StockModule.escapeHtml(String(filters.docNo || ''))}" oninput="StockModule.setGoodsReceiptFilter('docNo', this.value)" placeholder="fis no ara">
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('supplierId', this.value)">
+                                <option value="">tum tedarikciler</option>
+                                ${suppliers.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.supplierId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                            </select>
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('depotId', this.value)">
+                                <option value="">tum depolar</option>
+                                ${depots.map((row) => `<option value="${StockModule.escapeHtml(row.id)}" ${String(filters.depotId || '') === String(row.id) ? 'selected' : ''}>${StockModule.escapeHtml(row.name)}</option>`).join('')}
+                            </select>
+                            <select class="stock-input stock-input-tall" onchange="StockModule.setGoodsReceiptFilter('status', this.value)">
+                                <option value="">tum durumlar</option>
+                                <option value="TASLAK" ${String(filters.status || '') === 'TASLAK' ? 'selected' : ''}>Taslak</option>
+                                <option value="ONAYLANDI" ${String(filters.status || '') === 'ONAYLANDI' ? 'selected' : ''}>Onaylandi</option>
+                                <option value="IPTAL" ${String(filters.status || '') === 'IPTAL' ? 'selected' : ''}>Iptal</option>
+                            </select>
+                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateFrom || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateFrom', this.value)">
+                            <input class="stock-input stock-input-tall" type="date" value="${StockModule.escapeHtml(String(filters.dateTo || ''))}" onchange="StockModule.setGoodsReceiptFilter('dateTo', this.value)">
+                        </div>
+
+                        <div style="overflow:auto;">
+                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Fis no</th>
+                                        <th style="padding:0.55rem; text-align:left;">Tarih</th>
+                                        <th style="padding:0.55rem; text-align:left;">Tedarikci</th>
+                                        <th style="padding:0.55rem; text-align:left;">Depo</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:right;">Toplam kabul</th>
+                                        <th style="padding:0.55rem; text-align:center;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${records.length === 0 ? '<tr><td colspan="7" style="padding:1.1rem; color:#94a3b8; text-align:center;">Kayit yok.</td></tr>' : records.map((row) => {
+            const rowTotals = StockModule.getGoodsReceiptTotals(row?.lines || []);
+            const rowStatus = StockModule.getGoodsReceiptStatusMeta(row?.status || 'TASLAK');
+            const rowId = StockModule.escapeHtml(String(row?.id || ''));
+            return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(row?.docNo || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(StockModule.formatDateTimeLabel(row?.receiptDate || row?.created_at || ''))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.supplierName || '-'))}</td>
+                                            <td style="padding:0.55rem;">${StockModule.escapeHtml(String(row?.depotName || '-'))}</td>
+                                            <td style="padding:0.55rem;"><span style="display:inline-flex; align-items:center; padding:0.22rem 0.64rem; border:1px solid ${StockModule.escapeHtml(rowStatus.border)}; border-radius:999px; font-size:0.75rem; font-weight:700; background:${StockModule.escapeHtml(rowStatus.bg)}; color:${StockModule.escapeHtml(rowStatus.color)};">${StockModule.escapeHtml(rowStatus.text)}</span></td>
+                                            <td style="padding:0.55rem; text-align:right; font-weight:800;">${StockModule.escapeHtml(String(rowTotals.accepted || 0))}</td>
+                                            <td style="padding:0.55rem; text-align:center;">
+                                                <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">
+                                                    <button class="btn-sm" onclick="StockModule.openGoodsReceiptRecord('${rowId}')">ac</button>
+                                                    <button class="btn-sm" onclick="StockModule.downloadGoodsReceiptSavedDocument('${rowId}')">pdf</button>
+                                                    <button class="btn-sm" onclick="StockModule.printGoodsReceiptSavedDocument('${rowId}')">yazdir</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
     renderMenuLayout: () => {
         return `
             <section class="stock-shell">
@@ -2614,6 +3735,9 @@ const StockModule = {
 
     renderLayout: () => {
         const workspaceView = String(StockModule.state.workspaceView || 'menu');
+        if (workspaceView === 'goods-receipt') {
+            return StockModule.renderGoodsReceiptLayout();
+        }
         if (StockModule.moduleBlueprints[workspaceView]) {
             return StockModule.renderBlueprintWorkspace(workspaceView);
         }

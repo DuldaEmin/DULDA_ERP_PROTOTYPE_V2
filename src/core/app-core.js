@@ -821,7 +821,7 @@ const UI = {
 
         if (page === 'dashboard') UI.renderDashboard(container);
         else if (page === 'planlama') { pageTitle.innerText = 'PLANLAMA'; PlanningModule.render(container); }
-        else if (page === 'sales') { pageTitle.innerText = 'SATIŞ'; SalesModule.render(container); }
+        else if (page === 'sales') { pageTitle.innerText = 'SATIŞ & PAZARLAMA'; SalesModule.render(container); }
         else if (page === 'stock') { pageTitle.innerText = 'STOK YÖNETİMİ'; StockModule.render(container); }
         else if (page === 'purchasing') { pageTitle.innerText = 'SATIN ALMA'; PurchasingModule.render(container); }
         else if (page === 'units') { pageTitle.innerText = 'BİRİM YÖNETİMİ'; UnitModule.render(container); }

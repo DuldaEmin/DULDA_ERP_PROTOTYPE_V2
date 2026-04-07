@@ -24,6 +24,7 @@ const SalesModule = {
         if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
         if (!Array.isArray(DB.data.data.customers)) DB.data.data.customers = [];
         if (!Array.isArray(DB.data.data.orders)) DB.data.data.orders = [];
+        if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
     },
 
     openWorkspace: (viewId) => {
@@ -81,6 +82,16 @@ const SalesModule = {
     getCustomerStatusMeta: (isActive) => {
         if (isActive === false) return { text: 'Pasif', bg: '#fee2e2', color: '#991b1b', border: '#fecaca' };
         return { text: 'Aktif', bg: '#dcfce7', color: '#166534', border: '#86efac' };
+    },
+
+    getSalesPersonnelRows: () => {
+        if (typeof PersonnelModule !== 'undefined' && PersonnelModule && typeof PersonnelModule.ensureData === 'function') {
+            PersonnelModule.ensureData();
+        }
+        return (DB.data?.data?.personnel || [])
+            .filter((row) => row?.isActive !== false)
+            .filter((row) => row?.isSalesMarketingPersonnel === true)
+            .sort((a, b) => String(a?.fullName || '').localeCompare(String(b?.fullName || ''), 'tr'));
     },
 
     getCustomers: () => {
@@ -426,12 +437,16 @@ const SalesModule = {
         <section class="stock-shell">
             <div class="stock-hub">
                 <div class="stock-hub-head">
-                    <h2 class="stock-title">satis</h2>
+                    <h2 class="stock-title">satis & pazarlama</h2>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
                         <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="users" width="24" height="24"></i></div>
                         <div class="stock-hub-label">Musteriler</div>
+                    </button>
+                    <button class="stock-hub-card" onclick="SalesModule.openWorkspace('personnel')">
+                        <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="user-round-cog" width="24" height="24"></i></div>
+                        <div class="stock-hub-label">Personel</div>
                     </button>
                 </div>
             </div>
@@ -534,6 +549,56 @@ const SalesModule = {
         `;
     },
 
+    renderPersonnelLayout: () => {
+        const rows = SalesModule.getSalesPersonnelRows();
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">satis & pazarlama / personel</h2>
+                        <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
+                            <div>
+                                <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Satis & pazarlama personel listesi</div>
+                                <div style="font-size:0.9rem; color:#64748b; margin-top:0.3rem;">Genel personel kartinda "satis & pazarlama" secili olan aktif personeller burada gorunur.</div>
+                            </div>
+                            <button class="btn-primary" onclick="Router.navigate('personnel')">personel yonetimine git</button>
+                        </div>
+                        <div style="overflow:auto;">
+                            <table style="width:100%; min-width:860px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                        <th style="padding:0.55rem; text-align:left;">Ad soyad</th>
+                                        <th style="padding:0.55rem; text-align:left;">Unvan</th>
+                                        <th style="padding:0.55rem; text-align:left;">Personel kodu</th>
+                                        <th style="padding:0.55rem; text-align:left;">Kullanici adi</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${rows.length === 0
+                ? '<tr><td colspan="5" style="padding:1.3rem; text-align:center; color:#94a3b8;">Kayitli satis & pazarlama personeli yok.</td></tr>'
+                : rows.map((person) => `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.55rem; font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(person?.fullName || '-'))}</td>
+                                                <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(person?.title || '-'))}</td>
+                                                <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(person?.personCode || '-'))}</td>
+                                                <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(person?.username || '-'))}</td>
+                                                <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(person?.status || 'aktif'))}</td>
+                                            </tr>
+                                        `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
     renderCustomersLayout: () => {
         const rows = SalesModule.getFilteredCustomers();
         const filters = SalesModule.state.customerFilters || { name: '', city: '' };
@@ -613,6 +678,7 @@ const SalesModule = {
     renderLayout: () => {
         const view = String(SalesModule.state.workspaceView || 'menu');
         if (view === 'customers') return SalesModule.renderCustomersLayout();
+        if (view === 'personnel') return SalesModule.renderPersonnelLayout();
         return SalesModule.renderMenuLayout();
     }
 };

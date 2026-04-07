@@ -18,7 +18,7 @@ const PersonnelModule = {
     moduleDefs: [
         { id: 'planlama', label: 'Planlama', icon: 'calendar' },
         { id: 'purchasing', label: 'Satin Alma', icon: 'shopping-cart' },
-        { id: 'sales', label: 'Satis', icon: 'shopping-bag' },
+        { id: 'sales', label: 'Satis & Pazarlama', icon: 'shopping-bag' },
         { id: 'stock', label: 'Depo & Stok', icon: 'package' },
         { id: 'units', label: 'Birimler & Atolyeler', icon: 'hammer' },
         { id: 'products', label: 'Urun ve Parca', icon: 'boxes' },
@@ -295,6 +295,10 @@ const PersonnelModule = {
                 person.isStockPersonnel = false;
                 changed = true;
             }
+            if (typeof person.isSalesMarketingPersonnel === 'undefined') {
+                person.isSalesMarketingPersonnel = false;
+                changed = true;
+            }
             if (!person.rolePreset) {
                 person.rolePreset = PersonnelModule.getLegacyPermissions(person).admin ? 'tam_yetkili' : 'operator';
                 changed = true;
@@ -350,6 +354,7 @@ const PersonnelModule = {
                     password: '',
                     isAccountActive: true,
                     isStockPersonnel: false,
+                    isSalesMarketingPersonnel: false,
                     modulePermissions: PersonnelModule.buildPermissionsFromRole(sample.rolePreset),
                     unitPermissions: PersonnelModule.buildUnitPermissionsFromRole(sample.rolePreset),
                     created_at: now
@@ -567,12 +572,16 @@ const PersonnelModule = {
 
                 <div class="personnel-modal-card">
                     <div class="personnel-modal-title">Gorev / alan atamalari</div>
-                    <div class="personnel-modal-note">Personeli birden fazla gorev alanina atayabilirsin. Sectigin atolyeler ilgili personel listesinde, depo & stok secimi ise depo personel ekraninda gorunur.</div>
+                    <div class="personnel-modal-note">Personeli birden fazla gorev alanina atayabilirsin. Sectigin atolyeler ilgili personel listesinde gorunur; depo & stok ve satis & pazarlama secimleri ilgili modullerin personel ekranlarina yansir.</div>
                     <div class="personnel-unit-grid">
                         ${PersonnelModule.renderUnitCheckboxes(person)}
                         <label class="personnel-unit-chip">
                             <input type="checkbox" id="person_stock_staff" ${person?.isStockPersonnel ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
                             <span>depo & stok</span>
+                        </label>
+                        <label class="personnel-unit-chip">
+                            <input type="checkbox" id="person_sales_marketing_staff" ${person?.isSalesMarketingPersonnel ? 'checked' : ''} ${readOnly ? 'disabled' : ''}>
+                            <span>satis & pazarlama</span>
                         </label>
                     </div>
                 </div>
@@ -595,6 +604,7 @@ const PersonnelModule = {
         const isAccountActive = !!document.getElementById('person_account_active')?.checked;
         const assignedUnitIds = Array.from(document.querySelectorAll('.personnel-unit-checkbox:checked')).map((el) => String(el.value || ''));
         const isStockPersonnel = !!document.getElementById('person_stock_staff')?.checked;
+        const isSalesMarketingPersonnel = !!document.getElementById('person_sales_marketing_staff')?.checked;
 
         if (!fullName) return alert('Ad soyad giriniz.');
 
@@ -617,6 +627,7 @@ const PersonnelModule = {
             person.password = password;
             person.isAccountActive = isAccountActive;
             person.isStockPersonnel = isStockPersonnel;
+            person.isSalesMarketingPersonnel = isSalesMarketingPersonnel;
             person.assignedUnitIds = assignedUnitIds;
             person.unitId = primaryUnitId;
             person.modulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
@@ -636,6 +647,7 @@ const PersonnelModule = {
                 password,
                 isAccountActive,
                 isStockPersonnel,
+                isSalesMarketingPersonnel,
                 assignedUnitIds,
                 unitId: primaryUnitId,
                 modulePermissions: PersonnelModule.buildDefaultModulePermissions(),

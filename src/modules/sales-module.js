@@ -7,7 +7,9 @@ const SalesModule = {
         },
         customerDetailId: null,
         customerDetailMode: 'view',
-        customerEditDraft: null
+        customerEditDraft: null,
+        catalogActiveCategoryId: '',
+        catalogDraft: null
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -25,6 +27,7 @@ const SalesModule = {
         if (!Array.isArray(DB.data.data.customers)) DB.data.data.customers = [];
         if (!Array.isArray(DB.data.data.orders)) DB.data.data.orders = [];
         if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
+        if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
     },
 
     openWorkspace: (viewId) => {
@@ -34,6 +37,9 @@ const SalesModule = {
             SalesModule.state.customerDetailId = null;
             SalesModule.state.customerDetailMode = 'view';
             SalesModule.state.customerEditDraft = null;
+        }
+        if (SalesModule.state.workspaceView === 'products') {
+            SalesModule.ensureCatalogState();
         }
         UI.renderCurrentPage();
     },
@@ -431,6 +437,338 @@ const SalesModule = {
         SalesModule.state.customerEditDraft = null;
         UI.renderCurrentPage();
         alert('Musteri guncellendi.');
+    },
+
+    getCatalogTree: () => ([
+        {
+            id: 'rail-aluminum',
+            label: 'Aluminyum korkuluk',
+            children: [
+                { id: 'rail-aluminum-baba', label: 'Aluminyum korkuluk babalari' },
+                { id: 'rail-aluminum-dikme', label: 'Aluminyum korkuluk dikmeleri' },
+                { id: 'rail-aluminum-bottle', label: 'Sise model dikmeleri' },
+                { id: 'rail-aluminum-accessory', label: 'Aksesuarlar' }
+            ]
+        },
+        {
+            id: 'rail-lux',
+            label: 'Lux seri korkuluk',
+            children: [
+                { id: 'rail-lux-baba', label: 'Lux seri babalari' },
+                { id: 'rail-lux-dikme', label: 'Lux seri dikmeleri' },
+                { id: 'rail-lux-accessory', label: 'Aksesuarlar' }
+            ]
+        },
+        {
+            id: 'rail-stainless',
+            label: 'Paslanmaz korkuluk',
+            children: [
+                { id: 'rail-stainless-baba', label: 'Paslanmaz babalari' },
+                { id: 'rail-stainless-dikme', label: 'Paslanmaz dikmeleri' },
+                { id: 'rail-stainless-accessory', label: 'Aksesuarlar' }
+            ]
+        }
+    ]),
+
+    getCatalogLeafNodes: () => SalesModule.getCatalogTree().flatMap((group) => (group.children || [])
+        .map((leaf) => ({
+            ...leaf,
+            groupId: group.id,
+            groupLabel: group.label
+        }))),
+
+    getCatalogLeafById: (categoryId) => {
+        const id = String(categoryId || '').trim();
+        if (!id) return null;
+        return SalesModule.getCatalogLeafNodes().find((leaf) => leaf.id === id) || null;
+    },
+
+    ensureCatalogState: () => {
+        const leafNodes = SalesModule.getCatalogLeafNodes();
+        if (!leafNodes.length) return;
+        const active = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        if (!active || !leafNodes.some((leaf) => leaf.id === active)) {
+            SalesModule.state.catalogActiveCategoryId = String(leafNodes[0].id || '');
+        }
+    },
+
+    getCatalogProducts: () => {
+        const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        return rows
+            .map((row) => {
+                const item = row && typeof row === 'object' ? row : {};
+                const diameters = Array.isArray(item.diameters)
+                    ? item.diameters.map((v) => String(v || '').trim()).filter(Boolean)
+                    : [];
+                const colors = item.colors && typeof item.colors === 'object' ? item.colors : {};
+                const images = item.images && typeof item.images === 'object' ? item.images : {};
+                return {
+                    id: String(item.id || '').trim(),
+                    categoryId: String(item.categoryId || '').trim(),
+                    name: String(item.name || '').trim(),
+                    productCode: String(item.productCode || '').trim(),
+                    idCode: String(item.idCode || '').trim(),
+                    diameters,
+                    selectedDiameter: String(item.selectedDiameter || diameters[0] || '').trim(),
+                    colors: {
+                        accessory: {
+                            category: String(colors.accessory?.category || '').trim(),
+                            color: String(colors.accessory?.color || '').trim()
+                        },
+                        tube: {
+                            category: String(colors.tube?.category || '').trim(),
+                            color: String(colors.tube?.color || '').trim()
+                        },
+                        plexi: {
+                            category: String(colors.plexi?.category || '').trim(),
+                            color: String(colors.plexi?.color || '').trim()
+                        }
+                    },
+                    bubble: String(item.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+                    lowerTubeLength: String(item.lowerTubeLength || 'standart').trim() || 'standart',
+                    note: String(item.note || '').trim(),
+                    images: {
+                        product: String(images.product || '').trim(),
+                        technical: String(images.technical || '').trim(),
+                        application: String(images.application || '').trim()
+                    },
+                    created_at: String(item.created_at || ''),
+                    updated_at: String(item.updated_at || '')
+                };
+            })
+            .filter((row) => row.id && row.categoryId && row.name);
+    },
+
+    getCatalogProductsByCategory: (categoryId) => {
+        const id = String(categoryId || '').trim();
+        if (!id) return [];
+        return SalesModule.getCatalogProducts()
+            .filter((row) => row.categoryId === id)
+            .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+    },
+
+    getCatalogCategoryPathText: (categoryId) => {
+        const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (!leaf) return 'Korkuluk';
+        return `Korkuluk / ${leaf.groupLabel} / ${leaf.label}`;
+    },
+
+    getCatalogColorCategoryOptions: (field) => {
+        if (String(field || '') === 'plexi') {
+            return [
+                { value: 'pleksi-seri', label: 'Pleksi seri' },
+                { value: 'opal-seri', label: 'Opal seri' },
+                { value: 'ozel-seri', label: 'Ozel seri' }
+            ];
+        }
+        return [
+            { value: 'anodize-seri', label: 'Anodize seri' },
+            { value: 'elektrostatik-seri', label: 'Elektrostatik seri' },
+            { value: 'pvd-seri', label: 'PVD seri' },
+            { value: 'ozel-seri', label: 'Ozel seri' }
+        ];
+    },
+
+    getCatalogColorOptions: (field, category) => {
+        const key = String(category || '').trim();
+        if (String(field || '') === 'plexi') {
+            const plexiMap = {
+                'pleksi-seri': ['Seffaf', 'Fume', 'Bronz', 'Buzlu'],
+                'opal-seri': ['Opal Beyaz', 'Sut Beyaz', 'Kirik Beyaz'],
+                'ozel-seri': ['Siyah Cam', 'Antrasit Cam', 'Katalog disi']
+            };
+            return Array.isArray(plexiMap[key]) ? plexiMap[key] : ['Seciniz'];
+        }
+        const metalMap = {
+            'anodize-seri': ['Parlak Inox', 'Sampanya', 'Siyah Anodize'],
+            'elektrostatik-seri': ['Mat Siyah', 'Antrasit', 'Beyaz'],
+            'pvd-seri': ['Gold', 'Rose Gold', 'Inox PVD'],
+            'ozel-seri': ['Boyali Ozel', 'Katalog disi']
+        };
+        return Array.isArray(metalMap[key]) ? metalMap[key] : ['Seciniz'];
+    },
+
+    buildCatalogDraft: (categoryId, source = null) => {
+        const row = source && typeof source === 'object' ? source : {};
+        const now = SalesModule.getCatalogProducts().length + 1;
+        const colorDefaults = (field, sourceValue = {}) => {
+            const categories = SalesModule.getCatalogColorCategoryOptions(field);
+            const fallbackCategory = String(categories[0]?.value || '');
+            const selectedCategory = String(sourceValue?.category || fallbackCategory);
+            const colors = SalesModule.getCatalogColorOptions(field, selectedCategory);
+            return {
+                category: selectedCategory,
+                color: String(sourceValue?.color || colors[0] || '')
+            };
+        };
+        return {
+            categoryId: String(categoryId || '').trim(),
+            name: String(row.name || '').trim(),
+            productCode: String(row.productCode || `KRL-${String(now).padStart(4, '0')}`).trim(),
+            idCode: String(row.idCode || `ID-${String(now).padStart(5, '0')}`).trim(),
+            diameters: Array.isArray(row.diameters) && row.diameters.length
+                ? row.diameters.map((v) => String(v || '').trim()).filter(Boolean)
+                : ['40', '50', '65'],
+            selectedDiameter: String(row.selectedDiameter || '').trim() || '40',
+            lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
+            bubble: String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            note: String(row.note || '').trim(),
+            colors: {
+                accessory: colorDefaults('accessory', row.colors?.accessory),
+                tube: colorDefaults('tube', row.colors?.tube),
+                plexi: colorDefaults('plexi', row.colors?.plexi)
+            },
+            images: {
+                product: String(row.images?.product || '').trim(),
+                technical: String(row.images?.technical || '').trim(),
+                application: String(row.images?.application || '').trim()
+            }
+        };
+    },
+
+    generateCatalogRowId: () => {
+        const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        const used = new Set(rows.map((row) => String(row?.id || '').trim()).filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined' && IdentityPolicy && typeof IdentityPolicy.makeId === 'function') {
+            return IdentityPolicy.makeId('SCP', used);
+        }
+        let seq = rows.length + 1;
+        while (used.has(`SCP-${String(seq).padStart(6, '0')}`)) seq += 1;
+        return `SCP-${String(seq).padStart(6, '0')}`;
+    },
+
+    setCatalogActiveCategory: (categoryId) => {
+        const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (!leaf) return;
+        SalesModule.state.catalogActiveCategoryId = leaf.id;
+        UI.renderCurrentPage();
+    },
+
+    renderCatalogColorCategoryOptionsHtml: (field, selectedValue) => {
+        return SalesModule.getCatalogColorCategoryOptions(field)
+            .map((opt) => `<option value="${SalesModule.escapeHtml(opt.value)}" ${opt.value === selectedValue ? 'selected' : ''}>${SalesModule.escapeHtml(opt.label)}</option>`)
+            .join('');
+    },
+
+    renderCatalogColorOptionsHtml: (field, selectedCategory, selectedColor) => {
+        return SalesModule.getCatalogColorOptions(field, selectedCategory)
+            .map((opt) => `<option value="${SalesModule.escapeHtml(opt)}" ${String(opt) === String(selectedColor || '') ? 'selected' : ''}>${SalesModule.escapeHtml(opt)}</option>`)
+            .join('');
+    },
+
+    renderCatalogDiameterButtonsHtml: (diameters, selectedDiameter, clickHandlerName) => {
+        const list = Array.isArray(diameters) ? diameters : [];
+        return list.map((dia) => {
+            const value = String(dia || '').trim();
+            if (!value) return '';
+            const active = value === String(selectedDiameter || '').trim();
+            return `<button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">O ${SalesModule.escapeHtml(value)}</button>`;
+        }).join('');
+    },
+
+    renderCatalogUploadPreviewHtml: (kind, imageData) => {
+        const hasImage = !!String(imageData || '').trim();
+        const labelMap = {
+            product: 'Urun gorseli',
+            technical: 'Teknik resim',
+            application: 'Uygulama resmi'
+        };
+        const label = labelMap[String(kind || '')] || 'Dosya';
+        if (!hasImage) return `<div class="sales-catalog-upload-empty">${SalesModule.escapeHtml(label)} ekle +</div>`;
+        return `
+            <img src="${SalesModule.escapeHtml(String(imageData || ''))}" alt="${SalesModule.escapeHtml(label)}" class="sales-catalog-upload-image">
+            <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearCatalogImage('${SalesModule.escapeHtml(String(kind || ''))}')">kaldir</button>
+        `;
+    },
+
+    renderCatalogTreeHtml: () => {
+        const tree = SalesModule.getCatalogTree();
+        const activeId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        return tree.map((group) => `
+            <div class="sales-catalog-tree-group">
+                <div class="sales-catalog-tree-group-title">${SalesModule.escapeHtml(group.label)}</div>
+                <div class="sales-catalog-tree-leaf-list">
+                    ${(group.children || []).map((leaf) => `
+                        <button class="sales-catalog-tree-leaf ${leaf.id === activeId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leaf.id)}')">
+                            ${SalesModule.escapeHtml(leaf.label)}
+                        </button>
+                    `).join('')}
+                </div>
+            </div>
+        `).join('');
+    },
+
+    renderCatalogCardsHtml: () => {
+        const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const rows = SalesModule.getCatalogProductsByCategory(activeCategoryId);
+        if (!rows.length) {
+            return `
+                <div class="sales-catalog-empty">
+                    <div class="sales-catalog-empty-title">Bu kategoride urun yok</div>
+                    <div class="sales-catalog-empty-text">Yeni urun ekle butonuyla katalog karti olusturabilirsiniz.</div>
+                </div>
+            `;
+        }
+        return rows.map((row) => {
+            const image = row.images?.product || row.images?.application || '';
+            const id = SalesModule.escapeHtml(String(row.id || ''));
+            return `
+                <button class="sales-catalog-card" onclick="SalesModule.openCatalogDetailModal('${id}')">
+                    <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
+                        ${image
+                    ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-card-image">`
+                    : '<div class="sales-catalog-card-placeholder">Gorsel yok</div>'}
+                    </div>
+                    <div class="sales-catalog-card-body">
+                        <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
+                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || '-')}</div>
+                        <div class="sales-catalog-card-meta-row">
+                            <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
+                            <span class="sales-catalog-pill">O ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                        </div>
+                    </div>
+                </button>
+            `;
+        }).join('');
+    },
+
+    renderProductsLayout: () => {
+        SalesModule.ensureCatalogState();
+        const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
+        const categoryCount = SalesModule.getCatalogProductsByCategory(activeCategoryId).length;
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">satis & pazarlama / urunler</h2>
+                        <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="sales-catalog-shell">
+                        <aside class="sales-catalog-left">
+                            <div class="sales-catalog-root">Korkuluk urun gruplari</div>
+                            <div class="sales-catalog-root-note">Bu ekran sadece korkuluk kategorisi icin calisir.</div>
+                            ${SalesModule.renderCatalogTreeHtml()}
+                        </aside>
+
+                        <section class="sales-catalog-right">
+                            <div class="sales-catalog-right-head">
+                                <div>
+                                    <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
+                                    <div class="sales-catalog-sub">${SalesModule.escapeHtml(String(categoryCount))} kayitli urun</div>
+                                </div>
+                                <button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>
+                            </div>
+
+                            <div class="sales-catalog-grid">
+                                ${SalesModule.renderCatalogCardsHtml()}
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </section>
+        `;
     },
 
     renderMenuLayout: () => `

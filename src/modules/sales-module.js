@@ -512,15 +512,15 @@ const SalesModule = {
                     selectedDiameter: String(item.selectedDiameter || diameters[0] || '').trim(),
                     colors: {
                         accessory: {
-                            category: String(colors.accessory?.category || '').trim(),
+                            category: SalesModule.normalizeCatalogColorType(colors.accessory?.category || ''),
                             color: String(colors.accessory?.color || '').trim()
                         },
                         tube: {
-                            category: String(colors.tube?.category || '').trim(),
+                            category: SalesModule.normalizeCatalogColorType(colors.tube?.category || ''),
                             color: String(colors.tube?.color || '').trim()
                         },
                         plexi: {
-                            category: String(colors.plexi?.category || '').trim(),
+                            category: SalesModule.normalizeCatalogColorType(colors.plexi?.category || ''),
                             color: String(colors.plexi?.color || '').trim()
                         }
                     },
@@ -553,39 +553,82 @@ const SalesModule = {
         return `Korkuluk / ${leaf.groupLabel} / ${leaf.label}`;
     },
 
-    getCatalogColorCategoryOptions: (field) => {
-        if (String(field || '') === 'plexi') {
-            return [
-                { value: 'pleksi-seri', label: 'Pleksi seri' },
-                { value: 'opal-seri', label: 'Opal seri' },
-                { value: 'ozel-seri', label: 'Ozel seri' }
-            ];
+    normalizeCatalogColorType: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const map = {
+            'anodize-seri': 'eloksal',
+            'elektrostatik-seri': 'boya',
+            'pvd-seri': 'pvd',
+            'pleksi-seri': 'pleksi',
+            'opal-seri': 'pleksi',
+            'ozel-seri': 'pleksi',
+            eloksal: 'eloksal',
+            pvd: 'pvd',
+            boya: 'boya',
+            pleksi: 'pleksi'
+        };
+        if (map[raw]) return map[raw];
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule && typeof ProductLibraryModule.normalizeColorType === 'function') {
+            return String(ProductLibraryModule.normalizeColorType(raw) || '');
+        }
+        const normalized = SalesModule.normalize(raw);
+        if (normalized.includes('eloksal') || normalized.includes('aloksal')) return 'eloksal';
+        if (normalized.includes('pvd')) return 'pvd';
+        if (normalized.includes('boya') || normalized.includes('elektrostatik')) return 'boya';
+        if (normalized.includes('pleksi')) return 'pleksi';
+        return '';
+    },
+
+    getCatalogColorTypeMetaOptions: () => {
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule && typeof ProductLibraryModule.getColorTypeOptions === 'function') {
+            return ProductLibraryModule.getColorTypeOptions()
+                .map((opt) => ({
+                    value: SalesModule.normalizeCatalogColorType(opt?.id || ''),
+                    label: String(opt?.label || '').trim()
+                }))
+                .filter((opt) => opt.value && opt.label);
         }
         return [
-            { value: 'anodize-seri', label: 'Anodize seri' },
-            { value: 'elektrostatik-seri', label: 'Elektrostatik seri' },
-            { value: 'pvd-seri', label: 'PVD seri' },
-            { value: 'ozel-seri', label: 'Ozel seri' }
+            { value: 'eloksal', label: 'Eloksal Renkleri' },
+            { value: 'pvd', label: 'Pvd krom kaplama' },
+            { value: 'boya', label: 'Elektrostatik boya' },
+            { value: 'pleksi', label: 'Pleksi renk' }
         ];
     },
 
-    getCatalogColorOptions: (field, category) => {
-        const key = String(category || '').trim();
-        if (String(field || '') === 'plexi') {
-            const plexiMap = {
-                'pleksi-seri': ['Seffaf', 'Fume', 'Bronz', 'Buzlu'],
-                'opal-seri': ['Opal Beyaz', 'Sut Beyaz', 'Kirik Beyaz'],
-                'ozel-seri': ['Siyah Cam', 'Antrasit Cam', 'Katalog disi']
-            };
-            return Array.isArray(plexiMap[key]) ? plexiMap[key] : ['Seciniz'];
+    getCatalogColorCategoryOptions: (field) => {
+        const key = String(field || '').trim();
+        const all = SalesModule.getCatalogColorTypeMetaOptions();
+        if (key === 'plexi') return all.filter((opt) => opt.value === 'pleksi');
+        return all.filter((opt) => opt.value !== 'pleksi');
+    },
+
+    getCatalogColorLibraryItemsByType: (type) => {
+        const normalizedType = SalesModule.normalizeCatalogColorType(type);
+        if (!normalizedType) return [];
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule && typeof ProductLibraryModule.getColorLibraryItemsByType === 'function') {
+            return ProductLibraryModule.getColorLibraryItemsByType(normalizedType)
+                .map((row) => String(row?.name || '').trim())
+                .filter(Boolean);
         }
-        const metalMap = {
-            'anodize-seri': ['Parlak Inox', 'Sampanya', 'Siyah Anodize'],
-            'elektrostatik-seri': ['Mat Siyah', 'Antrasit', 'Beyaz'],
-            'pvd-seri': ['Gold', 'Rose Gold', 'Inox PVD'],
-            'ozel-seri': ['Boyali Ozel', 'Katalog disi']
-        };
-        return Array.isArray(metalMap[key]) ? metalMap[key] : ['Seciniz'];
+        const rows = Array.isArray(DB.data?.data?.colorLibrary) ? DB.data.data.colorLibrary : [];
+        return rows
+            .filter((row) => SalesModule.normalizeCatalogColorType(row?.type || row?.processType || row?.category || '') === normalizedType)
+            .map((row) => String(row?.name || row?.colorName || '').trim())
+            .filter(Boolean);
+    },
+
+    getCatalogColorOptions: (_field, category) => {
+        const type = SalesModule.normalizeCatalogColorType(category);
+        if (!type) return [];
+        const uniq = new Map();
+        SalesModule.getCatalogColorLibraryItemsByType(type).forEach((name) => {
+            const key = String(name || '').trim().toLocaleLowerCase('tr-TR');
+            if (!key) return;
+            if (!uniq.has(key)) uniq.set(key, String(name || '').trim());
+        });
+        return Array.from(uniq.values()).sort((a, b) => String(a || '').localeCompare(String(b || ''), 'tr'));
     },
 
     buildCatalogDraft: (categoryId, source = null) => {
@@ -593,12 +636,13 @@ const SalesModule = {
         const now = SalesModule.getCatalogProducts().length + 1;
         const colorDefaults = (field, sourceValue = {}) => {
             const categories = SalesModule.getCatalogColorCategoryOptions(field);
-            const fallbackCategory = String(categories[0]?.value || '');
-            const selectedCategory = String(sourceValue?.category || fallbackCategory);
+            const requestedCategory = SalesModule.normalizeCatalogColorType(sourceValue?.category || '');
+            const selectedCategory = categories.some((item) => item.value === requestedCategory) ? requestedCategory : '';
             const colors = SalesModule.getCatalogColorOptions(field, selectedCategory);
+            const currentColor = String(sourceValue?.color || '').trim();
             return {
                 category: selectedCategory,
-                color: String(sourceValue?.color || colors[0] || '')
+                color: colors.includes(currentColor) ? currentColor : ''
             };
         };
         return {
@@ -645,15 +689,24 @@ const SalesModule = {
     },
 
     renderCatalogColorCategoryOptionsHtml: (field, selectedValue) => {
-        return SalesModule.getCatalogColorCategoryOptions(field)
-            .map((opt) => `<option value="${SalesModule.escapeHtml(opt.value)}" ${opt.value === selectedValue ? 'selected' : ''}>${SalesModule.escapeHtml(opt.label)}</option>`)
+        const selected = SalesModule.normalizeCatalogColorType(selectedValue || '');
+        const options = SalesModule.getCatalogColorCategoryOptions(field)
+            .map((opt) => `<option value="${SalesModule.escapeHtml(opt.value)}" ${opt.value === selected ? 'selected' : ''}>${SalesModule.escapeHtml(opt.label)}</option>`)
             .join('');
+        const placeholder = `<option value="" ${selected ? '' : 'selected'}>kategori sec</option>`;
+        return `${placeholder}${options}`;
     },
 
     renderCatalogColorOptionsHtml: (field, selectedCategory, selectedColor) => {
-        return SalesModule.getCatalogColorOptions(field, selectedCategory)
-            .map((opt) => `<option value="${SalesModule.escapeHtml(opt)}" ${String(opt) === String(selectedColor || '') ? 'selected' : ''}>${SalesModule.escapeHtml(opt)}</option>`)
+        const category = SalesModule.normalizeCatalogColorType(selectedCategory || '');
+        const colors = SalesModule.getCatalogColorOptions(field, category);
+        const selected = String(selectedColor || '').trim();
+        if (!category) return '<option value="" selected>renk sec</option>';
+        const options = colors
+            .map((opt) => `<option value="${SalesModule.escapeHtml(opt)}" ${String(opt) === selected ? 'selected' : ''}>${SalesModule.escapeHtml(opt)}</option>`)
             .join('');
+        const placeholder = `<option value="" ${selected ? '' : 'selected'}>renk sec</option>`;
+        return `${placeholder}${options}`;
     },
 
     renderCatalogDiameterButtonsHtml: (diameters, selectedDiameter, clickHandlerName) => {
@@ -892,12 +945,14 @@ const SalesModule = {
         if (!SalesModule.state.catalogDraft.colors[key] || typeof SalesModule.state.catalogDraft.colors[key] !== 'object') {
             SalesModule.state.catalogDraft.colors[key] = { category: '', color: '' };
         }
-        const selectedCategory = String(category || '').trim();
+        const selectedCategory = SalesModule.normalizeCatalogColorType(category || '');
         SalesModule.state.catalogDraft.colors[key].category = selectedCategory;
         const nextColors = SalesModule.getCatalogColorOptions(key, selectedCategory);
         const currentColor = String(SalesModule.state.catalogDraft.colors[key].color || '').trim();
-        if (!nextColors.includes(currentColor)) {
-            SalesModule.state.catalogDraft.colors[key].color = String(nextColors[0] || '');
+        if (!selectedCategory) {
+            SalesModule.state.catalogDraft.colors[key].color = '';
+        } else if (!nextColors.includes(currentColor)) {
+            SalesModule.state.catalogDraft.colors[key].color = '';
         }
         const colorSelect = document.getElementById(`sales_catalog_${key}_color`);
         if (colorSelect) {
@@ -918,7 +973,14 @@ const SalesModule = {
         if (!SalesModule.state.catalogDraft.colors[key] || typeof SalesModule.state.catalogDraft.colors[key] !== 'object') {
             SalesModule.state.catalogDraft.colors[key] = { category: '', color: '' };
         }
-        SalesModule.state.catalogDraft.colors[key].color = String(colorValue || '').trim();
+        const value = String(colorValue || '').trim();
+        const category = SalesModule.normalizeCatalogColorType(SalesModule.state.catalogDraft.colors[key].category || '');
+        const allowed = SalesModule.getCatalogColorOptions(key, category);
+        if (!value) {
+            SalesModule.state.catalogDraft.colors[key].color = '';
+            return;
+        }
+        SalesModule.state.catalogDraft.colors[key].color = allowed.includes(value) ? value : '';
     },
 
     addCatalogDiameter: () => {

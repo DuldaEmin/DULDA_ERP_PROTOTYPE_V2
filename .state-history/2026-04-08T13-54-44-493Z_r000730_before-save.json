@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-08T13:56:30.401Z",
+    "updated_at": "2026-04-08T10:47:57.158Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -38,13 +38,9 @@
         "Lux Seri Babalar",
         "Paslanmaz Dikmeler",
         "ankrajlar"
-      ],
-      "catalogDiameters": [
-        "100",
-        "130"
       ]
     },
-    "revision": 735
+    "revision": 730
   },
   "data": {
     "products": [
@@ -6319,7 +6315,6 @@
         "updated_at": "2026-04-07T12:44:28.967Z",
         "created_by": "Demo User"
       }
-    ],
-    "salesCatalogProducts": []
+    ]
   }
 }

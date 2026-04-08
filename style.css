@@ -1946,6 +1946,24 @@ tr:hover {
     margin-bottom: 0.24rem;
 }
 
+.sales-catalog-label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.55rem;
+    margin-bottom: 0.24rem;
+}
+
+.sales-catalog-link-btn {
+    border: none;
+    background: none;
+    color: #2563eb;
+    font-size: 0.74rem;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0;
+}
+
 .sales-catalog-input,
 .sales-catalog-select,
 .sales-catalog-textarea {
@@ -1964,6 +1982,14 @@ tr:hover {
 .sales-catalog-textarea:focus {
     border-color: #f97316;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+}
+
+.sales-catalog-select:disabled,
+.sales-catalog-input:disabled,
+.sales-catalog-textarea:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
 }
 
 .sales-catalog-textarea {
@@ -2001,21 +2027,49 @@ tr:hover {
     gap: 0.4rem;
 }
 
-.sales-catalog-chip {
+.sales-catalog-chip-wrap {
+    display: inline-flex;
+    align-items: center;
     border: 1px solid #cbd5e1;
-    border-radius: 0.62rem;
+    border-radius: 0.68rem;
     background: #fff;
+    overflow: hidden;
+}
+
+.sales-catalog-chip-wrap.is-active {
+    border-color: #f97316;
+    background: #ffedd5;
+}
+
+.sales-catalog-chip {
+    border: none;
+    border-radius: 0;
+    background: transparent;
     color: #334155;
     font-size: 0.78rem;
     font-weight: 800;
     cursor: pointer;
-    padding: 0.31rem 0.58rem;
+    padding: 0.31rem 0.52rem 0.31rem 0.58rem;
+    line-height: 1;
 }
 
 .sales-catalog-chip.is-active {
-    border-color: #f97316;
-    background: #ffedd5;
     color: #9a3412;
+}
+
+.sales-catalog-chip-remove {
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    font-weight: 800;
+    cursor: pointer;
+    padding: 0.2rem 0.46rem 0.24rem 0.34rem;
+    line-height: 1;
+}
+
+.sales-catalog-chip-remove:hover {
+    color: #b91c1c;
 }
 
 .sales-catalog-toggle {
@@ -2103,6 +2157,40 @@ tr:hover {
     display: flex;
     justify-content: flex-end;
     gap: 0.45rem;
+}
+
+.sales-catalog-manage-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.sales-catalog-manage-list {
+    max-height: 250px;
+    overflow: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.72rem;
+    background: #fff;
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.sales-catalog-manage-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.68rem;
+    background: #f8fafc;
+    padding: 0.4rem 0.5rem;
+}
+
+.sales-catalog-manage-value {
+    font-weight: 800;
+    color: #334155;
 }
 
 .sales-catalog-detail-grid {

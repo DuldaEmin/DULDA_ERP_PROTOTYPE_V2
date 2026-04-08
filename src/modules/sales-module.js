@@ -498,8 +498,9 @@ const SalesModule = {
             .map((row) => {
                 const item = row && typeof row === 'object' ? row : {};
                 const diameters = Array.isArray(item.diameters)
-                    ? item.diameters.map((v) => String(v || '').trim()).filter(Boolean)
+                    ? item.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
                     : [];
+                const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(item.selectedDiameter || '');
                 const colors = item.colors && typeof item.colors === 'object' ? item.colors : {};
                 const images = item.images && typeof item.images === 'object' ? item.images : {};
                 return {
@@ -509,7 +510,7 @@ const SalesModule = {
                     productCode: String(item.productCode || '').trim(),
                     idCode: String(item.idCode || '').trim(),
                     diameters,
-                    selectedDiameter: String(item.selectedDiameter || diameters[0] || '').trim(),
+                    selectedDiameter: diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || ''),
                     colors: {
                         accessory: {
                             category: SalesModule.normalizeCatalogColorType(colors.accessory?.category || ''),
@@ -631,29 +632,96 @@ const SalesModule = {
         return Array.from(uniq.values()).sort((a, b) => String(a || '').localeCompare(String(b || ''), 'tr'));
     },
 
+    normalizeCatalogDiameterValue: (value) => {
+        const text = String(value || '').trim().replace(',', '.').replace(/[^0-9.]/g, '');
+        if (!text) return '';
+        const num = Number(text);
+        if (!Number.isFinite(num) || num <= 0) return '';
+        if (Math.abs(num - Math.round(num)) < 0.000001) return String(Math.round(num));
+        return String(Number(num.toFixed(2))).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    },
+
+    compareCatalogDiameterValues: (a, b) => {
+        const numA = Number(String(a || '').replace(',', '.'));
+        const numB = Number(String(b || '').replace(',', '.'));
+        if (Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
+        return String(a || '').localeCompare(String(b || ''), 'tr');
+    },
+
+    ensureCatalogDiameterLibrary: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        if (!Array.isArray(DB.data.meta.options.catalogDiameters)) DB.data.meta.options.catalogDiameters = ['40', '50', '65'];
+        const source = DB.data.meta.options.catalogDiameters || [];
+        const uniq = new Map();
+        source.forEach((raw) => {
+            const value = SalesModule.normalizeCatalogDiameterValue(raw);
+            if (!value) return;
+            if (!uniq.has(value)) uniq.set(value, value);
+        });
+        const list = Array.from(uniq.values()).sort((a, b) => SalesModule.compareCatalogDiameterValues(a, b));
+        DB.data.meta.options.catalogDiameters = list.length ? list : ['40', '50', '65'];
+    },
+
+    getCatalogDiameterLibrary: () => {
+        SalesModule.ensureCatalogDiameterLibrary();
+        return [...(DB.data?.meta?.options?.catalogDiameters || [])];
+    },
+
+    renderCatalogDiameterPickerOptionsHtml: (selectedDiameters = [], selectedValue = '') => {
+        const selectedSet = new Set((Array.isArray(selectedDiameters) ? selectedDiameters : [])
+            .map((item) => SalesModule.normalizeCatalogDiameterValue(item))
+            .filter(Boolean));
+        const rows = SalesModule.getCatalogDiameterLibrary()
+            .filter((value) => !selectedSet.has(value));
+        const selected = SalesModule.normalizeCatalogDiameterValue(selectedValue || '');
+        const placeholder = `<option value="" ${selected ? '' : 'selected'}>listeden cap sec</option>`;
+        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>O ${SalesModule.escapeHtml(value)}</option>`).join('');
+        return `${placeholder}${options}`;
+    },
+
+    renderCatalogDiameterManagerListHtml: () => {
+        const rows = SalesModule.getCatalogDiameterLibrary();
+        if (!rows.length) return '<div class="sales-catalog-empty-text">Tanimli cap bulunamadi.</div>';
+        return rows.map((value) => `
+            <div class="sales-catalog-manage-row">
+                <div class="sales-catalog-manage-value">O ${SalesModule.escapeHtml(value)}</div>
+                <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeCatalogDiameterLibraryItem('${SalesModule.escapeHtml(value)}')">sil</button>
+            </div>
+        `).join('');
+    },
+
     buildCatalogDraft: (categoryId, source = null) => {
         const row = source && typeof source === 'object' ? source : {};
         const now = SalesModule.getCatalogProducts().length + 1;
         const colorDefaults = (field, sourceValue = {}) => {
             const categories = SalesModule.getCatalogColorCategoryOptions(field);
             const requestedCategory = SalesModule.normalizeCatalogColorType(sourceValue?.category || '');
-            const selectedCategory = categories.some((item) => item.value === requestedCategory) ? requestedCategory : '';
+            const sourceColor = String(sourceValue?.color || '').trim();
+            let selectedCategory = categories.some((item) => item.value === requestedCategory) ? requestedCategory : '';
+            if (!selectedCategory && sourceColor && typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule && typeof ProductLibraryModule.resolveLinkedColorInfo === 'function') {
+                const linked = ProductLibraryModule.resolveLinkedColorInfo({ colorName: sourceColor });
+                const guessed = SalesModule.normalizeCatalogColorType(linked?.type || '');
+                if (categories.some((item) => item.value === guessed)) selectedCategory = guessed;
+            }
             const colors = SalesModule.getCatalogColorOptions(field, selectedCategory);
-            const currentColor = String(sourceValue?.color || '').trim();
             return {
                 category: selectedCategory,
-                color: colors.includes(currentColor) ? currentColor : ''
+                color: colors.includes(sourceColor) ? sourceColor : ''
             };
         };
+        const draftDiameters = Array.isArray(row.diameters) && row.diameters.length
+            ? row.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
+            : SalesModule.getCatalogDiameterLibrary().slice(0, 3);
+        const draftSelectedDiameter = SalesModule.normalizeCatalogDiameterValue(String(row.selectedDiameter || '').trim());
         return {
             categoryId: String(categoryId || '').trim(),
             name: String(row.name || '').trim(),
             productCode: String(row.productCode || `KRL-${String(now).padStart(4, '0')}`).trim(),
             idCode: String(row.idCode || `ID-${String(now).padStart(5, '0')}`).trim(),
-            diameters: Array.isArray(row.diameters) && row.diameters.length
-                ? row.diameters.map((v) => String(v || '').trim()).filter(Boolean)
-                : ['40', '50', '65'],
-            selectedDiameter: String(row.selectedDiameter || '').trim() || '40',
+            diameters: draftDiameters,
+            selectedDiameter: draftDiameters.includes(draftSelectedDiameter) ? draftSelectedDiameter : String(draftDiameters[0] || ''),
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
             bubble: String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
             note: String(row.note || '').trim(),
@@ -709,13 +777,18 @@ const SalesModule = {
         return `${placeholder}${options}`;
     },
 
-    renderCatalogDiameterButtonsHtml: (diameters, selectedDiameter, clickHandlerName) => {
+    renderCatalogDiameterButtonsHtml: (diameters, selectedDiameter, clickHandlerName, removeHandlerName = '') => {
         const list = Array.isArray(diameters) ? diameters : [];
         return list.map((dia) => {
-            const value = String(dia || '').trim();
+            const value = SalesModule.normalizeCatalogDiameterValue(dia);
             if (!value) return '';
             const active = value === String(selectedDiameter || '').trim();
-            return `<button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">O ${SalesModule.escapeHtml(value)}</button>`;
+            return `
+                <span class="sales-catalog-chip-wrap ${active ? 'is-active' : ''}">
+                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">O ${SalesModule.escapeHtml(value)}</button>
+                    ${removeHandlerName ? `<button type="button" class="sales-catalog-chip-remove" onclick="event.stopPropagation(); ${SalesModule.escapeHtml(removeHandlerName)}('${SalesModule.escapeHtml(value)}')">&times;</button>` : ''}
+                </span>
+            `;
         }).join('');
     },
 
@@ -859,13 +932,18 @@ const SalesModule = {
 
                 <div class="sales-catalog-create-grid-mid">
                     <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Caplari ekle</label>
+                        <div class="sales-catalog-label-row">
+                            <label class="sales-catalog-label" style="margin-bottom:0;">Caplari ekle</label>
+                            <button type="button" class="sales-catalog-link-btn" onclick="SalesModule.openCatalogDiameterManager()">yonet ekle/sil</button>
+                        </div>
                         <div class="sales-catalog-inline">
-                            <input id="sales_catalog_diameter_input" class="sales-catalog-input" placeholder="or: 75">
-                            <button type="button" class="sales-catalog-mini-btn" onclick="SalesModule.addCatalogDiameter()">cap ekle +</button>
+                            <select id="sales_catalog_diameter_picker" class="sales-catalog-select">
+                                ${SalesModule.renderCatalogDiameterPickerOptionsHtml(draft.diameters, '')}
+                            </select>
+                            <button type="button" class="sales-catalog-mini-btn" onclick="SalesModule.addCatalogDiameterFromPicker()">cap ekle +</button>
                         </div>
                         <div id="sales_catalog_diameter_box" class="sales-catalog-chip-row">
-                            ${SalesModule.renderCatalogDiameterButtonsHtml(draft.diameters, draft.selectedDiameter, 'SalesModule.selectCatalogDiameter')}
+                            ${SalesModule.renderCatalogDiameterButtonsHtml(draft.diameters, draft.selectedDiameter, 'SalesModule.selectCatalogDiameter', 'SalesModule.removeCatalogDiameterFromDraft')}
                         </div>
                     </div>
                     <div class="sales-catalog-field-block">
@@ -896,7 +974,7 @@ const SalesModule = {
                                     <select id="sales_catalog_${field}_category" class="sales-catalog-select" onchange="SalesModule.setCatalogColorCategory('${field}', this.value)">
                                         ${SalesModule.renderCatalogColorCategoryOptionsHtml(field, value.category)}
                                     </select>
-                                    <select id="sales_catalog_${field}_color" class="sales-catalog-select" onchange="SalesModule.setCatalogColorValue('${field}', this.value)">
+                                    <select id="sales_catalog_${field}_color" class="sales-catalog-select" ${value.category ? '' : 'disabled'} onchange="SalesModule.setCatalogColorValue('${field}', this.value)">
                                         ${SalesModule.renderCatalogColorOptionsHtml(field, value.category, value.color)}
                                     </select>
                                 </div>
@@ -961,6 +1039,7 @@ const SalesModule = {
                 selectedCategory,
                 SalesModule.state.catalogDraft.colors[key].color
             );
+            colorSelect.disabled = !selectedCategory;
         }
     },
 
@@ -983,38 +1062,147 @@ const SalesModule = {
         SalesModule.state.catalogDraft.colors[key].color = allowed.includes(value) ? value : '';
     },
 
-    addCatalogDiameter: () => {
-        if (!SalesModule.state.catalogDraft) return;
-        const input = document.getElementById('sales_catalog_diameter_input');
-        const raw = String(input?.value || '').trim();
-        const value = raw.replace(/[^\d.,]/g, '').replace(',', '.');
-        if (!value) return;
-        if (!Array.isArray(SalesModule.state.catalogDraft.diameters)) {
-            SalesModule.state.catalogDraft.diameters = [];
+    openCatalogDiameterManager: () => {
+        const html = SalesModule.renderCatalogDiameterManagerHtml();
+        Modal.open('Cap yonetimi', html, { maxWidth: '560px', closeExisting: false });
+    },
+
+    renderCatalogDiameterManagerHtml: () => {
+        return `
+            <div class="sales-catalog-manage-wrap">
+                <div class="sales-catalog-empty-text" style="text-align:left;">Yeni cap ekle, gereksiz caplari sil.</div>
+                <div class="sales-catalog-inline" style="margin-top:0.4rem;">
+                    <input id="sales_catalog_manage_diameter_input" class="sales-catalog-input" placeholder="or: 75" onkeydown="if(event.key==='Enter'){event.preventDefault(); SalesModule.addCatalogDiameterLibraryItem();}">
+                    <button type="button" class="sales-catalog-mini-btn" onclick="SalesModule.addCatalogDiameterLibraryItem()">listeye ekle</button>
+                </div>
+                <div id="sales_catalog_manage_diameter_list" class="sales-catalog-manage-list">
+                    ${SalesModule.renderCatalogDiameterManagerListHtml()}
+                </div>
+                <div class="sales-catalog-modal-actions">
+                    <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                </div>
+            </div>
+        `;
+    },
+
+    refreshCatalogDiameterManagerList: () => {
+        const box = document.getElementById('sales_catalog_manage_diameter_list');
+        if (!box) return;
+        box.innerHTML = SalesModule.renderCatalogDiameterManagerListHtml();
+    },
+
+    refreshCatalogDiameterPicker: () => {
+        const draft = SalesModule.state.catalogDraft;
+        const picker = document.getElementById('sales_catalog_diameter_picker');
+        if (!picker) return;
+        const current = SalesModule.normalizeCatalogDiameterValue(picker.value || '');
+        picker.innerHTML = SalesModule.renderCatalogDiameterPickerOptionsHtml(
+            draft?.diameters || [],
+            current
+        );
+    },
+
+    addCatalogDiameterLibraryItem: async () => {
+        SalesModule.ensureCatalogDiameterLibrary();
+        const input = document.getElementById('sales_catalog_manage_diameter_input');
+        const value = SalesModule.normalizeCatalogDiameterValue(input?.value || '');
+        if (!value) return alert('Gecerli bir cap giriniz.');
+        const list = SalesModule.getCatalogDiameterLibrary();
+        if (list.includes(value)) {
+            if (input) input.value = '';
+            return alert('Bu cap zaten listede.');
         }
-        if (!SalesModule.state.catalogDraft.diameters.includes(value)) {
-            SalesModule.state.catalogDraft.diameters.push(value);
-        }
-        SalesModule.state.catalogDraft.selectedDiameter = value;
+        const next = [...list, value].sort((a, b) => SalesModule.compareCatalogDiameterValues(a, b));
+        DB.data.meta.options.catalogDiameters = next;
+        await DB.save();
         if (input) input.value = '';
+        SalesModule.refreshCatalogDiameterManagerList();
+        SalesModule.refreshCatalogDiameterPicker();
+    },
+
+    removeCatalogDiameterLibraryItem: async (value) => {
+        SalesModule.ensureCatalogDiameterLibrary();
+        const target = SalesModule.normalizeCatalogDiameterValue(value || '');
+        if (!target) return;
+        const prev = SalesModule.getCatalogDiameterLibrary();
+        const next = prev.filter((item) => item !== target);
+        if (!next.length) return alert('En az bir cap kalmali.');
+        DB.data.meta.options.catalogDiameters = next;
+        if (SalesModule.state.catalogDraft && Array.isArray(SalesModule.state.catalogDraft.diameters)) {
+            const filteredDraft = SalesModule.state.catalogDraft.diameters
+                .map((item) => SalesModule.normalizeCatalogDiameterValue(item))
+                .filter((item) => item && item !== target);
+            SalesModule.state.catalogDraft.diameters = filteredDraft;
+            if (!filteredDraft.includes(SalesModule.state.catalogDraft.selectedDiameter || '')) {
+                SalesModule.state.catalogDraft.selectedDiameter = String(filteredDraft[0] || '');
+            }
+            SalesModule.refreshCatalogDiameterButtons();
+        }
+        await DB.save();
+        SalesModule.refreshCatalogDiameterManagerList();
+        SalesModule.refreshCatalogDiameterPicker();
+    },
+
+    addCatalogDiameterFromPicker: () => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft) return;
+        const picker = document.getElementById('sales_catalog_diameter_picker');
+        const value = SalesModule.normalizeCatalogDiameterValue(picker?.value || '');
+        if (!value) return;
+        if (!Array.isArray(draft.diameters)) draft.diameters = [];
+        const set = new Set(draft.diameters.map((item) => SalesModule.normalizeCatalogDiameterValue(item)).filter(Boolean));
+        set.add(value);
+        draft.diameters = Array.from(set.values()).sort((a, b) => SalesModule.compareCatalogDiameterValues(a, b));
+        draft.selectedDiameter = value;
+        if (picker) picker.value = '';
         SalesModule.refreshCatalogDiameterButtons();
+        SalesModule.refreshCatalogDiameterPicker();
+    },
+
+    removeCatalogDiameterFromDraft: (value) => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || !Array.isArray(draft.diameters)) return;
+        const target = SalesModule.normalizeCatalogDiameterValue(value || '');
+        if (!target) return;
+        draft.diameters = draft.diameters
+            .map((item) => SalesModule.normalizeCatalogDiameterValue(item))
+            .filter((item) => item && item !== target);
+        if (!draft.diameters.length) {
+            draft.selectedDiameter = '';
+        } else if (!draft.diameters.includes(SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || ''))) {
+            draft.selectedDiameter = String(draft.diameters[0] || '');
+        }
+        SalesModule.refreshCatalogDiameterButtons();
+        SalesModule.refreshCatalogDiameterPicker();
     },
 
     refreshCatalogDiameterButtons: () => {
         const draft = SalesModule.state.catalogDraft;
         if (!draft) return;
+        const uniqueDiameters = Array.from(new Set((Array.isArray(draft.diameters) ? draft.diameters : [])
+            .map((item) => SalesModule.normalizeCatalogDiameterValue(item))
+            .filter(Boolean)))
+            .sort((a, b) => SalesModule.compareCatalogDiameterValues(a, b));
+        draft.diameters = uniqueDiameters;
+        const normalizedSelected = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
+        if (!uniqueDiameters.includes(normalizedSelected)) {
+            draft.selectedDiameter = String(uniqueDiameters[0] || '');
+        } else {
+            draft.selectedDiameter = normalizedSelected;
+        }
         const box = document.getElementById('sales_catalog_diameter_box');
         if (!box) return;
         box.innerHTML = SalesModule.renderCatalogDiameterButtonsHtml(
             draft.diameters,
             draft.selectedDiameter,
-            'SalesModule.selectCatalogDiameter'
+            'SalesModule.selectCatalogDiameter',
+            'SalesModule.removeCatalogDiameterFromDraft'
         );
     },
 
     selectCatalogDiameter: (value) => {
         if (!SalesModule.state.catalogDraft) return;
-        SalesModule.state.catalogDraft.selectedDiameter = String(value || '').trim();
+        SalesModule.state.catalogDraft.selectedDiameter = SalesModule.normalizeCatalogDiameterValue(String(value || '').trim());
         SalesModule.refreshCatalogDiameterButtons();
     },
 
@@ -1088,9 +1276,13 @@ const SalesModule = {
             return;
         }
         const diameters = Array.isArray(draft.diameters)
-            ? draft.diameters.map((v) => String(v || '').trim()).filter(Boolean)
+            ? draft.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
             : [];
-        const selectedDiameter = String(draft.selectedDiameter || diameters[0] || '').trim();
+        if (!diameters.length) {
+            return alert('En az bir cap eklemelisiniz.');
+        }
+        const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
+        const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
         const nowIso = new Date().toISOString();
         const row = {
             id: SalesModule.generateCatalogRowId(),
@@ -1105,15 +1297,15 @@ const SalesModule = {
             note: String(draft.note || '').trim(),
             colors: {
                 accessory: {
-                    category: String(draft.colors?.accessory?.category || '').trim(),
+                    category: SalesModule.normalizeCatalogColorType(draft.colors?.accessory?.category || ''),
                     color: String(draft.colors?.accessory?.color || '').trim()
                 },
                 tube: {
-                    category: String(draft.colors?.tube?.category || '').trim(),
+                    category: SalesModule.normalizeCatalogColorType(draft.colors?.tube?.category || ''),
                     color: String(draft.colors?.tube?.color || '').trim()
                 },
                 plexi: {
-                    category: String(draft.colors?.plexi?.category || '').trim(),
+                    category: SalesModule.normalizeCatalogColorType(draft.colors?.plexi?.category || ''),
                     color: String(draft.colors?.plexi?.color || '').trim()
                 }
             },

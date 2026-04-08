@@ -925,48 +925,57 @@ const SalesModule = {
         const activeMainId = String(SalesModule.state.catalogActiveMainId || '').trim();
         const activeGroupId = String(SalesModule.state.catalogActiveGroupId || '').trim();
         const activeLeafId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
-        const groups = SalesModule.getCatalogGroupsByMain(activeMainId);
-        const activeGroup = SalesModule.getCatalogGroupById(activeMainId, activeGroupId) || groups[0] || null;
-        const leaves = Array.isArray(activeGroup?.children) ? activeGroup.children : [];
-
         return `
-            <div class="sales-catalog-level-grid">
-                <div class="sales-catalog-level-card">
-                    <div class="sales-catalog-level-title">Ana kategori</div>
-                    <div class="sales-catalog-level-list">
-                        ${mains.map((main) => `
-                            <button class="sales-catalog-level-btn ${String(main.id || '') === activeMainId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(String(main.id || ''))}')">
-                                ${SalesModule.escapeHtml(String(main.label || '-'))}
+            <div class="sales-catalog-tree">
+                ${mains.map((main) => {
+                const mainId = String(main.id || '');
+                const mainLabel = String(main.label || '-');
+                const isMainActive = mainId === activeMainId;
+                const groups = isMainActive ? SalesModule.getCatalogGroupsByMain(mainId) : [];
+                const hasGroups = groups.length > 0;
+                return `
+                        <div class="sales-catalog-tree-main ${isMainActive ? 'is-open' : ''}">
+                            <button class="sales-catalog-tree-main-btn ${isMainActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(mainId)}')">
+                                <span>${SalesModule.escapeHtml(mainLabel)}</span>
+                                <span class="sales-catalog-tree-arrow">${isMainActive ? 'v' : '>'}</span>
                             </button>
-                        `).join('')}
-                    </div>
-                </div>
 
-                <div class="sales-catalog-level-card">
-                    <div class="sales-catalog-level-title">Alt grup</div>
-                    <div class="sales-catalog-level-list">
-                        ${groups.length
-                ? groups.map((group) => `
-                                <button class="sales-catalog-level-btn ${String(group.id || '') === activeGroupId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveGroup('${SalesModule.escapeHtml(String(group.id || ''))}')">
-                                    ${SalesModule.escapeHtml(String(group.label || '-'))}
-                                </button>
-                            `).join('')
-                : '<div class="sales-catalog-level-empty">Grup bulunamadi.</div>'}
-                    </div>
-                </div>
+                            ${isMainActive ? `
+                                <div class="sales-catalog-tree-group-list">
+                                    ${hasGroups ? groups.map((group) => {
+                        const groupId = String(group.id || '');
+                        const groupLabel = String(group.label || '-');
+                        const isGroupActive = groupId === activeGroupId;
+                        const leaves = Array.isArray(group.children) ? group.children : [];
+                        return `
+                                            <div class="sales-catalog-tree-group ${isGroupActive ? 'is-open' : ''}">
+                                                <button class="sales-catalog-tree-group-btn ${isGroupActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveGroup('${SalesModule.escapeHtml(groupId)}')">
+                                                    <span>${SalesModule.escapeHtml(groupLabel)}</span>
+                                                    <span class="sales-catalog-tree-arrow">${isGroupActive ? 'v' : '>'}</span>
+                                                </button>
 
-                <div class="sales-catalog-level-card">
-                    <div class="sales-catalog-level-title">Urun tipi</div>
-                    <div class="sales-catalog-level-list">
-                        ${leaves.length
-                ? leaves.map((leaf) => `
-                                <button class="sales-catalog-level-btn ${String(leaf.id || '') === activeLeafId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(String(leaf.id || ''))}')">
-                                    ${SalesModule.escapeHtml(String(leaf.label || '-'))}
-                                </button>
-                            `).join('')
-                : '<div class="sales-catalog-level-empty">Alt urun bulunamadi.</div>'}
-                    </div>
-                </div>
+                                                ${isGroupActive ? `
+                                                    <div class="sales-catalog-tree-leaf-list">
+                                                        ${leaves.length ? leaves.map((leaf) => {
+                            const leafId = String(leaf.id || '');
+                            const leafLabel = String(leaf.label || '-');
+                            const isLeafActive = leafId === activeLeafId;
+                            return `
+                                                                    <button class="sales-catalog-tree-leaf-btn ${isLeafActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leafId)}')">
+                                                                        ${SalesModule.escapeHtml(leafLabel)}
+                                                                    </button>
+                                                                `;
+                        }).join('') : '<div class="sales-catalog-tree-empty">Alt urun bulunamadi.</div>'}
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        `;
+                    }).join('') : '<div class="sales-catalog-tree-empty">Bu kategoride grup bulunamadi.</div>'}
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+            }).join('')}
             </div>
         `;
     },
@@ -1025,7 +1034,7 @@ const SalesModule = {
                     <div class="sales-catalog-shell">
                         <aside class="sales-catalog-left">
                             <div class="sales-catalog-root">Urun gruplari</div>
-                            <div class="sales-catalog-root-note">Soldan saga secim yaparak hedef urun tipine inin.</div>
+                            <div class="sales-catalog-root-note">Tikladikca asagi acilan menu ile urun tipine inin.</div>
                             ${SalesModule.renderCatalogTreeHtml()}
                         </aside>
 

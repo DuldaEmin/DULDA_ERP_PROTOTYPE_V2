@@ -8,9 +8,10 @@ const SalesModule = {
         customerDetailId: null,
         customerDetailMode: 'view',
         customerEditDraft: null,
+        catalogActiveMainId: 'korkuluk',
+        catalogActiveGroupId: '',
         catalogActiveCategoryId: '',
-        catalogDraft: null,
-        catalogExpandedGroups: {}
+        catalogDraft: null
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -442,41 +443,105 @@ const SalesModule = {
 
     getCatalogTree: () => ([
         {
-            id: 'rail-aluminum',
-            label: 'Aluminyum korkuluk',
+            id: 'korkuluk',
+            label: 'Korkuluk',
+            kind: 'catalog',
             children: [
-                { id: 'rail-aluminum-baba', label: 'Aluminyum korkuluk babalari' },
-                { id: 'rail-aluminum-dikme', label: 'Aluminyum korkuluk dikmeleri' },
-                { id: 'rail-aluminum-bottle', label: 'Sise model dikmeleri' },
-                { id: 'rail-aluminum-accessory', label: 'Aksesuarlar' }
+                {
+                    id: 'rail-aluminum',
+                    label: 'Aluminyum korkuluk',
+                    children: [
+                        { id: 'rail-aluminum-baba', label: 'Korkuluk babalari' },
+                        { id: 'rail-aluminum-dikme', label: 'Korkuluk dikmeleri' },
+                        { id: 'rail-aluminum-bottle', label: 'Sise model dikmeleri' },
+                        { id: 'rail-aluminum-accessory', label: 'Aksesuarlar' }
+                    ]
+                },
+                {
+                    id: 'rail-lux',
+                    label: 'Lux seri korkuluk',
+                    children: [
+                        { id: 'rail-lux-baba', label: 'Lux seri babalari' },
+                        { id: 'rail-lux-dikme', label: 'Lux seri dikmeleri' },
+                        { id: 'rail-lux-accessory', label: 'Aksesuarlar' }
+                    ]
+                },
+                {
+                    id: 'rail-stainless',
+                    label: 'Paslanmaz korkuluk',
+                    children: [
+                        { id: 'rail-stainless-baba', label: 'Paslanmaz babalari' },
+                        { id: 'rail-stainless-dikme', label: 'Paslanmaz dikmeleri' },
+                        { id: 'rail-stainless-accessory', label: 'Aksesuarlar' }
+                    ]
+                }
             ]
         },
         {
-            id: 'rail-lux',
-            label: 'Lux seri korkuluk',
+            id: 'boru-cubuk',
+            label: 'Boru & cubuk',
+            kind: 'placeholder',
             children: [
-                { id: 'rail-lux-baba', label: 'Lux seri babalari' },
-                { id: 'rail-lux-dikme', label: 'Lux seri dikmeleri' },
-                { id: 'rail-lux-accessory', label: 'Aksesuarlar' }
+                {
+                    id: 'boru-cubuk-group',
+                    label: 'Boru & cubuk',
+                    children: [
+                        { id: 'boru', label: 'Boru' },
+                        { id: 'cubuk', label: 'Cubuk' },
+                        { id: 'ozel-profiller', label: 'Ozel profiller' }
+                    ]
+                }
             ]
         },
         {
-            id: 'rail-stainless',
-            label: 'Paslanmaz korkuluk',
+            id: 'pleksi-mobilya',
+            label: 'Pleksi mobilya',
+            kind: 'placeholder',
             children: [
-                { id: 'rail-stainless-baba', label: 'Paslanmaz babalari' },
-                { id: 'rail-stainless-dikme', label: 'Paslanmaz dikmeleri' },
-                { id: 'rail-stainless-accessory', label: 'Aksesuarlar' }
+                {
+                    id: 'pleksi-mobilya-group',
+                    label: 'Pleksi mobilya',
+                    children: [
+                        { id: 'sehpa', label: 'Sehpalar' },
+                        { id: 'mobilya-ayak', label: 'Mobilya ayaklari' },
+                        { id: 'diger-aksesuar', label: 'Diger aksesuarlar' }
+                    ]
+                }
             ]
         }
     ]),
 
-    getCatalogLeafNodes: () => SalesModule.getCatalogTree().flatMap((group) => (group.children || [])
-        .map((leaf) => ({
-            ...leaf,
-            groupId: group.id,
-            groupLabel: group.label
-        }))),
+    getCatalogMainById: (mainId) => {
+        const id = String(mainId || '').trim();
+        if (!id) return null;
+        return SalesModule.getCatalogTree().find((item) => item.id === id) || null;
+    },
+
+    getCatalogGroupsByMain: (mainId) => {
+        const main = SalesModule.getCatalogMainById(mainId);
+        return Array.isArray(main?.children) ? main.children : [];
+    },
+
+    getCatalogGroupById: (mainId, groupId) => {
+        const id = String(groupId || '').trim();
+        if (!id) return null;
+        return SalesModule.getCatalogGroupsByMain(mainId).find((item) => String(item.id || '') === id) || null;
+    },
+
+    getCatalogLeafNodes: () => {
+        return SalesModule.getCatalogTree().flatMap((main) => (
+            (main.children || []).flatMap((group) => (
+                (group.children || []).map((leaf) => ({
+                    ...leaf,
+                    mainId: String(main.id || ''),
+                    mainLabel: String(main.label || ''),
+                    mainKind: String(main.kind || ''),
+                    groupId: String(group.id || ''),
+                    groupLabel: String(group.label || '')
+                }))
+            ))
+        ));
+    },
 
     getCatalogLeafById: (categoryId) => {
         const id = String(categoryId || '').trim();
@@ -485,18 +550,28 @@ const SalesModule = {
     },
 
     ensureCatalogState: () => {
-        const leafNodes = SalesModule.getCatalogLeafNodes();
-        if (!leafNodes.length) return;
-        const active = String(SalesModule.state.catalogActiveCategoryId || '').trim();
-        if (!active || !leafNodes.some((leaf) => leaf.id === active)) {
-            SalesModule.state.catalogActiveCategoryId = String(leafNodes[0].id || '');
+        const mains = SalesModule.getCatalogTree();
+        const mainIds = mains.map((item) => String(item.id || '')).filter(Boolean);
+        const activeMain = String(SalesModule.state.catalogActiveMainId || '').trim();
+        if (!activeMain || !mainIds.includes(activeMain)) {
+            SalesModule.state.catalogActiveMainId = String(mainIds[0] || 'korkuluk');
         }
-        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
-            SalesModule.state.catalogExpandedGroups = {};
+        const groups = SalesModule.getCatalogGroupsByMain(SalesModule.state.catalogActiveMainId);
+        const groupIds = groups.map((item) => String(item.id || '')).filter(Boolean);
+        const activeGroup = String(SalesModule.state.catalogActiveGroupId || '').trim();
+        if (!activeGroup || !groupIds.includes(activeGroup)) {
+            SalesModule.state.catalogActiveGroupId = String(groupIds[0] || '');
         }
-        const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId);
-        if (activeLeaf && !SalesModule.state.catalogExpandedGroups[activeLeaf.groupId]) {
-            SalesModule.state.catalogExpandedGroups[activeLeaf.groupId] = true;
+
+        const activeGroupNode = SalesModule.getCatalogGroupById(
+            SalesModule.state.catalogActiveMainId,
+            SalesModule.state.catalogActiveGroupId
+        );
+        const leaves = Array.isArray(activeGroupNode?.children) ? activeGroupNode.children : [];
+        const leafIds = leaves.map((item) => String(item.id || '')).filter(Boolean);
+        const activeLeaf = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        if (!activeLeaf || !leafIds.includes(activeLeaf)) {
+            SalesModule.state.catalogActiveCategoryId = String(leafIds[0] || '');
         }
     },
 
@@ -558,8 +633,12 @@ const SalesModule = {
 
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
-        if (!leaf) return 'Korkuluk';
-        return `Korkuluk / ${leaf.groupLabel} / ${leaf.label}`;
+        if (leaf) return `${leaf.mainLabel} / ${leaf.groupLabel} / ${leaf.label}`;
+        const main = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
+        const group = SalesModule.getCatalogGroupById(main?.id || '', SalesModule.state.catalogActiveGroupId || '');
+        if (main && group) return `${main.label} / ${group.label}`;
+        if (main) return String(main.label || 'Urun grubu');
+        return 'Urun grubu';
     },
 
     normalizeCatalogColorType: (value) => {
@@ -757,24 +836,36 @@ const SalesModule = {
         return `SCP-${String(seq).padStart(6, '0')}`;
     },
 
-    setCatalogActiveCategory: (categoryId) => {
-        const leaf = SalesModule.getCatalogLeafById(categoryId);
-        if (!leaf) return;
-        SalesModule.state.catalogActiveCategoryId = leaf.id;
-        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
-            SalesModule.state.catalogExpandedGroups = {};
-        }
-        SalesModule.state.catalogExpandedGroups[leaf.groupId] = true;
+    setCatalogActiveMain: (mainId) => {
+        const id = String(mainId || '').trim();
+        if (!id) return;
+        const main = SalesModule.getCatalogMainById(id);
+        if (!main) return;
+        SalesModule.state.catalogActiveMainId = id;
+        const groups = SalesModule.getCatalogGroupsByMain(id);
+        SalesModule.state.catalogActiveGroupId = String(groups[0]?.id || '');
+        const leaves = Array.isArray(groups[0]?.children) ? groups[0].children : [];
+        SalesModule.state.catalogActiveCategoryId = String(leaves[0]?.id || '');
         UI.renderCurrentPage();
     },
 
-    toggleCatalogGroup: (groupId) => {
+    setCatalogActiveGroup: (groupId) => {
         const id = String(groupId || '').trim();
         if (!id) return;
-        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
-            SalesModule.state.catalogExpandedGroups = {};
-        }
-        SalesModule.state.catalogExpandedGroups[id] = !SalesModule.state.catalogExpandedGroups[id];
+        const group = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId, id);
+        if (!group) return;
+        SalesModule.state.catalogActiveGroupId = id;
+        const leaves = Array.isArray(group.children) ? group.children : [];
+        SalesModule.state.catalogActiveCategoryId = String(leaves[0]?.id || '');
+        UI.renderCurrentPage();
+    },
+
+    setCatalogActiveCategory: (categoryId) => {
+        const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (!leaf) return;
+        SalesModule.state.catalogActiveMainId = String(leaf.mainId || '');
+        SalesModule.state.catalogActiveGroupId = String(leaf.groupId || '');
+        SalesModule.state.catalogActiveCategoryId = String(leaf.id || '');
         UI.renderCurrentPage();
     },
 
@@ -830,23 +921,54 @@ const SalesModule = {
     },
 
     renderCatalogTreeHtml: () => {
-        const tree = SalesModule.getCatalogTree();
-        const activeId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
-        return tree.map((group) => `
-            <div class="sales-catalog-tree-group ${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'is-open' : ''}">
-                <button type="button" class="sales-catalog-tree-group-toggle" onclick="SalesModule.toggleCatalogGroup('${SalesModule.escapeHtml(group.id)}')">
-                    <span class="sales-catalog-tree-group-title">${SalesModule.escapeHtml(group.label)}</span>
-                    <i data-lucide="${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'chevron-down' : 'chevron-right'}" width="15" height="15"></i>
-                </button>
-                <div class="sales-catalog-tree-leaf-list" style="display:${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'flex' : 'none'};">
-                    ${(group.children || []).map((leaf) => `
-                        <button class="sales-catalog-tree-leaf ${leaf.id === activeId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leaf.id)}')">
-                            ${SalesModule.escapeHtml(leaf.label)}
-                        </button>
-                    `).join('')}
+        const mains = SalesModule.getCatalogTree();
+        const activeMainId = String(SalesModule.state.catalogActiveMainId || '').trim();
+        const activeGroupId = String(SalesModule.state.catalogActiveGroupId || '').trim();
+        const activeLeafId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const groups = SalesModule.getCatalogGroupsByMain(activeMainId);
+        const activeGroup = SalesModule.getCatalogGroupById(activeMainId, activeGroupId) || groups[0] || null;
+        const leaves = Array.isArray(activeGroup?.children) ? activeGroup.children : [];
+
+        return `
+            <div class="sales-catalog-level-grid">
+                <div class="sales-catalog-level-card">
+                    <div class="sales-catalog-level-title">Ana kategori</div>
+                    <div class="sales-catalog-level-list">
+                        ${mains.map((main) => `
+                            <button class="sales-catalog-level-btn ${String(main.id || '') === activeMainId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(String(main.id || ''))}')">
+                                ${SalesModule.escapeHtml(String(main.label || '-'))}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="sales-catalog-level-card">
+                    <div class="sales-catalog-level-title">Alt grup</div>
+                    <div class="sales-catalog-level-list">
+                        ${groups.length
+                ? groups.map((group) => `
+                                <button class="sales-catalog-level-btn ${String(group.id || '') === activeGroupId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveGroup('${SalesModule.escapeHtml(String(group.id || ''))}')">
+                                    ${SalesModule.escapeHtml(String(group.label || '-'))}
+                                </button>
+                            `).join('')
+                : '<div class="sales-catalog-level-empty">Grup bulunamadi.</div>'}
+                    </div>
+                </div>
+
+                <div class="sales-catalog-level-card">
+                    <div class="sales-catalog-level-title">Urun tipi</div>
+                    <div class="sales-catalog-level-list">
+                        ${leaves.length
+                ? leaves.map((leaf) => `
+                                <button class="sales-catalog-level-btn ${String(leaf.id || '') === activeLeafId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(String(leaf.id || ''))}')">
+                                    ${SalesModule.escapeHtml(String(leaf.label || '-'))}
+                                </button>
+                            `).join('')
+                : '<div class="sales-catalog-level-empty">Alt urun bulunamadi.</div>'}
+                    </div>
                 </div>
             </div>
-        `).join('');
+        `;
     },
 
     renderCatalogCardsHtml: () => {
@@ -885,9 +1007,13 @@ const SalesModule = {
 
     renderProductsLayout: () => {
         SalesModule.ensureCatalogState();
+        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
+        const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
+        const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
+        const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const categoryCount = SalesModule.getCatalogProductsByCategory(activeCategoryId).length;
+        const categoryCount = (isCatalogMain && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -898,8 +1024,8 @@ const SalesModule = {
 
                     <div class="sales-catalog-shell">
                         <aside class="sales-catalog-left">
-                            <div class="sales-catalog-root">Korkuluk urun gruplari</div>
-                            <div class="sales-catalog-root-note">Bu ekran sadece korkuluk kategorisi icin calisir.</div>
+                            <div class="sales-catalog-root">Urun gruplari</div>
+                            <div class="sales-catalog-root-note">Soldan saga secim yaparak hedef urun tipine inin.</div>
                             ${SalesModule.renderCatalogTreeHtml()}
                         </aside>
 
@@ -907,13 +1033,20 @@ const SalesModule = {
                             <div class="sales-catalog-right-head">
                                 <div>
                                     <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
-                                    <div class="sales-catalog-sub">${SalesModule.escapeHtml(String(categoryCount))} kayitli urun</div>
+                                    <div class="sales-catalog-sub">${isCatalogMain
+                ? `${SalesModule.escapeHtml(String(categoryCount))} kayitli urun`
+                : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
                                 </div>
-                                <button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>
+                                ${(isCatalogMain && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
                             </div>
 
                             <div class="sales-catalog-grid">
-                                ${SalesModule.renderCatalogCardsHtml()}
+                                ${(isCatalogMain && activeLeaf)
+                ? SalesModule.renderCatalogCardsHtml()
+                : `<div class="sales-catalog-empty">
+                                        <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
+                                        <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
+                                   </div>`}
                             </div>
                         </section>
                     </div>
@@ -924,6 +1057,14 @@ const SalesModule = {
 
     openCreateCatalogModal: () => {
         SalesModule.ensureCatalogState();
+        if (String(SalesModule.state.catalogActiveMainId || '') !== 'korkuluk') {
+            alert('Sadece korkuluk sekmesinde urun ekleyebilirsiniz.');
+            return;
+        }
+        if (!String(SalesModule.state.catalogActiveGroupId || '').trim()) {
+            alert('Once bir alt grup secmelisiniz.');
+            return;
+        }
         const categoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         if (!SalesModule.getCatalogLeafById(categoryId)) {
             alert('Once bir alt kategori secmelisiniz.');

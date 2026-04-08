@@ -173,6 +173,30 @@ const IdentityPolicy = {
         outsourceTransfers: 'OST'
     },
 
+    codeFieldDefinitions: [
+        { collection: 'products', field: 'code', prefix: 'PRD', digits: 6, repair: false },
+        { collection: 'cncCards', field: 'cncId', prefix: 'CNC', digits: 6, repair: true },
+        { collection: 'sawCutOrders', field: 'code', prefix: 'TST', digits: 6, repair: true },
+        { collection: 'extruderLibraryCards', field: 'cardCode', prefix: 'EXT', digits: 6, repair: true },
+        { collection: 'plexiPolishCards', field: 'cardCode', prefix: 'PLSJ', digits: 6, repair: true },
+        { collection: 'pvdCards', field: 'cardCode', prefix: 'PVD', digits: 6, repair: true },
+        { collection: 'ibrahimPolishCards', field: 'cardCode', prefix: 'POL', digits: 6, repair: true },
+        { collection: 'eloksalCards', field: 'cardCode', prefix: 'ELX', digits: 6, repair: true },
+        { collection: 'aluminumProfiles', field: 'code', prefix: 'ALM', digits: 6, repair: false },
+        { collection: 'colorLibrary', field: 'code', prefix: 'CLR', digits: 6, repair: false },
+        { collection: 'partComponentCards', field: 'code', prefix: 'CMP', digits: 6, repair: false },
+        { collection: 'semiFinishedCards', field: 'code', prefix: 'SEM', digits: 6, repair: false },
+        { collection: 'assemblyGroups', field: 'code', prefix: 'GRP', digits: 6, repair: false },
+        { collection: 'catalogProductVariants', field: 'familyCode', prefix: 'FAM', digits: 6, repair: false },
+        { collection: 'catalogProductVariants', field: 'variantCode', prefix: 'VAR', digits: 6, repair: false },
+        { collection: 'montageCards', field: 'cardCode', prefix: 'MNT', digits: 6, repair: true },
+        { collection: 'montageCards', field: 'productCode', prefix: 'MNP', digits: 6, repair: false },
+        { collection: 'workOrders', field: 'workOrderCode', prefix: 'WKO', digits: 6, repair: true },
+        { collection: 'depoTransferTasks', field: 'taskCode', prefix: 'DTR', digits: 6, repair: true },
+        { collection: 'freeExternalVendorJobs', field: 'jobCode', prefix: 'FEV', digits: 6, repair: true },
+        { collection: 'salesCatalogProducts', field: 'idCode', prefix: 'SAL', digits: 6, repair: true }
+    ],
+
     normalizeId: (value) => String(value ?? '').trim(),
 
     makeId: (prefix, usedIds) => {

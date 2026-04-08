@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-08T16:25:43.369Z",
+    "updated_at": "2026-04-08T16:25:12.167Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -44,7 +44,7 @@
         "130"
       ]
     },
-    "revision": 741
+    "revision": 740
   },
   "data": {
     "products": [
@@ -6434,43 +6434,6 @@
         },
         "created_at": "2026-04-08T16:25:12.167Z",
         "updated_at": "2026-04-08T16:25:12.167Z"
-      },
-      {
-        "id": "SCP-BA5C9FEA",
-        "categoryId": "ozel-profiller",
-        "name": "40X40 profil",
-        "productCode": "",
-        "idCode": "",
-        "diameters": [],
-        "selectedDiameter": "",
-        "bubble": "var",
-        "lowerTubeLength": "standart",
-        "pipe": {
-          "thickness": "",
-          "lengthMm": "2000"
-        },
-        "note": "",
-        "colors": {
-          "accessory": {
-            "category": "",
-            "color": ""
-          },
-          "tube": {
-            "category": "",
-            "color": ""
-          },
-          "plexi": {
-            "category": "pleksi",
-            "color": "şeffaf"
-          }
-        },
-        "images": {
-          "product": "",
-          "technical": "",
-          "application": ""
-        },
-        "created_at": "2026-04-08T16:25:43.369Z",
-        "updated_at": "2026-04-08T16:25:43.369Z"
       }
     ]
   }

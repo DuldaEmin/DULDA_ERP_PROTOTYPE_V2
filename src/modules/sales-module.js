@@ -851,7 +851,7 @@ const SalesModule = {
             .filter((value) => !selectedSet.has(value));
         const selected = SalesModule.normalizeCatalogDiameterValue(selectedValue || '');
         const placeholder = `<option value="" ${selected ? '' : 'selected'}>listeden cap sec</option>`;
-        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</option>`).join('');
+        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>Ø ${SalesModule.escapeHtml(value)}</option>`).join('');
         return `${placeholder}${options}`;
     },
 
@@ -860,7 +860,7 @@ const SalesModule = {
         if (!rows.length) return '<div class="sales-catalog-empty-text">Tanimli cap bulunamadi.</div>';
         return rows.map((value) => `
             <div class="sales-catalog-manage-row">
-                <div class="sales-catalog-manage-value">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</div>
+                <div class="sales-catalog-manage-value">Ø ${SalesModule.escapeHtml(value)}</div>
                 <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeCatalogDiameterLibraryItem('${SalesModule.escapeHtml(value)}')">sil</button>
             </div>
         `).join('');
@@ -927,8 +927,8 @@ const SalesModule = {
         const thickness = isBoru ? SalesModule.normalizeCatalogDiameterValue(row.pipe?.thickness || row.pipeThickness || '') : '';
         const lengthMm = SalesModule.normalizeCatalogDiameterValue(row.pipe?.lengthMm || row.pipeLengthMm || '');
         const defaultName = isBoru
-            ? (diameter ? `Boru ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${diameter}` : 'Boru')
-            : (isCubuk ? (diameter ? `Cubuk ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${diameter}` : 'Cubuk') : '');
+            ? (diameter ? `Boru Ø ${diameter}` : 'Boru')
+            : (isCubuk ? (diameter ? `Cubuk Ø ${diameter}` : 'Cubuk') : '');
         const bubbleValue = String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
         return {
             categoryId: categoryKey,
@@ -1064,7 +1064,7 @@ const SalesModule = {
             const active = value === String(selectedDiameter || '').trim();
             return `
                 <span class="sales-catalog-chip-wrap ${active ? 'is-active' : ''}">
-                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</button>
+                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">Ø ${SalesModule.escapeHtml(value)}</button>
                     ${removeHandlerName ? `<button type="button" class="sales-catalog-chip-remove" onclick="event.stopPropagation(); ${SalesModule.escapeHtml(removeHandlerName)}('${SalesModule.escapeHtml(value)}')">&times;</button>` : ''}
                 </span>
             `;
@@ -1193,7 +1193,9 @@ const SalesModule = {
         return list.map((row) => {
             const image = row.images?.product || row.images?.application || '';
             const id = SalesModule.escapeHtml(String(row.id || ''));
-            const isPipeRow = SalesModule.isPipeCategory(row.categoryId);
+            const isBoru = SalesModule.isPipeCategory(row.categoryId);
+            const isCubuk = SalesModule.isRodCategory(row.categoryId);
+            const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
             return `
                 <button class="sales-catalog-card" onclick="SalesModule.openCatalogDetailModal('${id}')">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
@@ -1205,12 +1207,16 @@ const SalesModule = {
                         <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
                         <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
                         <div class="sales-catalog-card-meta-row">
-                            ${isPipeRow
-                ? `<span class="sales-catalog-pill">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                            ${isBoru ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
                                    <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
-                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>`
-                : `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
-                                   <span class="sales-catalog-pill">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>`}
+                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>` : ''}
+                            ${isCubuk ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
+                                   <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>` : ''}
+                            ${isOzel ? `<span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
+                                   <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>` : ''}
+                            ${(!isBoru && !isCubuk && !isOzel) ? `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
+                                   <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>` : ''}
                         </div>
                         <div class="sales-catalog-card-actions">
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
@@ -1481,7 +1487,7 @@ const SalesModule = {
                 <div class="sales-catalog-create-grid-mid">
                     ${(isBoru || isCubuk) ? `
                     <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Cap (ÃƒÆ’Ã‹Å“)</label>
+                        <label class="sales-catalog-label">Cap (Ø)</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.selectedDiameter || '')}" oninput="SalesModule.setPipeDraftField('selectedDiameter', this.value)" placeholder="or: 40">
                     </div>` : `
                     <div class="sales-catalog-field-block">
@@ -1538,11 +1544,11 @@ const SalesModule = {
             SalesModule.state.catalogDraft.diameters = normalized ? [normalized] : [];
             if (SalesModule.isPipeCategory(categoryId)) {
                 if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name).startsWith('boru')) {
-                    SalesModule.state.catalogDraft.name = normalized ? `Boru ÃƒËœ ${normalized}` : 'Boru';
+                    SalesModule.state.catalogDraft.name = normalized ? `Boru Ø ${normalized}` : 'Boru';
                 }
             } else if (SalesModule.isRodCategory(categoryId)) {
                 if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name).startsWith('cubuk')) {
-                    SalesModule.state.catalogDraft.name = normalized ? `Cubuk ÃƒËœ ${normalized}` : 'Cubuk';
+                    SalesModule.state.catalogDraft.name = normalized ? `Cubuk Ø ${normalized}` : 'Cubuk';
                 }
             }
             return;
@@ -1827,8 +1833,8 @@ const SalesModule = {
         }
 
         let name = String(draft.name || '').trim();
-        if (isBoru && !name) name = normalizedDiameter ? `Boru Ã˜ ${normalizedDiameter}` : 'Boru';
-        if (isCubuk && !name) name = normalizedDiameter ? `Cubuk Ã˜ ${normalizedDiameter}` : 'Cubuk';
+        if (isBoru && !name) name = normalizedDiameter ? `Boru Ø ${normalizedDiameter}` : 'Boru';
+        if (isCubuk && !name) name = normalizedDiameter ? `Cubuk Ø ${normalizedDiameter}` : 'Cubuk';
 
         if (isOzel && !name) {
             return alert('Ozel profiller icin urun ismi zorunlu.');

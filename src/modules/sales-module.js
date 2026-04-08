@@ -771,6 +771,246 @@ const SalesModule = {
         `;
     },
 
+    openCreateCatalogModal: () => {
+        SalesModule.ensureCatalogState();
+        const categoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        if (!SalesModule.getCatalogLeafById(categoryId)) {
+            alert('Once bir alt kategori secmelisiniz.');
+            return;
+        }
+        SalesModule.state.catalogDraft = SalesModule.buildCatalogDraft(categoryId);
+        const html = SalesModule.renderCreateCatalogModalHtml();
+        Modal.open('Yeni urun ekle', html, { maxWidth: '1220px' });
+    },
+
+    renderCreateCatalogModalHtml: () => {
+        const draft = SalesModule.state.catalogDraft || SalesModule.buildCatalogDraft(SalesModule.state.catalogActiveCategoryId || '');
+        const categoryText = SalesModule.getCatalogCategoryPathText(draft.categoryId || SalesModule.state.catalogActiveCategoryId || '');
+        return `
+            <div class="sales-catalog-create-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(categoryText)}</div>
+                <div class="sales-catalog-create-grid-top">
+                    <div>
+                        <label class="sales-catalog-label">Urun adi *</label>
+                        <input id="sales_catalog_name" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.name || '')}" oninput="SalesModule.setCatalogDraftField('name', this.value)" placeholder="or: Kral 2034">
+                    </div>
+                    <div>
+                        <label class="sales-catalog-label">Urun kodu</label>
+                        <input id="sales_catalog_product_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.productCode || '')}" oninput="SalesModule.setCatalogDraftField('productCode', this.value)">
+                    </div>
+                    <div>
+                        <label class="sales-catalog-label">ID kodu</label>
+                        <input id="sales_catalog_id_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" oninput="SalesModule.setCatalogDraftField('idCode', this.value)">
+                    </div>
+                </div>
+
+                <div class="sales-catalog-create-grid-mid">
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Caplari ekle</label>
+                        <div class="sales-catalog-inline">
+                            <input id="sales_catalog_diameter_input" class="sales-catalog-input" placeholder="or: 75">
+                            <button type="button" class="sales-catalog-mini-btn" onclick="SalesModule.addCatalogDiameter()">cap ekle +</button>
+                        </div>
+                        <div id="sales_catalog_diameter_box" class="sales-catalog-chip-row">
+                            ${SalesModule.renderCatalogDiameterButtonsHtml(draft.diameters, draft.selectedDiameter, 'SalesModule.selectCatalogDiameter')}
+                        </div>
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Kabarcik</label>
+                        <div id="sales_catalog_bubble_toggle" class="sales-catalog-toggle">
+                            <button type="button" class="sales-catalog-toggle-btn ${draft.bubble === 'var' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('var')">var</button>
+                            <button type="button" class="sales-catalog-toggle-btn ${draft.bubble === 'yok' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('yok')">yok</button>
+                        </div>
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Alt boru uzunlugu</label>
+                        <input id="sales_catalog_lower_tube" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.lowerTubeLength || 'standart')}" oninput="SalesModule.setCatalogDraftField('lowerTubeLength', this.value)" placeholder="standart veya ozel olcu">
+                    </div>
+                </div>
+
+                <div class="sales-catalog-color-grid">
+                    ${['accessory', 'tube', 'plexi'].map((field) => {
+            const titleMap = {
+                accessory: 'Aksesuar rengi',
+                tube: 'Boru rengi',
+                plexi: 'Pleksi rengi'
+            };
+            const value = draft.colors?.[field] || {};
+            return `
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">${SalesModule.escapeHtml(titleMap[field] || field)}</label>
+                                <div class="sales-catalog-inline-select">
+                                    <select id="sales_catalog_${field}_category" class="sales-catalog-select" onchange="SalesModule.setCatalogColorCategory('${field}', this.value)">
+                                        ${SalesModule.renderCatalogColorCategoryOptionsHtml(field, value.category)}
+                                    </select>
+                                    <select id="sales_catalog_${field}_color" class="sales-catalog-select" onchange="SalesModule.setCatalogColorValue('${field}', this.value)">
+                                        ${SalesModule.renderCatalogColorOptionsHtml(field, value.category, value.color)}
+                                    </select>
+                                </div>
+                            </div>
+                        `;
+        }).join('')}
+                </div>
+
+                <div class="sales-catalog-upload-grid">
+                    ${['product', 'technical', 'application'].map((kind) => `
+                        <button type="button" class="sales-catalog-upload-card" onclick="SalesModule.triggerCatalogImageInput('${kind}')">
+                            <input type="file" id="sales_catalog_file_${kind}" accept="image/*" style="display:none;" onchange="SalesModule.handleCatalogImageUpload('${kind}', this)">
+                            <div id="sales_catalog_upload_${kind}" class="sales-catalog-upload-inner">
+                                ${SalesModule.renderCatalogUploadPreviewHtml(kind, draft.images?.[kind] || '')}
+                            </div>
+                        </button>
+                    `).join('')}
+                </div>
+
+                <div>
+                    <label class="sales-catalog-label">Not ekle</label>
+                    <textarea id="sales_catalog_note" class="sales-catalog-textarea" oninput="SalesModule.setCatalogDraftField('note', this.value)">${SalesModule.escapeHtml(draft.note || '')}</textarea>
+                </div>
+
+                <div class="sales-catalog-modal-actions">
+                    <button class="btn-sm" onclick="Modal.close()">iptal</button>
+                    <button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">listeye ekle</button>
+                </div>
+            </div>
+        `;
+    },
+
+    setCatalogDraftField: (field, value) => {
+        const key = String(field || '').trim();
+        if (!key) return;
+        if (!SalesModule.state.catalogDraft || typeof SalesModule.state.catalogDraft !== 'object') return;
+        SalesModule.state.catalogDraft[key] = String(value || '');
+    },
+
+    setCatalogColorCategory: (field, category) => {
+        const key = String(field || '').trim();
+        if (!key || !SalesModule.state.catalogDraft) return;
+        if (!SalesModule.state.catalogDraft.colors || typeof SalesModule.state.catalogDraft.colors !== 'object') {
+            SalesModule.state.catalogDraft.colors = {};
+        }
+        if (!SalesModule.state.catalogDraft.colors[key] || typeof SalesModule.state.catalogDraft.colors[key] !== 'object') {
+            SalesModule.state.catalogDraft.colors[key] = { category: '', color: '' };
+        }
+        const selectedCategory = String(category || '').trim();
+        SalesModule.state.catalogDraft.colors[key].category = selectedCategory;
+        const nextColors = SalesModule.getCatalogColorOptions(key, selectedCategory);
+        const currentColor = String(SalesModule.state.catalogDraft.colors[key].color || '').trim();
+        if (!nextColors.includes(currentColor)) {
+            SalesModule.state.catalogDraft.colors[key].color = String(nextColors[0] || '');
+        }
+        const colorSelect = document.getElementById(`sales_catalog_${key}_color`);
+        if (colorSelect) {
+            colorSelect.innerHTML = SalesModule.renderCatalogColorOptionsHtml(
+                key,
+                selectedCategory,
+                SalesModule.state.catalogDraft.colors[key].color
+            );
+        }
+    },
+
+    setCatalogColorValue: (field, colorValue) => {
+        const key = String(field || '').trim();
+        if (!key || !SalesModule.state.catalogDraft) return;
+        if (!SalesModule.state.catalogDraft.colors || typeof SalesModule.state.catalogDraft.colors !== 'object') {
+            SalesModule.state.catalogDraft.colors = {};
+        }
+        if (!SalesModule.state.catalogDraft.colors[key] || typeof SalesModule.state.catalogDraft.colors[key] !== 'object') {
+            SalesModule.state.catalogDraft.colors[key] = { category: '', color: '' };
+        }
+        SalesModule.state.catalogDraft.colors[key].color = String(colorValue || '').trim();
+    },
+
+    addCatalogDiameter: () => {
+        if (!SalesModule.state.catalogDraft) return;
+        const input = document.getElementById('sales_catalog_diameter_input');
+        const raw = String(input?.value || '').trim();
+        const value = raw.replace(/[^\d.,]/g, '').replace(',', '.');
+        if (!value) return;
+        if (!Array.isArray(SalesModule.state.catalogDraft.diameters)) {
+            SalesModule.state.catalogDraft.diameters = [];
+        }
+        if (!SalesModule.state.catalogDraft.diameters.includes(value)) {
+            SalesModule.state.catalogDraft.diameters.push(value);
+        }
+        SalesModule.state.catalogDraft.selectedDiameter = value;
+        if (input) input.value = '';
+        SalesModule.refreshCatalogDiameterButtons();
+    },
+
+    refreshCatalogDiameterButtons: () => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft) return;
+        const box = document.getElementById('sales_catalog_diameter_box');
+        if (!box) return;
+        box.innerHTML = SalesModule.renderCatalogDiameterButtonsHtml(
+            draft.diameters,
+            draft.selectedDiameter,
+            'SalesModule.selectCatalogDiameter'
+        );
+    },
+
+    selectCatalogDiameter: (value) => {
+        if (!SalesModule.state.catalogDraft) return;
+        SalesModule.state.catalogDraft.selectedDiameter = String(value || '').trim();
+        SalesModule.refreshCatalogDiameterButtons();
+    },
+
+    setCatalogBubble: (value) => {
+        if (!SalesModule.state.catalogDraft) return;
+        SalesModule.state.catalogDraft.bubble = String(value || '').trim() === 'var' ? 'var' : 'yok';
+        const box = document.getElementById('sales_catalog_bubble_toggle');
+        if (!box) return;
+        box.innerHTML = `
+            <button type="button" class="sales-catalog-toggle-btn ${SalesModule.state.catalogDraft.bubble === 'var' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('var')">var</button>
+            <button type="button" class="sales-catalog-toggle-btn ${SalesModule.state.catalogDraft.bubble === 'yok' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('yok')">yok</button>
+        `;
+    },
+
+    triggerCatalogImageInput: (kind) => {
+        const key = String(kind || '').trim();
+        if (!key) return;
+        const input = document.getElementById(`sales_catalog_file_${key}`);
+        if (input) input.click();
+    },
+
+    handleCatalogImageUpload: (kind, input) => {
+        const key = String(kind || '').trim();
+        if (!key || !SalesModule.state.catalogDraft) return;
+        const file = input?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (!SalesModule.state.catalogDraft?.images || typeof SalesModule.state.catalogDraft.images !== 'object') {
+                SalesModule.state.catalogDraft.images = {};
+            }
+            SalesModule.state.catalogDraft.images[key] = String(reader.result || '');
+            SalesModule.refreshCatalogImagePreview(key);
+        };
+        reader.readAsDataURL(file);
+    },
+
+    clearCatalogImage: (kind) => {
+        const key = String(kind || '').trim();
+        if (!key || !SalesModule.state.catalogDraft) return;
+        if (!SalesModule.state.catalogDraft.images || typeof SalesModule.state.catalogDraft.images !== 'object') {
+            SalesModule.state.catalogDraft.images = {};
+        }
+        SalesModule.state.catalogDraft.images[key] = '';
+        const input = document.getElementById(`sales_catalog_file_${key}`);
+        if (input) input.value = '';
+        SalesModule.refreshCatalogImagePreview(key);
+    },
+
+    refreshCatalogImagePreview: (kind) => {
+        const key = String(kind || '').trim();
+        const draft = SalesModule.state.catalogDraft;
+        if (!key || !draft) return;
+        const box = document.getElementById(`sales_catalog_upload_${key}`);
+        if (!box) return;
+        box.innerHTML = SalesModule.renderCatalogUploadPreviewHtml(key, draft.images?.[key] || '');
+    },
+
     renderMenuLayout: () => `
         <section class="stock-shell">
             <div class="stock-hub">

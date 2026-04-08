@@ -1011,6 +1011,167 @@ const SalesModule = {
         box.innerHTML = SalesModule.renderCatalogUploadPreviewHtml(key, draft.images?.[key] || '');
     },
 
+    saveCatalogProduct: async () => {
+        SalesModule.ensureData();
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const categoryId = String(draft.categoryId || SalesModule.state.catalogActiveCategoryId || '').trim();
+        if (!SalesModule.getCatalogLeafById(categoryId)) {
+            alert('Gecerli bir kategori secmelisiniz.');
+            return;
+        }
+        const name = String(draft.name || '').trim();
+        if (!name) {
+            alert('Urun adi zorunlu.');
+            return;
+        }
+        const diameters = Array.isArray(draft.diameters)
+            ? draft.diameters.map((v) => String(v || '').trim()).filter(Boolean)
+            : [];
+        const selectedDiameter = String(draft.selectedDiameter || diameters[0] || '').trim();
+        const nowIso = new Date().toISOString();
+        const row = {
+            id: SalesModule.generateCatalogRowId(),
+            categoryId,
+            name,
+            productCode: String(draft.productCode || '').trim(),
+            idCode: String(draft.idCode || '').trim(),
+            diameters,
+            selectedDiameter,
+            bubble: String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            lowerTubeLength: String(draft.lowerTubeLength || 'standart').trim() || 'standart',
+            note: String(draft.note || '').trim(),
+            colors: {
+                accessory: {
+                    category: String(draft.colors?.accessory?.category || '').trim(),
+                    color: String(draft.colors?.accessory?.color || '').trim()
+                },
+                tube: {
+                    category: String(draft.colors?.tube?.category || '').trim(),
+                    color: String(draft.colors?.tube?.color || '').trim()
+                },
+                plexi: {
+                    category: String(draft.colors?.plexi?.category || '').trim(),
+                    color: String(draft.colors?.plexi?.color || '').trim()
+                }
+            },
+            images: {
+                product: String(draft.images?.product || '').trim(),
+                technical: String(draft.images?.technical || '').trim(),
+                application: String(draft.images?.application || '').trim()
+            },
+            created_at: nowIso,
+            updated_at: nowIso
+        };
+        DB.data.data.salesCatalogProducts.push(row);
+        await DB.save();
+        Modal.close();
+        SalesModule.state.catalogDraft = null;
+        UI.renderCurrentPage();
+        alert('Urun karti kataloga eklendi.');
+    },
+
+    openCatalogDetailModal: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        const row = SalesModule.getCatalogProducts().find((item) => String(item.id || '') === id);
+        if (!row) return alert('Urun karti bulunamadi.');
+        const html = SalesModule.renderCatalogDetailModalHtml(row);
+        Modal.open('Urun karti detay', html, { maxWidth: '1180px' });
+    },
+
+    renderCatalogDetailModalHtml: (row) => {
+        const pathText = SalesModule.getCatalogCategoryPathText(row.categoryId);
+        const accessory = row.colors?.accessory || {};
+        const tube = row.colors?.tube || {};
+        const plexi = row.colors?.plexi || {};
+        const productImage = row.images?.product || row.images?.application || '';
+        const technicalImage = row.images?.technical || '';
+        return `
+            <div class="sales-catalog-detail-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
+                <div class="sales-catalog-detail-grid">
+                    <div class="sales-catalog-detail-left">
+                        <div class="sales-catalog-preview-combo">
+                            <div class="sales-catalog-preview-panel is-dark">
+                                ${productImage
+                ? `<img src="${SalesModule.escapeHtml(productImage)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Urun gorseli yok</div>'}
+                            </div>
+                            <div class="sales-catalog-preview-panel is-light">
+                                ${technicalImage
+                ? `<img src="${SalesModule.escapeHtml(technicalImage)}" alt="Teknik cizim" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Teknik resim yok</div>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sales-catalog-detail-right">
+                        <div class="sales-catalog-detail-head">
+                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(row.name || '-')}</div>
+                            <div class="sales-catalog-detail-codes">
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(row.productCode || '-')}</span>
+                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(row.idCode || '-')}</span>
+                            </div>
+                        </div>
+
+                        <div class="sales-catalog-detail-fields">
+                            ${SalesModule.renderCatalogDetailColorField('Aksesuar rengi', 'accessory', accessory)}
+                            ${SalesModule.renderCatalogDetailColorField('Boru rengi', 'tube', tube)}
+                            ${SalesModule.renderCatalogDetailColorField('Pleksi rengi', 'plexi', plexi)}
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Kabarcik</label>
+                                <div class="sales-catalog-toggle is-disabled">
+                                    <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
+                                    <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
+                                </div>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Cap</label>
+                                <div class="sales-catalog-chip-row">
+                                    ${SalesModule.renderCatalogDiameterButtonsHtml(row.diameters, row.selectedDiameter, 'SalesModule.noop')}
+                                </div>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Alt boru uzunlugu</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.lowerTubeLength || 'standart')}" readonly>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="sales-catalog-label">Not</label>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(row.note || '')}</textarea>
+                        </div>
+
+                        <div class="sales-catalog-modal-actions">
+                            <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderCatalogDetailColorField: (label, field, valueObj) => {
+        const category = String(valueObj?.category || '').trim();
+        const color = String(valueObj?.color || '').trim();
+        return `
+            <div class="sales-catalog-field-block">
+                <label class="sales-catalog-label">${SalesModule.escapeHtml(label)}</label>
+                <div class="sales-catalog-inline-select">
+                    <select class="sales-catalog-select" disabled>
+                        ${SalesModule.renderCatalogColorCategoryOptionsHtml(field, category)}
+                    </select>
+                    <select class="sales-catalog-select" disabled>
+                        ${SalesModule.renderCatalogColorOptionsHtml(field, category, color)}
+                    </select>
+                </div>
+            </div>
+        `;
+    },
+
+    noop: () => {},
+
     renderMenuLayout: () => `
         <section class="stock-shell">
             <div class="stock-hub">
@@ -1025,6 +1186,10 @@ const SalesModule = {
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('personnel')">
                         <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="user-round-cog" width="24" height="24"></i></div>
                         <div class="stock-hub-label">Personel</div>
+                    </button>
+                    <button class="stock-hub-card" onclick="SalesModule.openWorkspace('products')">
+                        <div class="stock-hub-icon" style="background:linear-gradient(135deg,#f97316 0%, #ef4444 100%);"><i data-lucide="boxes" width="24" height="24"></i></div>
+                        <div class="stock-hub-label">Urunler</div>
                     </button>
                 </div>
             </div>
@@ -1257,6 +1422,7 @@ const SalesModule = {
         const view = String(SalesModule.state.workspaceView || 'menu');
         if (view === 'customers') return SalesModule.renderCustomersLayout();
         if (view === 'personnel') return SalesModule.renderPersonnelLayout();
+        if (view === 'products') return SalesModule.renderProductsLayout();
         return SalesModule.renderMenuLayout();
     }
 };

@@ -164,6 +164,7 @@ const IdentityPolicy = {
         extruderLibraryCards: 'EXT',
         montageCards: 'MNT',
         catalogProductVariants: 'UPV',
+        salesCatalogProducts: 'SCP',
         depoTransferTasks: 'DTT',
         depoTransferLogs: 'DTL',
         depoRoutes: 'DRT',
@@ -284,6 +285,7 @@ const DB = {
             extruderLibraryCards: [],
             montageCards: [],
             catalogProductVariants: [],
+            salesCatalogProducts: [],
             planningDemands: [],
             depoTransferTasks: [],
             workOrders: [],
@@ -361,6 +363,7 @@ const DB = {
         if (!Array.isArray(d.extruderLibraryCards)) d.extruderLibraryCards = [];
         if (!Array.isArray(d.montageCards)) d.montageCards = [];
         if (!Array.isArray(d.catalogProductVariants)) d.catalogProductVariants = [];
+        if (!Array.isArray(d.salesCatalogProducts)) d.salesCatalogProducts = [];
         if (!Array.isArray(d.planningDemands)) d.planningDemands = [];
         if (!Array.isArray(d.depoTransferTasks)) d.depoTransferTasks = [];
         if (!Array.isArray(d.workOrders)) d.workOrders = [];

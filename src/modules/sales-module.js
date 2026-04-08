@@ -15,6 +15,7 @@ const SalesModule = {
         catalogExpandedGroupId: '',
         catalogHighlightKey: 'group:rail-aluminum',
         catalogSearchText: '',
+        catalogEditingProductId: '',
         catalogDraft: null
     },
 
@@ -614,6 +615,7 @@ const SalesModule = {
                 const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(item.selectedDiameter || '');
                 const colors = item.colors && typeof item.colors === 'object' ? item.colors : {};
                 const images = item.images && typeof item.images === 'object' ? item.images : {};
+                const pipe = item.pipe && typeof item.pipe === 'object' ? item.pipe : {};
                 return {
                     id: String(item.id || '').trim(),
                     categoryId: String(item.categoryId || '').trim(),
@@ -638,6 +640,10 @@ const SalesModule = {
                     },
                     bubble: String(item.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
                     lowerTubeLength: String(item.lowerTubeLength || 'standart').trim() || 'standart',
+                    pipe: {
+                        thickness: String(pipe.thickness || item.pipeThickness || '').trim(),
+                        lengthMm: String(pipe.lengthMm || item.pipeLengthMm || '').trim()
+                    },
                     note: String(item.note || '').trim(),
                     images: {
                         product: String(images.product || '').trim(),
@@ -654,9 +660,20 @@ const SalesModule = {
     getCatalogProductsByCategory: (categoryId) => {
         const id = String(categoryId || '').trim();
         if (!id) return [];
-        return SalesModule.getCatalogProducts()
-            .filter((row) => row.categoryId === id)
-            .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
+        const rows = SalesModule.getCatalogProducts()
+            .filter((row) => row.categoryId === id);
+        if (SalesModule.isPipeCategory(id)) {
+            return rows.sort((a, b) => {
+                const byDiameter = SalesModule.compareCatalogDiameterValues(a.selectedDiameter || '', b.selectedDiameter || '');
+                if (byDiameter !== 0) return byDiameter;
+                const byThickness = SalesModule.compareCatalogDiameterValues(a.pipe?.thickness || '', b.pipe?.thickness || '');
+                if (byThickness !== 0) return byThickness;
+                const byLength = SalesModule.compareCatalogDiameterValues(a.pipe?.lengthMm || '', b.pipe?.lengthMm || '');
+                if (byLength !== 0) return byLength;
+                return String(a.name || '').localeCompare(String(b.name || ''), 'tr');
+            });
+        }
+        return rows.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     },
 
     getCatalogFilteredProductsByCategory: (categoryId, searchText = '') => {
@@ -676,6 +693,7 @@ const SalesModule = {
 
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (leaf && String(leaf.id || '') === 'boru') return 'Pleksi boru';
         if (leaf) return `${leaf.mainLabel} / ${leaf.groupLabel} / ${leaf.label}`;
         const main = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
         const group = SalesModule.getCatalogGroupById(main?.id || '', SalesModule.state.catalogActiveGroupId || '');
@@ -683,6 +701,8 @@ const SalesModule = {
         if (main) return String(main.label || 'Urun grubu');
         return 'Urun grubu';
     },
+
+    isPipeCategory: (categoryId) => String(categoryId || '').trim() === 'boru',
 
     normalizeCatalogColorType: (value) => {
         const raw = String(value || '').trim();
@@ -859,6 +879,44 @@ const SalesModule = {
                 accessory: colorDefaults('accessory', row.colors?.accessory),
                 tube: colorDefaults('tube', row.colors?.tube),
                 plexi: colorDefaults('plexi', row.colors?.plexi)
+            },
+            images: {
+                product: String(row.images?.product || '').trim(),
+                technical: String(row.images?.technical || '').trim(),
+                application: String(row.images?.application || '').trim()
+            }
+        };
+    },
+
+    buildPipeDraft: (categoryId, source = null) => {
+        const row = source && typeof source === 'object' ? source : {};
+        const diameter = SalesModule.normalizeCatalogDiameterValue(
+            row.selectedDiameter || (Array.isArray(row.diameters) ? row.diameters[0] : '')
+        );
+        const plexiColors = SalesModule.getCatalogColorOptions('plexi', 'pleksi');
+        const sourcePlexiColor = String(row.colors?.plexi?.color || '').trim();
+        const selectedPlexiColor = plexiColors.includes(sourcePlexiColor) ? sourcePlexiColor : String(plexiColors[0] || '');
+        const thickness = SalesModule.normalizeCatalogDiameterValue(row.pipe?.thickness || row.pipeThickness || '');
+        const lengthMm = SalesModule.normalizeCatalogDiameterValue(row.pipe?.lengthMm || row.pipeLengthMm || '');
+        const defaultName = diameter ? `Boru Ø ${diameter}` : 'Boru';
+        return {
+            categoryId: String(categoryId || '').trim(),
+            name: String(row.name || defaultName).trim(),
+            productCode: String(row.productCode || '').trim(),
+            idCode: String(row.idCode || '').trim(),
+            diameters: diameter ? [diameter] : [],
+            selectedDiameter: diameter,
+            lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
+            bubble: 'yok',
+            note: String(row.note || '').trim(),
+            pipe: {
+                thickness,
+                lengthMm
+            },
+            colors: {
+                accessory: { category: '', color: '' },
+                tube: { category: '', color: '' },
+                plexi: { category: 'pleksi', color: selectedPlexiColor }
             },
             images: {
                 product: String(row.images?.product || '').trim(),
@@ -1076,6 +1134,7 @@ const SalesModule = {
         return list.map((row) => {
             const image = row.images?.product || row.images?.application || '';
             const id = SalesModule.escapeHtml(String(row.id || ''));
+            const isPipeRow = SalesModule.isPipeCategory(row.categoryId);
             return `
                 <button class="sales-catalog-card" onclick="SalesModule.openCatalogDetailModal('${id}')">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
@@ -1085,10 +1144,18 @@ const SalesModule = {
                     </div>
                     <div class="sales-catalog-card-body">
                         <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
-                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || '-')}</div>
+                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
                         <div class="sales-catalog-card-meta-row">
-                            <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
-                            <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                            ${isPipeRow
+                ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                                   <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
+                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>`
+                : `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
+                                   <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>`}
+                        </div>
+                        <div class="sales-catalog-card-actions">
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditCatalogModal('${id}')">duzenle</button>
                         </div>
                     </div>
                 </button>
@@ -1103,10 +1170,12 @@ const SalesModule = {
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const isPipeLeaf = SalesModule.isPipeCategory(activeCategoryId);
+        const supportsCrud = isCatalogMain || isPipeLeaf;
         const searchText = String(SalesModule.state.catalogSearchText || '');
         const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const totalCategoryCount = (isCatalogMain && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
-        const filteredRows = (isCatalogMain && activeLeaf)
+        const totalCategoryCount = (supportsCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
+        const filteredRows = (supportsCrud && activeLeaf)
             ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
             : [];
         const filteredCount = filteredRows.length;
@@ -1129,21 +1198,21 @@ const SalesModule = {
                             <div class="sales-catalog-right-head">
                                 <div>
                                     <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
-                                    <div class="sales-catalog-sub">${isCatalogMain
+                                    <div class="sales-catalog-sub">${supportsCrud
                 ? `${SalesModule.escapeHtml(String(filteredCount))}${String(searchText || '').trim() ? ` sonuc / ${SalesModule.escapeHtml(String(totalCategoryCount))} kayit` : ' kayitli urun'}`
                 : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
-                                    ${(isCatalogMain && activeLeaf) ? `
+                                    ${(supportsCrud && activeLeaf) ? `
                                         <div class="sales-catalog-search-row">
                                             <input class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
                                             ${String(searchText || '').trim() ? '<button class="btn-sm" type="button" onclick="SalesModule.clearCatalogSearch()">temizle</button>' : ''}
                                         </div>
                                     ` : ''}
                                 </div>
-                                ${(isCatalogMain && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
+                                ${(supportsCrud && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
                             </div>
 
                             <div class="sales-catalog-grid">
-                                ${(isCatalogMain && activeLeaf)
+                                ${(supportsCrud && activeLeaf)
                 ? SalesModule.renderCatalogCardsHtml(filteredRows, searchText)
                 : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
@@ -1159,10 +1228,6 @@ const SalesModule = {
 
     openCreateCatalogModal: () => {
         SalesModule.ensureCatalogState();
-        if (String(SalesModule.state.catalogActiveMainId || '') !== 'korkuluk') {
-            alert('Sadece korkuluk sekmesinde urun ekleyebilirsiniz.');
-            return;
-        }
         if (!String(SalesModule.state.catalogActiveGroupId || '').trim()) {
             alert('Once bir alt grup secmelisiniz.');
             return;
@@ -1172,9 +1237,53 @@ const SalesModule = {
             alert('Once bir alt kategori secmelisiniz.');
             return;
         }
+        SalesModule.state.catalogEditingProductId = '';
+        if (SalesModule.isPipeCategory(categoryId)) {
+            SalesModule.state.catalogDraft = SalesModule.buildPipeDraft(categoryId);
+            const html = SalesModule.renderPipeCatalogModalHtml();
+            Modal.open('Yeni boru urunu', html, { maxWidth: '840px' });
+            return;
+        }
+        if (String(SalesModule.state.catalogActiveMainId || '') !== 'korkuluk') {
+            alert('Bu sekme icin urun ekleme formu henuz aktif degil.');
+            return;
+        }
         SalesModule.state.catalogDraft = SalesModule.buildCatalogDraft(categoryId);
         const html = SalesModule.renderCreateCatalogModalHtml();
         Modal.open('Yeni urun ekle', html, { maxWidth: '1220px' });
+    },
+
+    openEditCatalogModal: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        const row = SalesModule.getCatalogProducts().find((item) => String(item.id || '') === id);
+        if (!row) return alert('Urun bulunamadi.');
+        SalesModule.state.catalogEditingProductId = id;
+        if (SalesModule.isPipeCategory(row.categoryId)) {
+            SalesModule.state.catalogDraft = SalesModule.buildPipeDraft(row.categoryId, row);
+            const html = SalesModule.renderPipeCatalogModalHtml();
+            Modal.open('Boru urunu duzenle', html, { maxWidth: '840px' });
+            return;
+        }
+        SalesModule.state.catalogDraft = SalesModule.buildCatalogDraft(row.categoryId, row);
+        const html = SalesModule.renderCreateCatalogModalHtml();
+        Modal.open('Urunu duzenle', html, { maxWidth: '1220px' });
+    },
+
+    deleteCatalogProduct: async (productId = '') => {
+        const id = String(productId || SalesModule.state.catalogEditingProductId || '').trim();
+        if (!id) return;
+        const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        const idx = rows.findIndex((item) => String(item?.id || '').trim() === id);
+        if (idx < 0) return alert('Silinecek urun bulunamadi.');
+        if (!confirm('Bu urunu silmek istiyor musunuz?')) return;
+        rows.splice(idx, 1);
+        await DB.save();
+        SalesModule.state.catalogEditingProductId = '';
+        SalesModule.state.catalogDraft = null;
+        Modal.close();
+        UI.renderCurrentPage();
+        alert('Urun silindi.');
     },
 
     renderCreateCatalogModalHtml: () => {
@@ -1269,7 +1378,67 @@ const SalesModule = {
 
                 <div class="sales-catalog-modal-actions">
                     <button class="btn-sm" onclick="Modal.close()">iptal</button>
-                    <button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">listeye ekle</button>
+                    ${SalesModule.state.catalogEditingProductId
+                ? '<button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteCatalogProduct()">sil</button><button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">guncelle</button>'
+                : '<button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">listeye ekle</button>'}
+                </div>
+            </div>
+        `;
+    },
+
+    renderPipeCatalogModalHtml: () => {
+        const categoryId = String(SalesModule.state.catalogActiveCategoryId || '');
+        const draft = SalesModule.state.catalogDraft || SalesModule.buildPipeDraft(categoryId);
+        const categoryText = SalesModule.getCatalogCategoryPathText(draft.categoryId || categoryId);
+        const plexiCategoryText = SalesModule.getCatalogColorCategoryOptions('plexi')
+            .find((item) => item.value === 'pleksi')?.label || 'Pleksi renk';
+        const isEdit = !!String(SalesModule.state.catalogEditingProductId || '').trim();
+        return `
+            <div class="sales-catalog-create-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(categoryText)}</div>
+
+                <div class="sales-catalog-create-grid-top">
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Pleksi rengi</label>
+                        <div class="sales-catalog-inline-select">
+                            <select class="sales-catalog-select" disabled>
+                                <option value="pleksi" selected>${SalesModule.escapeHtml(plexiCategoryText)}</option>
+                            </select>
+                            <select id="sales_catalog_pipe_plexi_color" class="sales-catalog-select" onchange="SalesModule.setCatalogColorValue('plexi', this.value)">
+                                ${SalesModule.renderCatalogColorOptionsHtml('plexi', 'pleksi', draft.colors?.plexi?.color || '')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Urun ID</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" oninput="SalesModule.setCatalogDraftField('idCode', this.value)" placeholder="or: BR-2040">
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Not</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.note || '')}" oninput="SalesModule.setCatalogDraftField('note', this.value)" placeholder="opsiyonel not">
+                    </div>
+                </div>
+
+                <div class="sales-catalog-create-grid-mid">
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Cap (Ø)</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.selectedDiameter || '')}" oninput="SalesModule.setPipeDraftField('selectedDiameter', this.value)" placeholder="or: 40">
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Kalinlik</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.pipe?.thickness || '')}" oninput="SalesModule.setPipeDraftField('thickness', this.value)" placeholder="or: 1.5">
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Boy (mm)</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.pipe?.lengthMm || '')}" oninput="SalesModule.setPipeDraftField('lengthMm', this.value)" placeholder="or: 600">
+                    </div>
+                </div>
+
+                <div class="sales-catalog-modal-actions">
+                    <button class="btn-sm" onclick="Modal.close()">iptal</button>
+                    ${isEdit
+                ? '<button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteCatalogProduct()">sil</button><button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">guncelle</button>'
+                : '<button class="btn-primary" onclick="SalesModule.saveCatalogProduct()">listeye ekle</button>'}
                 </div>
             </div>
         `;
@@ -1280,6 +1449,31 @@ const SalesModule = {
         if (!key) return;
         if (!SalesModule.state.catalogDraft || typeof SalesModule.state.catalogDraft !== 'object') return;
         SalesModule.state.catalogDraft[key] = String(value || '');
+    },
+
+    setPipeDraftField: (field, value) => {
+        const key = String(field || '').trim();
+        if (!key) return;
+        if (!SalesModule.state.catalogDraft || typeof SalesModule.state.catalogDraft !== 'object') return;
+        if (!SalesModule.state.catalogDraft.pipe || typeof SalesModule.state.catalogDraft.pipe !== 'object') {
+            SalesModule.state.catalogDraft.pipe = { thickness: '', lengthMm: '' };
+        }
+        if (key === 'selectedDiameter') {
+            const normalized = SalesModule.normalizeCatalogDiameterValue(value || '');
+            SalesModule.state.catalogDraft.selectedDiameter = normalized;
+            SalesModule.state.catalogDraft.diameters = normalized ? [normalized] : [];
+            if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name) === 'boru') {
+                SalesModule.state.catalogDraft.name = normalized ? `Boru Ø ${normalized}` : 'Boru';
+            }
+            return;
+        }
+        if (key === 'thickness') {
+            SalesModule.state.catalogDraft.pipe.thickness = SalesModule.normalizeCatalogDiameterValue(value || '');
+            return;
+        }
+        if (key === 'lengthMm') {
+            SalesModule.state.catalogDraft.pipe.lengthMm = SalesModule.normalizeCatalogDiameterValue(value || '');
+        }
     },
 
     setCatalogColorCategory: (field, category) => {
@@ -1538,30 +1732,41 @@ const SalesModule = {
             alert('Gecerli bir kategori secmelisiniz.');
             return;
         }
+        const isPipe = SalesModule.isPipeCategory(categoryId);
         const name = String(draft.name || '').trim();
-        if (!name) {
-            alert('Urun adi zorunlu.');
-            return;
-        }
         const diameters = Array.isArray(draft.diameters)
             ? draft.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
             : [];
-        if (!diameters.length) {
-            return alert('En az bir cap eklemelisiniz.');
-        }
         const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
         const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
+        const normalizedDiameter = SalesModule.normalizeCatalogDiameterValue(selectedDiameter || '');
+        if (isPipe && !normalizedDiameter) {
+            return alert('Boru icin gecerli bir cap giriniz.');
+        }
+        if (!isPipe && !name) {
+            alert('Urun adi zorunlu.');
+            return;
+        }
+        if (!isPipe && !diameters.length) {
+            return alert('En az bir cap eklemelisiniz.');
+        }
         const nowIso = new Date().toISOString();
+        const normalizedThickness = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.thickness || '');
+        const normalizedLength = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.lengthMm || '');
         const row = {
             id: SalesModule.generateCatalogRowId(),
             categoryId,
-            name,
+            name: isPipe ? (name || `Boru Ø ${normalizedDiameter}`) : name,
             productCode: String(draft.productCode || '').trim(),
             idCode: String(draft.idCode || '').trim(),
-            diameters,
-            selectedDiameter,
+            diameters: isPipe ? [normalizedDiameter] : diameters,
+            selectedDiameter: isPipe ? normalizedDiameter : selectedDiameter,
             bubble: String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
             lowerTubeLength: String(draft.lowerTubeLength || 'standart').trim() || 'standart',
+            pipe: {
+                thickness: normalizedThickness,
+                lengthMm: normalizedLength
+            },
             note: String(draft.note || '').trim(),
             colors: {
                 accessory: {
@@ -1585,12 +1790,26 @@ const SalesModule = {
             created_at: nowIso,
             updated_at: nowIso
         };
-        DB.data.data.salesCatalogProducts.push(row);
+        const editingId = String(SalesModule.state.catalogEditingProductId || '').trim();
+        if (editingId) {
+            const idx = DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId);
+            if (idx >= 0) {
+                const prev = DB.data.data.salesCatalogProducts[idx] || {};
+                row.id = editingId;
+                row.created_at = String(prev.created_at || nowIso);
+                DB.data.data.salesCatalogProducts[idx] = row;
+            } else {
+                DB.data.data.salesCatalogProducts.push(row);
+            }
+        } else {
+            DB.data.data.salesCatalogProducts.push(row);
+        }
         await DB.save();
         Modal.close();
+        SalesModule.state.catalogEditingProductId = '';
         SalesModule.state.catalogDraft = null;
         UI.renderCurrentPage();
-        alert('Urun karti kataloga eklendi.');
+        alert(editingId ? 'Urun guncellendi.' : 'Urun karti kataloga eklendi.');
     },
 
     openCatalogDetailModal: (productId) => {
@@ -1604,6 +1823,40 @@ const SalesModule = {
 
     renderCatalogDetailModalHtml: (row) => {
         const pathText = SalesModule.getCatalogCategoryPathText(row.categoryId);
+        if (SalesModule.isPipeCategory(row.categoryId)) {
+            return `
+                <div class="sales-catalog-detail-wrap">
+                    <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
+                    <div class="sales-catalog-detail-fields">
+                        ${SalesModule.renderCatalogDetailColorField('Pleksi rengi', 'plexi', row.colors?.plexi || {})}
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Urun ID</label>
+                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.idCode || '-')}" readonly>
+                        </div>
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Cap (Ø)</label>
+                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.selectedDiameter || '-')}" readonly>
+                        </div>
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Kalinlik</label>
+                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.thickness || '-')}" readonly>
+                        </div>
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Boy (mm)</label>
+                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}" readonly>
+                        </div>
+                        <div>
+                            <label class="sales-catalog-label">Not</label>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(row.note || '')}</textarea>
+                        </div>
+                    </div>
+                    <div class="sales-catalog-modal-actions">
+                        <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                        <button class="btn-primary" onclick="Modal.close(); SalesModule.openEditCatalogModal('${SalesModule.escapeHtml(String(row.id || ''))}')">duzenle</button>
+                    </div>
+                </div>
+            `;
+        }
         const accessory = row.colors?.accessory || {};
         const tube = row.colors?.tube || {};
         const plexi = row.colors?.plexi || {};
@@ -1948,3 +2201,5 @@ const SalesModule = {
         return SalesModule.renderMenuLayout();
     }
 };
+
+

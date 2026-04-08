@@ -1951,6 +1951,28 @@ tr:hover {
     flex-wrap: wrap;
 }
 
+.sales-catalog-card-actions {
+    margin-top: 0.62rem;
+    display: flex;
+    gap: 0.42rem;
+}
+
+.sales-catalog-card-action-btn {
+    border: 1px solid #cbd5e1;
+    border-radius: 0.62rem;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 0.28rem 0.5rem;
+    cursor: pointer;
+}
+
+.sales-catalog-card-action-btn:hover {
+    border-color: #16a34a;
+    color: #166534;
+}
+
 .sales-catalog-pill {
     display: inline-flex;
     align-items: center;

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-08T16:38:35.303Z",
+    "updated_at": "2026-04-08T16:25:43.369Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -44,7 +44,7 @@
         "130"
       ]
     },
-    "revision": 742
+    "revision": 741
   },
   "data": {
     "products": [
@@ -6362,7 +6362,7 @@
         "categoryId": "boru",
         "name": "Boru Ø 40",
         "productCode": "",
-        "idCode": "ID-00005",
+        "idCode": "",
         "diameters": [
           "40"
         ],
@@ -6401,7 +6401,7 @@
         "categoryId": "cubuk",
         "name": "Cubuk Ø 50",
         "productCode": "",
-        "idCode": "ID-00006",
+        "idCode": "",
         "diameters": [
           "50"
         ],
@@ -6440,7 +6440,7 @@
         "categoryId": "ozel-profiller",
         "name": "40X40 profil",
         "productCode": "",
-        "idCode": "ID-00007",
+        "idCode": "",
         "diameters": [],
         "selectedDiameter": "",
         "bubble": "var",
@@ -6471,45 +6471,6 @@
         },
         "created_at": "2026-04-08T16:25:43.369Z",
         "updated_at": "2026-04-08T16:25:43.369Z"
-      },
-      {
-        "id": "SCP-F2D9F025",
-        "categoryId": "boru",
-        "name": "Boru Ø 50",
-        "productCode": "",
-        "idCode": "ID-00008",
-        "diameters": [
-          "50"
-        ],
-        "selectedDiameter": "50",
-        "bubble": "yok",
-        "lowerTubeLength": "standart",
-        "pipe": {
-          "thickness": "2",
-          "lengthMm": "2000"
-        },
-        "note": "",
-        "colors": {
-          "accessory": {
-            "category": "",
-            "color": ""
-          },
-          "tube": {
-            "category": "",
-            "color": ""
-          },
-          "plexi": {
-            "category": "pleksi",
-            "color": "şeffaf"
-          }
-        },
-        "images": {
-          "product": "",
-          "technical": "",
-          "application": ""
-        },
-        "created_at": "2026-04-08T16:38:35.303Z",
-        "updated_at": "2026-04-08T16:38:35.303Z"
       }
     ]
   }

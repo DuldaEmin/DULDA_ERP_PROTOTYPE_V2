@@ -35,6 +35,17 @@ const SalesModule = {
         if (!Array.isArray(DB.data.data.orders)) DB.data.data.orders = [];
         if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
         if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
+        SalesModule.ensureCatalogPublicIds();
+    },
+
+    ensureCatalogPublicIds: () => {
+        const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        rows.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const current = String(row.idCode || '').trim();
+            if (current) return;
+            row.idCode = SalesModule.generateCatalogPublicId();
+        });
     },
 
     openWorkspace: (viewId) => {
@@ -934,7 +945,7 @@ const SalesModule = {
             categoryId: categoryKey,
             name: String(row.name || defaultName).trim(),
             productCode: String(row.productCode || '').trim(),
-            idCode: String(row.idCode || '').trim(),
+            idCode: String(row.idCode || SalesModule.generateCatalogPublicId()).trim(),
             diameters: isOzel ? [] : (diameter ? [diameter] : []),
             selectedDiameter: isOzel ? '' : diameter,
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
@@ -966,6 +977,22 @@ const SalesModule = {
         let seq = rows.length + 1;
         while (used.has(`SCP-${String(seq).padStart(6, '0')}`)) seq += 1;
         return `SCP-${String(seq).padStart(6, '0')}`;
+    },
+
+    generateCatalogPublicId: () => {
+        const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        const used = new Set(
+            rows
+                .map((row) => String(row?.idCode || '').trim().toUpperCase())
+                .filter(Boolean)
+        );
+        let seq = rows.length + 1;
+        let candidate = `ID-${String(seq).padStart(5, '0')}`;
+        while (used.has(candidate.toUpperCase())) {
+            seq += 1;
+            candidate = `ID-${String(seq).padStart(5, '0')}`;
+        }
+        return candidate;
     },
 
     setCatalogActiveMain: (mainId) => {
@@ -1228,6 +1255,66 @@ const SalesModule = {
         }).join('');
     },
 
+    renderPipeRowsTableHtml: (rows, searchText = '') => {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+            return `
+                <div class="sales-catalog-empty">
+                    <div class="sales-catalog-empty-title">${String(searchText || '').trim() ? 'Sonuc bulunamadi' : 'Bu kategoride urun yok'}</div>
+                    <div class="sales-catalog-empty-text">${String(searchText || '').trim()
+                ? `"${SalesModule.escapeHtml(String(searchText || '').trim())}" ile eslesen urun yok.`
+                : 'Yeni urun ekle butonuyla katalog satiri olusturabilirsiniz.'}</div>
+                </div>
+            `;
+        }
+
+        const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || list[0]?.categoryId || '').trim();
+        const isBoru = SalesModule.isPipeCategory(activeCategoryId);
+        const isCubuk = SalesModule.isRodCategory(activeCategoryId);
+        const isOzel = SalesModule.isSpecialProfileCategory(activeCategoryId);
+
+        return `
+            <div class="sales-catalog-table-wrap">
+                <table class="sales-catalog-table">
+                    <thead>
+                        <tr>
+                            <th>Urun</th>
+                            <th>Urun ID</th>
+                            <th>Pleksi renk</th>
+                            ${(isBoru || isCubuk) ? '<th>Cap</th>' : ''}
+                            ${isBoru ? '<th>Kalinlik</th>' : ''}
+                            <th>Boy (mm)</th>
+                            ${(isCubuk || isOzel) ? '<th>Kabarcik</th>' : ''}
+                            <th class="sales-catalog-table-actions-col">Islemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list.map((row) => {
+                const id = SalesModule.escapeHtml(String(row.id || ''));
+                const bubbleText = String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
+                return `
+                                <tr>
+                                    <td>${SalesModule.escapeHtml(row.name || '-')}</td>
+                                    <td>${SalesModule.escapeHtml(row.idCode || '-')}</td>
+                                    <td>${SalesModule.escapeHtml(row.colors?.plexi?.color || '-')}</td>
+                                    ${(isBoru || isCubuk) ? `<td>${SalesModule.escapeHtml(row.selectedDiameter || '-')}</td>` : ''}
+                                    ${isBoru ? `<td>${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</td>` : ''}
+                                    <td>${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}</td>
+                                    ${(isCubuk || isOzel) ? `<td>${SalesModule.escapeHtml(bubbleText)}</td>` : ''}
+                                    <td class="sales-catalog-table-actions">
+                                        <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
+                                        <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openEditCatalogModal('${id}')">duzenle</button>
+                                        <button type="button" class="sales-catalog-card-action-btn" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteCatalogProduct('${id}')">sil</button>
+                                    </td>
+                                </tr>
+                            `;
+            }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    },
+
     renderProductsLayout: () => {
         SalesModule.ensureCatalogState();
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
@@ -1276,9 +1363,11 @@ const SalesModule = {
                                 ${(supportsCrud && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
                             </div>
 
-                            <div class="sales-catalog-grid">
+                            <div class="${isPipeLeaf ? 'sales-catalog-list' : 'sales-catalog-grid'}">
                                 ${(supportsCrud && activeLeaf)
-                ? SalesModule.renderCatalogCardsHtml(filteredRows, searchText)
+                ? (isPipeLeaf
+                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText)
+                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText))
                 : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
                                         <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
@@ -1855,13 +1944,35 @@ const SalesModule = {
         const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
         const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
 
+        const editingId = String(SalesModule.state.catalogEditingProductId || '').trim();
+        const existingIdx = editingId
+            ? DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId)
+            : -1;
+        const existingRow = existingIdx >= 0 ? (DB.data.data.salesCatalogProducts[existingIdx] || {}) : {};
         const nowIso = new Date().toISOString();
+        const resolvedIdCode = String(draft.idCode || '').trim()
+            || String(existingRow.idCode || '').trim()
+            || SalesModule.generateCatalogPublicId();
+        const normalizedIdCode = resolvedIdCode.replace(/\s+/g, '').toUpperCase();
+        if (!normalizedIdCode) {
+            return alert('Urun ID zorunlu.');
+        }
+        const hasDuplicateIdCode = DB.data.data.salesCatalogProducts.some((item) => {
+            const rowId = String(item?.id || '').trim();
+            const rowIdCode = String(item?.idCode || '').trim().replace(/\s+/g, '').toUpperCase();
+            if (!rowIdCode) return false;
+            if (editingId && rowId === editingId) return false;
+            return rowIdCode === normalizedIdCode;
+        });
+        if (hasDuplicateIdCode) {
+            return alert(`Bu Urun ID zaten kullaniliyor: ${normalizedIdCode}`);
+        }
         const row = {
             id: SalesModule.generateCatalogRowId(),
             categoryId,
             name,
             productCode: String(draft.productCode || '').trim(),
-            idCode: String(draft.idCode || '').trim(),
+            idCode: normalizedIdCode,
             diameters: isPipeFamily
                 ? ((isBoru || isCubuk) && normalizedDiameter ? [normalizedDiameter] : [])
                 : diameters,
@@ -1900,14 +2011,12 @@ const SalesModule = {
             updated_at: nowIso
         };
 
-        const editingId = String(SalesModule.state.catalogEditingProductId || '').trim();
         if (editingId) {
-            const idx = DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId);
-            if (idx >= 0) {
-                const prev = DB.data.data.salesCatalogProducts[idx] || {};
+            if (existingIdx >= 0) {
+                const prev = existingRow;
                 row.id = editingId;
                 row.created_at = String(prev.created_at || nowIso);
-                DB.data.data.salesCatalogProducts[idx] = row;
+                DB.data.data.salesCatalogProducts[existingIdx] = row;
             } else {
                 DB.data.data.salesCatalogProducts.push(row);
             }

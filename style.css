@@ -1882,6 +1882,67 @@ tr:hover {
     align-content: flex-start;
 }
 
+.sales-catalog-list {
+    display: block;
+}
+
+.sales-catalog-table-wrap {
+    border: 1px solid #d7deea;
+    border-radius: 0.95rem;
+    background: #ffffff;
+    overflow: auto;
+}
+
+.sales-catalog-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    min-width: 760px;
+}
+
+.sales-catalog-table th,
+.sales-catalog-table td {
+    padding: 0.62rem 0.68rem;
+    border-bottom: 1px solid #edf2f7;
+    text-align: left;
+    font-size: 0.8rem;
+    color: #334155;
+    vertical-align: middle;
+}
+
+.sales-catalog-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #f8fafc;
+    color: #0f172a;
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.sales-catalog-table tbody tr:hover {
+    background: #f8fafc;
+}
+
+.sales-catalog-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.sales-catalog-table-actions-col {
+    width: 188px;
+    text-align: right;
+}
+
+.sales-catalog-table-actions {
+    display: flex;
+    gap: 0.42rem;
+    justify-content: flex-end;
+    align-items: center;
+    white-space: nowrap;
+}
+
 .sales-catalog-card {
     border: 1px solid #d7deea;
     border-radius: 1rem;

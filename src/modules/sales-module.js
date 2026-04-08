@@ -673,6 +673,22 @@ const SalesModule = {
                 return String(a.name || '').localeCompare(String(b.name || ''), 'tr');
             });
         }
+        if (SalesModule.isRodCategory(id)) {
+            return rows.sort((a, b) => {
+                const byDiameter = SalesModule.compareCatalogDiameterValues(a.selectedDiameter || '', b.selectedDiameter || '');
+                if (byDiameter !== 0) return byDiameter;
+                const byLength = SalesModule.compareCatalogDiameterValues(a.pipe?.lengthMm || '', b.pipe?.lengthMm || '');
+                if (byLength !== 0) return byLength;
+                return String(a.name || '').localeCompare(String(b.name || ''), 'tr');
+            });
+        }
+        if (SalesModule.isSpecialProfileCategory(id)) {
+            return rows.sort((a, b) => {
+                const byName = String(a.name || '').localeCompare(String(b.name || ''), 'tr');
+                if (byName !== 0) return byName;
+                return SalesModule.compareCatalogDiameterValues(a.pipe?.lengthMm || '', b.pipe?.lengthMm || '');
+            });
+        }
         return rows.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     },
 
@@ -694,6 +710,8 @@ const SalesModule = {
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
         if (leaf && String(leaf.id || '') === 'boru') return 'Pleksi boru';
+        if (leaf && String(leaf.id || '') === 'cubuk') return 'Pleksi cubuk';
+        if (leaf && String(leaf.id || '') === 'ozel-profiller') return 'Ozel profiller';
         if (leaf) return `${leaf.mainLabel} / ${leaf.groupLabel} / ${leaf.label}`;
         const main = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
         const group = SalesModule.getCatalogGroupById(main?.id || '', SalesModule.state.catalogActiveGroupId || '');
@@ -703,6 +721,12 @@ const SalesModule = {
     },
 
     isPipeCategory: (categoryId) => String(categoryId || '').trim() === 'boru',
+    isRodCategory: (categoryId) => String(categoryId || '').trim() === 'cubuk',
+    isSpecialProfileCategory: (categoryId) => String(categoryId || '').trim() === 'ozel-profiller',
+    isPipeFamilyCategory: (categoryId) => {
+        const id = String(categoryId || '').trim();
+        return id === 'boru' || id === 'cubuk' || id === 'ozel-profiller';
+    },
 
     normalizeCatalogColorType: (value) => {
         const raw = String(value || '').trim();
@@ -827,7 +851,7 @@ const SalesModule = {
             .filter((value) => !selectedSet.has(value));
         const selected = SalesModule.normalizeCatalogDiameterValue(selectedValue || '');
         const placeholder = `<option value="" ${selected ? '' : 'selected'}>listeden cap sec</option>`;
-        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>Ø ${SalesModule.escapeHtml(value)}</option>`).join('');
+        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</option>`).join('');
         return `${placeholder}${options}`;
     },
 
@@ -836,7 +860,7 @@ const SalesModule = {
         if (!rows.length) return '<div class="sales-catalog-empty-text">Tanimli cap bulunamadi.</div>';
         return rows.map((value) => `
             <div class="sales-catalog-manage-row">
-                <div class="sales-catalog-manage-value">Ø ${SalesModule.escapeHtml(value)}</div>
+                <div class="sales-catalog-manage-value">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</div>
                 <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeCatalogDiameterLibraryItem('${SalesModule.escapeHtml(value)}')">sil</button>
             </div>
         `).join('');
@@ -890,24 +914,31 @@ const SalesModule = {
 
     buildPipeDraft: (categoryId, source = null) => {
         const row = source && typeof source === 'object' ? source : {};
+        const categoryKey = String(categoryId || '').trim();
+        const isBoru = SalesModule.isPipeCategory(categoryKey);
+        const isCubuk = SalesModule.isRodCategory(categoryKey);
+        const isOzel = SalesModule.isSpecialProfileCategory(categoryKey);
         const diameter = SalesModule.normalizeCatalogDiameterValue(
             row.selectedDiameter || (Array.isArray(row.diameters) ? row.diameters[0] : '')
         );
         const plexiColors = SalesModule.getCatalogColorOptions('plexi', 'pleksi');
         const sourcePlexiColor = String(row.colors?.plexi?.color || '').trim();
         const selectedPlexiColor = plexiColors.includes(sourcePlexiColor) ? sourcePlexiColor : String(plexiColors[0] || '');
-        const thickness = SalesModule.normalizeCatalogDiameterValue(row.pipe?.thickness || row.pipeThickness || '');
+        const thickness = isBoru ? SalesModule.normalizeCatalogDiameterValue(row.pipe?.thickness || row.pipeThickness || '') : '';
         const lengthMm = SalesModule.normalizeCatalogDiameterValue(row.pipe?.lengthMm || row.pipeLengthMm || '');
-        const defaultName = diameter ? `Boru Ø ${diameter}` : 'Boru';
+        const defaultName = isBoru
+            ? (diameter ? `Boru ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${diameter}` : 'Boru')
+            : (isCubuk ? (diameter ? `Cubuk ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${diameter}` : 'Cubuk') : '');
+        const bubbleValue = String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
         return {
-            categoryId: String(categoryId || '').trim(),
+            categoryId: categoryKey,
             name: String(row.name || defaultName).trim(),
             productCode: String(row.productCode || '').trim(),
             idCode: String(row.idCode || '').trim(),
-            diameters: diameter ? [diameter] : [],
-            selectedDiameter: diameter,
+            diameters: isOzel ? [] : (diameter ? [diameter] : []),
+            selectedDiameter: isOzel ? '' : diameter,
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
-            bubble: 'yok',
+            bubble: isBoru ? 'yok' : bubbleValue,
             note: String(row.note || '').trim(),
             pipe: {
                 thickness,
@@ -1033,7 +1064,7 @@ const SalesModule = {
             const active = value === String(selectedDiameter || '').trim();
             return `
                 <span class="sales-catalog-chip-wrap ${active ? 'is-active' : ''}">
-                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">Ø ${SalesModule.escapeHtml(value)}</button>
+                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(value)}</button>
                     ${removeHandlerName ? `<button type="button" class="sales-catalog-chip-remove" onclick="event.stopPropagation(); ${SalesModule.escapeHtml(removeHandlerName)}('${SalesModule.escapeHtml(value)}')">&times;</button>` : ''}
                 </span>
             `;
@@ -1066,9 +1097,14 @@ const SalesModule = {
                 const mainId = String(main.id || '');
                 const mainLabel = String(main.label || '-');
                 const isMainOpen = mainId === expandedMainId;
-                const isMainActive = highlightKey === `main:${mainId}`;
                 const groups = isMainOpen ? SalesModule.getCatalogGroupsByMain(mainId) : [];
                 const hasGroups = groups.length > 0;
+                const hasSingleSameNamedGroup = hasGroups
+                    && groups.length === 1
+                    && SalesModule.normalize(groups[0]?.label || '') === SalesModule.normalize(mainLabel);
+                const singleGroupId = hasSingleSameNamedGroup ? String(groups[0]?.id || '') : '';
+                const isMainActive = highlightKey === `main:${mainId}`
+                    || (hasSingleSameNamedGroup && highlightKey === `group:${singleGroupId}`);
                 return `
                         <div class="sales-catalog-tree-main ${isMainOpen ? 'is-open' : ''}">
                             <button class="sales-catalog-tree-main-btn ${isMainActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(mainId)}')">
@@ -1079,7 +1115,29 @@ const SalesModule = {
                             ${isMainOpen ? `
                                 <div class="sales-catalog-tree-main-panel">
                                     <div class="sales-catalog-tree-group-list">
-                                    ${hasGroups ? groups.map((group) => {
+                                    ${hasGroups
+                ? (hasSingleSameNamedGroup
+                    ? (() => {
+                        const onlyGroup = groups[0] || {};
+                        const leaves = Array.isArray(onlyGroup.children) ? onlyGroup.children : [];
+                        return `
+                                                <div class="sales-catalog-tree-group is-open">
+                                                    <div class="sales-catalog-tree-leaf-list">
+                                                        ${leaves.length ? leaves.map((leaf) => {
+                                const leafId = String(leaf.id || '');
+                                const leafLabel = String(leaf.label || '-');
+                                const isLeafActive = highlightKey === `leaf:${leafId}`;
+                                return `
+                                                            <button class="sales-catalog-tree-leaf-btn ${isLeafActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leafId)}')">
+                                                                ${SalesModule.escapeHtml(leafLabel)}
+                                                            </button>
+                                                        `;
+                            }).join('') : '<div class="sales-catalog-tree-empty">Alt urun bulunamadi.</div>'}
+                                                    </div>
+                                                </div>
+                                            `;
+                    })()
+                    : groups.map((group) => {
                         const groupId = String(group.id || '');
                         const groupLabel = String(group.label || '-');
                         const isGroupOpen = groupId === expandedGroupId;
@@ -1108,7 +1166,8 @@ const SalesModule = {
                                                 ` : ''}
                                             </div>
                                         `;
-                    }).join('') : '<div class="sales-catalog-tree-empty">Bu kategoride grup bulunamadi.</div>'}
+                    }).join(''))
+                : '<div class="sales-catalog-tree-empty">Bu kategoride grup bulunamadi.</div>'}
                                     </div>
                                 </div>
                             ` : ''}
@@ -1147,11 +1206,11 @@ const SalesModule = {
                         <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
                         <div class="sales-catalog-card-meta-row">
                             ${isPipeRow
-                ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                ? `<span class="sales-catalog-pill">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
                                    <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
                                    <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>`
                 : `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
-                                   <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>`}
+                                   <span class="sales-catalog-pill">ÃƒÆ’Ã†â€™Ãƒâ€¹Ã…â€œ ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>`}
                         </div>
                         <div class="sales-catalog-card-actions">
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
@@ -1170,7 +1229,7 @@ const SalesModule = {
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
-        const isPipeLeaf = SalesModule.isPipeCategory(activeCategoryId);
+        const isPipeLeaf = SalesModule.isPipeFamilyCategory(activeCategoryId);
         const supportsCrud = isCatalogMain || isPipeLeaf;
         const searchText = String(SalesModule.state.catalogSearchText || '');
         const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
@@ -1238,10 +1297,10 @@ const SalesModule = {
             return;
         }
         SalesModule.state.catalogEditingProductId = '';
-        if (SalesModule.isPipeCategory(categoryId)) {
+        if (SalesModule.isPipeFamilyCategory(categoryId)) {
             SalesModule.state.catalogDraft = SalesModule.buildPipeDraft(categoryId);
             const html = SalesModule.renderPipeCatalogModalHtml();
-            Modal.open('Yeni boru urunu', html, { maxWidth: '840px' });
+            Modal.open('Yeni urun ekle', html, { maxWidth: '840px' });
             return;
         }
         if (String(SalesModule.state.catalogActiveMainId || '') !== 'korkuluk') {
@@ -1259,10 +1318,10 @@ const SalesModule = {
         const row = SalesModule.getCatalogProducts().find((item) => String(item.id || '') === id);
         if (!row) return alert('Urun bulunamadi.');
         SalesModule.state.catalogEditingProductId = id;
-        if (SalesModule.isPipeCategory(row.categoryId)) {
+        if (SalesModule.isPipeFamilyCategory(row.categoryId)) {
             SalesModule.state.catalogDraft = SalesModule.buildPipeDraft(row.categoryId, row);
             const html = SalesModule.renderPipeCatalogModalHtml();
-            Modal.open('Boru urunu duzenle', html, { maxWidth: '840px' });
+            Modal.open('Urunu duzenle', html, { maxWidth: '840px' });
             return;
         }
         SalesModule.state.catalogDraft = SalesModule.buildCatalogDraft(row.categoryId, row);
@@ -1389,7 +1448,11 @@ const SalesModule = {
     renderPipeCatalogModalHtml: () => {
         const categoryId = String(SalesModule.state.catalogActiveCategoryId || '');
         const draft = SalesModule.state.catalogDraft || SalesModule.buildPipeDraft(categoryId);
-        const categoryText = SalesModule.getCatalogCategoryPathText(draft.categoryId || categoryId);
+        const targetCategory = String(draft.categoryId || categoryId);
+        const isBoru = SalesModule.isPipeCategory(targetCategory);
+        const isCubuk = SalesModule.isRodCategory(targetCategory);
+        const isOzel = SalesModule.isSpecialProfileCategory(targetCategory);
+        const categoryText = SalesModule.getCatalogCategoryPathText(targetCategory);
         const plexiCategoryText = SalesModule.getCatalogColorCategoryOptions('plexi')
             .find((item) => item.value === 'pleksi')?.label || 'Pleksi renk';
         const isEdit = !!String(SalesModule.state.catalogEditingProductId || '').trim();
@@ -1413,25 +1476,35 @@ const SalesModule = {
                         <label class="sales-catalog-label">Urun ID</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" oninput="SalesModule.setCatalogDraftField('idCode', this.value)" placeholder="or: BR-2040">
                     </div>
-                    <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Not</label>
-                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.note || '')}" oninput="SalesModule.setCatalogDraftField('note', this.value)" placeholder="opsiyonel not">
-                    </div>
                 </div>
 
                 <div class="sales-catalog-create-grid-mid">
+                    ${(isBoru || isCubuk) ? `
                     <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Cap (Ø)</label>
+                        <label class="sales-catalog-label">Cap (ÃƒÆ’Ã‹Å“)</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.selectedDiameter || '')}" oninput="SalesModule.setPipeDraftField('selectedDiameter', this.value)" placeholder="or: 40">
-                    </div>
+                    </div>` : `
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Urun ismi</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.name || '')}" oninput="SalesModule.setCatalogDraftField('name', this.value)" placeholder="or: Ozel profil 2040">
+                    </div>`}
+                    ${isBoru ? `
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Kalinlik</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.pipe?.thickness || '')}" oninput="SalesModule.setPipeDraftField('thickness', this.value)" placeholder="or: 1.5">
-                    </div>
+                    </div>` : ''}
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Boy (mm)</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.pipe?.lengthMm || '')}" oninput="SalesModule.setPipeDraftField('lengthMm', this.value)" placeholder="or: 600">
                     </div>
+                    ${(isCubuk || isOzel) ? `
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Kabarcik</label>
+                        <div id="sales_catalog_bubble_toggle" class="sales-catalog-toggle">
+                            <button type="button" class="sales-catalog-toggle-btn ${draft.bubble === 'var' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('var')">var</button>
+                            <button type="button" class="sales-catalog-toggle-btn ${draft.bubble === 'yok' ? 'is-active' : ''}" onclick="SalesModule.setCatalogBubble('yok')">yok</button>
+                        </div>
+                    </div>` : ''}
                 </div>
 
                 <div class="sales-catalog-modal-actions">
@@ -1458,12 +1531,19 @@ const SalesModule = {
         if (!SalesModule.state.catalogDraft.pipe || typeof SalesModule.state.catalogDraft.pipe !== 'object') {
             SalesModule.state.catalogDraft.pipe = { thickness: '', lengthMm: '' };
         }
+        const categoryId = String(SalesModule.state.catalogDraft.categoryId || '').trim();
         if (key === 'selectedDiameter') {
             const normalized = SalesModule.normalizeCatalogDiameterValue(value || '');
             SalesModule.state.catalogDraft.selectedDiameter = normalized;
             SalesModule.state.catalogDraft.diameters = normalized ? [normalized] : [];
-            if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name) === 'boru') {
-                SalesModule.state.catalogDraft.name = normalized ? `Boru Ø ${normalized}` : 'Boru';
+            if (SalesModule.isPipeCategory(categoryId)) {
+                if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name).startsWith('boru')) {
+                    SalesModule.state.catalogDraft.name = normalized ? `Boru ÃƒËœ ${normalized}` : 'Boru';
+                }
+            } else if (SalesModule.isRodCategory(categoryId)) {
+                if (!SalesModule.state.catalogDraft.name || SalesModule.normalize(SalesModule.state.catalogDraft.name).startsWith('cubuk')) {
+                    SalesModule.state.catalogDraft.name = normalized ? `Cubuk ÃƒËœ ${normalized}` : 'Cubuk';
+                }
             }
             return;
         }
@@ -1732,39 +1812,62 @@ const SalesModule = {
             alert('Gecerli bir kategori secmelisiniz.');
             return;
         }
-        const isPipe = SalesModule.isPipeCategory(categoryId);
-        const name = String(draft.name || '').trim();
+
+        const isBoru = SalesModule.isPipeCategory(categoryId);
+        const isCubuk = SalesModule.isRodCategory(categoryId);
+        const isOzel = SalesModule.isSpecialProfileCategory(categoryId);
+        const isPipeFamily = SalesModule.isPipeFamilyCategory(categoryId);
+
+        const normalizedDiameter = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
+        const normalizedThickness = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.thickness || '');
+        const normalizedLength = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.lengthMm || '');
+
+        if ((isBoru || isCubuk) && !normalizedDiameter) {
+            return alert('Gecerli bir cap giriniz.');
+        }
+
+        let name = String(draft.name || '').trim();
+        if (isBoru && !name) name = normalizedDiameter ? `Boru Ã˜ ${normalizedDiameter}` : 'Boru';
+        if (isCubuk && !name) name = normalizedDiameter ? `Cubuk Ã˜ ${normalizedDiameter}` : 'Cubuk';
+
+        if (isOzel && !name) {
+            return alert('Ozel profiller icin urun ismi zorunlu.');
+        }
+
+        if (!isPipeFamily && !name) {
+            return alert('Urun adi zorunlu.');
+        }
+
         const diameters = Array.isArray(draft.diameters)
             ? draft.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
             : [];
-        const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
-        const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
-        const normalizedDiameter = SalesModule.normalizeCatalogDiameterValue(selectedDiameter || '');
-        if (isPipe && !normalizedDiameter) {
-            return alert('Boru icin gecerli bir cap giriniz.');
-        }
-        if (!isPipe && !name) {
-            alert('Urun adi zorunlu.');
-            return;
-        }
-        if (!isPipe && !diameters.length) {
+
+        if (!isPipeFamily && !diameters.length) {
             return alert('En az bir cap eklemelisiniz.');
         }
+
+        const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
+        const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
+
         const nowIso = new Date().toISOString();
-        const normalizedThickness = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.thickness || '');
-        const normalizedLength = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.lengthMm || '');
         const row = {
             id: SalesModule.generateCatalogRowId(),
             categoryId,
-            name: isPipe ? (name || `Boru Ø ${normalizedDiameter}`) : name,
+            name,
             productCode: String(draft.productCode || '').trim(),
             idCode: String(draft.idCode || '').trim(),
-            diameters: isPipe ? [normalizedDiameter] : diameters,
-            selectedDiameter: isPipe ? normalizedDiameter : selectedDiameter,
-            bubble: String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            diameters: isPipeFamily
+                ? ((isBoru || isCubuk) && normalizedDiameter ? [normalizedDiameter] : [])
+                : diameters,
+            selectedDiameter: isPipeFamily
+                ? ((isBoru || isCubuk) ? normalizedDiameter : '')
+                : selectedDiameter,
+            bubble: isPipeFamily
+                ? (isBoru ? 'yok' : (String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok'))
+                : (String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok'),
             lowerTubeLength: String(draft.lowerTubeLength || 'standart').trim() || 'standart',
             pipe: {
-                thickness: normalizedThickness,
+                thickness: isBoru ? normalizedThickness : '',
                 lengthMm: normalizedLength
             },
             note: String(draft.note || '').trim(),
@@ -1790,6 +1893,7 @@ const SalesModule = {
             created_at: nowIso,
             updated_at: nowIso
         };
+
         const editingId = String(SalesModule.state.catalogEditingProductId || '').trim();
         if (editingId) {
             const idx = DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId);
@@ -1823,7 +1927,10 @@ const SalesModule = {
 
     renderCatalogDetailModalHtml: (row) => {
         const pathText = SalesModule.getCatalogCategoryPathText(row.categoryId);
-        if (SalesModule.isPipeCategory(row.categoryId)) {
+        if (SalesModule.isPipeFamilyCategory(row.categoryId)) {
+            const isBoru = SalesModule.isPipeCategory(row.categoryId);
+            const isCubuk = SalesModule.isRodCategory(row.categoryId);
+            const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
             return `
                 <div class="sales-catalog-detail-wrap">
                     <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
@@ -1833,18 +1940,33 @@ const SalesModule = {
                             <label class="sales-catalog-label">Urun ID</label>
                             <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.idCode || '-')}" readonly>
                         </div>
+                        ${(isBoru || isCubuk) ? `
                         <div class="sales-catalog-field-block">
                             <label class="sales-catalog-label">Cap (Ø)</label>
                             <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.selectedDiameter || '-')}" readonly>
-                        </div>
+                        </div>` : ''}
+                        ${isBoru ? `
                         <div class="sales-catalog-field-block">
                             <label class="sales-catalog-label">Kalinlik</label>
                             <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.thickness || '-')}" readonly>
-                        </div>
+                        </div>` : ''}
                         <div class="sales-catalog-field-block">
                             <label class="sales-catalog-label">Boy (mm)</label>
                             <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}" readonly>
                         </div>
+                        ${(isCubuk || isOzel) ? `
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Kabarcik</label>
+                            <div class="sales-catalog-toggle is-disabled">
+                                <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
+                                <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
+                            </div>
+                        </div>` : ''}
+                        ${isOzel ? `
+                        <div class="sales-catalog-field-block">
+                            <label class="sales-catalog-label">Urun ismi</label>
+                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.name || '-')}" readonly>
+                        </div>` : ''}
                         <div>
                             <label class="sales-catalog-label">Not</label>
                             <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(row.note || '')}</textarea>

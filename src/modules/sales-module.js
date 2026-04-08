@@ -14,6 +14,7 @@ const SalesModule = {
         catalogExpandedMainId: 'korkuluk',
         catalogExpandedGroupId: '',
         catalogHighlightKey: 'group:rail-aluminum',
+        catalogSearchText: '',
         catalogDraft: null
     },
 
@@ -658,6 +659,21 @@ const SalesModule = {
             .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
     },
 
+    getCatalogFilteredProductsByCategory: (categoryId, searchText = '') => {
+        const rows = SalesModule.getCatalogProductsByCategory(categoryId);
+        const query = SalesModule.normalize(searchText || '');
+        if (!query) return rows;
+        return rows.filter((row) => {
+            const fields = [
+                String(row?.name || ''),
+                String(row?.productCode || ''),
+                String(row?.idCode || ''),
+                String(row?.id || '')
+            ];
+            return fields.some((value) => SalesModule.normalize(value).includes(query));
+        });
+    },
+
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
         if (leaf) return `${leaf.mainLabel} / ${leaf.groupLabel} / ${leaf.label}`;
@@ -920,6 +936,16 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
+    setCatalogSearchText: (value) => {
+        SalesModule.state.catalogSearchText = String(value || '');
+        UI.renderCurrentPage();
+    },
+
+    clearCatalogSearch: () => {
+        SalesModule.state.catalogSearchText = '';
+        UI.renderCurrentPage();
+    },
+
     renderCatalogColorCategoryOptionsHtml: (field, selectedValue) => {
         const selected = SalesModule.normalizeCatalogColorType(selectedValue || '');
         const options = SalesModule.getCatalogColorCategoryOptions(field)
@@ -1035,18 +1061,19 @@ const SalesModule = {
         `;
     },
 
-    renderCatalogCardsHtml: () => {
-        const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
-        const rows = SalesModule.getCatalogProductsByCategory(activeCategoryId);
-        if (!rows.length) {
+    renderCatalogCardsHtml: (rows, searchText = '') => {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
             return `
                 <div class="sales-catalog-empty">
-                    <div class="sales-catalog-empty-title">Bu kategoride urun yok</div>
-                    <div class="sales-catalog-empty-text">Yeni urun ekle butonuyla katalog karti olusturabilirsiniz.</div>
+                    <div class="sales-catalog-empty-title">${String(searchText || '').trim() ? 'Sonuc bulunamadi' : 'Bu kategoride urun yok'}</div>
+                    <div class="sales-catalog-empty-text">${String(searchText || '').trim()
+                ? `"${SalesModule.escapeHtml(String(searchText || '').trim())}" ile eslesen urun yok.`
+                : 'Yeni urun ekle butonuyla katalog karti olusturabilirsiniz.'}</div>
                 </div>
             `;
         }
-        return rows.map((row) => {
+        return list.map((row) => {
             const image = row.images?.product || row.images?.application || '';
             const id = SalesModule.escapeHtml(String(row.id || ''));
             return `
@@ -1076,8 +1103,13 @@ const SalesModule = {
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const searchText = String(SalesModule.state.catalogSearchText || '');
         const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const categoryCount = (isCatalogMain && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
+        const totalCategoryCount = (isCatalogMain && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
+        const filteredRows = (isCatalogMain && activeLeaf)
+            ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
+            : [];
+        const filteredCount = filteredRows.length;
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -1098,15 +1130,21 @@ const SalesModule = {
                                 <div>
                                     <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
                                     <div class="sales-catalog-sub">${isCatalogMain
-                ? `${SalesModule.escapeHtml(String(categoryCount))} kayitli urun`
+                ? `${SalesModule.escapeHtml(String(filteredCount))}${String(searchText || '').trim() ? ` sonuc / ${SalesModule.escapeHtml(String(totalCategoryCount))} kayit` : ' kayitli urun'}`
                 : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
+                                    ${(isCatalogMain && activeLeaf) ? `
+                                        <div class="sales-catalog-search-row">
+                                            <input class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
+                                            ${String(searchText || '').trim() ? '<button class="btn-sm" type="button" onclick="SalesModule.clearCatalogSearch()">temizle</button>' : ''}
+                                        </div>
+                                    ` : ''}
                                 </div>
                                 ${(isCatalogMain && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
                             </div>
 
                             <div class="sales-catalog-grid">
                                 ${(isCatalogMain && activeLeaf)
-                ? SalesModule.renderCatalogCardsHtml()
+                ? SalesModule.renderCatalogCardsHtml(filteredRows, searchText)
                 : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
                                         <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>

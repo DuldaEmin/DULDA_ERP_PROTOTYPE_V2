@@ -1849,6 +1849,32 @@ tr:hover {
     margin-top: 0.18rem;
 }
 
+.sales-catalog-search-row {
+    margin-top: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.sales-catalog-search-input {
+    min-width: 260px;
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.7rem;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 0.83rem;
+    font-weight: 600;
+    padding: 0.5rem 0.62rem;
+    outline: none;
+}
+
+.sales-catalog-search-input:focus {
+    border-color: #16a34a;
+    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+}
+
 .sales-catalog-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));

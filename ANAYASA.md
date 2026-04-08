@@ -69,3 +69,18 @@ Zorunlu uygulama ilkeleri:
 Sonuc:
 - sistem hatasi ile veri kaybi yasaktir
 - sadece acik, bilincli ve kullanici onayli silme islemi veri kaldirabilir
+
+## 7) Global Kod (ID) Yasasi
+Bu programda gorunen tum "ID kod" alanlari tek bir global havuzda benzersiz olmak zorundadir.
+
+Degismez kurallar:
+- kullanici ID kodu manuel girmez
+- ID kodu sadece program tarafindan uretilir
+- her kutuphane kendi on eki ile otomatik kod alir (ornek: `CNC-000001`, `PVD-000001`)
+- ayni ID kodu iki farkli kayitta bulunamaz (master urun vs. islem kutuphanesi dahil)
+- mevcut kayitlarda kod cakismasi yoksa kod korunur
+- mevcut kayitlarda kod cakismasi varsa sadece cakisan kayitlara yeni kod atanir
+
+Arama ve yonlendirme ilkesi:
+- ana ekrandaki ID aramasi tek bir kaynaga gitmelidir
+- bu nedenle global kod benzersizligi zorunludur

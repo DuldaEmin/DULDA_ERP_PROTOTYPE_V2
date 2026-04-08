@@ -44,7 +44,7 @@ const SalesModule = {
             if (!row || typeof row !== 'object') return;
             const current = String(row.idCode || '').trim();
             if (current) return;
-            row.idCode = SalesModule.generateCatalogPublicId();
+            row.idCode = SalesModule.generateCatalogPublicId({ rowId: String(row.id || '').trim() });
         });
     },
 
@@ -904,7 +904,7 @@ const SalesModule = {
             categoryId: String(categoryId || '').trim(),
             name: String(row.name || '').trim(),
             productCode: String(row.productCode || `KRL-${String(now).padStart(4, '0')}`).trim(),
-            idCode: String(row.idCode || `ID-${String(now).padStart(5, '0')}`).trim(),
+            idCode: String(row.idCode || SalesModule.generateCatalogPublicId({ rowId: String(row.id || '').trim() })).trim(),
             diameters: draftDiameters,
             selectedDiameter: draftDiameters.includes(draftSelectedDiameter) ? draftSelectedDiameter : String(draftDiameters[0] || ''),
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
@@ -979,18 +979,28 @@ const SalesModule = {
         return `SCP-${String(seq).padStart(6, '0')}`;
     },
 
-    generateCatalogPublicId: () => {
+    generateCatalogPublicId: (options = {}) => {
+        const rowId = String(options?.rowId || '').trim();
+        const exclude = rowId
+            ? { collection: 'salesCatalogProducts', id: rowId, field: 'idCode' }
+            : null;
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'SAL', digits: 6, exclude });
+        }
         const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
         const used = new Set(
             rows
+                .filter((row) => !rowId || String(row?.id || '').trim() !== rowId)
                 .map((row) => String(row?.idCode || '').trim().toUpperCase())
                 .filter(Boolean)
         );
         let seq = rows.length + 1;
-        let candidate = `ID-${String(seq).padStart(5, '0')}`;
+        let candidate = `SAL-${String(seq).padStart(6, '0')}`;
         while (used.has(candidate.toUpperCase())) {
             seq += 1;
-            candidate = `ID-${String(seq).padStart(5, '0')}`;
+            candidate = `SAL-${String(seq).padStart(6, '0')}`;
         }
         return candidate;
     },
@@ -1457,7 +1467,7 @@ const SalesModule = {
                     </div>
                     <div>
                         <label class="sales-catalog-label">ID kodu</label>
-                        <input id="sales_catalog_id_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" oninput="SalesModule.setCatalogDraftField('idCode', this.value)">
+                        <input id="sales_catalog_id_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
                     </div>
                 </div>
 
@@ -1569,7 +1579,7 @@ const SalesModule = {
                     </div>
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Urun ID</label>
-                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" oninput="SalesModule.setCatalogDraftField('idCode', this.value)" placeholder="or: BR-2040">
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
                     </div>
                 </div>
 
@@ -1952,18 +1962,26 @@ const SalesModule = {
         const nowIso = new Date().toISOString();
         const resolvedIdCode = String(draft.idCode || '').trim()
             || String(existingRow.idCode || '').trim()
-            || SalesModule.generateCatalogPublicId();
-        const normalizedIdCode = resolvedIdCode.replace(/\s+/g, '').toUpperCase();
+            || SalesModule.generateCatalogPublicId({ rowId: editingId });
+        const normalizedIdCode = (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.normalizeCode === 'function')
+            ? IdentityPolicy.normalizeCode(resolvedIdCode)
+            : resolvedIdCode.replace(/\s+/g, '-').toUpperCase();
         if (!normalizedIdCode) {
             return alert('Urun ID zorunlu.');
         }
-        const hasDuplicateIdCode = DB.data.data.salesCatalogProducts.some((item) => {
-            const rowId = String(item?.id || '').trim();
-            const rowIdCode = String(item?.idCode || '').trim().replace(/\s+/g, '').toUpperCase();
-            if (!rowIdCode) return false;
-            if (editingId && rowId === editingId) return false;
-            return rowIdCode === normalizedIdCode;
-        });
+        const hasDuplicateIdCode = (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.isGlobalCodeTaken === 'function')
+            ? IdentityPolicy.isGlobalCodeTaken(DB.data, normalizedIdCode, editingId ? { collection: 'salesCatalogProducts', id: editingId, field: 'idCode' } : null)
+            : DB.data.data.salesCatalogProducts.some((item) => {
+                const rowId = String(item?.id || '').trim();
+                const rowIdCode = String(item?.idCode || '').trim().replace(/\s+/g, '-').toUpperCase();
+                if (!rowIdCode) return false;
+                if (editingId && rowId === editingId) return false;
+                return rowIdCode === normalizedIdCode;
+            });
         if (hasDuplicateIdCode) {
             return alert(`Bu Urun ID zaten kullaniliyor: ${normalizedIdCode}`);
         }

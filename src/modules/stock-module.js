@@ -3594,6 +3594,11 @@ const StockModule = {
     },
 
     getNextOperationCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'DTR', digits: 6 });
+        }
         const max = (DB.data.data.depoTransferTasks || []).reduce((acc, row) => {
             const code = String(row?.taskCode || '').trim().toUpperCase();
             const match = code.match(/^DTR-(\d{6})$/);

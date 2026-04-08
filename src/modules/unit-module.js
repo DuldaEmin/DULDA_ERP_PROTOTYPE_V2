@@ -5529,6 +5529,11 @@ const UnitModule = {
     },
 
     collectGlobalCodes: (exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.collectGlobalCodes === 'function') {
+            return IdentityPolicy.collectGlobalCodes(DB.data, exclude);
+        }
         const bag = new Set();
         const add = (value) => {
             const normalized = String(value || '').trim().toUpperCase();
@@ -5569,12 +5574,22 @@ const UnitModule = {
     },
 
     isGlobalCodeTaken: (code, exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.isGlobalCodeTaken === 'function') {
+            return IdentityPolicy.isGlobalCodeTaken(DB.data, code, exclude);
+        }
         const normalized = String(code || '').trim().toUpperCase();
         if (!normalized) return false;
         return UnitModule.collectGlobalCodes(exclude).has(normalized);
     },
 
     getNextSawProcessCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'TST', digits: 6 });
+        }
         if (!Array.isArray(DB.data.data.sawCutOrders)) DB.data.data.sawCutOrders = [];
         const max = DB.data.data.sawCutOrders.reduce((acc, row) => {
             const code = String(row?.code || '').trim().toUpperCase();
@@ -6277,6 +6292,11 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     generateExtruderCardCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'EKS', digits: 6 });
+        }
         const all = DB.data.data.extruderLibraryCards || [];
         let maxNum = 0;
         all.forEach(row => {
@@ -6576,6 +6596,11 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     generatePlexiCardCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'PLSJ', digits: 6 });
+        }
         const all = DB.data.data.plexiPolishCards || [];
         let maxNum = 0;
         all.forEach(row => {
@@ -7034,6 +7059,11 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     generatePvdCardCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'PVD', digits: 6 });
+        }
         const all = DB.data.data.pvdCards || [];
         let maxNum = 0;
         all.forEach(row => {
@@ -7292,6 +7322,11 @@ const UnitModule = {
         UI.renderCurrentPage();
     },
     generatePolishCardCode: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'IPS', digits: 6 });
+        }
         const all = DB.data.data.ibrahimPolishCards || [];
         let maxNum = 0;
         all.forEach(row => {
@@ -7701,6 +7736,11 @@ const UnitModule = {
     generateEloksalCardCode: (processType) => {
         const type = processType === 'STATIK_BOYA' ? 'STATIK_BOYA' : 'ELOKSAL';
         const prefix = type === 'STATIK_BOYA' ? 'STB' : 'ELX';
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix, digits: 6 });
+        }
         const all = DB.data.data.eloksalCards || [];
         let maxNum = 0;
         all.forEach(row => {

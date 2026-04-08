@@ -5097,6 +5097,11 @@ const ProductLibraryModule = {
     },
 
     collectGlobalCodes: (exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.collectGlobalCodes === 'function') {
+            return IdentityPolicy.collectGlobalCodes(DB.data, exclude);
+        }
         const bag = new Set();
         const add = (value) => {
             const normalized = String(value || '').trim().toUpperCase();
@@ -5138,6 +5143,11 @@ const ProductLibraryModule = {
     },
 
     isGlobalCodeTaken: (code, exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.isGlobalCodeTaken === 'function') {
+            return IdentityPolicy.isGlobalCodeTaken(DB.data, code, exclude);
+        }
         const normalized = String(code || '').trim().toUpperCase();
         if (!normalized) return false;
         return ProductLibraryModule.collectGlobalCodes(exclude).has(normalized);

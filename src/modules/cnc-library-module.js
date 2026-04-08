@@ -752,6 +752,11 @@ const CncLibraryModule = {
     },
 
     generateId: () => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'CNC', digits: 6 });
+        }
         const cards = DB.data.data.cncCards || [];
         let maxNo = 0;
         cards.forEach(c => {
@@ -770,6 +775,11 @@ const CncLibraryModule = {
     },
 
     collectGlobalCodes: (exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.collectGlobalCodes === 'function') {
+            return IdentityPolicy.collectGlobalCodes(DB.data, exclude);
+        }
         const bag = new Set();
         const add = (value) => {
             const normalized = String(value || '').trim().toUpperCase();
@@ -806,6 +816,11 @@ const CncLibraryModule = {
     },
 
     isGlobalCodeTaken: (code, exclude = null) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.isGlobalCodeTaken === 'function') {
+            return IdentityPolicy.isGlobalCodeTaken(DB.data, code, exclude);
+        }
         const normalized = String(code || '').trim().toUpperCase();
         if (!normalized) return false;
         return CncLibraryModule.collectGlobalCodes(exclude).has(normalized);

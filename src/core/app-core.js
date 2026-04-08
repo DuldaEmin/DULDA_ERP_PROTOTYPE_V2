@@ -221,6 +221,133 @@ const IdentityPolicy = {
         }
     },
 
+    getDataRoot: (root) => {
+        if (!root || typeof root !== 'object') return null;
+        if (root.data && typeof root.data === 'object' && !Array.isArray(root.data)) return root.data;
+        return root;
+    },
+
+    normalizeCode: (value) => String(value ?? '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-'),
+
+    collectGlobalCodes: (root, exclude = null) => {
+        const dataRoot = IdentityPolicy.getDataRoot(root);
+        const bag = new Set();
+        if (!dataRoot) return bag;
+
+        const shouldSkip = (collection, row, field) => {
+            if (!exclude || !row) return false;
+            if (exclude.collection && String(exclude.collection || '') !== String(collection || '')) return false;
+            if (exclude.id && String(exclude.id || '') !== String(row.id || '')) return false;
+            if (exclude.field && String(exclude.field || '') !== String(field || '')) return false;
+            return true;
+        };
+
+        IdentityPolicy.codeFieldDefinitions.forEach((def) => {
+            const list = dataRoot?.[def.collection];
+            if (!Array.isArray(list)) return;
+            list.forEach((row) => {
+                if (!row || typeof row !== 'object') return;
+                if (shouldSkip(def.collection, row, def.field)) return;
+                const code = IdentityPolicy.normalizeCode(row?.[def.field]);
+                if (!code) return;
+                bag.add(code);
+            });
+        });
+
+        return bag;
+    },
+
+    isGlobalCodeTaken: (root, code, exclude = null) => {
+        const normalized = IdentityPolicy.normalizeCode(code);
+        if (!normalized) return false;
+        return IdentityPolicy.collectGlobalCodes(root, exclude).has(normalized);
+    },
+
+    nextCodeFromUsed: (usedCodes, prefix, digits = 6) => {
+        const safePrefix = String(prefix || 'ID')
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase() || 'ID';
+        const width = Number.isFinite(Number(digits)) ? Math.max(1, Number(digits)) : 6;
+        const pattern = new RegExp(`^${safePrefix}-(\\d+)$`);
+        let maxSeq = 0;
+        usedCodes.forEach((code) => {
+            const match = String(code || '').match(pattern);
+            if (!match) return;
+            const seq = Number(match[1]);
+            if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+        });
+        let nextSeq = maxSeq + 1;
+        let candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+        while (usedCodes.has(IdentityPolicy.normalizeCode(candidate))) {
+            nextSeq += 1;
+            candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+        }
+        return candidate;
+    },
+
+    getNextGlobalCode: (root, options = {}) => {
+        const prefix = String(options?.prefix || 'ID');
+        const digits = Number(options?.digits || 6);
+        const exclude = options?.exclude || null;
+        const used = IdentityPolicy.collectGlobalCodes(root, exclude);
+        return IdentityPolicy.nextCodeFromUsed(used, prefix, digits);
+    },
+
+    enforceGlobalCodeUniqueness: (root) => {
+        const dataRoot = IdentityPolicy.getDataRoot(root);
+        if (!dataRoot) return false;
+
+        const usedCodes = new Set();
+        let changed = false;
+
+        IdentityPolicy.codeFieldDefinitions
+            .filter(Boolean)
+            .forEach((def) => {
+                const list = dataRoot?.[def.collection];
+                if (!Array.isArray(list)) return;
+                list.forEach((row) => {
+                    if (!row || typeof row !== 'object') return;
+                    const currentRaw = String(row?.[def.field] ?? '').trim();
+                    const currentCode = IdentityPolicy.normalizeCode(currentRaw);
+
+                    if (!currentCode) {
+                        if (def.repair === false) return;
+                        const generatedMissing = IdentityPolicy.nextCodeFromUsed(usedCodes, def.prefix || 'ID', def.digits || 6);
+                        if (String(row?.[def.field] ?? '') !== generatedMissing) {
+                            row[def.field] = generatedMissing;
+                            changed = true;
+                        }
+                        usedCodes.add(IdentityPolicy.normalizeCode(generatedMissing));
+                        return;
+                    }
+
+                    if (currentCode && !usedCodes.has(currentCode)) {
+                        if (String(row?.[def.field] ?? '') !== currentRaw) {
+                            row[def.field] = currentRaw;
+                            changed = true;
+                        }
+                        usedCodes.add(currentCode);
+                        return;
+                    }
+
+                    if (def.repair === false) return;
+
+                    const generated = IdentityPolicy.nextCodeFromUsed(usedCodes, def.prefix || 'ID', def.digits || 6);
+                    if (String(row?.[def.field] ?? '') !== generated) {
+                        row[def.field] = generated;
+                        changed = true;
+                    }
+                    usedCodes.add(IdentityPolicy.normalizeCode(generated));
+                });
+            });
+
+        return changed;
+    },
+
     ensureCollectionIds: (list, prefix, usedIds) => {
         if (!Array.isArray(list)) return false;
         let changed = false;
@@ -257,6 +384,10 @@ const IdentityPolicy = {
                 changed = true;
             }
         });
+
+        if (IdentityPolicy.enforceGlobalCodeUniqueness(root)) {
+            changed = true;
+        }
 
         return changed;
     }

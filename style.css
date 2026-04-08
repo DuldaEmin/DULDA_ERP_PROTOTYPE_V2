@@ -1735,6 +1735,13 @@ tr:hover {
     gap: 0.42rem;
 }
 
+.sales-catalog-tree-main.is-open {
+    border: 1px solid #cfd8e3;
+    border-radius: 0.95rem;
+    background: #f8fbff;
+    padding: 0.55rem;
+}
+
 .sales-catalog-tree-main-btn,
 .sales-catalog-tree-group-btn,
 .sales-catalog-tree-leaf-btn {
@@ -1756,6 +1763,13 @@ tr:hover {
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
+}
+
+.sales-catalog-tree-main-panel {
+    border: 1px solid #dde4ee;
+    border-radius: 0.8rem;
+    background: #ffffff;
+    padding: 0.5rem;
 }
 
 .sales-catalog-tree-group-list {
@@ -1783,9 +1797,10 @@ tr:hover {
 .sales-catalog-tree-main-btn.is-active,
 .sales-catalog-tree-group-btn.is-active,
 .sales-catalog-tree-leaf-btn.is-active {
-    background: linear-gradient(135deg, #f97316 0%, #ef4444 100%);
-    border-color: #ef4444;
+    background: #16a34a;
+    border-color: #15803d;
     color: #fff;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.22);
 }
 
 .sales-catalog-tree-main-btn.is-active .sales-catalog-tree-arrow,

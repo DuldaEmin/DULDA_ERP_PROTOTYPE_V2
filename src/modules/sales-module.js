@@ -11,6 +11,9 @@ const SalesModule = {
         catalogActiveMainId: 'korkuluk',
         catalogActiveGroupId: '',
         catalogActiveCategoryId: '',
+        catalogExpandedMainId: 'korkuluk',
+        catalogExpandedGroupId: '',
+        catalogHighlightKey: 'group:rail-aluminum',
         catalogDraft: null
     },
 
@@ -451,8 +454,8 @@ const SalesModule = {
                     id: 'rail-aluminum',
                     label: 'Aluminyum korkuluk',
                     children: [
-                        { id: 'rail-aluminum-baba', label: 'Korkuluk babalari' },
-                        { id: 'rail-aluminum-dikme', label: 'Korkuluk dikmeleri' },
+                        { id: 'rail-aluminum-baba', label: 'Aluminyum korkuluk babalari' },
+                        { id: 'rail-aluminum-dikme', label: 'Aluminyum korkuluk dikmeleri' },
                         { id: 'rail-aluminum-bottle', label: 'Sise model dikmeleri' },
                         { id: 'rail-aluminum-accessory', label: 'Aksesuarlar' }
                     ]
@@ -572,6 +575,30 @@ const SalesModule = {
         const activeLeaf = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         if (!activeLeaf || !leafIds.includes(activeLeaf)) {
             SalesModule.state.catalogActiveCategoryId = String(leafIds[0] || '');
+        }
+
+        const expandedMain = String(SalesModule.state.catalogExpandedMainId || '').trim();
+        if (expandedMain && !mainIds.includes(expandedMain)) {
+            SalesModule.state.catalogExpandedMainId = '';
+        }
+        const expandedMainGroups = SalesModule.state.catalogExpandedMainId
+            ? SalesModule.getCatalogGroupsByMain(SalesModule.state.catalogExpandedMainId)
+            : [];
+        const expandedGroupIds = expandedMainGroups.map((item) => String(item.id || '')).filter(Boolean);
+        const expandedGroup = String(SalesModule.state.catalogExpandedGroupId || '').trim();
+        if (expandedGroup && !expandedGroupIds.includes(expandedGroup)) {
+            SalesModule.state.catalogExpandedGroupId = '';
+        }
+
+        const highlight = String(SalesModule.state.catalogHighlightKey || '').trim();
+        if (!highlight) {
+            if (String(SalesModule.state.catalogActiveGroupId || '').trim()) {
+                SalesModule.state.catalogHighlightKey = `group:${String(SalesModule.state.catalogActiveGroupId || '')}`;
+            } else if (String(SalesModule.state.catalogActiveMainId || '').trim()) {
+                SalesModule.state.catalogHighlightKey = `main:${String(SalesModule.state.catalogActiveMainId || '')}`;
+            } else {
+                SalesModule.state.catalogHighlightKey = '';
+            }
         }
     },
 
@@ -841,11 +868,24 @@ const SalesModule = {
         if (!id) return;
         const main = SalesModule.getCatalogMainById(id);
         if (!main) return;
+        const isExpanded = String(SalesModule.state.catalogExpandedMainId || '') === id;
+        if (isExpanded) {
+            SalesModule.state.catalogExpandedMainId = '';
+            SalesModule.state.catalogExpandedGroupId = '';
+            SalesModule.state.catalogHighlightKey = `main:${id}`;
+            UI.renderCurrentPage();
+            return;
+        }
         SalesModule.state.catalogActiveMainId = id;
+        SalesModule.state.catalogExpandedMainId = id;
         const groups = SalesModule.getCatalogGroupsByMain(id);
         SalesModule.state.catalogActiveGroupId = String(groups[0]?.id || '');
+        SalesModule.state.catalogExpandedGroupId = '';
         const leaves = Array.isArray(groups[0]?.children) ? groups[0].children : [];
         SalesModule.state.catalogActiveCategoryId = String(leaves[0]?.id || '');
+        SalesModule.state.catalogHighlightKey = SalesModule.state.catalogActiveGroupId
+            ? `group:${SalesModule.state.catalogActiveGroupId}`
+            : `main:${id}`;
         UI.renderCurrentPage();
     },
 
@@ -854,7 +894,15 @@ const SalesModule = {
         if (!id) return;
         const group = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId, id);
         if (!group) return;
+        const isExpanded = String(SalesModule.state.catalogExpandedGroupId || '') === id;
+        SalesModule.state.catalogHighlightKey = `group:${id}`;
+        if (isExpanded) {
+            SalesModule.state.catalogExpandedGroupId = '';
+            UI.renderCurrentPage();
+            return;
+        }
         SalesModule.state.catalogActiveGroupId = id;
+        SalesModule.state.catalogExpandedGroupId = id;
         const leaves = Array.isArray(group.children) ? group.children : [];
         SalesModule.state.catalogActiveCategoryId = String(leaves[0]?.id || '');
         UI.renderCurrentPage();
@@ -866,6 +914,9 @@ const SalesModule = {
         SalesModule.state.catalogActiveMainId = String(leaf.mainId || '');
         SalesModule.state.catalogActiveGroupId = String(leaf.groupId || '');
         SalesModule.state.catalogActiveCategoryId = String(leaf.id || '');
+        SalesModule.state.catalogExpandedMainId = String(leaf.mainId || '');
+        SalesModule.state.catalogExpandedGroupId = String(leaf.groupId || '');
+        SalesModule.state.catalogHighlightKey = `leaf:${String(leaf.id || '')}`;
         UI.renderCurrentPage();
     },
 
@@ -922,44 +973,47 @@ const SalesModule = {
 
     renderCatalogTreeHtml: () => {
         const mains = SalesModule.getCatalogTree();
-        const activeMainId = String(SalesModule.state.catalogActiveMainId || '').trim();
-        const activeGroupId = String(SalesModule.state.catalogActiveGroupId || '').trim();
-        const activeLeafId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const expandedMainId = String(SalesModule.state.catalogExpandedMainId || '').trim();
+        const expandedGroupId = String(SalesModule.state.catalogExpandedGroupId || '').trim();
+        const highlightKey = String(SalesModule.state.catalogHighlightKey || '').trim();
         return `
             <div class="sales-catalog-tree">
                 ${mains.map((main) => {
                 const mainId = String(main.id || '');
                 const mainLabel = String(main.label || '-');
-                const isMainActive = mainId === activeMainId;
-                const groups = isMainActive ? SalesModule.getCatalogGroupsByMain(mainId) : [];
+                const isMainOpen = mainId === expandedMainId;
+                const isMainActive = highlightKey === `main:${mainId}`;
+                const groups = isMainOpen ? SalesModule.getCatalogGroupsByMain(mainId) : [];
                 const hasGroups = groups.length > 0;
                 return `
-                        <div class="sales-catalog-tree-main ${isMainActive ? 'is-open' : ''}">
+                        <div class="sales-catalog-tree-main ${isMainOpen ? 'is-open' : ''}">
                             <button class="sales-catalog-tree-main-btn ${isMainActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(mainId)}')">
                                 <span>${SalesModule.escapeHtml(mainLabel)}</span>
-                                <span class="sales-catalog-tree-arrow">${isMainActive ? 'v' : '>'}</span>
+                                <span class="sales-catalog-tree-arrow">${isMainOpen ? 'v' : '>'}</span>
                             </button>
 
-                            ${isMainActive ? `
-                                <div class="sales-catalog-tree-group-list">
+                            ${isMainOpen ? `
+                                <div class="sales-catalog-tree-main-panel">
+                                    <div class="sales-catalog-tree-group-list">
                                     ${hasGroups ? groups.map((group) => {
                         const groupId = String(group.id || '');
                         const groupLabel = String(group.label || '-');
-                        const isGroupActive = groupId === activeGroupId;
+                        const isGroupOpen = groupId === expandedGroupId;
+                        const isGroupActive = highlightKey === `group:${groupId}`;
                         const leaves = Array.isArray(group.children) ? group.children : [];
                         return `
-                                            <div class="sales-catalog-tree-group ${isGroupActive ? 'is-open' : ''}">
+                                            <div class="sales-catalog-tree-group ${isGroupOpen ? 'is-open' : ''}">
                                                 <button class="sales-catalog-tree-group-btn ${isGroupActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveGroup('${SalesModule.escapeHtml(groupId)}')">
                                                     <span>${SalesModule.escapeHtml(groupLabel)}</span>
-                                                    <span class="sales-catalog-tree-arrow">${isGroupActive ? 'v' : '>'}</span>
+                                                    <span class="sales-catalog-tree-arrow">${isGroupOpen ? 'v' : '>'}</span>
                                                 </button>
 
-                                                ${isGroupActive ? `
+                                                ${isGroupOpen ? `
                                                     <div class="sales-catalog-tree-leaf-list">
                                                         ${leaves.length ? leaves.map((leaf) => {
                             const leafId = String(leaf.id || '');
                             const leafLabel = String(leaf.label || '-');
-                            const isLeafActive = leafId === activeLeafId;
+                            const isLeafActive = highlightKey === `leaf:${leafId}`;
                             return `
                                                                     <button class="sales-catalog-tree-leaf-btn ${isLeafActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leafId)}')">
                                                                         ${SalesModule.escapeHtml(leafLabel)}
@@ -971,6 +1025,7 @@ const SalesModule = {
                                             </div>
                                         `;
                     }).join('') : '<div class="sales-catalog-tree-empty">Bu kategoride grup bulunamadi.</div>'}
+                                    </div>
                                 </div>
                             ` : ''}
                         </div>

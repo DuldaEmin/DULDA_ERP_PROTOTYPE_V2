@@ -1735,13 +1735,31 @@ tr:hover {
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: #475569;
-    margin-bottom: 0.55rem;
+}
+
+.sales-catalog-tree-group-toggle {
+    width: 100%;
+    border: 1px solid #d6deea;
+    border-radius: 0.72rem;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    cursor: pointer;
+    padding: 0.5rem 0.6rem;
+}
+
+.sales-catalog-tree-group.is-open .sales-catalog-tree-group-toggle {
+    border-color: #c5d0df;
+    background: #f8fafc;
 }
 
 .sales-catalog-tree-leaf-list {
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    margin-top: 0.55rem;
 }
 
 .sales-catalog-tree-leaf {

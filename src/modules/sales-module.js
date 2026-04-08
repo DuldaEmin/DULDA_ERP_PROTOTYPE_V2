@@ -9,7 +9,8 @@ const SalesModule = {
         customerDetailMode: 'view',
         customerEditDraft: null,
         catalogActiveCategoryId: '',
-        catalogDraft: null
+        catalogDraft: null,
+        catalogExpandedGroups: {}
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -490,6 +491,13 @@ const SalesModule = {
         if (!active || !leafNodes.some((leaf) => leaf.id === active)) {
             SalesModule.state.catalogActiveCategoryId = String(leafNodes[0].id || '');
         }
+        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
+            SalesModule.state.catalogExpandedGroups = {};
+        }
+        const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId);
+        if (activeLeaf && !SalesModule.state.catalogExpandedGroups[activeLeaf.groupId]) {
+            SalesModule.state.catalogExpandedGroups[activeLeaf.groupId] = true;
+        }
     },
 
     getCatalogProducts: () => {
@@ -753,6 +761,20 @@ const SalesModule = {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
         if (!leaf) return;
         SalesModule.state.catalogActiveCategoryId = leaf.id;
+        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
+            SalesModule.state.catalogExpandedGroups = {};
+        }
+        SalesModule.state.catalogExpandedGroups[leaf.groupId] = true;
+        UI.renderCurrentPage();
+    },
+
+    toggleCatalogGroup: (groupId) => {
+        const id = String(groupId || '').trim();
+        if (!id) return;
+        if (!SalesModule.state.catalogExpandedGroups || typeof SalesModule.state.catalogExpandedGroups !== 'object') {
+            SalesModule.state.catalogExpandedGroups = {};
+        }
+        SalesModule.state.catalogExpandedGroups[id] = !SalesModule.state.catalogExpandedGroups[id];
         UI.renderCurrentPage();
     },
 
@@ -811,9 +833,12 @@ const SalesModule = {
         const tree = SalesModule.getCatalogTree();
         const activeId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         return tree.map((group) => `
-            <div class="sales-catalog-tree-group">
-                <div class="sales-catalog-tree-group-title">${SalesModule.escapeHtml(group.label)}</div>
-                <div class="sales-catalog-tree-leaf-list">
+            <div class="sales-catalog-tree-group ${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'is-open' : ''}">
+                <button type="button" class="sales-catalog-tree-group-toggle" onclick="SalesModule.toggleCatalogGroup('${SalesModule.escapeHtml(group.id)}')">
+                    <span class="sales-catalog-tree-group-title">${SalesModule.escapeHtml(group.label)}</span>
+                    <i data-lucide="${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'chevron-down' : 'chevron-right'}" width="15" height="15"></i>
+                </button>
+                <div class="sales-catalog-tree-leaf-list" style="display:${SalesModule.state.catalogExpandedGroups?.[group.id] ? 'flex' : 'none'};">
                     ${(group.children || []).map((leaf) => `
                         <button class="sales-catalog-tree-leaf ${leaf.id === activeId ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveCategory('${SalesModule.escapeHtml(leaf.id)}')">
                             ${SalesModule.escapeHtml(leaf.label)}

@@ -677,7 +677,7 @@ const SalesModule = {
             .filter((value) => !selectedSet.has(value));
         const selected = SalesModule.normalizeCatalogDiameterValue(selectedValue || '');
         const placeholder = `<option value="" ${selected ? '' : 'selected'}>listeden cap sec</option>`;
-        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>O ${SalesModule.escapeHtml(value)}</option>`).join('');
+        const options = rows.map((value) => `<option value="${SalesModule.escapeHtml(value)}" ${value === selected ? 'selected' : ''}>Ø ${SalesModule.escapeHtml(value)}</option>`).join('');
         return `${placeholder}${options}`;
     },
 
@@ -686,7 +686,7 @@ const SalesModule = {
         if (!rows.length) return '<div class="sales-catalog-empty-text">Tanimli cap bulunamadi.</div>';
         return rows.map((value) => `
             <div class="sales-catalog-manage-row">
-                <div class="sales-catalog-manage-value">O ${SalesModule.escapeHtml(value)}</div>
+                <div class="sales-catalog-manage-value">Ø ${SalesModule.escapeHtml(value)}</div>
                 <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeCatalogDiameterLibraryItem('${SalesModule.escapeHtml(value)}')">sil</button>
             </div>
         `).join('');
@@ -785,7 +785,7 @@ const SalesModule = {
             const active = value === String(selectedDiameter || '').trim();
             return `
                 <span class="sales-catalog-chip-wrap ${active ? 'is-active' : ''}">
-                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">O ${SalesModule.escapeHtml(value)}</button>
+                    <button type="button" class="sales-catalog-chip ${active ? 'is-active' : ''}" onclick="${SalesModule.escapeHtml(clickHandlerName)}('${SalesModule.escapeHtml(value)}')">Ø ${SalesModule.escapeHtml(value)}</button>
                     ${removeHandlerName ? `<button type="button" class="sales-catalog-chip-remove" onclick="event.stopPropagation(); ${SalesModule.escapeHtml(removeHandlerName)}('${SalesModule.escapeHtml(value)}')">&times;</button>` : ''}
                 </span>
             `;
@@ -850,7 +850,7 @@ const SalesModule = {
                         <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || '-')}</div>
                         <div class="sales-catalog-card-meta-row">
                             <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
-                            <span class="sales-catalog-pill">O ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                            <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
                         </div>
                     </div>
                 </button>

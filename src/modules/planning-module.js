@@ -1116,6 +1116,7 @@ const PlanningModule = {
                     itemType: 'COMPONENT',
                     qty,
                     valid: !!row,
+                    invalidReason: row ? '' : 'COMPONENT_NOT_FOUND',
                     title: String(row?.name || ''),
                     code: String(row?.code || ''),
                     info: String(row?.group || ''),
@@ -1129,6 +1130,7 @@ const PlanningModule = {
                     itemType: 'SEMI',
                     qty,
                     valid: !!row,
+                    invalidReason: row ? '' : 'SEMI_NOT_FOUND',
                     title: String(row?.name || ''),
                     code: String(row?.code || ''),
                     info: String(row?.group || ''),
@@ -1137,11 +1139,15 @@ const PlanningModule = {
             }
             const row = PlanningModule.findVariantById(item?.variantId || '');
             const montage = PlanningModule.findMontageCardForVariant(row);
+            const modelInvalidReason = !row
+                ? 'MODEL_NOT_FOUND'
+                : (!montage?.id ? 'MODEL_MONTAGE_MISSING' : '');
             return {
                 id: String(item?.id || ''),
                 itemType: 'MODEL',
                 qty,
                 valid: !!row && !!montage?.id,
+                invalidReason: modelInvalidReason,
                 title: String(row?.productName || ''),
                 code: String(row?.variantCode || ''),
                 info: String(montage?.productCode || montage?.cardCode || ''),
@@ -1422,10 +1428,28 @@ const PlanningModule = {
         PlanningModule.ensureData();
         const draftItems = Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [];
         if (!draftItems.length) return alert('Lutfen en az bir urun ekleyiniz.');
+        const resolvedDraftItems = PlanningModule.getResolvedStockDraftItems();
         const demandItems = draftItems
             .map((item) => PlanningModule.buildDemandItemFromDraftItem(item))
             .filter(Boolean);
         if (demandItems.length !== draftItems.length) {
+            const invalidRows = resolvedDraftItems.filter((row) => !row?.valid);
+            const firstInvalid = invalidRows[0] || null;
+            const label = String(firstInvalid?.title || firstInvalid?.code || '').trim();
+            const prettyLabel = label ? ` (${label})` : '';
+            const reason = String(firstInvalid?.invalidReason || '');
+            if (reason === 'MODEL_MONTAGE_MISSING') {
+                return alert(`Secilen urun modelinde montaj karti bagli degil${prettyLabel}. Urun Modelleri ekraninda montaj karti secip kaydediniz.`);
+            }
+            if (reason === 'MODEL_NOT_FOUND') {
+                return alert(`Secilen urun modeli bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
+            }
+            if (reason === 'COMPONENT_NOT_FOUND') {
+                return alert(`Secilen parca/bilesen bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
+            }
+            if (reason === 'SEMI_NOT_FOUND') {
+                return alert(`Secilen yari mamul bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
+            }
             return alert('Eklenen urunlerden biri gecersiz veya silinmis. Lutfen listeyi kontrol ediniz.');
         }
         const totalQty = demandItems.reduce((sum, row) => sum + Number(row?.qty || 0), 0);

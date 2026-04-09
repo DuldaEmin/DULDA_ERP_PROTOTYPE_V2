@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-09T12:21:18.925Z",
+    "updated_at": "2026-04-09T12:24:05.364Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 763
+    "revision": 766
   },
   "data": {
     "products": [
@@ -3574,6 +3574,369 @@
         "sourceItemQty": 20,
         "created_at": "2026-04-09T10:37:06.999Z",
         "updated_at": "2026-04-09T10:37:06.999Z"
+      },
+      {
+        "id": "b98f8dd5-7825-44a0-8997-8ad0a3033f66",
+        "workOrderCode": "WO-000018",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000008",
+        "productName": "40 lık aluminyum dikme flanşı",
+        "lotQty": 5,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "874a4854-2684-46a8-a8e7-aeb4189a9589",
+            "lineCode": "WO-000018-01",
+            "componentCode": "PRC-000008",
+            "componentName": "40 lık aluminyum dikme flanşı",
+            "multiplier": 1,
+            "targetQty": 5,
+            "routes": [
+              {
+                "id": "aa51e1df-1feb-4be8-b92c-3c72765d7087",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "998a7774-f729-4bb0-823b-3c024f47589b",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "2eedca53-c5f5-48c6-ad01-37fafbc40b03",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "1d200aec-58ba-4df5-9019-adeab858457c",
+                "seq": 4,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "04bdb3b6-01df-472d-ac46-893eb4ebb8cf",
+                "seq": 5,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
+      },
+      {
+        "id": "f09689d7-404a-4ef8-a58e-c1231d0712e0",
+        "workOrderCode": "WO-000019",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000003",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
+        "lotQty": 5,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "26ab28c0-74c3-45ac-b2ab-1e5b898da23f",
+            "lineCode": "WO-000019-01",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
+            "multiplier": 1,
+            "targetQty": 5,
+            "routes": [
+              {
+                "id": "9b421723-e984-4e2b-a5bf-f0e0d05c319d",
+                "seq": 1,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000002"
+              },
+              {
+                "id": "0d362e25-e37d-4729-804b-9a92a7d78900",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "912d7fab-489b-4da4-86b2-fdbf3c246092",
+                "seq": 3,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "f1398e0a-516d-41e4-af68-90ce1e777aeb",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "11550516-586c-447b-bf7e-40dffad7781b",
+                "seq": 5,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "bc053931-3729-4f33-b23b-49a3e29d97c4",
+                "seq": 6,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
+      },
+      {
+        "id": "68b57d0e-1ac6-41eb-9d07-cc59dc01f3da",
+        "workOrderCode": "WO-000020",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000011",
+        "productName": "aluminyum dikme alt borusu 150 mm sarı",
+        "lotQty": 5,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "b7a76a57-e501-43f0-afb3-fff1b187ce8b",
+            "lineCode": "WO-000020-01",
+            "componentCode": "PRC-000011",
+            "componentName": "aluminyum dikme alt borusu 150 mm sarı",
+            "multiplier": 1,
+            "targetQty": 5,
+            "routes": [
+              {
+                "id": "3164a043-0526-4e7d-9d60-05b1f59ca95f",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000003"
+              },
+              {
+                "id": "5318b1fe-b0c3-417f-a9dc-09cbcc0418c9",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
+      },
+      {
+        "id": "21b6d0a4-b388-4110-9d1b-2bf3dcf7ef55",
+        "workOrderCode": "WO-000021",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000005",
+        "productName": "aluminyum dikme ay bağlantısı",
+        "lotQty": 5,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "b75337ac-e8c8-44fb-9dd5-8504e1f6e8b0",
+            "lineCode": "WO-000021-01",
+            "componentCode": "PRC-000005",
+            "componentName": "aluminyum dikme ay bağlantısı",
+            "multiplier": 1,
+            "targetQty": 5,
+            "routes": [
+              {
+                "id": "5703070a-c2ad-4633-a134-27ac69ced79b",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "9a38a13a-2a77-4249-89d6-9cf72aca3b05",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "417f2c68-4f56-4489-9c07-4da181fa0744",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
+      },
+      {
+        "id": "7cc9d3a3-42ed-48b7-95d2-717d10383d58",
+        "workOrderCode": "WO-000022",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000001",
+        "productName": "aluminyum dikme üst boru 70 mm",
+        "lotQty": 15,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "75116f53-dd6d-48a7-9a78-ec6c6ea43818",
+            "lineCode": "WO-000022-01",
+            "componentCode": "PRC-000001",
+            "componentName": "aluminyum dikme üst boru 70 mm",
+            "multiplier": 1,
+            "targetQty": 15,
+            "routes": [
+              {
+                "id": "317d50e6-1ceb-4202-a0e9-4ef54e587f07",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000001"
+              },
+              {
+                "id": "1dc15f17-f0db-45fc-9131-985a841d6ed6",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
+      },
+      {
+        "id": "8646e2dd-535d-4741-b5f3-82782f1d99da",
+        "workOrderCode": "WO-000023",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000006",
+        "productName": "aluminyum dikme yüzüğü",
+        "lotQty": 20,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "a051e387-630c-4861-a136-b0f61f1c7f9e",
+            "lineCode": "WO-000023-01",
+            "componentCode": "PRC-000006",
+            "componentName": "aluminyum dikme yüzüğü",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "f22d75bf-9108-4aab-9e79-e51c846e3119",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "9116443c-138e-4c92-b8b3-811f7438daf8",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "a6e4cb87-4a54-4e9d-87dd-88260dc9dbb1",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "sourceCode": "PLN-000006",
+        "sourceItemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+        "sourceItemName": "3 emniteli dikme 2015",
+        "sourceItemCode": "URM-000003-V01",
+        "sourceItemQty": 5,
+        "created_at": "2026-04-09T12:24:05.364Z",
+        "updated_at": "2026-04-09T12:24:05.364Z"
       }
     ],
     "workOrderTransactions": [
@@ -5964,7 +6327,12 @@
             "qty": 1
           }
         ],
-        "montageCard": null,
+        "montageCard": {
+          "id": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+          "cardCode": "MON-000001",
+          "productCode": "DIKMELER",
+          "productName": "aluminyum dikme oluşturma"
+        },
         "colors": {
           "plexi": {
             "type": "",
@@ -5999,7 +6367,7 @@
         "explodedFiles": [],
         "note": "deneme",
         "created_at": "2026-04-09T12:14:51.286Z",
-        "updated_at": "2026-04-09T12:21:18.924Z"
+        "updated_at": "2026-04-09T12:23:03.759Z"
       }
     ],
     "planningDemands": [
@@ -6598,6 +6966,172 @@
           "converted_at": "2026-04-09T10:37:06.999Z"
         },
         "released_at": "2026-04-09T10:37:06.999Z"
+      },
+      {
+        "id": "62d0932d-900a-4f6e-8c22-d3fd2bba474e",
+        "demandCode": "PLN-000006",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-04-09T12:23:29.332Z",
+        "items": [
+          {
+            "id": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+            "itemType": "MODEL",
+            "qty": 5,
+            "variantId": "f3e10972-4007-40fc-94cc-47c0fe4f1d19",
+            "componentId": "",
+            "semiFinishedId": "",
+            "familyId": "82240718-affa-492b-9e91-f5d80adca17b",
+            "variantCode": "URM-000003-V01",
+            "componentCode": "",
+            "semiFinishedCode": "",
+            "productGroup": "Aluminyum Dikmeler",
+            "productName": "3 emniteli dikme 2015",
+            "productCode": "DIKMELER",
+            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+            "montageCardCode": "MON-000001"
+          }
+        ],
+        "itemType": "MODEL",
+        "variantId": "f3e10972-4007-40fc-94cc-47c0fe4f1d19",
+        "componentId": "",
+        "semiFinishedId": "",
+        "familyId": "82240718-affa-492b-9e91-f5d80adca17b",
+        "variantCode": "URM-000003-V01",
+        "componentCode": "",
+        "semiFinishedCode": "",
+        "productGroup": "Aluminyum Dikmeler",
+        "productName": "3 emniteli dikme 2015",
+        "productCode": "DIKMELER",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 5,
+        "dueDate": "2026-04-12",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "RELEASED",
+        "workOrderId": "b98f8dd5-7825-44a0-8997-8ad0a3033f66",
+        "workOrderCode": "WO-000018 +5",
+        "workOrderIds": [
+          "b98f8dd5-7825-44a0-8997-8ad0a3033f66",
+          "f09689d7-404a-4ef8-a58e-c1231d0712e0",
+          "68b57d0e-1ac6-41eb-9d07-cc59dc01f3da",
+          "21b6d0a4-b388-4110-9d1b-2bf3dcf7ef55",
+          "7cc9d3a3-42ed-48b7-95d2-717d10383d58",
+          "8646e2dd-535d-4741-b5f3-82782f1d99da"
+        ],
+        "workOrderCodes": [
+          "WO-000018",
+          "WO-000019",
+          "WO-000020",
+          "WO-000021",
+          "WO-000022",
+          "WO-000023"
+        ],
+        "updated_at": "2026-04-09T12:24:05.364Z",
+        "releasedQty": 5,
+        "poolAnalysis": {
+          "rows": [
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000008",
+              "name": "40 lık aluminyum dikme flanşı",
+              "componentLibrary": "PART",
+              "componentId": "b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "requiredQty": 5,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 5
+            },
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000003",
+              "name": "40 lık aluminyum dikme yarıklı tapa",
+              "componentLibrary": "PART",
+              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "requiredQty": 5,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 5
+            },
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:686626c8-df80-4cf2-bd38-7455ed9ddaf2",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000011",
+              "name": "aluminyum dikme alt borusu 150 mm sarı",
+              "componentLibrary": "PART",
+              "componentId": "686626c8-df80-4cf2-bd38-7455ed9ddaf2",
+              "requiredQty": 5,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 5
+            },
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000005",
+              "name": "aluminyum dikme ay bağlantısı",
+              "componentLibrary": "PART",
+              "componentId": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "requiredQty": 5,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 5
+            },
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000001",
+              "name": "aluminyum dikme üst boru 70 mm",
+              "componentLibrary": "PART",
+              "componentId": "0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "requiredQty": 15,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 15
+            },
+            {
+              "key": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa::PART:3f3c7192-6721-4c58-af07-785b8edf3013",
+              "itemKey": "fca25b47-4ffb-4634-b5cb-83e9098ef8fa",
+              "itemName": "3 emniteli dikme 2015",
+              "itemCode": "URM-000003-V01",
+              "itemQty": 5,
+              "code": "PRC-000006",
+              "name": "aluminyum dikme yüzüğü",
+              "componentLibrary": "PART",
+              "componentId": "3f3c7192-6721-4c58-af07-785b8edf3013",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            }
+          ],
+          "converted_at": "2026-04-09T12:24:05.364Z"
+        },
+        "released_at": "2026-04-09T12:24:05.364Z"
       }
     ],
     "semiFinishedCards": [

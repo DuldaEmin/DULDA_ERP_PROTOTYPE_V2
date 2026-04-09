@@ -492,8 +492,8 @@ const RuntimePerformance = {
         RuntimePerformance.installed = true;
 
         if (!globalThis.lucide || typeof globalThis.lucide.createIcons !== "function") return;
+        if (globalThis.lucide.createIcons.__batchedCreateIcons) return;
         const rawCreateIcons = globalThis.lucide.createIcons.bind(globalThis.lucide);
-        if (rawCreateIcons.__batchedCreateIcons) return;
 
         let scheduled = false;
         let latestArgs = [];
@@ -962,13 +962,15 @@ const Router = {
         const targetPage = String(pageId || 'dashboard');
         const currentPage = String(Router.currentPage || '');
         const now = Date.now();
-        const isBurstDuplicate = Router.lastNavigateTarget === targetPage
+        const requestRefresh = !!options?.force || !!options?.fromBack || !!options?.preserveProductsState || !!options?.skipHistory;
+        const isBurstDuplicate = !requestRefresh
+            && Router.lastNavigateTarget === targetPage
             && (now - Router.lastNavigateAt) < Router.minNavigateIntervalMs;
         Router.lastNavigateTarget = targetPage;
         Router.lastNavigateAt = now;
 
         if (isBurstDuplicate) return;
-        if (!options?.force && targetPage === currentPage) return;
+        if (!requestRefresh && targetPage === currentPage) return;
 
         const { fromBack = false, skipHistory = false } = options;
         if (!skipHistory && !fromBack && currentPage && currentPage !== targetPage) {

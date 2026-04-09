@@ -1063,13 +1063,31 @@ const SalesModule = {
     },
 
     setCatalogSearchText: (value) => {
+        const active = document.activeElement;
+        const inputId = 'sales_catalog_search_input';
+        const shouldRestore = !!(active && String(active.id || '') === inputId);
+        const start = typeof active?.selectionStart === 'number' ? active.selectionStart : null;
+        const end = typeof active?.selectionEnd === 'number' ? active.selectionEnd : null;
+
         SalesModule.state.catalogSearchText = String(value || '');
         UI.renderCurrentPage();
+
+        if (shouldRestore) {
+            const next = document.getElementById(inputId);
+            if (next) {
+                next.focus();
+                if (start !== null && end !== null) {
+                    try { next.setSelectionRange(start, end); } catch (_) { }
+                }
+            }
+        }
     },
 
     clearCatalogSearch: () => {
         SalesModule.state.catalogSearchText = '';
         UI.renderCurrentPage();
+        const next = document.getElementById('sales_catalog_search_input');
+        if (next) next.focus();
     },
 
     renderCatalogColorCategoryOptionsHtml: (field, selectedValue) => {
@@ -1365,7 +1383,7 @@ const SalesModule = {
                 : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
                                     ${(supportsCrud && activeLeaf) ? `
                                         <div class="sales-catalog-search-row">
-                                            <input class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
+                                            <input id="sales_catalog_search_input" class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
                                             ${String(searchText || '').trim() ? '<button class="btn-sm" type="button" onclick="SalesModule.clearCatalogSearch()">temizle</button>' : ''}
                                         </div>
                                     ` : ''}

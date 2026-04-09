@@ -341,7 +341,7 @@ const ProductLibraryModule = {
                     </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('sales-products'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-purple"><i data-lucide="shopping-bag" width="30" height="30"></i></div>
-                        <div class="app-name">Satis Urun Olusturma</div>
+                        <div class="app-name">Satis Urun Kutuphanesi</div>
                     </a>
                 </div>
             </div>
@@ -350,22 +350,16 @@ const ProductLibraryModule = {
     },
 
     renderSalesProductBuilderPage: (container) => {
-        container.innerHTML = `
-            <div style="max-width:980px; margin:0 auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                    <h2 class="page-title" style="margin:0;">Satis Urun Olusturma</h2>
-                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
-                </div>
-                <div class="card-table" style="padding:1.25rem 1.2rem;">
-                    <div style="font-weight:800; color:#0f172a; font-size:1.04rem; margin-bottom:0.35rem;">Pilot ekran</div>
-                    <div style="color:#64748b; font-size:0.92rem; margin-bottom:0.9rem;">Mevcut urun modeli modulu korunarak yeni satis urun akisi burada adim adim test edilecektir.</div>
-                    <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
-                        <button class="btn-primary" onclick="ProductLibraryModule.openSalesProductLibrary()">Satis Urun Kutuphanesine Git</button>
-                        <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">Menuye Don</button>
-                    </div>
-                </div>
-            </div>
-        `;
+        if (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.renderProductsLayout === 'function') {
+            SalesModule.ensureCatalogState();
+            container.innerHTML = SalesModule.renderProductsLayout({ host: 'product-library' });
+            return;
+        }
+        ProductLibraryModule.renderWorkspacePlaceholder(
+            container,
+            'Satis Urun Kutuphanesi',
+            'Satis modulu yuklenmedigi icin bu ekran acilamadi.'
+        );
     },
 
     renderWorkspacePlaceholder: (container, title, subtitle) => {
@@ -4956,7 +4950,8 @@ const ProductLibraryModule = {
                 { id: 'cat3', name: 'HÄ±rdavat & Vida', icon: 'ğŸ”©', prefix: 'VID' },
                 { id: 'cat_ext', name: 'EkstrÃ¼der pleksi', icon: 'ğŸ­', prefix: 'AKS' },
                 { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
-                { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' }
+                { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
+                { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
             ];
         }
 
@@ -4965,7 +4960,8 @@ const ProductLibraryModule = {
             { id: 'cat3', name: 'HÄ±rdavat & Vida', icon: 'ğŸ”©', prefix: 'VID' },
             { id: 'cat_ext', name: 'EkstrÃ¼der pleksi', icon: 'ğŸ­', prefix: 'AKS' },
             { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
-            { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' }
+            { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
+            { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
         ];
         defaults.forEach(def => {
             if (!DB.data.data.productCategories.some(c => c.id === def.id)) {
@@ -5008,6 +5004,231 @@ const ProductLibraryModule = {
         if (!ProductLibraryModule.state.masterDraftColorType) {
             ProductLibraryModule.state.masterDraftColorCode = '';
         }
+        ProductLibraryModule.syncSalesCatalogProductsToMaster({ markDirty: false });
+    },
+
+    getSalesMirrorCategoryMeta: () => ({
+        id: 'cat_sales',
+        name: 'Satis Urun Kutuphanesi'
+    }),
+
+    isSalesCatalogMirrorProduct: (raw) => {
+        if (!raw || typeof raw !== 'object') return false;
+        const source = String(raw?.syncSource || raw?.sourceModule || '').trim().toLowerCase();
+        if (source === 'sales-catalog') return true;
+        if (!String(raw?.sourceCatalogId || '').trim()) return false;
+        const direction = String(raw?.syncDirection || '').trim().toLowerCase();
+        return direction === 'sales_to_master';
+    },
+
+    resolveMasterMirrorColorFromSalesRow: (salesRow = {}) => {
+        const colors = (salesRow?.colors && typeof salesRow.colors === 'object') ? salesRow.colors : {};
+        const sourceCandidates = [colors.plexi, colors.accessory, colors.tube].filter(Boolean);
+        for (const candidate of sourceCandidates) {
+            const type = ProductLibraryModule.normalizeColorType(candidate?.category || '');
+            const name = String(candidate?.color || '').trim();
+            if (!type || !name) continue;
+            const libraryMatch = ProductLibraryModule.getColorLibraryItemsByType(type)
+                .find((row) => String(row?.name || '').trim().toLocaleLowerCase('tr-TR') === name.toLocaleLowerCase('tr-TR'));
+            return {
+                type,
+                name: String(libraryMatch?.name || name).trim(),
+                code: String(libraryMatch?.code || '').trim().toUpperCase()
+            };
+        }
+        return { type: '', name: '', code: '' };
+    },
+
+    buildMasterMirrorFromSalesCatalog: (salesRow = {}, existingRaw = null) => {
+        const sourceId = String(salesRow?.id || '').trim();
+        if (!sourceId) return null;
+
+        const mirrorCategory = ProductLibraryModule.getSalesMirrorCategoryMeta();
+        const previous = (existingRaw && typeof existingRaw === 'object') ? existingRaw : {};
+        const exclude = previous?.id ? { collection: 'products', id: String(previous.id), field: 'code' } : null;
+        let mirrorCode = String(previous?.code || '').trim().toUpperCase();
+        if (!mirrorCode || ProductLibraryModule.isGlobalCodeTaken(mirrorCode, exclude)) {
+            mirrorCode = ProductLibraryModule.generateMasterCode(mirrorCategory.id);
+        }
+
+        const color = ProductLibraryModule.resolveMasterMirrorColorFromSalesRow(salesRow);
+        const sourcePath = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogCategoryPathText === 'function')
+            ? String(SalesModule.getCatalogCategoryPathText(salesRow?.categoryId || '') || '').trim()
+            : String(salesRow?.categoryId || '').trim();
+
+        const selectedDiameter = String(salesRow?.selectedDiameter || '').trim();
+        const thickness = String(salesRow?.pipe?.thickness || '').trim();
+        const pipeLength = String(salesRow?.pipe?.lengthMm || '').trim();
+        const lowerTubeLength = String(salesRow?.lowerTubeLength || '').trim();
+        const bubble = String(salesRow?.bubble || '').trim();
+
+        const featureChunks = [];
+        if (selectedDiameter) featureChunks.push(`cap:${selectedDiameter}`);
+        if (thickness) featureChunks.push(`kalinlik:${thickness}`);
+        if (pipeLength) featureChunks.push(`boy:${pipeLength}`);
+        if (lowerTubeLength) featureChunks.push(`alt_boru:${lowerTubeLength}`);
+        if (bubble) featureChunks.push(`kabarcik:${bubble}`);
+
+        const sourceIdCode = String(salesRow?.idCode || '').trim().toUpperCase();
+        const sourceNoteChunks = [
+            'Kaynak: Satis Urun Kutuphanesi',
+            sourcePath ? `Kategori: ${sourcePath}` : '',
+            sourceIdCode ? `Satis ID: ${sourceIdCode}` : '',
+            featureChunks.length > 0 ? `Ozellik: ${featureChunks.join(', ')}` : ''
+        ].filter(Boolean);
+
+        const sourceNote = sourceNoteChunks.join(' | ');
+        const userNote = String(salesRow?.note || '').trim();
+        const mergedNote = [sourceNote, userNote].filter(Boolean).join(' | ');
+
+        const technicalAsset = String(salesRow?.images?.technical || '').trim();
+        const technicalIsPdf = technicalAsset.startsWith('data:application/pdf');
+        const productAsset = String(salesRow?.images?.product || salesRow?.images?.application || '').trim();
+        const fallbackImage = String(previous?.image || previous?.imageUrl || '').trim();
+        const fallbackPdf = String(previous?.pdf || previous?.pdfUrl || previous?.pdfDataUrl || previous?.drawingPdf || '').trim();
+        const imageData = productAsset || (!technicalIsPdf ? technicalAsset : '') || fallbackImage;
+        const pdfData = technicalIsPdf ? technicalAsset : fallbackPdf;
+
+        const sourceCreatedAt = String(salesRow?.created_at || '').trim();
+        const sourceUpdatedAt = String(salesRow?.updated_at || sourceCreatedAt).trim();
+        const createdAt = String(previous?.created_at || sourceCreatedAt || new Date().toISOString());
+        const updatedAt = String(sourceUpdatedAt || previous?.updated_at || createdAt);
+
+        return {
+            ...previous,
+            id: String(previous?.id || '').trim() || crypto.randomUUID(),
+            categoryId: mirrorCategory.id,
+            category: mirrorCategory.name,
+            type: 'MASTER',
+            name: String(salesRow?.name || previous?.name || '').trim() || 'Adsiz urun',
+            code: mirrorCode,
+            unitAmount: '1',
+            unitAmountType: 'adet',
+            suppliers: [],
+            supplierLinks: [],
+            supplierIds: [],
+            supplierNames: [],
+            supplierProductCode: '',
+            colorType: color.type,
+            colorCode: color.code,
+            image: imageData || '',
+            imageUrl: imageData || '',
+            pdfDataUrl: pdfData || '',
+            specs: {
+                ...((previous?.specs && typeof previous.specs === 'object') ? previous.specs : {}),
+                unit: 'adet',
+                unitAmount: '1',
+                unitAmountType: 'adet',
+                brandModel: String(salesRow?.productCode || '').trim(),
+                packageInfo: '',
+                lengthMm: pipeLength || lowerTubeLength,
+                colorType: color.type,
+                color: color.name,
+                colorCode: color.code,
+                note: mergedNote,
+                salesCatalogSourceId: sourceId,
+                salesCatalogSourceCode: sourceIdCode,
+                salesCatalogCategoryId: String(salesRow?.categoryId || '').trim(),
+                selectedDiameter,
+                bubble,
+                lowerTubeLength
+            },
+            syncSource: 'sales-catalog',
+            syncDirection: 'sales_to_master',
+            sourceCatalogId: sourceId,
+            sourceCatalogCode: sourceIdCode,
+            sourceCatalogCategoryId: String(salesRow?.categoryId || '').trim(),
+            sourceCatalogName: String(salesRow?.name || '').trim(),
+            sourceCatalogProductCode: String(salesRow?.productCode || '').trim(),
+            sourceCatalogReadonly: true,
+            created_at: createdAt,
+            updated_at: updatedAt
+        };
+    },
+
+    syncSalesCatalogProductsToMaster: ({ markDirty = false } = {}) => {
+        if (!DB.data || typeof DB.data !== 'object') return false;
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.productCategories)) DB.data.data.productCategories = [];
+        if (!DB.data.data.productCategories.some((row) => String(row?.id || '') === 'cat_sales')) {
+            DB.data.data.productCategories.push({
+                id: 'cat_sales',
+                name: 'Satis Urun Kutuphanesi',
+                icon: 'SK',
+                prefix: 'STS'
+            });
+        }
+        if (!Array.isArray(DB.data.data.products)) DB.data.data.products = [];
+        if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
+
+        const sourceRows = DB.data.data.salesCatalogProducts || [];
+        const sourceIds = new Set(
+            sourceRows
+                .map((row) => String(row?.id || '').trim())
+                .filter(Boolean)
+        );
+
+        let changed = false;
+        const products = DB.data.data.products;
+        const firstMirrorIndexBySource = new Map();
+
+        products.forEach((row, index) => {
+            if (!ProductLibraryModule.isSalesCatalogMirrorProduct(row)) return;
+            const sourceId = String(row?.sourceCatalogId || '').trim();
+            if (!sourceId) return;
+            if (!firstMirrorIndexBySource.has(sourceId)) {
+                firstMirrorIndexBySource.set(sourceId, index);
+            }
+        });
+
+        sourceRows.forEach((sourceRow) => {
+            const sourceId = String(sourceRow?.id || '').trim();
+            if (!sourceId) return;
+            const existingIndex = firstMirrorIndexBySource.has(sourceId)
+                ? firstMirrorIndexBySource.get(sourceId)
+                : -1;
+            const existing = existingIndex >= 0 ? products[existingIndex] : null;
+            const nextRecord = ProductLibraryModule.buildMasterMirrorFromSalesCatalog(sourceRow, existing);
+            if (!nextRecord) return;
+
+            if (existingIndex >= 0) {
+                const prevSerialized = JSON.stringify(existing || {});
+                const nextSerialized = JSON.stringify(nextRecord);
+                if (prevSerialized !== nextSerialized) {
+                    products[existingIndex] = nextRecord;
+                    changed = true;
+                }
+            } else {
+                products.push(nextRecord);
+                firstMirrorIndexBySource.set(sourceId, products.length - 1);
+                changed = true;
+            }
+        });
+
+        const seenMirrorSource = new Set();
+        const compacted = [];
+        products.forEach((row) => {
+            if (!ProductLibraryModule.isSalesCatalogMirrorProduct(row)) {
+                compacted.push(row);
+                return;
+            }
+            const sourceId = String(row?.sourceCatalogId || '').trim();
+            if (!sourceId || !sourceIds.has(sourceId) || seenMirrorSource.has(sourceId)) {
+                changed = true;
+                return;
+            }
+            seenMirrorSource.add(sourceId);
+            compacted.push(row);
+        });
+
+        if (compacted.length !== products.length) {
+            DB.data.data.products = compacted;
+        }
+
+        if (changed && markDirty && typeof DB.markDirty === 'function') {
+            DB.markDirty();
+        }
+        return changed;
     },
 
     normalizeAsciiUpper: (value) => {
@@ -5030,6 +5251,7 @@ const ProductLibraryModule = {
             else if (id === 'cat_ext') prefix = 'AKS';
             else if (id === 'cat_box') prefix = 'KLI';
             else if (id === 'cat_sarf') prefix = 'SRF';
+            else if (id === 'cat_sales') prefix = 'STS';
             else prefix = 'URN';
         }
         return prefix.padEnd(3, 'X');
@@ -5316,6 +5538,7 @@ const ProductLibraryModule = {
         return (DB.data.data.products || []).map((raw, index) => {
             const category = ProductLibraryModule.resolveCategoryForProduct(raw);
             const specs = (raw?.specs && typeof raw.specs === 'object') ? raw.specs : {};
+            const isSalesMirror = ProductLibraryModule.isSalesCatalogMirrorProduct(raw);
             const resolvedColor = ProductLibraryModule.resolveLinkedColorInfo({
                 colorType: specs?.colorType || raw?.colorType || '',
                 colorCode: specs?.colorCode || raw?.colorCode || '',
@@ -5331,6 +5554,9 @@ const ProductLibraryModule = {
                 orderIndex: index,
                 createdAt: String(raw?.created_at || ''),
                 updatedAt: String(raw?.updated_at || ''),
+                isSalesMirror,
+                sourceCatalogId: String(raw?.sourceCatalogId || '').trim(),
+                sourceCatalogCode: String(raw?.sourceCatalogCode || '').trim().toUpperCase(),
                 name: String(raw?.name || raw?.productName || '').trim(),
                 categoryId: category?.id || '',
                 categoryName: String(category?.name || raw?.category || 'Diger'),
@@ -5492,6 +5718,7 @@ const ProductLibraryModule = {
             ? state.masterCategoryExpanded
             : {};
         const renderMasterRow = (p) => {
+            const isSalesMirror = !!p.isSalesMirror;
             const suppliersText = (p.supplierLinks || []).length > 0
                 ? p.supplierLinks
                     .map(link => {
@@ -5504,9 +5731,12 @@ const ProductLibraryModule = {
                 : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
             const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
             const selectedStyle = selectedId === p.id ? 'background:#ffe4e6;' : '';
+            const sourceBadge = isSalesMirror
+                ? '<span style="display:inline-flex; align-items:center; margin-left:0.45rem; padding:0.08rem 0.42rem; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-size:0.68rem; font-weight:800;">SATIS</span>'
+                : '';
             return `
                 <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
-                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}</td>
+                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}${sourceBadge}</td>
                     <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td>
                     <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.unit || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml((p.unitAmount ? `${p.unitAmount} ${p.unitAmountType || ''}` : '-').trim())}</td>
@@ -5517,9 +5747,9 @@ const ProductLibraryModule = {
                     <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
                     <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')">duzenle</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>${isSalesMirror ? 'kilitli' : 'duzenle'}</button></td>
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')">sil</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>sil</button></td>
                 </tr>
             `;
         };
@@ -6137,6 +6367,10 @@ const ProductLibraryModule = {
     editMasterProduct: (id) => {
         const record = ProductLibraryModule.getMasterProductById(id);
         if (!record) return;
+        if (record.isSalesMirror || ProductLibraryModule.isSalesCatalogMirrorProduct(record.raw)) {
+            alert('Bu kayit Satis Urun Kutuphanesi kaynaklidir. Duzenleme icin satis ekranini kullanin.');
+            return;
+        }
         ProductLibraryModule.loadMasterDraftFromRecord(record);
         UI.renderCurrentPage();
     },
@@ -6206,6 +6440,13 @@ const ProductLibraryModule = {
         const unitOptions = ProductLibraryModule.getMasterUnitOptions();
         const suppliers = ProductLibraryModule.getMasterSuppliers();
         const allProducts = DB.data.data.products || [];
+        if (s.masterEditingId) {
+            const editingRow = allProducts.find(x => String(x?.id || '') === String(s.masterEditingId));
+            if (ProductLibraryModule.isSalesCatalogMirrorProduct(editingRow)) {
+                alert('Bu kayit Satis Urun Kutuphanesi kaynaklidir. Degistirmek icin satis ekranindan guncelleyin.');
+                return;
+            }
+        }
 
         let finalCategory = categories.find(c => c.id === s.masterDraftCategoryId);
         if (s.masterEditingId) {
@@ -6384,6 +6625,10 @@ const ProductLibraryModule = {
         const all = DB.data.data.products || [];
         const row = all.find(x => x.id === id);
         if (!row) return;
+        if (ProductLibraryModule.isSalesCatalogMirrorProduct(row)) {
+            alert('Bu kayit Satis Urun Kutuphanesi ile senkron. Silmek icin satis ekranindan silin.');
+            return;
+        }
         if (!confirm('Bu urun silinsin mi?')) return;
         DB.data.data.products = all.filter(x => x.id !== id);
         if (ProductLibraryModule.state.masterSelectedId === id) ProductLibraryModule.state.masterSelectedId = null;

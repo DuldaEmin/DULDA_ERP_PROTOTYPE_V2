@@ -1343,8 +1343,17 @@ const SalesModule = {
         `;
     },
 
-    renderProductsLayout: () => {
+    renderProductsLayout: (options = {}) => {
         SalesModule.ensureCatalogState();
+        const host = String(options?.host || 'sales').trim();
+        const isEmbeddedInProducts = host === 'product-library';
+        const backAction = isEmbeddedInProducts
+            ? 'ProductLibraryModule.goWorkspaceMenu()'
+            : "SalesModule.openWorkspace('menu')";
+        const titleText = isEmbeddedInProducts ? 'master urun kutuphanesi / satis urun kutuphanesi' : 'satis urun kutuphanesi';
+        const subtitleText = isEmbeddedInProducts
+            ? 'satis urun kutuphanesi ekrani burada birebir kullanilir. bu alanda yeni urun girilirse master kutuphanesine tek yonlu yansir.'
+            : 'burada sadece satilan urunler eklenir.';
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
@@ -1364,10 +1373,10 @@ const SalesModule = {
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
                         <div>
-                            <h2 class="stock-title">satis urun kutuphanesi</h2>
-                            <div style="font-size:0.84rem; color:#64748b; margin-top:0.1rem;">burada sadece satilan urunler eklenir.</div>
+                            <h2 class="stock-title">${SalesModule.escapeHtml(titleText)}</h2>
+                            <div style="font-size:0.84rem; color:#64748b; margin-top:0.1rem;">${SalesModule.escapeHtml(subtitleText)}</div>
                         </div>
-                        <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                        <button class="btn-sm" onclick="${backAction}">geri</button>
                     </div>
 
                     <div class="sales-catalog-shell">
@@ -1463,6 +1472,11 @@ const SalesModule = {
         if (idx < 0) return alert('Silinecek urun bulunamadi.');
         if (!confirm('Bu urunu silmek istiyor musunuz?')) return;
         rows.splice(idx, 1);
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.syncSalesCatalogProductsToMaster === 'function') {
+            ProductLibraryModule.syncSalesCatalogProductsToMaster({ markDirty: false });
+        }
         await DB.save();
         SalesModule.state.catalogEditingProductId = '';
         SalesModule.state.catalogDraft = null;
@@ -2061,6 +2075,11 @@ const SalesModule = {
             }
         } else {
             DB.data.data.salesCatalogProducts.push(row);
+        }
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.syncSalesCatalogProductsToMaster === 'function') {
+            ProductLibraryModule.syncSalesCatalogProductsToMaster({ markDirty: false });
         }
         await DB.save();
         Modal.close();

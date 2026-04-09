@@ -8,6 +8,7 @@ const port = Number.isFinite(portArg) && portArg > 0 ? portArg : 5500;
 const root = __dirname;
 const dataFile = path.join(root, "demo_state.json");
 const historyDir = path.join(root, ".state-history");
+const historyRetentionCount = 200;
 const maxBodySize = 200 * 1024 * 1024;
 const noCacheHeaders = {
   "Cache-Control": "no-store, no-cache, must-revalidate",
@@ -142,6 +143,30 @@ async function writeHistorySnapshot(state, label) {
   await fsp.writeFile(path.join(historyDir, fileName), JSON.stringify(state, null, 2), "utf8");
 }
 
+async function pruneHistorySnapshots(limit = historyRetentionCount) {
+  if (!Number.isInteger(limit) || limit < 1) return;
+  let entries;
+  try {
+    entries = await fsp.readdir(historyDir, { withFileTypes: true });
+  } catch (err) {
+    if (err?.code === "ENOENT") return;
+    throw err;
+  }
+
+  const files = entries
+    .filter((entry) => entry?.isFile?.() && String(entry.name || "").toLowerCase().endsWith(".json"))
+    .map((entry) => String(entry.name || ""))
+    .sort()
+    .reverse();
+
+  const staleFiles = files.slice(limit);
+  if (!staleFiles.length) return;
+
+  await Promise.allSettled(
+    staleFiles.map((fileName) => fsp.unlink(path.join(historyDir, fileName)))
+  );
+}
+
 async function saveState(state, options = {}) {
   const current = await loadState();
   const baseRevision = Number(options?.baseRevision);
@@ -169,6 +194,11 @@ async function saveState(state, options = {}) {
   await fsp.writeFile(tmp, JSON.stringify(state, null, 2), "utf8");
   await fsp.rename(tmp, dataFile);
   await writeHistorySnapshot(state, "after-save");
+  try {
+    await pruneHistorySnapshots();
+  } catch (err) {
+    console.warn("History snapshot cleanup failed.", err);
+  }
   return { written: true, stale: false, conflict: false, revision: nextRevision };
 }
 

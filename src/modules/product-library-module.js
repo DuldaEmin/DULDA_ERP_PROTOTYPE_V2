@@ -130,6 +130,9 @@ const ProductLibraryModule = {
         planningPickerSource: '',
         assemblyFormModalOpen: false,
         salesProductDetailId: '',
+        salesVariationEditorMode: '',
+        salesVariationEditingId: '',
+        salesVariationDraft: null,
         workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors | sales-products
     },
 
@@ -209,6 +212,9 @@ const ProductLibraryModule = {
         }
         if (nextView !== 'sales-products') {
             ProductLibraryModule.state.salesProductDetailId = '';
+            ProductLibraryModule.state.salesVariationEditorMode = '';
+            ProductLibraryModule.state.salesVariationEditingId = '';
+            ProductLibraryModule.state.salesVariationDraft = null;
         }
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
@@ -313,6 +319,9 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.salesProductDetailId = '';
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
     },
 
     renderWorkspaceMenu: (container) => {
@@ -384,11 +393,17 @@ const ProductLibraryModule = {
         const id = String(productId || '').trim();
         if (!id) return;
         ProductLibraryModule.state.salesProductDetailId = id;
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
         UI.renderCurrentPage();
     },
 
     closeSalesProductVariationPage: () => {
         ProductLibraryModule.state.salesProductDetailId = '';
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
         UI.renderCurrentPage();
     },
 
@@ -397,25 +412,556 @@ const ProductLibraryModule = {
         return list.find((row) => String(row?.id || '').trim() === String(id || '').trim()) || null;
     },
 
+    ensureSalesVariationDefaults: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.salesProductVariants)) DB.data.data.salesProductVariants = [];
+        if (!['create', 'edit', 'view'].includes(String(ProductLibraryModule.state.salesVariationEditorMode || ''))) {
+            ProductLibraryModule.state.salesVariationEditorMode = '';
+        }
+    },
+
+    normalizeSalesVariantCodeBase: (value) => {
+        const raw = String(value || '').trim();
+        const normalized = String(ProductLibraryModule.normalizeAsciiUpper(raw) || '')
+            .replace(/[^A-Z0-9]/g, '')
+            .slice(0, 18);
+        return normalized || 'VAR';
+    },
+
     getSalesProductVariationRows: (productId) => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
         const sourceId = String(productId || '').trim();
-        if (!sourceId || typeof ProductLibraryModule.getCatalogProductVariants !== 'function') return [];
-        const list = ProductLibraryModule.getCatalogProductVariants();
-        return list
-            .filter((row) => {
-                const refCandidates = [
-                    row?.sourceCatalogProductId,
-                    row?.sourceCatalogId,
-                    row?.salesCatalogProductId,
-                    row?.sourceProductId
-                ];
-                return refCandidates.some((value) => String(value || '').trim() === sourceId);
+        if (!sourceId) return [];
+        const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        return rows
+            .filter((row) => String(row?.sourceCatalogProductId || '').trim() === sourceId)
+            .map((row, index) => {
+                const colors = row?.colors && typeof row.colors === 'object' ? row.colors : {};
+                const normalizeColor = (key) => {
+                    const colorRow = colors?.[key] && typeof colors[key] === 'object' ? colors[key] : {};
+                    const category = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.normalizeCatalogColorType === 'function')
+                        ? SalesModule.normalizeCatalogColorType(colorRow?.category || '')
+                        : ProductLibraryModule.normalizeColorType(colorRow?.category || '');
+                    return {
+                        category,
+                        color: String(colorRow?.color || '').trim()
+                    };
+                };
+                return {
+                    id: String(row?.id || '').trim(),
+                    orderIndex: index,
+                    sourceCatalogProductId: sourceId,
+                    variantCode: String(row?.variantCode || '').trim().toUpperCase(),
+                    productName: String(row?.productName || '').trim(),
+                    bubble: String(row?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+                    selectedDiameter: String(row?.selectedDiameter || '').trim(),
+                    lowerTubeLengthMm: String(row?.lowerTubeLengthMm ?? '').trim(),
+                    colors: {
+                        accessory: normalizeColor('accessory'),
+                        tube: normalizeColor('tube'),
+                        plexi: normalizeColor('plexi')
+                    },
+                    montageCard: row?.montageCard && typeof row.montageCard === 'object'
+                        ? {
+                            cardCode: String(row.montageCard.cardCode || '').trim().toUpperCase(),
+                            productCode: String(row.montageCard.productCode || '').trim().toUpperCase(),
+                            productName: String(row.montageCard.productName || '').trim()
+                        }
+                        : null,
+                    masterRefs: Array.isArray(row?.masterRefs)
+                        ? row.masterRefs.map((item) => ({
+                            id: String(item?.id || crypto.randomUUID()),
+                            code: String(item?.code || '').trim().toUpperCase(),
+                            name: String(item?.name || '').trim(),
+                            qty: Math.max(1, Number(item?.qty || 1))
+                        })).filter((item) => item.code)
+                        : [],
+                    items: Array.isArray(row?.items)
+                        ? row.items.map((item) => ({
+                            id: String(item?.id || crypto.randomUUID()),
+                            code: String(item?.code || '').trim().toUpperCase(),
+                            name: String(item?.name || '').trim(),
+                            qty: Math.max(1, Number(item?.qty || 1))
+                        })).filter((item) => item.code)
+                        : [],
+                    explodedFiles: Array.isArray(row?.explodedFiles)
+                        ? row.explodedFiles.map((file) => ({
+                            name: String(file?.name || 'dosya').trim() || 'dosya',
+                            type: String(file?.type || '').trim(),
+                            size: Number(file?.size || 0),
+                            data: String(file?.data || '')
+                        })).filter((file) => file.data)
+                        : [],
+                    note: String(row?.note || '').trim(),
+                    createdAt: String(row?.created_at || ''),
+                    updatedAt: String(row?.updated_at || '')
+                };
             })
+            .filter((row) => row.id && row.variantCode)
             .sort((a, b) => {
                 const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
                 const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
                 return bTime - aTime;
             });
+    },
+
+    generateSalesVariantCode: (product, excludeId = '') => {
+        const sourceProduct = product && typeof product === 'object' ? product : {};
+        const sourceId = String(sourceProduct?.id || '').trim();
+        const base = ProductLibraryModule.normalizeSalesVariantCodeBase(
+            sourceProduct?.productCode || sourceProduct?.idCode || sourceProduct?.name || 'VAR'
+        );
+        const escapedBase = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^${escapedBase}-(\\d{3})$`);
+        const rows = ProductLibraryModule.getSalesProductVariationRows(sourceId);
+        let maxSeq = 0;
+        const used = new Set();
+        rows.forEach((row) => {
+            if (excludeId && String(row?.id || '') === String(excludeId || '')) return;
+            const code = String(row?.variantCode || '').trim().toUpperCase();
+            if (!code) return;
+            used.add(code);
+            const match = code.match(regex);
+            if (!match) return;
+            const seq = Number(match[1] || 0);
+            if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+        });
+        let next = maxSeq + 1;
+        let candidate = `${base}-${String(next).padStart(3, '0')}`;
+        while (used.has(candidate)) {
+            next += 1;
+            candidate = `${base}-${String(next).padStart(3, '0')}`;
+        }
+        return candidate;
+    },
+
+    buildSalesVariationDraft: (product, source = null, options = {}) => {
+        const sourceProduct = product && typeof product === 'object' ? product : {};
+        const sourceRow = source && typeof source === 'object' ? source : null;
+        const asCopy = !!options?.asCopy;
+        const diameters = Array.isArray(sourceProduct?.diameters)
+            ? sourceProduct.diameters.map((value) => String(value || '').trim()).filter(Boolean)
+            : [];
+        const selectedDiameter = String(sourceRow?.selectedDiameter || sourceProduct?.selectedDiameter || diameters[0] || '').trim();
+        const parseMm = (value) => {
+            const text = String(value ?? '').trim().replace(',', '.');
+            if (!text) return '';
+            const num = Number(text);
+            if (!Number.isFinite(num) || num <= 0) return '';
+            return String(Number(num.toFixed(2))).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+        };
+        const sourceColors = sourceRow?.colors || {};
+        const productColors = sourceProduct?.colors || {};
+        return {
+            id: asCopy ? '' : String(sourceRow?.id || '').trim(),
+            sourceCatalogProductId: String(sourceProduct?.id || '').trim(),
+            productName: String(sourceRow?.productName || sourceProduct?.name || '').trim(),
+            variantCode: (!sourceRow || asCopy)
+                ? ProductLibraryModule.generateSalesVariantCode(sourceProduct)
+                : String(sourceRow?.variantCode || ProductLibraryModule.generateSalesVariantCode(sourceProduct, sourceRow?.id || '')).trim().toUpperCase(),
+            bubble: String(sourceRow?.bubble || sourceProduct?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            selectedDiameter,
+            lowerTubeLengthMm: parseMm(sourceRow?.lowerTubeLengthMm || sourceProduct?.lowerTubeLength || ''),
+            colors: {
+                accessory: { category: String(sourceColors?.accessory?.category || productColors?.accessory?.category || '').trim(), color: String(sourceColors?.accessory?.color || productColors?.accessory?.color || '').trim() },
+                tube: { category: String(sourceColors?.tube?.category || productColors?.tube?.category || '').trim(), color: String(sourceColors?.tube?.color || productColors?.tube?.color || '').trim() },
+                plexi: { category: String(sourceColors?.plexi?.category || productColors?.plexi?.category || '').trim(), color: String(sourceColors?.plexi?.color || productColors?.plexi?.color || '').trim() }
+            },
+            montageCardCode: String(sourceRow?.montageCard?.cardCode || '').trim().toUpperCase(),
+            masterRefs: Array.isArray(sourceRow?.masterRefs) ? sourceRow.masterRefs.map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
+            componentItems: Array.isArray(sourceRow?.items) ? sourceRow.items.map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
+            explodedFiles: Array.isArray(sourceRow?.explodedFiles) ? sourceRow.explodedFiles.map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data) : [],
+            note: String(sourceRow?.note || '').trim()
+        };
+    },
+
+    openSalesVariationEditor: (mode = 'create', variationId = '') => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
+        const sourceProductId = String(ProductLibraryModule.state.salesProductDetailId || '').trim();
+        const sourceProduct = ProductLibraryModule.getSalesCatalogProductById(sourceProductId);
+        if (!sourceProduct) return alert('Urun karti bulunamadi.');
+        const normalizedMode = ['create', 'edit', 'view'].includes(String(mode || ''))
+            ? String(mode || '')
+            : 'create';
+        if (normalizedMode === 'create') {
+            ProductLibraryModule.state.salesVariationEditorMode = 'create';
+            ProductLibraryModule.state.salesVariationEditingId = '';
+            ProductLibraryModule.state.salesVariationDraft = ProductLibraryModule.buildSalesVariationDraft(sourceProduct);
+            UI.renderCurrentPage();
+            return;
+        }
+        const rows = ProductLibraryModule.getSalesProductVariationRows(sourceProductId);
+        const selected = rows.find((item) => String(item?.id || '') === String(variationId || ''));
+        if (!selected) return alert('Varyasyon kaydi bulunamadi.');
+        ProductLibraryModule.state.salesVariationEditorMode = normalizedMode;
+        ProductLibraryModule.state.salesVariationEditingId = String(selected.id || '');
+        ProductLibraryModule.state.salesVariationDraft = ProductLibraryModule.buildSalesVariationDraft(sourceProduct, selected);
+        UI.renderCurrentPage();
+    },
+
+    closeSalesVariationEditor: () => {
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationDraftField: (key, value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft || typeof ProductLibraryModule.state.salesVariationDraft !== 'object') return;
+        ProductLibraryModule.state.salesVariationDraft[key] = String(value ?? '');
+    },
+
+    setSalesVariationColorCategory: (field, value) => {
+        const key = String(field || '').trim();
+        if (!ProductLibraryModule.state.salesVariationDraft || !key) return;
+        if (!ProductLibraryModule.state.salesVariationDraft.colors || typeof ProductLibraryModule.state.salesVariationDraft.colors !== 'object') {
+            ProductLibraryModule.state.salesVariationDraft.colors = {};
+        }
+        const current = ProductLibraryModule.state.salesVariationDraft.colors[key] || { category: '', color: '' };
+        const normalizedCategory = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.normalizeCatalogColorType === 'function')
+            ? SalesModule.normalizeCatalogColorType(value || '')
+            : ProductLibraryModule.normalizeColorType(value || '');
+        ProductLibraryModule.state.salesVariationDraft.colors[key] = {
+            ...current,
+            category: normalizedCategory,
+            color: ''
+        };
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationColorValue: (field, value) => {
+        const key = String(field || '').trim();
+        if (!ProductLibraryModule.state.salesVariationDraft || !key) return;
+        if (!ProductLibraryModule.state.salesVariationDraft.colors || typeof ProductLibraryModule.state.salesVariationDraft.colors !== 'object') {
+            ProductLibraryModule.state.salesVariationDraft.colors = {};
+        }
+        const current = ProductLibraryModule.state.salesVariationDraft.colors[key] || { category: '', color: '' };
+        ProductLibraryModule.state.salesVariationDraft.colors[key] = {
+            ...current,
+            color: String(value || '').trim()
+        };
+    },
+
+    setSalesVariationBubble: (value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        ProductLibraryModule.state.salesVariationDraft.bubble = String(value || '').trim() === 'var' ? 'var' : 'yok';
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationDiameter: (value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        ProductLibraryModule.state.salesVariationDraft.selectedDiameter = String(value || '').trim();
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationLowerTubeMm: (value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const text = String(value ?? '').trim().replace(',', '.');
+        if (!text) {
+            ProductLibraryModule.state.salesVariationDraft.lowerTubeLengthMm = '';
+            return;
+        }
+        const num = Number(text);
+        if (!Number.isFinite(num) || num <= 0) return;
+        ProductLibraryModule.state.salesVariationDraft.lowerTubeLengthMm = String(Number(num.toFixed(2))).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    },
+
+    addSalesVariationMasterRef: () => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const code = String(prompt('Master urun kodu girin (or: ALM0002):') || '').trim().toUpperCase();
+        if (!code) return;
+        const name = String(prompt('Master urun adi (opsiyonel):') || '').trim();
+        const qtyRaw = String(prompt('Adet (varsayilan 1):', '1') || '').trim();
+        const qty = Math.max(1, Number(qtyRaw || 1) || 1);
+        if (!Array.isArray(ProductLibraryModule.state.salesVariationDraft.masterRefs)) {
+            ProductLibraryModule.state.salesVariationDraft.masterRefs = [];
+        }
+        ProductLibraryModule.state.salesVariationDraft.masterRefs.push({ id: crypto.randomUUID(), code, name, qty });
+        UI.renderCurrentPage();
+    },
+
+    removeSalesVariationMasterRef: (id) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.masterRefs)
+            ? ProductLibraryModule.state.salesVariationDraft.masterRefs
+            : [];
+        ProductLibraryModule.state.salesVariationDraft.masterRefs = list.filter((item) => String(item?.id || '') !== String(id || ''));
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationMasterQty: (id, value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.masterRefs)
+            ? ProductLibraryModule.state.salesVariationDraft.masterRefs
+            : [];
+        const target = list.find((item) => String(item?.id || '') === String(id || ''));
+        if (!target) return;
+        target.qty = Math.max(1, Number(String(value || '').replace(',', '.')) || 1);
+    },
+
+    addSalesVariationComponentItem: () => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const code = String(prompt('Parca/Bilesen kodu girin (or: PRC-000003):') || '').trim().toUpperCase();
+        if (!code) return;
+        const name = String(prompt('Parca/Bilesen adi (opsiyonel):') || '').trim();
+        const qtyRaw = String(prompt('Adet (varsayilan 1):', '1') || '').trim();
+        const qty = Math.max(1, Number(qtyRaw || 1) || 1);
+        if (!Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)) {
+            ProductLibraryModule.state.salesVariationDraft.componentItems = [];
+        }
+        ProductLibraryModule.state.salesVariationDraft.componentItems.push({ id: crypto.randomUUID(), code, name, qty });
+        UI.renderCurrentPage();
+    },
+
+    removeSalesVariationComponentItem: (id) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)
+            ? ProductLibraryModule.state.salesVariationDraft.componentItems
+            : [];
+        ProductLibraryModule.state.salesVariationDraft.componentItems = list.filter((item) => String(item?.id || '') !== String(id || ''));
+        UI.renderCurrentPage();
+    },
+
+    setSalesVariationComponentQty: (id, value) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)
+            ? ProductLibraryModule.state.salesVariationDraft.componentItems
+            : [];
+        const target = list.find((item) => String(item?.id || '') === String(id || ''));
+        if (!target) return;
+        target.qty = Math.max(1, Number(String(value || '').replace(',', '.')) || 1);
+    },
+
+    handleSalesVariationExplodedFiles: (input) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const files = Array.from(input?.files || []);
+        if (!files.length) return;
+        const readers = files.map((file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve({
+                name: String(file?.name || 'dosya').trim() || 'dosya',
+                type: String(file?.type || '').trim(),
+                size: Number(file?.size || 0),
+                data: String(reader.result || '')
+            });
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(file);
+        }));
+        Promise.all(readers).then((loaded) => {
+            const valid = loaded.filter((item) => item && item.data);
+            if (!Array.isArray(ProductLibraryModule.state.salesVariationDraft.explodedFiles)) {
+                ProductLibraryModule.state.salesVariationDraft.explodedFiles = [];
+            }
+            ProductLibraryModule.state.salesVariationDraft.explodedFiles.push(...valid);
+            UI.renderCurrentPage();
+        });
+    },
+
+    removeSalesVariationExplodedFile: (index) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.explodedFiles)
+            ? ProductLibraryModule.state.salesVariationDraft.explodedFiles
+            : [];
+        list.splice(Number(index) || 0, 1);
+        ProductLibraryModule.state.salesVariationDraft.explodedFiles = list;
+        UI.renderCurrentPage();
+    },
+
+    saveSalesVariation: async (asCopy = false) => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
+        const sourceProductId = String(ProductLibraryModule.state.salesProductDetailId || '').trim();
+        const sourceProduct = ProductLibraryModule.getSalesCatalogProductById(sourceProductId);
+        if (!sourceProduct) return alert('Kaynak urun bulunamadi.');
+        const draft = ProductLibraryModule.state.salesVariationDraft;
+        if (!draft || typeof draft !== 'object') return;
+
+        const store = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        const editingId = String(ProductLibraryModule.state.salesVariationEditingId || draft.id || '').trim();
+        const mode = String(ProductLibraryModule.state.salesVariationEditorMode || '').trim();
+        const isCreate = asCopy || mode === 'create' || !editingId;
+        const normalizedCode = String(draft.variantCode || '').trim().toUpperCase();
+        if (!normalizedCode) return alert('Varyasyon ID zorunlu.');
+        const duplicate = store.find((row) => {
+            if (String(row?.sourceCatalogProductId || '').trim() !== sourceProductId) return false;
+            if (!isCreate && String(row?.id || '').trim() === editingId) return false;
+            return String(row?.variantCode || '').trim().toUpperCase() === normalizedCode;
+        });
+        if (duplicate) return alert(`Bu varyasyon ID zaten var: ${normalizedCode}`);
+
+        const lowerTubeText = String(draft.lowerTubeLengthMm ?? '').trim();
+        if (lowerTubeText) {
+            const num = Number(lowerTubeText.replace(',', '.'));
+            if (!Number.isFinite(num) || num <= 0) return alert('Alt boru uzunlugu yalnizca mm sayi olabilir.');
+        }
+
+        const normalizeColorBlock = (block) => {
+            const raw = block && typeof block === 'object' ? block : {};
+            const category = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.normalizeCatalogColorType === 'function')
+                ? SalesModule.normalizeCatalogColorType(raw?.category || '')
+                : ProductLibraryModule.normalizeColorType(raw?.category || '');
+            const color = String(raw?.color || '').trim();
+            return { category, color };
+        };
+
+        const now = new Date().toISOString();
+        const id = isCreate ? crypto.randomUUID() : editingId;
+        const idx = isCreate ? -1 : store.findIndex((row) => String(row?.id || '').trim() === editingId);
+        const prev = idx >= 0 ? store[idx] : null;
+        const savedRow = {
+            id,
+            scope: 'sales-library',
+            sourceCatalogProductId: sourceProductId,
+            sourceCatalogIdCode: String(sourceProduct?.idCode || '').trim().toUpperCase(),
+            sourceCatalogProductCode: String(sourceProduct?.productCode || '').trim().toUpperCase(),
+            sourceCatalogCategoryId: String(sourceProduct?.categoryId || '').trim(),
+            sourceCatalogName: String(sourceProduct?.name || '').trim(),
+            variantCode: normalizedCode,
+            productName: String(draft.productName || sourceProduct?.name || '').trim(),
+            bubble: String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            selectedDiameter: String(draft.selectedDiameter || '').trim(),
+            lowerTubeLengthMm: lowerTubeText ? String(Number(lowerTubeText.replace(',', '.'))) : '',
+            colors: {
+                accessory: normalizeColorBlock(draft.colors?.accessory),
+                tube: normalizeColorBlock(draft.colors?.tube),
+                plexi: normalizeColorBlock(draft.colors?.plexi)
+            },
+            montageCard: String(draft.montageCardCode || '').trim()
+                ? { cardCode: String(draft.montageCardCode || '').trim().toUpperCase(), productCode: '', productName: '' }
+                : null,
+            masterRefs: (Array.isArray(draft.masterRefs) ? draft.masterRefs : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
+            items: (Array.isArray(draft.componentItems) ? draft.componentItems : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
+            explodedFiles: (Array.isArray(draft.explodedFiles) ? draft.explodedFiles : []).map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data),
+            note: String(draft.note || '').trim(),
+            created_at: String(prev?.created_at || now),
+            updated_at: now
+        };
+
+        if (idx >= 0 && !isCreate) store[idx] = savedRow;
+        else store.push(savedRow);
+
+        await DB.save();
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
+        UI.renderCurrentPage();
+        alert(isCreate ? 'Yeni varyasyon olusturuldu.' : 'Varyasyon guncellendi.');
+    },
+
+    deleteSalesVariation: async () => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
+        const editingId = String(ProductLibraryModule.state.salesVariationEditingId || '').trim();
+        if (!editingId) return;
+        if (!confirm('Bu varyasyon silinsin mi?')) return;
+        const store = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        DB.data.data.salesProductVariants = store.filter((row) => String(row?.id || '').trim() !== editingId);
+        await DB.save();
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
+        UI.renderCurrentPage();
+        alert('Varyasyon silindi.');
+    },
+
+    renderSalesVariationColorField: (field, label, draft, readOnly = false) => {
+        const key = String(field || '').trim();
+        const colorRow = draft?.colors?.[key] || { category: '', color: '' };
+        const category = String(colorRow?.category || '').trim();
+        const color = String(colorRow?.color || '').trim();
+        const categoryOptions = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogColorCategoryOptions === 'function')
+            ? SalesModule.getCatalogColorCategoryOptions(key)
+            : ProductLibraryModule.getColorTypeOptions().map((opt) => ({ value: opt.id, label: opt.label }));
+        const colorOptions = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogColorOptions === 'function')
+            ? SalesModule.getCatalogColorOptions(key, category)
+            : [];
+
+        if (readOnly) {
+            const labelMap = new Map((typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogColorTypeMetaOptions === 'function')
+                ? SalesModule.getCatalogColorTypeMetaOptions().map((item) => [String(item?.value || ''), String(item?.label || '')])
+                : []);
+            return `
+                <div>
+                    <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">${ProductLibraryModule.escapeHtml(label)}</label>
+                    <div style="display:grid; grid-template-columns:42% 58%; gap:0.35rem;">
+                        <input readonly value="${ProductLibraryModule.escapeHtml(labelMap.get(category) || category || '-')}" style="height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.6rem; background:#f8fafc; color:#64748b;">
+                        <input readonly value="${ProductLibraryModule.escapeHtml(color || '-')}" style="height:38px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.6rem; background:#f8fafc; color:#334155;">
+                    </div>
+                </div>
+            `;
+        }
+        return `
+            <div>
+                <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">${ProductLibraryModule.escapeHtml(label)}</label>
+                <div style="display:grid; grid-template-columns:42% 58%; gap:0.35rem;">
+                    <select onchange="ProductLibraryModule.setSalesVariationColorCategory('${ProductLibraryModule.escapeHtml(key)}', this.value)" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem; font-weight:700;">
+                        <option value="">kategori sec</option>
+                        ${categoryOptions.map((item) => {
+            const value = String(item?.value || '').trim();
+            const text = String(item?.label || value || '').trim();
+            return `<option value="${ProductLibraryModule.escapeHtml(value)}" ${value === category ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(text)}</option>`;
+        }).join('')}
+                    </select>
+                    <select ${category ? '' : 'disabled'} onchange="ProductLibraryModule.setSalesVariationColorValue('${ProductLibraryModule.escapeHtml(key)}', this.value)" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem; font-weight:700; color:${category ? '#111827' : '#94a3b8'};">
+                        <option value="">renk sec</option>
+                        ${colorOptions.map((name) => {
+            const option = String(name || '').trim();
+            return `<option value="${ProductLibraryModule.escapeHtml(option)}" ${option === color ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(option)}</option>`;
+        }).join('')}
+                    </select>
+                </div>
+            </div>
+        `;
+    },
+
+    renderSalesVariationEditorPanel: (product) => {
+        const mode = String(ProductLibraryModule.state.salesVariationEditorMode || '').trim();
+        const draft = ProductLibraryModule.state.salesVariationDraft;
+        if (!mode || !draft) return '';
+        const readOnly = mode === 'view';
+        const sourceProduct = product && typeof product === 'object' ? product : {};
+        const diameters = Array.isArray(sourceProduct?.diameters)
+            ? sourceProduct.diameters.map((value) => String(value || '').trim()).filter(Boolean)
+            : [];
+        const diameterOptions = diameters.length > 0
+            ? diameters
+            : [String(sourceProduct?.selectedDiameter || '').trim()].filter(Boolean);
+        const explodedFiles = Array.isArray(draft?.explodedFiles) ? draft.explodedFiles : [];
+        const masterRefs = Array.isArray(draft?.masterRefs) ? draft.masterRefs : [];
+        const componentItems = Array.isArray(draft?.componentItems) ? draft.componentItems : [];
+        const panelTitle = mode === 'create' ? 'Yeni Varyasyon Ekle' : (mode === 'edit' ? 'Varyasyon Duzenle' : 'Varyasyon Goruntule');
+
+        return `
+            <div class="card-table" style="padding:1rem; margin-top:0.95rem; border:2px solid #0f172a;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.8rem;">
+                    <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${ProductLibraryModule.escapeHtml(panelTitle)}</div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">kapat</button>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; margin-bottom:0.65rem;">
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Varyasyon adi</label><input ${readOnly ? 'readonly' : ''} value="${ProductLibraryModule.escapeHtml(draft.productName || sourceProduct?.name || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('productName', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:700; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Varyasyon ID</label><input readonly value="${ProductLibraryModule.escapeHtml(draft.variantCode || '-')}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.6rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:800;"></div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr; gap:0.55rem;">
+                    ${ProductLibraryModule.renderSalesVariationColorField('accessory', 'Aksesuar rengi', draft, readOnly)}
+                    ${ProductLibraryModule.renderSalesVariationColorField('tube', 'Boru rengi', draft, readOnly)}
+                    ${ProductLibraryModule.renderSalesVariationColorField('plexi', 'Pleksi rengi', draft, readOnly)}
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.65rem; margin-top:0.65rem;">
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Kabarcik</label><div style="display:flex; gap:0.35rem;"><button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('var')" style="height:34px; min-width:44px; border:1px solid #cbd5e1; border-radius:0.55rem; font-weight:700; background:${draft.bubble === 'var' ? '#dcfce7' : 'white'};">var</button><button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('yok')" style="height:34px; min-width:44px; border:1px solid #cbd5e1; border-radius:0.55rem; font-weight:700; background:${draft.bubble === 'yok' ? '#e2e8f0' : 'white'};">yok</button></div></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Cap</label><div style="display:flex; flex-wrap:wrap; gap:0.35rem;">${diameterOptions.length > 0 ? diameterOptions.map((dia) => { const value = String(dia || '').trim(); const active = value === String(draft.selectedDiameter || '').trim(); return `<button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationDiameter('${ProductLibraryModule.escapeHtml(value)}')" style="height:30px; border:1px solid ${active ? '#f97316' : '#cbd5e1'}; border-radius:999px; padding:0 0.62rem; background:${active ? '#fff7ed' : 'white'}; font-size:0.78rem; font-weight:700;">Ø ${ProductLibraryModule.escapeHtml(value)}</button>`; }).join('') : '<span style="font-size:0.8rem; color:#94a3b8;">Cap bilgisi yok</span>'}</div></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Alt boru uzunlugu (mm)</label><input ${readOnly ? 'readonly' : ''} type="number" min="0" step="0.01" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || '')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="orn: 585" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}"></div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.65rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem;"><div style="font-weight:700; color:#0f172a;">Master Urun Kutuphanesi</div>${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationMasterRef()" style="height:32px;">master urun ekle +</button>'}</div><div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem;">${masterRefs.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.5rem;">Bagli master urun yok.</div>' : masterRefs.map((item, idx) => `<div style="display:grid; grid-template-columns:32px 1fr 78px ${readOnly ? '' : '58px'}; gap:0.35rem; align-items:center;"><div style="font-size:0.78rem; color:#64748b;">${idx + 1}</div><div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;"><div style="font-family:monospace; font-size:0.79rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div><div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div></div><input ${readOnly ? 'readonly' : ''} type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:32px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.45rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:32px;">sil</button>`}</div>`).join('')}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem;"><div style="font-weight:700; color:#0f172a;">Parca ve Bilesen Baglantilari</div>${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationComponentItem()" style="height:32px;">parca bilesen ekle +</button>'}</div><div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem;">${componentItems.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.5rem;">Bagli parca/bilesen yok.</div>' : componentItems.map((item, idx) => `<div style="display:grid; grid-template-columns:32px 1fr 78px ${readOnly ? '' : '58px'}; gap:0.35rem; align-items:center;"><div style="font-size:0.78rem; color:#64748b;">${idx + 1}</div><div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;"><div style="font-family:monospace; font-size:0.79rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div><div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div></div><input ${readOnly ? 'readonly' : ''} type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:32px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.45rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:32px;">sil</button>`}</div>`).join('')}</div></div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.65rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Montaj Islem Karti</label><div style="display:grid; grid-template-columns:1fr auto; gap:0.4rem;"><input ${readOnly ? 'readonly' : ''} value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem; font-family:monospace; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : '<button class="btn-sm" type="button" onclick="ProductLibraryModule.setSalesVariationDraftField(\'montageCardCode\', \'\'); UI.renderCurrentPage();" style="height:38px;">sil</button>'}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="font-weight:700; color:#0f172a; margin-bottom:0.2rem;">Urun patlatilmis resim (opsiyonel)</div>${readOnly ? '' : '<input type="file" multiple accept=\".pdf,.jpg,.jpeg,.png\" onchange=\"ProductLibraryModule.handleSalesVariationExplodedFiles(this)\" style=\"margin-bottom:0.45rem;\">'}<div style="display:flex; flex-direction:column; gap:0.35rem; max-height:130px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Ek dosya yok.</div>' : explodedFiles.map((file, idx) => `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; border:1px solid #e2e8f0; border-radius:0.52rem; padding:0.32rem 0.45rem;"><div style="font-size:0.8rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>${readOnly ? '' : `<button class=\"btn-sm\" type=\"button\" onclick=\"ProductLibraryModule.removeSalesVariationExplodedFile(${idx})\">kaldir</button>`}</div>`).join('')}</div></div>
+                </div>
+                <div style="margin-top:0.65rem;"><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not</label><textarea ${readOnly ? 'readonly' : ''} rows="4" oninput="ProductLibraryModule.setSalesVariationDraftField('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0.65rem; resize:vertical; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${ProductLibraryModule.escapeHtml(draft.note || '')}</textarea></div>
+                <div style="margin-top:0.75rem; display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">${mode === 'view' ? `<button class=\"btn-sm\" onclick=\"ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')\">duzenle</button>` : ''}${mode === 'edit' ? '<button class=\"btn-primary\" onclick=\"ProductLibraryModule.saveSalesVariation(true)\" style=\"background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;\">varyasyon olustur</button>' : ''}${mode === 'edit' ? '<button class=\"btn-sm\" onclick=\"ProductLibraryModule.deleteSalesVariation()\" style=\"color:#b91c1c; border-color:#fecaca; background:#fff1f2;\">sil</button>' : ''}<button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">vazgec</button>${mode === 'view' ? '' : '<button class=\"btn-primary\" onclick=\"ProductLibraryModule.saveSalesVariation(false)\">kaydet</button>'}</div>
+            </div>
+        `;
     },
 
     renderSalesProductVariationPage: (container, product) => {
@@ -436,6 +982,7 @@ const ProductLibraryModule = {
             : String(row?.categoryId || '').trim();
         const diameters = Array.isArray(row?.diameters) ? row.diameters.filter(Boolean) : [];
         const variantRows = ProductLibraryModule.getSalesProductVariationRows(row?.id);
+        const editorPanelHtml = ProductLibraryModule.renderSalesVariationEditorPanel(row);
 
         container.innerHTML = `
             <div style="max-width:1500px; margin:0 auto;">
@@ -487,7 +1034,7 @@ const ProductLibraryModule = {
                             <div style="font-weight:800; color:#0f172a; font-size:1.02rem;">Varyasyonlar</div>
                             <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">Bu urune bagli varyasyonlar satir satir listelenir.</div>
                         </div>
-                        <button class="btn-primary" type="button" disabled style="opacity:0.58; cursor:not-allowed;">yeni varyasyon ekle +</button>
+                        <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon ekle +</button>
                     </div>
 
                     <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:hidden;">
@@ -501,11 +1048,12 @@ const ProductLibraryModule = {
                                     <th style="padding:0.58rem; text-align:left;">Boru</th>
                                     <th style="padding:0.58rem; text-align:left;">Montaj Karti</th>
                                     <th style="padding:0.58rem; text-align:left;">Guncelleme</th>
+                                    <th style="padding:0.58rem; text-align:left;">Islem</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${variantRows.length === 0
-                ? '<tr><td colspan="7" style="padding:1.05rem; color:#94a3b8; text-align:center;">Bu urune henuz varyasyon eklenmedi.</td></tr>'
+                ? '<tr><td colspan="8" style="padding:1.05rem; color:#94a3b8; text-align:center;">Bu urune henuz varyasyon eklenmedi.</td></tr>'
                 : variantRows.map((item) => `
                                         <tr style="border-bottom:1px solid #f1f5f9;">
                                             <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item?.variantCode || '-')}</td>
@@ -515,12 +1063,19 @@ const ProductLibraryModule = {
                                             <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.tube?.name || '-')}</td>
                                             <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.montageCard?.cardCode || '-')}</td>
                                             <td style="padding:0.58rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.updatedAt || item?.createdAt || '-')}</td>
+                                            <td style="padding:0.58rem;">
+                                                <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+                                                    <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('view', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">goruntule</button>
+                                                    <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     `).join('')}
                             </tbody>
                         </table>
                     </div>
                 </div>
+                ${editorPanelHtml}
             </div>
         `;
     },

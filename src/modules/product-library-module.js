@@ -472,6 +472,7 @@
                     masterRefs: Array.isArray(row?.masterRefs)
                         ? row.masterRefs.map((item) => ({
                             id: String(item?.id || crypto.randomUUID()),
+                            refId: String(item?.refId || '').trim(),
                             code: String(item?.code || '').trim().toUpperCase(),
                             name: String(item?.name || '').trim(),
                             qty: Math.max(1, Number(item?.qty || 1))
@@ -480,6 +481,7 @@
                     items: Array.isArray(row?.items)
                         ? row.items.map((item) => ({
                             id: String(item?.id || crypto.randomUUID()),
+                            refId: String(item?.refId || '').trim(),
                             code: String(item?.code || '').trim().toUpperCase(),
                             name: String(item?.name || '').trim(),
                             qty: Math.max(1, Number(item?.qty || 1))
@@ -567,7 +569,7 @@
             },
             montageCardCode: String(sourceRow?.montageCard?.cardCode || '').trim().toUpperCase(),
             masterRefs: Array.isArray(sourceRow?.masterRefs) ? sourceRow.masterRefs.map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
-            componentItems: Array.isArray(sourceRow?.items) ? sourceRow.items.map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
+            componentItems: Array.isArray(sourceRow?.items) ? sourceRow.items.map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
             explodedFiles: Array.isArray(sourceRow?.explodedFiles) ? sourceRow.explodedFiles.map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data) : [],
             note: String(sourceRow?.note || '').trim()
         };

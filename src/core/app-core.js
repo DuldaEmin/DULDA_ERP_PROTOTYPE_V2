@@ -394,11 +394,103 @@ const IdentityPolicy = {
 };
 window.IdentityPolicy = IdentityPolicy;
 
+const ActionGuard = {
+    installed: false,
+    inFlight: new Set(),
+    moduleNames: [
+        "CncLibraryModule",
+        "MontageLibraryModule",
+        "UnitModule",
+        "ProductLibraryModule",
+        "PurchasingModule",
+        "SalesModule",
+        "StockModule",
+        "PlanningModule",
+        "PersonnelModule",
+        "AluminumModule"
+    ],
+    methodRegex: /^(save|submit)/i,
+
+    argToken: (value) => {
+        if (value === null) return "null";
+        if (value === undefined) return "undefined";
+        const type = typeof value;
+        if (type === "string" || type === "number" || type === "boolean" || type === "bigint") {
+            return String(value);
+        }
+        if (type === "function") return "[fn]";
+        try {
+            return JSON.stringify(value);
+        } catch (_e) {
+            return Object.prototype.toString.call(value);
+        }
+    },
+
+    makeKey: (moduleName, methodName, args) => {
+        const argKey = Array.isArray(args)
+            ? args.slice(0, 4).map((arg) => ActionGuard.argToken(arg)).join("::")
+            : "";
+        return `${moduleName}.${methodName}::${argKey}`;
+    },
+
+    wrapMethod: (moduleName, moduleObj, methodName) => {
+        if (!moduleObj || typeof moduleObj[methodName] !== "function") return;
+        const original = moduleObj[methodName];
+        if (original.__actionGuardWrapped) return;
+
+        const wrapped = function (...args) {
+            const key = ActionGuard.makeKey(moduleName, methodName, args);
+            if (ActionGuard.inFlight.has(key)) {
+                console.warn(`[ActionGuard] Duplicate call ignored: ${moduleName}.${methodName}`);
+                return undefined;
+            }
+
+            ActionGuard.inFlight.add(key);
+
+            let result;
+            try {
+                result = original.apply(this, args);
+            } catch (error) {
+                ActionGuard.inFlight.delete(key);
+                throw error;
+            }
+
+            if (result && typeof result.then === "function") {
+                return result.finally(() => {
+                    ActionGuard.inFlight.delete(key);
+                });
+            }
+
+            ActionGuard.inFlight.delete(key);
+            return result;
+        };
+
+        wrapped.__actionGuardWrapped = true;
+        moduleObj[methodName] = wrapped;
+    },
+
+    install: () => {
+        if (ActionGuard.installed) return;
+        ActionGuard.installed = true;
+
+        ActionGuard.moduleNames.forEach((moduleName) => {
+            const moduleObj = globalThis?.[moduleName];
+            if (!moduleObj || typeof moduleObj !== "object") return;
+
+            Object.keys(moduleObj).forEach((methodName) => {
+                if (!ActionGuard.methodRegex.test(methodName)) return;
+                ActionGuard.wrapMethod(moduleName, moduleObj, methodName);
+            });
+        });
+    }
+};
+
 const App = {
     init: async () => {
         console.log("DULDA ERP Initializing...");
 
         await DB.loadState();
+        ActionGuard.install();
 
         // Initialize Router and UI
         Router.init();
@@ -689,6 +781,7 @@ const DB = {
     },
 
     save: async () => {
+        UI.showSavingIndicator(true);
         DB.data.meta.updated_at = new Date().toISOString();
         DB.normalizeData();
 

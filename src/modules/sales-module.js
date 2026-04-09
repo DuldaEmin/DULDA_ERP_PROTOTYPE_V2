@@ -1352,7 +1352,7 @@ const SalesModule = {
             : "SalesModule.openWorkspace('menu')";
         const titleText = isEmbeddedInProducts ? 'master urun kutuphanesi / satis urun kutuphanesi' : 'satis urun kutuphanesi';
         const subtitleText = isEmbeddedInProducts
-            ? 'satis urun kutuphanesi ekrani burada birebir kullanilir. bu alanda yeni urun girilirse master kutuphanesine tek yonlu yansir.'
+            ? 'bu ekran master tarafinda referans icin gorunur. yeni urun ekleme sadece satis modulu ekranindan yapilir.'
             : 'burada sadece satilan urunler eklenir.';
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
@@ -1368,6 +1368,13 @@ const SalesModule = {
             ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
             : [];
         const filteredCount = filteredRows.length;
+        const createButtonHtml = (() => {
+            if (!(supportsCrud && activeGroup && activeLeaf)) return '';
+            if (isEmbeddedInProducts) {
+                return '';
+            }
+            return '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>';
+        })();
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -1400,7 +1407,7 @@ const SalesModule = {
                                         </div>
                                     ` : ''}
                                 </div>
-                                ${(supportsCrud && activeGroup && activeLeaf) ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>' : ''}
+                                ${createButtonHtml}
                             </div>
 
                             <div class="${isPipeLeaf ? 'sales-catalog-list' : 'sales-catalog-grid'}">

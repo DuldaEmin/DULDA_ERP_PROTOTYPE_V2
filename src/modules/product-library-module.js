@@ -780,7 +780,10 @@ const ProductLibraryModule = {
         const editingId = String(ProductLibraryModule.state.salesVariationEditingId || draft.id || '').trim();
         const mode = String(ProductLibraryModule.state.salesVariationEditorMode || '').trim();
         const isCreate = asCopy || mode === 'create' || !editingId;
-        const normalizedCode = String(draft.variantCode || '').trim().toUpperCase();
+        const normalizedCode = (() => {
+            if (asCopy) return ProductLibraryModule.generateSalesVariantCode(sourceProduct, editingId);
+            return String(draft.variantCode || '').trim().toUpperCase();
+        })();
         if (!normalizedCode) return alert('Varyasyon ID zorunlu.');
         const duplicate = store.find((row) => {
             if (String(row?.sourceCatalogProductId || '').trim() !== sourceProductId) return false;
@@ -845,7 +848,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
         UI.renderCurrentPage();
-        alert(isCreate ? 'Yeni varyasyon olusturuldu.' : 'Varyasyon guncellendi.');
+        alert(asCopy ? `Yeni varyasyon olusturuldu: ${normalizedCode}` : (isCreate ? 'Yeni varyasyon olusturuldu.' : 'Varyasyon guncellendi.'));
     },
 
     deleteSalesVariation: async () => {

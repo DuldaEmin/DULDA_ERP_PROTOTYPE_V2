@@ -544,12 +544,9 @@
             ? sourceProduct.diameters.map((value) => String(value || '').trim()).filter(Boolean)
             : [];
         const selectedDiameter = String(sourceRow?.selectedDiameter || sourceProduct?.selectedDiameter || diameters[0] || '').trim();
-        const parseMm = (value) => {
-            const text = String(value ?? '').trim().replace(',', '.');
-            if (!text) return '';
-            const num = Number(text);
-            if (!Number.isFinite(num) || num <= 0) return '';
-            return String(Number(num.toFixed(2))).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+        const normalizeLowerTubeLength = (value) => {
+            const text = String(value ?? '').trim();
+            return text || 'standart';
         };
         const sourceColors = sourceRow?.colors || {};
         const productColors = sourceProduct?.colors || {};
@@ -562,7 +559,7 @@
                 : String(sourceRow?.variantCode || ProductLibraryModule.generateSalesVariantCode(sourceProduct, sourceRow?.id || '')).trim().toUpperCase(),
             bubble: String(sourceRow?.bubble || sourceProduct?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
             selectedDiameter,
-            lowerTubeLengthMm: parseMm(sourceRow?.lowerTubeLengthMm || sourceProduct?.lowerTubeLength || ''),
+            lowerTubeLengthMm: normalizeLowerTubeLength(sourceRow?.lowerTubeLengthMm || sourceProduct?.lowerTubeLength || ''),
             colors: {
                 accessory: { category: String(sourceColors?.accessory?.category || productColors?.accessory?.category || '').trim(), color: String(sourceColors?.accessory?.color || productColors?.accessory?.color || '').trim() },
                 tube: { category: String(sourceColors?.tube?.category || productColors?.tube?.category || '').trim(), color: String(sourceColors?.tube?.color || productColors?.tube?.color || '').trim() },
@@ -657,27 +654,16 @@
 
     setSalesVariationLowerTubeMm: (value) => {
         if (!ProductLibraryModule.state.salesVariationDraft) return;
-        const text = String(value ?? '').trim().replace(',', '.');
-        if (!text) {
-            ProductLibraryModule.state.salesVariationDraft.lowerTubeLengthMm = '';
-            return;
-        }
-        const num = Number(text);
-        if (!Number.isFinite(num) || num <= 0) return;
-        ProductLibraryModule.state.salesVariationDraft.lowerTubeLengthMm = String(Number(num.toFixed(2))).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+        ProductLibraryModule.state.salesVariationDraft.lowerTubeLengthMm = String(value ?? '');
     },
 
     addSalesVariationMasterRef: () => {
         if (!ProductLibraryModule.state.salesVariationDraft) return;
-        const code = String(prompt('Master urun kodu girin (or: ALM0002):') || '').trim().toUpperCase();
-        if (!code) return;
-        const name = String(prompt('Master urun adi (opsiyonel):') || '').trim();
-        const qtyRaw = String(prompt('Adet (varsayilan 1):', '1') || '').trim();
-        const qty = Math.max(1, Number(qtyRaw || 1) || 1);
-        if (!Array.isArray(ProductLibraryModule.state.salesVariationDraft.masterRefs)) {
-            ProductLibraryModule.state.salesVariationDraft.masterRefs = [];
-        }
-        ProductLibraryModule.state.salesVariationDraft.masterRefs.push({ id: crypto.randomUUID(), code, name, qty });
+        ProductLibraryModule.state.masterPickerSource = 'sales-variation';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.masterFormOpen = false;
+        ProductLibraryModule.state.masterEditingId = null;
+        ProductLibraryModule.state.workspaceView = 'master';
         UI.renderCurrentPage();
     },
 
@@ -702,15 +688,66 @@
 
     addSalesVariationComponentItem: () => {
         if (!ProductLibraryModule.state.salesVariationDraft) return;
-        const code = String(prompt('Parca/Bilesen kodu girin (or: PRC-000003):') || '').trim().toUpperCase();
-        if (!code) return;
-        const name = String(prompt('Parca/Bilesen adi (opsiyonel):') || '').trim();
-        const qtyRaw = String(prompt('Adet (varsayilan 1):', '1') || '').trim();
-        const qty = Math.max(1, Number(qtyRaw || 1) || 1);
-        if (!Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)) {
-            ProductLibraryModule.state.salesVariationDraft.componentItems = [];
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = 'sales-variation-component';
+        ProductLibraryModule.state.componentLibraryKind = 'PART';
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = false;
+        ProductLibraryModule.state.workspaceView = 'components';
+        UI.renderCurrentPage();
+    },
+
+    selectSalesVariationMaster: (id) => {
+        const record = ProductLibraryModule.getMasterProductById(id);
+        if (!record || !ProductLibraryModule.state.salesVariationDraft) return;
+        const code = String(record.code || '').trim().toUpperCase();
+        if (!code) {
+            alert('Secilen kayitta master urun kodu bulunamadi.');
+            return;
         }
-        ProductLibraryModule.state.salesVariationDraft.componentItems.push({ id: crypto.randomUUID(), code, name, qty });
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.masterRefs)
+            ? ProductLibraryModule.state.salesVariationDraft.masterRefs
+            : [];
+        if (list.some((item) => String(item?.code || '').trim().toUpperCase() === code)) {
+            alert('Bu master urun zaten listede var.');
+            return;
+        }
+        list.push({
+            id: crypto.randomUUID(),
+            code,
+            name: String(record.name || '').trim(),
+            qty: 1
+        });
+        ProductLibraryModule.state.salesVariationDraft.masterRefs = list;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'sales-products';
+        UI.renderCurrentPage();
+    },
+
+    selectSalesVariationComponent: (id) => {
+        const row = ProductLibraryModule.getComponentCardById(id);
+        if (!row || !ProductLibraryModule.state.salesVariationDraft) return;
+        const code = String(row.code || '').trim().toUpperCase();
+        if (!code) {
+            alert('Secilen kayitta parca/bilesen kodu bulunamadi.');
+            return;
+        }
+        const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)
+            ? ProductLibraryModule.state.salesVariationDraft.componentItems
+            : [];
+        if (list.some((item) => String(item?.code || '').trim().toUpperCase() === code)) {
+            alert('Bu parca/bilesen zaten listede var.');
+            return;
+        }
+        list.push({
+            id: crypto.randomUUID(),
+            code,
+            name: String(row.name || '').trim(),
+            qty: 1
+        });
+        ProductLibraryModule.state.salesVariationDraft.componentItems = list;
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.workspaceView = 'sales-products';
         UI.renderCurrentPage();
     },
 
@@ -792,11 +829,7 @@
         });
         if (duplicate) return alert(`Bu varyasyon ID zaten var: ${normalizedCode}`);
 
-        const lowerTubeText = String(draft.lowerTubeLengthMm ?? '').trim();
-        if (lowerTubeText) {
-            const num = Number(lowerTubeText.replace(',', '.'));
-            if (!Number.isFinite(num) || num <= 0) return alert('Alt boru uzunlugu yalnizca mm sayi olabilir.');
-        }
+        const lowerTubeText = String(draft.lowerTubeLengthMm ?? '').trim() || 'standart';
 
         const normalizeColorBlock = (block) => {
             const raw = block && typeof block === 'object' ? block : {};
@@ -823,7 +856,7 @@
             productName: String(draft.productName || sourceProduct?.name || '').trim(),
             bubble: String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
             selectedDiameter: String(draft.selectedDiameter || '').trim(),
-            lowerTubeLengthMm: lowerTubeText ? String(Number(lowerTubeText.replace(',', '.'))) : '',
+            lowerTubeLengthMm: lowerTubeText,
             colors: {
                 accessory: normalizeColorBlock(draft.colors?.accessory),
                 tube: normalizeColorBlock(draft.colors?.tube),
@@ -945,12 +978,12 @@
                     .svx-top{grid-template-columns:minmax(420px,1.08fr) minmax(420px,1fr);}
                     .svx-bottom{grid-template-columns:minmax(460px,1fr) minmax(280px,0.62fr);}
                     .svx-soft{border:1px solid #d4dbe7; border-radius:0.85rem; background:#fff;}
-                    .svx-orange{border:1.4px solid #f59e0b; border-radius:0.75rem; padding:0.35rem 0.45rem;}
+                    .svx-orange{border:1px solid #cbd5e1; border-radius:0.75rem; padding:0.35rem 0.45rem;}
                     .svx-label{display:block; font-size:0.73rem; color:#475569; margin-bottom:0.2rem; font-weight:700;}
                     .svx-input{width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.62rem; font-weight:700;}
                     .svx-input[readonly], .svx-input:disabled{background:#f8fafc; color:#64748b;}
                     .svx-chip{height:30px; border:1px solid #cbd5e1; border-radius:999px; padding:0 0.62rem; background:white; font-size:0.78rem; font-weight:800;}
-                    .svx-chip.is-active{border-color:#f97316; background:#fff7ed; color:#c2410c;}
+                    .svx-chip.is-active{border-color:#0f172a; background:#f1f5f9; color:#0f172a;}
                     .svx-row{display:grid; gap:0.35rem; align-items:center;}
                     .svx-row.master{grid-template-columns:28px 1fr 68px 56px 56px;}
                     .svx-row.comp{grid-template-columns:28px 1fr 72px 56px 56px;}
@@ -966,7 +999,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.8rem; margin-bottom:0.85rem;">
                     <div>
                         <div style="font-size:1.75rem; font-weight:900; color:#111827; line-height:1;">Urun karti detay</div>
-                        <div style="margin-top:0.45rem; display:inline-flex; align-items:center; border:1.4px solid #f59e0b; border-radius:0.65rem; padding:0.26rem 0.5rem; font-size:0.76rem; font-weight:800; color:#b45309;">${ProductLibraryModule.escapeHtml(categoryPath || '-')}</div>
+                        <div style="margin-top:0.45rem; display:inline-flex; align-items:center; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0.26rem 0.5rem; font-size:0.76rem; font-weight:800; color:#334155;">${ProductLibraryModule.escapeHtml(categoryPath || '-')}</div>
                     </div>
                     <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()" style="min-width:36px;">x</button>
                 </div>
@@ -1026,8 +1059,8 @@
                                     </div>
                                 </div>
                                 <div class="svx-orange" style="margin-top:0.34rem;">
-                                    <label class="svx-label">Alt boru uzunlugu (mm)</label>
-                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" type="number" min="0" step="0.01" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || '')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="orn: 585">
+                                    <label class="svx-label">Alt boru uzunlugu</label>
+                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" type="text" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || 'standart')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="standart veya ozel olcu">
                                 </div>
                             </div>
                         </div>
@@ -2014,6 +2047,8 @@
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
             ProductLibraryModule.state.modelViewingId = null;
+        } else if (src === 'sales-variation-component') {
+            ProductLibraryModule.state.workspaceView = 'sales-products';
         } else {
             ProductLibraryModule.state.workspaceView = 'assembly';
             ProductLibraryModule.state.assemblyFormOpen = true;
@@ -3025,12 +3060,13 @@
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
         const isModelComponentPicker = state.componentPickerSource === 'model-component' || state.componentPickerSource === 'model-component-row';
+        const isSalesVariationComponentPicker = state.componentPickerSource === 'sales-variation-component';
         const planningPickerSource = String(state.planningPickerSource || '');
         const isPlanningComponentPicker = planningPickerSource === 'component' || planningPickerSource === 'semi';
         const isStockInventoryPicker = isPlanningComponentPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
-        const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker || isPlanningComponentPicker;
+        const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker || isSalesVariationComponentPicker || isPlanningComponentPicker;
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getActiveComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
@@ -3105,7 +3141,7 @@
                 <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
                 <td style="padding:0.55rem; text-align:center;">
                     ${isComponentPicker
-                        ? `<button class="btn-sm" onclick="${isPlanningComponentPicker ? (planningPickerSource === 'semi' ? `ProductLibraryModule.selectPlanningSemiFinished('${row.id}')` : `ProductLibraryModule.selectPlanningComponent('${row.id}')`) : (isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`)}">ekle</button>`
+                        ? `<button class="btn-sm" onclick="${isPlanningComponentPicker ? (planningPickerSource === 'semi' ? `ProductLibraryModule.selectPlanningSemiFinished('${row.id}')` : `ProductLibraryModule.selectPlanningComponent('${row.id}')`) : (isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : (isSalesVariationComponentPicker ? `ProductLibraryModule.selectSalesVariationComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`))}">ekle</button>`
                         : '<input type="checkbox" disabled>'}
                 </td>
             </tr>
@@ -3149,8 +3185,8 @@
             <div style="max-width:1360px; margin:0 auto;">
                 ${isComponentPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isPlanningComponentPicker ? (isStockInventoryPicker ? (planningPickerSource === 'semi' ? 'Envantere elle kayit icin yari mamul secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.' : 'Envantere elle kayit icin parca/bilesen secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.') : (planningPickerSource === 'semi' ? 'Planlama icin yari mamul secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.' : 'Planlama icin parca/bilesen secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.')) : (isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.')}</div>
-                        <button class="btn-sm" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.cancelComponentPicker()'}">${isPlanningComponentPicker ? (isStockInventoryPicker ? 'envantere don' : 'planlamaya don') : (isModelComponentPicker ? 'urun modeli formuna don' : 'parca grup formuna don')}</button>
+                        <div style="font-weight:700;">${isPlanningComponentPicker ? (isStockInventoryPicker ? (planningPickerSource === 'semi' ? 'Envantere elle kayit icin yari mamul secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.' : 'Envantere elle kayit icin parca/bilesen secimi modundasin. "ekle" ile secilen urun stok giris formuna baglanir.') : (planningPickerSource === 'semi' ? 'Planlama icin yari mamul secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.' : 'Planlama icin parca/bilesen secimi modundasin. "ekle" ile secilen kayit stok icin uretim ekranina baglanir.')) : (isModelComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.' : (isSalesVariationComponentPicker ? 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu satis varyasyon formuna baglarsin.' : 'Parca/Bilesen secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'))}</div>
+                        <button class="btn-sm" onclick="${isPlanningComponentPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.cancelComponentPicker()'}">${isPlanningComponentPicker ? (isStockInventoryPicker ? 'envantere don' : 'planlamaya don') : (isModelComponentPicker ? 'urun modeli formuna don' : (isSalesVariationComponentPicker ? 'satis varyasyonuna don' : 'parca grup formuna don'))}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:1rem;">
@@ -6480,27 +6516,32 @@
         const showForm = state.masterFormOpen || !!state.masterEditingId;
         const selectedId = state.masterSelectedId;
         const isComponentPicker = state.masterPickerSource === 'component';
+        const isSalesVariationMasterPicker = state.masterPickerSource === 'sales-variation';
         const isAssemblyMasterPicker = state.masterPickerSource === 'assembly-master';
         const isModelMasterPicker = state.masterPickerSource === 'model-master' || state.masterPickerSource === 'model-master-row';
         const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
         const isStockInventoryRegistrationPicker = state.masterPickerSource === 'stock-inventory-registration';
-        const isMasterPicker = isComponentPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
+        const isMasterPicker = isComponentPicker || isSalesVariationMasterPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
         const masterPickerHint = isAssemblyMasterPicker
             ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'
             : (isModelMasterPicker
                 ? 'Master urun secimi modundasin. "ekle" ile secilen urunu urun modeli formuna baglarsin.'
+                : (isSalesVariationMasterPicker
+                    ? 'Master urun secimi modundasin. "ekle" ile secilen urunu satis varyasyon formuna baglarsin.'
                 : (isStockGoodsReceiptPicker
                     ? 'Master urun secimi modundasin. "ekle" ile secilen urunu mal kabul satirina baglarsin.'
                     : (isStockInventoryRegistrationPicker
                         ? 'Master urun secimi modundasin. "ekle" ile secilen urunu envantere elle kayit formuna baglarsin.'
-                        : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.')));
+                        : 'Master urun secimi modundasin. Kayitta "ekle" ile kodu parca/bilesen formuna aktarabilirsin.'))));
         const masterPickerBackLabel = isAssemblyMasterPicker
             ? 'parca grup formuna don'
             : (isModelMasterPicker
                 ? 'urun modeli formuna don'
+                : (isSalesVariationMasterPicker
+                    ? 'satis varyasyonuna don'
                 : (isStockGoodsReceiptPicker
                     ? 'mal kabule don'
-                    : (isStockInventoryRegistrationPicker ? 'envantere don' : 'parca formuna don')));
+                    : (isStockInventoryRegistrationPicker ? 'envantere don' : 'parca formuna don'))));
         const editingRecord = state.masterEditingId ? records.find(x => x.id === state.masterEditingId) : null;
         const selectedSupplierRowsHtml = (state.masterDraftSupplierLinks || []).map((link, index) => {
             const label = String(link?.supplierName || '').trim();
@@ -7113,6 +7154,9 @@
             ProductLibraryModule.state.workspaceView = ProductLibraryModule.getComponentWorkspaceByKind(ProductLibraryModule.getActiveComponentLibraryKind());
             ProductLibraryModule.state.componentFormOpen = true;
             ProductLibraryModule.state.masterPickerSource = '';
+        } else if (ProductLibraryModule.state.masterPickerSource === 'sales-variation') {
+            ProductLibraryModule.selectSalesVariationMaster(id);
+            return;
         } else if (ProductLibraryModule.state.masterPickerSource === 'model-master' || ProductLibraryModule.state.masterPickerSource === 'model-master-row') {
             ProductLibraryModule.selectModelMaster(id, ProductLibraryModule.state.modelMasterPickerRowId);
             return;
@@ -7191,6 +7235,8 @@
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
             ProductLibraryModule.state.modelViewingId = null;
+        } else if (src === 'sales-variation') {
+            ProductLibraryModule.state.workspaceView = 'sales-products';
         } else {
             ProductLibraryModule.state.workspaceView = ProductLibraryModule.getComponentWorkspaceByKind(ProductLibraryModule.getActiveComponentLibraryKind());
             ProductLibraryModule.state.componentFormOpen = true;

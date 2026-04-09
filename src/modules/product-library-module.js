@@ -1,4 +1,4 @@
-const ProductLibraryModule = {
+﻿const ProductLibraryModule = {
     state: {
         activeCategory: null,
         extruderTab: 'ROD', // ROD | PIPE
@@ -144,7 +144,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.ensureAssemblyDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
         if (view === 'assembly') {
-            // ParÃ§a grup Ã¶zelliÄŸi devre dÄ±ÅŸÄ±: assembly gÃ¶rÃ¼nÃ¼mÃ¼nÃ¼ komponent listesine yÃ¶nlendir.
+            // ParÃƒÂ§a grup ÃƒÂ¶zelliÃ„Å¸i devre dÃ„Â±Ã…Å¸Ã„Â±: assembly gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ komponent listesine yÃƒÂ¶nlendir.
             ProductLibraryModule.state.componentLibraryKind = 'PART';
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.renderComponentsPage(container);
@@ -183,7 +183,7 @@ const ProductLibraryModule = {
 
     openWorkspace: (view) => {
         const candidate = String(view || 'menu');
-        const nextView = candidate === 'assembly' ? 'components' : candidate; // assembly devre dÄ±ÅŸÄ±
+        const nextView = candidate === 'assembly' ? 'components' : candidate; // assembly devre dÃ„Â±Ã…Å¸Ã„Â±
         if (String(ProductLibraryModule.state.workspaceView || '') === 'models' && nextView !== 'models') {
             ProductLibraryModule.resetModelAccordionState();
         }
@@ -931,38 +931,201 @@ const ProductLibraryModule = {
         const explodedFiles = Array.isArray(draft?.explodedFiles) ? draft.explodedFiles : [];
         const masterRefs = Array.isArray(draft?.masterRefs) ? draft.masterRefs : [];
         const componentItems = Array.isArray(draft?.componentItems) ? draft.componentItems : [];
-        const panelTitle = mode === 'create' ? 'Yeni Varyasyon Ekle' : (mode === 'edit' ? 'Varyasyon Duzenle' : 'Varyasyon Goruntule');
+        const categoryPath = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogCategoryPathText === 'function')
+            ? SalesModule.getCatalogCategoryPathText(sourceProduct?.categoryId || '')
+            : String(sourceProduct?.categoryId || '').trim();
+        const productImage = String(sourceProduct?.images?.product || sourceProduct?.images?.application || '').trim();
+        const technicalImage = String(sourceProduct?.images?.technical || '').trim();
+        const statusCode = String(sourceProduct?.idCode || sourceProduct?.productCode || '-').trim();
 
         return `
-            <div class="card-table" style="padding:1rem; margin-top:0.95rem; border:2px solid #0f172a;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.8rem;">
-                    <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${ProductLibraryModule.escapeHtml(panelTitle)}</div>
-                    <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">kapat</button>
+            <div class="card-table" style="padding:1.2rem; margin-top:0.95rem; border:1.5px solid #111827; border-radius:1rem;">
+                <style>
+                    .svx-grid{display:grid; gap:1rem;}
+                    .svx-top{grid-template-columns:minmax(420px,1.08fr) minmax(420px,1fr);}
+                    .svx-bottom{grid-template-columns:minmax(460px,1fr) minmax(280px,0.62fr);}
+                    .svx-soft{border:1px solid #d4dbe7; border-radius:0.85rem; background:#fff;}
+                    .svx-orange{border:1.4px solid #f59e0b; border-radius:0.75rem; padding:0.35rem 0.45rem;}
+                    .svx-label{display:block; font-size:0.73rem; color:#475569; margin-bottom:0.2rem; font-weight:700;}
+                    .svx-input{width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.62rem; font-weight:700;}
+                    .svx-input[readonly], .svx-input:disabled{background:#f8fafc; color:#64748b;}
+                    .svx-chip{height:30px; border:1px solid #cbd5e1; border-radius:999px; padding:0 0.62rem; background:white; font-size:0.78rem; font-weight:800;}
+                    .svx-chip.is-active{border-color:#f97316; background:#fff7ed; color:#c2410c;}
+                    .svx-row{display:grid; gap:0.35rem; align-items:center;}
+                    .svx-row.master{grid-template-columns:28px 1fr 68px 56px 56px;}
+                    .svx-row.comp{grid-template-columns:28px 1fr 72px 56px 56px;}
+                    .svx-mini{height:30px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; background:white; font-size:0.75rem;}
+                    .svx-mini[readonly]{background:#f8fafc; color:#64748b;}
+                    .svx-note{max-width:62%;}
+                    @media (max-width: 1260px){
+                        .svx-top,.svx-bottom{grid-template-columns:1fr;}
+                        .svx-note{max-width:100%;}
+                    }
+                </style>
+
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.8rem; margin-bottom:0.85rem;">
+                    <div>
+                        <div style="font-size:1.75rem; font-weight:900; color:#111827; line-height:1;">Urun karti detay</div>
+                        <div style="margin-top:0.45rem; display:inline-flex; align-items:center; border:1.4px solid #f59e0b; border-radius:0.65rem; padding:0.26rem 0.5rem; font-size:0.76rem; font-weight:800; color:#b45309;">${ProductLibraryModule.escapeHtml(categoryPath || '-')}</div>
+                    </div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()" style="min-width:36px;">x</button>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; margin-bottom:0.65rem;">
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Varyasyon adi</label><input ${readOnly ? 'readonly' : ''} value="${ProductLibraryModule.escapeHtml(draft.productName || sourceProduct?.name || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('productName', this.value)" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; font-weight:700; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}"></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Varyasyon ID</label><input readonly value="${ProductLibraryModule.escapeHtml(draft.variantCode || '-')}" style="width:100%; height:40px; border:1px solid #e2e8f0; border-radius:0.6rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:800;"></div>
+
+                <div class="svx-grid svx-top">
+                    <div class="svx-soft" style="padding:0.35rem; min-height:390px;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.35rem; height:100%;">
+                            <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden; min-height:380px; background:${productImage ? '#0f172a' : '#f8fafc'}; display:flex; align-items:center; justify-content:center;">
+                                ${productImage
+                ? `<img src="${ProductLibraryModule.escapeHtml(productImage)}" alt="${ProductLibraryModule.escapeHtml(sourceProduct?.name || 'Urun')}" style="width:100%; height:100%; object-fit:cover;">`
+                : '<div style="font-weight:800; color:#94a3b8;">Urun resmi yok</div>'}
+                            </div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:hidden; min-height:380px; background:${technicalImage ? '#fff' : '#f8fafc'}; display:flex; align-items:center; justify-content:center;">
+                                ${technicalImage
+                ? `<img src="${ProductLibraryModule.escapeHtml(technicalImage)}" alt="Teknik resim" style="width:100%; height:100%; object-fit:contain; background:white;">`
+                : '<div style="font-weight:800; color:#94a3b8;">Teknik resim yok</div>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div style="display:grid; grid-template-columns:1fr 184px; gap:0.9rem; align-items:end; margin-bottom:0.35rem;">
+                            <div>
+                                <div style="font-size:3.05rem; line-height:1; font-weight:900; color:#111827; letter-spacing:-0.02em;">${ProductLibraryModule.escapeHtml(draft.productName || sourceProduct?.name || '-')}</div>
+                                <div style="margin-top:0.28rem; display:flex; align-items:center; gap:0.6rem; border-bottom:1px solid #e2e8f0; padding-bottom:0.28rem;">
+                                    <div style="font-size:1.95rem; font-weight:900; color:#ef4444; line-height:1;">${ProductLibraryModule.escapeHtml(statusCode)}</div>
+                                    <div style="font-size:0.93rem; color:#334155; font-weight:800;">ID: ${ProductLibraryModule.escapeHtml(draft.variantCode || '-')}</div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="svx-label">Varyasyon ID</label>
+                                <input class="svx-input" readonly value="${ProductLibraryModule.escapeHtml(draft.variantCode || '-')}" />
+                            </div>
+                        </div>
+
+                        <div class="svx-orange">${ProductLibraryModule.renderSalesVariationColorField('accessory', 'Aksesuar rengi', draft, readOnly)}</div>
+                        <div class="svx-orange" style="margin-top:0.34rem;">${ProductLibraryModule.renderSalesVariationColorField('tube', 'Boru rengi', draft, readOnly)}</div>
+                        <div class="svx-orange" style="margin-top:0.34rem;">${ProductLibraryModule.renderSalesVariationColorField('plexi', 'Pleksi rengi', draft, readOnly)}</div>
+
+                        <div style="display:grid; grid-template-columns:122px 1fr; gap:0.65rem; margin-top:0.34rem;">
+                            <div class="svx-orange">
+                                <label class="svx-label">Kabarcik</label>
+                                <div style="display:flex; gap:0.35rem;">
+                                    <button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('var')" class="svx-chip ${draft.bubble === 'var' ? 'is-active' : ''}">var</button>
+                                    <button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('yok')" class="svx-chip ${draft.bubble === 'yok' ? 'is-active' : ''}">yok</button>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="svx-orange">
+                                    <label class="svx-label">Cap</label>
+                                    <div style="display:flex; flex-wrap:wrap; gap:0.35rem;">
+                                        ${diameterOptions.length > 0 ? diameterOptions.map((dia) => {
+                const value = String(dia || '').trim();
+                const active = value === String(draft.selectedDiameter || '').trim();
+                return `<button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationDiameter('${ProductLibraryModule.escapeHtml(value)}')" class="svx-chip ${active ? 'is-active' : ''}">Ø ${ProductLibraryModule.escapeHtml(value)}</button>`;
+            }).join('') : '<span style="font-size:0.8rem; color:#94a3b8;">Cap bilgisi yok</span>'}
+                                    </div>
+                                </div>
+                                <div class="svx-orange" style="margin-top:0.34rem;">
+                                    <label class="svx-label">Alt boru uzunlugu (mm)</label>
+                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" type="number" min="0" step="0.01" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || '')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="orn: 585">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.44rem;">
+                            <label class="svx-label">Montaj Islem Karti</label>
+                            <div style="display:grid; grid-template-columns:1fr 84px 58px; gap:0.35rem;">
+                                <input ${readOnly ? 'readonly' : ''} class="svx-input" value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi">
+                                <button class="btn-sm" type="button" onclick="return false;">goruntule</button>
+                                ${readOnly
+                ? '<button class="btn-sm" type="button" disabled>sil</button>'
+                : '<button class="btn-sm" type="button" onclick="ProductLibraryModule.setSalesVariationDraftField(\'montageCardCode\', \'\'); UI.renderCurrentPage();">sil</button>'}
+                            </div>
+                        </div>
+
+                        <div style="margin-top:0.55rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
+                                <label class="svx-label" style="margin:0;">Master Urun Kutuphanesi</label>
+                                ${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationMasterRef()" style="height:28px; padding:0 0.55rem;">master urun ekle +</button>'}
+                            </div>
+                            <div style="margin-top:0.25rem; display:flex; flex-direction:column; gap:0.25rem;">
+                                ${masterRefs.length === 0
+                ? '<div style="font-size:0.8rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.45rem;">Bu varyanta bagli master urun yok.</div>'
+                : masterRefs.map((item, idx) => `
+                                        <div class="svx-row master">
+                                            <div style="font-size:0.74rem; color:#64748b;">${idx + 1}</div>
+                                            <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.28rem 0.4rem;">
+                                                <div style="font-size:0.74rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
+                                                <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                            </div>
+                                            <button class="btn-sm" type="button" onclick="return false;" style="height:30px;">goruntule</button>
+                                            <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
+                                            ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:30px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:30px;">sil</button>`}
+                                        </div>
+                                    `).join('')}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr; gap:0.55rem;">
-                    ${ProductLibraryModule.renderSalesVariationColorField('accessory', 'Aksesuar rengi', draft, readOnly)}
-                    ${ProductLibraryModule.renderSalesVariationColorField('tube', 'Boru rengi', draft, readOnly)}
-                    ${ProductLibraryModule.renderSalesVariationColorField('plexi', 'Pleksi rengi', draft, readOnly)}
+
+                <div class="svx-grid svx-bottom" style="margin-top:0.95rem;">
+                    <div class="svx-soft" style="padding:0.68rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
+                            <div>
+                                <div style="font-size:1rem; font-weight:900; color:#0f172a;">Parca ve Bilesen Baglantilari</div>
+                                <div style="font-size:0.76rem; color:#64748b;">Patlatilmis resimdeki parcalari satir satir ekleyin.</div>
+                            </div>
+                            ${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationComponentItem()" style="height:32px;">parca bilesen ekle +</button>'}
+                        </div>
+                        <div style="margin-top:0.5rem; display:flex; flex-direction:column; gap:0.3rem;">
+                            ${componentItems.length === 0
+                ? '<div style="font-size:0.84rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.6rem; padding:0.6rem;">Bagli parca/bilesen yok.</div>'
+                : componentItems.map((item, idx) => `
+                                        <div class="svx-row comp">
+                                            <div style="font-size:0.76rem; color:#64748b;">${idx + 1}</div>
+                                            <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;">
+                                                <div style="font-size:0.76rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
+                                                <div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                            </div>
+                                            <button class="btn-sm" type="button" onclick="return false;" style="height:31px;">goruntule</button>
+                                            <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
+                                            ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:31px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:31px;">sil</button>`}
+                                        </div>
+                                    `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="svx-soft" style="padding:0.68rem; min-height:208px;">
+                        <div style="font-size:1.02rem; font-weight:900; color:#0f172a;">urun fotografi / teknik resim</div>
+                        <div style="font-size:0.82rem; color:#64748b; margin-top:0.15rem;">resim/pdf dosya + ekle</div>
+                        ${readOnly ? '' : '<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleSalesVariationExplodedFiles(this)" style="margin-top:0.4rem;">'}
+                        <div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem; max-height:128px; overflow:auto;">
+                            ${explodedFiles.length === 0
+                ? '<div style="font-size:0.82rem; color:#94a3b8;">Dosya secilmedi.</div>'
+                : explodedFiles.map((file, idx) => `
+                                        <div style="display:flex; align-items:center; justify-content:space-between; gap:0.35rem; border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.3rem 0.42rem;">
+                                            <div style="font-size:0.78rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>
+                                            ${readOnly ? '' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationExplodedFile(${idx})">sil</button>`}
+                                        </div>
+                                    `).join('')}
+                        </div>
+                    </div>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.65rem; margin-top:0.65rem;">
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Kabarcik</label><div style="display:flex; gap:0.35rem;"><button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('var')" style="height:34px; min-width:44px; border:1px solid #cbd5e1; border-radius:0.55rem; font-weight:700; background:${draft.bubble === 'var' ? '#dcfce7' : 'white'};">var</button><button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationBubble('yok')" style="height:34px; min-width:44px; border:1px solid #cbd5e1; border-radius:0.55rem; font-weight:700; background:${draft.bubble === 'yok' ? '#e2e8f0' : 'white'};">yok</button></div></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Cap</label><div style="display:flex; flex-wrap:wrap; gap:0.35rem;">${diameterOptions.length > 0 ? diameterOptions.map((dia) => { const value = String(dia || '').trim(); const active = value === String(draft.selectedDiameter || '').trim(); return `<button type="button" ${readOnly ? 'disabled' : ''} onclick="ProductLibraryModule.setSalesVariationDiameter('${ProductLibraryModule.escapeHtml(value)}')" style="height:30px; border:1px solid ${active ? '#f97316' : '#cbd5e1'}; border-radius:999px; padding:0 0.62rem; background:${active ? '#fff7ed' : 'white'}; font-size:0.78rem; font-weight:700;">cap ${ProductLibraryModule.escapeHtml(value)}</button>`; }).join('') : '<span style="font-size:0.8rem; color:#94a3b8;">Cap bilgisi yok</span>'}</div></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.25rem;">Alt boru uzunlugu (mm)</label><input ${readOnly ? 'readonly' : ''} type="number" min="0" step="0.01" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || '')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="orn: 585" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.65rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}"></div>
+
+                <div class="svx-note" style="margin-top:0.95rem;">
+                    <label class="svx-label" style="font-size:1rem; color:#0f172a; font-weight:900;">not</label>
+                    <textarea ${readOnly ? 'readonly' : ''} rows="4" oninput="ProductLibraryModule.setSalesVariationDraftField('note', this.value)" style="width:100%; border:1px solid #94a3b8; border-radius:0.72rem; padding:0.65rem; resize:vertical; min-height:118px; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${ProductLibraryModule.escapeHtml(draft.note || '')}</textarea>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.65rem;">
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem;"><div style="font-weight:700; color:#0f172a;">Master Urun Kutuphanesi</div>${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationMasterRef()" style="height:32px;">master urun ekle +</button>'}</div><div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem;">${masterRefs.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.5rem;">Bagli master urun yok.</div>' : masterRefs.map((item, idx) => `<div style="display:grid; grid-template-columns:32px 1fr 78px ${readOnly ? '' : '58px'}; gap:0.35rem; align-items:center;"><div style="font-size:0.78rem; color:#64748b;">${idx + 1}</div><div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;"><div style="font-family:monospace; font-size:0.79rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div><div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div></div><input ${readOnly ? 'readonly' : ''} type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:32px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.45rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:32px;">sil</button>`}</div>`).join('')}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem;"><div style="font-weight:700; color:#0f172a;">Parca ve Bilesen Baglantilari</div>${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationComponentItem()" style="height:32px;">parca bilesen ekle +</button>'}</div><div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem;">${componentItems.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.5rem;">Bagli parca/bilesen yok.</div>' : componentItems.map((item, idx) => `<div style="display:grid; grid-template-columns:32px 1fr 78px ${readOnly ? '' : '58px'}; gap:0.35rem; align-items:center;"><div style="font-size:0.78rem; color:#64748b;">${idx + 1}</div><div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;"><div style="font-family:monospace; font-size:0.79rem; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div><div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div></div><input ${readOnly ? 'readonly' : ''} type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:32px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.45rem; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:32px;">sil</button>`}</div>`).join('')}</div></div>
+
+                <div style="margin-top:0.9rem; display:flex; align-items:center; justify-content:space-between; gap:0.45rem; flex-wrap:wrap;">
+                    <div>${mode === 'edit' ? '<button class="btn-sm" onclick="ProductLibraryModule.deleteSalesVariation()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">sil</button>' : ''}</div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
+                        ${mode === 'view' ? `<button class="btn-sm" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')">duzenle</button>` : ''}
+                        ${mode === 'edit' ? '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(true)" style="background:#6b7280;">Farkli Kaydet</button>' : ''}
+                        <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">Vazgec</button>
+                        ${mode === 'view' ? '' : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(false)">Kaydet</button>'}
+                    </div>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; margin-top:0.65rem;">
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Montaj Islem Karti</label><div style="display:grid; grid-template-columns:1fr auto; gap:0.4rem;"><input ${readOnly ? 'readonly' : ''} value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi" style="height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.6rem; font-family:monospace; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${readOnly ? '' : '<button class="btn-sm" type="button" onclick="ProductLibraryModule.setSalesVariationDraftField(\'montageCardCode\', \'\'); UI.renderCurrentPage();" style="height:38px;">sil</button>'}</div></div>
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; padding:0.75rem;"><div style="font-weight:700; color:#0f172a; margin-bottom:0.2rem;">Urun patlatilmis resim (opsiyonel)</div>${readOnly ? '' : '<input type="file" multiple accept=\".pdf,.jpg,.jpeg,.png\" onchange=\"ProductLibraryModule.handleSalesVariationExplodedFiles(this)\" style=\"margin-bottom:0.45rem;\">'}<div style="display:flex; flex-direction:column; gap:0.35rem; max-height:130px; overflow:auto;">${explodedFiles.length === 0 ? '<div style="font-size:0.82rem; color:#94a3b8;">Ek dosya yok.</div>' : explodedFiles.map((file, idx) => `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.4rem; border:1px solid #e2e8f0; border-radius:0.52rem; padding:0.32rem 0.45rem;"><div style="font-size:0.8rem; color:#334155;">${ProductLibraryModule.escapeHtml(file?.name || 'dosya')}</div>${readOnly ? '' : `<button class=\"btn-sm\" type=\"button\" onclick=\"ProductLibraryModule.removeSalesVariationExplodedFile(${idx})\">kaldir</button>`}</div>`).join('')}</div></div>
-                </div>
-                <div style="margin-top:0.65rem;"><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not</label><textarea ${readOnly ? 'readonly' : ''} rows="4" oninput="ProductLibraryModule.setSalesVariationDraftField('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.7rem; padding:0.65rem; resize:vertical; ${readOnly ? 'background:#f8fafc; color:#64748b;' : ''}">${ProductLibraryModule.escapeHtml(draft.note || '')}</textarea></div>
-                <div style="margin-top:0.75rem; display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">${mode === 'view' ? `<button class=\"btn-sm\" onclick=\"ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')\">duzenle</button>` : ''}${mode === 'edit' ? '<button class=\"btn-primary\" onclick=\"ProductLibraryModule.saveSalesVariation(true)\" style=\"background:#eff6ff; color:#1d4ed8; border:1px solid #93c5fd;\">varyasyon olustur</button>' : ''}${mode === 'edit' ? '<button class=\"btn-sm\" onclick=\"ProductLibraryModule.deleteSalesVariation()\" style=\"color:#b91c1c; border-color:#fecaca; background:#fff1f2;\">sil</button>' : ''}<button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">vazgec</button>${mode === 'view' ? '' : '<button class=\"btn-primary\" onclick=\"ProductLibraryModule.saveSalesVariation(false)\">kaydet</button>'}</div>
             </div>
         `;
     },
@@ -5667,9 +5830,9 @@ const ProductLibraryModule = {
     ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [
-                { id: 'cat1', name: 'AlÃ¼minyum profil', icon: 'ğŸ—ï¸', prefix: 'ALM' },
-                { id: 'cat3', name: 'HÄ±rdavat & Vida', icon: 'ğŸ”©', prefix: 'VID' },
-                { id: 'cat_ext', name: 'EkstrÃ¼der pleksi', icon: 'ğŸ­', prefix: 'AKS' },
+                { id: 'cat1', name: 'AlÃƒÂ¼minyum profil', icon: 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', prefix: 'ALM' },
+                { id: 'cat3', name: 'HÃ„Â±rdavat & Vida', icon: 'ÄŸÅ¸â€Â©', prefix: 'VID' },
+                { id: 'cat_ext', name: 'EkstrÃƒÂ¼der pleksi', icon: 'ÄŸÅ¸ÂÂ­', prefix: 'AKS' },
                 { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
                 { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
                 { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
@@ -5677,9 +5840,9 @@ const ProductLibraryModule = {
         }
 
         const defaults = [
-            { id: 'cat1', name: 'AlÃ¼minyum profil', icon: 'ğŸ—ï¸', prefix: 'ALM' },
-            { id: 'cat3', name: 'HÄ±rdavat & Vida', icon: 'ğŸ”©', prefix: 'VID' },
-            { id: 'cat_ext', name: 'EkstrÃ¼der pleksi', icon: 'ğŸ­', prefix: 'AKS' },
+            { id: 'cat1', name: 'AlÃƒÂ¼minyum profil', icon: 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', prefix: 'ALM' },
+            { id: 'cat3', name: 'HÃ„Â±rdavat & Vida', icon: 'ÄŸÅ¸â€Â©', prefix: 'VID' },
+            { id: 'cat_ext', name: 'EkstrÃƒÂ¼der pleksi', icon: 'ÄŸÅ¸ÂÂ­', prefix: 'AKS' },
             { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
             { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
             { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
@@ -5697,7 +5860,7 @@ const ProductLibraryModule = {
                 return {
                     ...c,
                     name: safeName,
-                    icon: c.icon || 'ğŸ“¦',
+                    icon: c.icon || 'ÄŸÅ¸â€œÂ¦',
                     prefix: ProductLibraryModule.buildCategoryPrefix(c.prefix || safeName, c.id)
                 };
             });
@@ -5954,8 +6117,8 @@ const ProductLibraryModule = {
 
     normalizeAsciiUpper: (value) => {
         return String(value || '')
-            .replace(/Ä±/g, 'i')
-            .replace(/Ä°/g, 'I')
+            .replace(/Ã„Â±/g, 'i')
+            .replace(/Ã„Â°/g, 'I')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-zA-Z0-9]/g, '')
@@ -6173,11 +6336,11 @@ const ProductLibraryModule = {
             return {
                 id: '',
                 name: raw,
-                icon: 'ğŸ“¦',
+                icon: 'ÄŸÅ¸â€œÂ¦',
                 prefix: ProductLibraryModule.buildCategoryPrefix(raw)
             };
         }
-        return categories[0] || { id: '', name: 'Diger', icon: 'ğŸ“¦', prefix: 'URN' };
+        return categories[0] || { id: '', name: 'Diger', icon: 'ÄŸÅ¸â€œÂ¦', prefix: 'URN' };
     },
 
     extractSupplierRefs: (product) => {
@@ -7419,7 +7582,7 @@ const ProductLibraryModule = {
         DB.data.data.productCategories.push({
             id: crypto.randomUUID(),
             name,
-            icon: 'ğŸ“¦',
+            icon: 'ÄŸÅ¸â€œÂ¦',
             prefix: ProductLibraryModule.buildCategoryPrefix(rawPrefix || name)
         });
         await DB.save();
@@ -7541,7 +7704,7 @@ const ProductLibraryModule = {
 
     renderList: (category) => {
         const products = (DB.data.data.products || []).filter(p => p.category === category.name || p.categoryId === category.id);
-        if (products.length === 0) return '<div style="text-align:center; padding:2rem; color:#cbd5e1">Bu kategoride henÃ¼z Ã¼rÃ¼n yok.</div>';
+        if (products.length === 0) return '<div style="text-align:center; padding:2rem; color:#cbd5e1">Bu kategoride henÃƒÂ¼z ÃƒÂ¼rÃƒÂ¼n yok.</div>';
         return products.map(p => `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:1rem; border-bottom:1px solid #f1f5f9">
                 <span style="font-weight:600; color:#334155">${p.name}</span>
@@ -7557,13 +7720,13 @@ const ProductLibraryModule = {
         if (!category) { ProductLibraryModule.state.activeCategory = null; UI.renderCurrentPage(); return; }
 
         // --- CUSTOM UI FOR EXTRUDER & PLEXI ---
-        if (category.name.toLowerCase().includes('ekstrÃ¼der') || category.name.toLowerCase().includes('pleksi') || category.id === 'cat_ext') {
+        if (category.name.toLowerCase().includes('ekstrÃƒÂ¼der') || category.name.toLowerCase().includes('pleksi') || category.id === 'cat_ext') {
             ProductLibraryModule.renderExtruderPage(container);
             return;
         }
 
         // --- HARDWARE MODULE ROUTING ---
-        if (category.name.toLowerCase().includes('hÄ±rdavat') || category.name.toLowerCase().includes('vida') || category.id === 'cat3') {
+        if (category.name.toLowerCase().includes('hÃ„Â±rdavat') || category.name.toLowerCase().includes('vida') || category.id === 'cat3') {
             ProductLibraryModule.renderHardwarePage(container);
             return;
         }
@@ -7592,7 +7755,7 @@ const ProductLibraryModule = {
                      <!-- Search Capsules (Generic) -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
                          <div class="search-capsule">
-                            <input type="text" placeholder="Ã¼rÃ¼n ara..." style="width:200px">
+                            <input type="text" placeholder="ÃƒÂ¼rÃƒÂ¼n ara..." style="width:200px">
                             <i data-lucide="search" width="16" style="color:#94a3b8"></i>
                          </div>
                     </div>
@@ -7600,9 +7763,9 @@ const ProductLibraryModule = {
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ä°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃœrÃ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
             }
                     </div>
                 </div>
@@ -7610,16 +7773,16 @@ const ProductLibraryModule = {
                 <!-- LIST (Empty State for now) -->
                <div style="display:flex; flex-direction:column; gap:0; border-top:2px solid #334155">
                      <div style="padding:4rem; text-align:center; color:#94a3b8">
-                        HenÃ¼z Ã¼rÃ¼n bulunamadÄ±.
+                        HenÃƒÂ¼z ÃƒÂ¼rÃƒÂ¼n bulunamadÃ„Â±.
                      </div>
                 </div>
 
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="extFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni ÃœrÃ¼n Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni ÃƒÅ“rÃƒÂ¼n Ekle</h3>
                          <div style="text-align:center; color:#64748b">
-                            Bu kategori iÃ§in form yapÄ±sÄ± henÃ¼z oluÅŸturulmadÄ±.
+                            Bu kategori iÃƒÂ§in form yapÃ„Â±sÃ„Â± henÃƒÂ¼z oluÃ…Å¸turulmadÃ„Â±.
                          </div>
                     </div>
                 ` : ''}
@@ -7664,30 +7827,30 @@ const ProductLibraryModule = {
 
     openCategoryModal: (editId = null) => {
         const cat = editId ? DB.data.data.productCategories.find(c => c.id === editId) : null;
-        window.selectedEmoji = cat ? cat.icon : 'ğŸ“¦';
+        window.selectedEmoji = cat ? cat.icon : 'ÄŸÅ¸â€œÂ¦';
 
-        Modal.open(editId ? 'Kategoriyi DÃ¼zenle' : 'Yeni Kategori Ekle', `
+        Modal.open(editId ? 'Kategoriyi DÃƒÂ¼zenle' : 'Yeni Kategori Ekle', `
             <div style="display:flex; flex-direction:column; gap:1.5rem">
                 <div>
-                    <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Kategori AdÄ±</label>
-                    <input id="new_cat_name" value="${cat ? cat.name : ''}" placeholder="Ã–rn: Profil, Civata, Kutu..." style="width:100%; padding:0.8rem; border:1px solid #cbd5e1; border-radius:0.5rem; font-size:1rem">
+                    <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Kategori AdÃ„Â±</label>
+                    <input id="new_cat_name" value="${cat ? cat.name : ''}" placeholder="Ãƒâ€“rn: Profil, Civata, Kutu..." style="width:100%; padding:0.8rem; border:1px solid #cbd5e1; border-radius:0.5rem; font-size:1rem">
                 </div>
                 <div>
                     <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Emoji Simgesi</label>
                     <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:0.5rem">
-                        ${['ğŸ“¦', 'ğŸ—ï¸', 'ğŸ”©', 'ğŸ”®', 'âš™ï¸', 'ğŸ”Œ', 'ğŸ§°', 'ğŸ§µ', 'ğŸªµ', 'ğŸ“', 'ğŸ§ª', 'ğŸ›¡ï¸'].map(e => `
+                        ${['ÄŸÅ¸â€œÂ¦', 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', 'ÄŸÅ¸â€Â©', 'ÄŸÅ¸â€Â®', 'Ã¢Å¡â„¢Ã¯Â¸Â', 'ÄŸÅ¸â€Å’', 'ÄŸÅ¸Â§Â°', 'ÄŸÅ¸Â§Âµ', 'ÄŸÅ¸ÂªÂµ', 'ÄŸÅ¸â€œÂ', 'ÄŸÅ¸Â§Âª', 'ÄŸÅ¸â€ºÂ¡Ã¯Â¸Â'].map(e => `
                             <button onclick="document.querySelectorAll('.emoji-btn').forEach(b => b.style.background='white'); this.style.background='#eff6ff'; window.selectedEmoji='${e}'" class="emoji-btn" style="font-size:1.5rem; padding:0.5rem; border:1px solid #e2e8f0; border-radius:0.5rem; background:${e === window.selectedEmoji ? '#eff6ff' : 'white'}; cursor:pointer; transition:all 0.1s">${e}</button>
                         `).join('')}
                     </div>
                 </div>
-                <button onclick="ProductLibraryModule.saveCategory('${editId || ''}')" class="btn-primary" style="padding:1rem">${editId ? 'GÃ¼ncelle' : 'OluÅŸtur'}</button>
+                <button onclick="ProductLibraryModule.saveCategory('${editId || ''}')" class="btn-primary" style="padding:1rem">${editId ? 'GÃƒÂ¼ncelle' : 'OluÃ…Å¸tur'}</button>
             </div>
         `);
     },
 
     saveCategory: async (editId) => {
         const name = document.getElementById('new_cat_name').value;
-        if (!name) return alert('Kategori adÄ± giriniz.');
+        if (!name) return alert('Kategori adÃ„Â± giriniz.');
 
         if (editId && editId !== 'undefined' && editId !== 'null' && editId !== '') {
             const idx = DB.data.data.productCategories.findIndex(c => c.id === editId);
@@ -7698,7 +7861,7 @@ const ProductLibraryModule = {
             DB.data.data.productCategories.push({
                 id: crypto.randomUUID(),
                 name,
-                icon: window.selectedEmoji || 'ğŸ“¦'
+                icon: window.selectedEmoji || 'ÄŸÅ¸â€œÂ¦'
             });
         }
 
@@ -7708,7 +7871,7 @@ const ProductLibraryModule = {
     },
 
     deleteCategory: async (id) => {
-        if (confirm('Bu kategoriyi silmek istediÄŸinize emin misiniz?')) {
+        if (confirm('Bu kategoriyi silmek istediÃ„Å¸inize emin misiniz?')) {
             DB.data.data.productCategories = DB.data.data.productCategories.filter(c => c.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -7722,10 +7885,10 @@ const ProductLibraryModule = {
         // Initial Defaults for Options - ROBUST MERGE
         if (!DB.data.meta.options) DB.data.meta.options = {};
         const defaults = {
-            colors: ['FÃ¼me', 'Antrasit', 'Åeffaf', 'Beyaz'],
+            colors: ['FÃƒÂ¼me', 'Antrasit', 'Ã…Âeffaf', 'Beyaz'],
             diameters: [50, 60, 65, 70],
             thicknesses: [2, 3, 5],
-            surfaces: ['KabarcÄ±ksÄ±z', 'KabarcÄ±klÄ±']
+            surfaces: ['KabarcÃ„Â±ksÃ„Â±z', 'KabarcÃ„Â±klÃ„Â±']
         };
         for (let k in defaults) {
             if (!DB.data.meta.options[k]) DB.data.meta.options[k] = defaults[k];
@@ -7738,7 +7901,7 @@ const ProductLibraryModule = {
                 
                 <!-- MAIN TITLE -->
                 <div style="text-align:center; margin-bottom:3rem; position:relative">
-                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">ekstrÃ¼der <span style="font-weight:700">envanter</span></h1>
+                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">ekstrÃƒÂ¼der <span style="font-weight:700">envanter</span></h1>
                 </div>
 
                 <!-- TABS & ACTIONS ROW -->
@@ -7747,7 +7910,7 @@ const ProductLibraryModule = {
                     <div style="display:flex; gap:1rem;">
                         <button onclick="ProductLibraryModule.setExtruderTab('ROD')" 
                             class="${extruderTab === 'ROD' ? 'active-tab' : 'inactive-tab'}">
-                            Ã§ubuk
+                            ÃƒÂ§ubuk
                         </button>
                         <button onclick="ProductLibraryModule.setExtruderTab('PIPE')" 
                             class="${extruderTab === 'PIPE' ? 'active-tab' : 'inactive-tab'}">
@@ -7757,8 +7920,8 @@ const ProductLibraryModule = {
 
                     <!-- SEARCH CAPSULES (Filters) -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
-                         ${ProductLibraryModule.renderCapsule('Ã§ap ile ara', 'dia', opts.diameters)}
-                         ${ProductLibraryModule.renderCapsule(extruderTab === 'ROD' ? 'yÃ¼zey ile ara' : 'kalÄ±nlÄ±k ile ara', extruderTab === 'ROD' ? 'surface' : 'thick', extruderTab === 'ROD' ? opts.surfaces : opts.thicknesses)}
+                         ${ProductLibraryModule.renderCapsule('ÃƒÂ§ap ile ara', 'dia', opts.diameters)}
+                         ${ProductLibraryModule.renderCapsule(extruderTab === 'ROD' ? 'yÃƒÂ¼zey ile ara' : 'kalÃ„Â±nlÃ„Â±k ile ara', extruderTab === 'ROD' ? 'surface' : 'thick', extruderTab === 'ROD' ? opts.surfaces : opts.thicknesses)}
                          ${ProductLibraryModule.renderCapsule('renk ile ara', 'color', opts.colors)}
                          
                          <!-- Length Capsule (Text Input) -->
@@ -7772,9 +7935,9 @@ const ProductLibraryModule = {
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ä°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃœrÃ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
             }
                     </div>
                 </div>
@@ -7801,11 +7964,11 @@ const ProductLibraryModule = {
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="extFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni EkstrÃ¼der ÃœrÃ¼nÃ¼ Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni EkstrÃƒÂ¼der ÃƒÅ“rÃƒÂ¼nÃƒÂ¼ Ekle</h3>
                          
                          <!-- Re-using existing check logic but presented better -->
                          <div style="display:flex; gap:2rem; flex-wrap:wrap; align-items:flex-end">
-                            ${ProductLibraryModule.renderInputGroup('Ã§ap / ebat', 'dia', opts.diameters, 'mm')}
+                            ${ProductLibraryModule.renderInputGroup('ÃƒÂ§ap / ebat', 'dia', opts.diameters, 'mm')}
                              <!-- Length Input for Form -->
                             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
                                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0 1rem; height:56px; display:flex; align-items:center;">
@@ -7815,8 +7978,8 @@ const ProductLibraryModule = {
                             </div>
 
                             ${extruderTab === 'ROD' ?
-                    ProductLibraryModule.renderInputGroup('kabarcÄ±k', 'surface', opts.surfaces || ['KabarcÄ±ksÄ±z', 'KabarcÄ±klÄ±'], '') :
-                    ProductLibraryModule.renderInputGroup('kalÄ±nlÄ±k', 'thick', opts.thicknesses, 'mm')
+                    ProductLibraryModule.renderInputGroup('kabarcÃ„Â±k', 'surface', opts.surfaces || ['KabarcÃ„Â±ksÃ„Â±z', 'KabarcÃ„Â±klÃ„Â±'], '') :
+                    ProductLibraryModule.renderInputGroup('kalÃ„Â±nlÃ„Â±k', 'thick', opts.thicknesses, 'mm')
                 }
                             
                             ${ProductLibraryModule.renderInputGroup('renk', 'color', opts.colors, '')}
@@ -7867,7 +8030,7 @@ const ProductLibraryModule = {
         const val = ProductLibraryModule.state.filters[key];
         return `
             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
-                <button onclick="ProductLibraryModule.openOptionLibrary('${key}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃ–NET ekle/sil )</button>
+                <button onclick="ProductLibraryModule.openOptionLibrary('${key}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃƒâ€“NET ekle/sil )</button>
                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0.2rem 1rem; position:relative; height:56px; display:flex; align-items:center;">
                    <select onchange="ProductLibraryModule.setFilter('${key}', this.value)" style="width:100%; border:none; background:transparent; font-size:1.1rem; color:#334155; font-weight:600; outline:none; appearance:none; cursor:pointer; text-align-last:center; padding-right:1rem">
                         <option value="">${label}</option>
@@ -7886,7 +8049,7 @@ const ProductLibraryModule = {
              <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
                 <button style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600; opacity:0">.</button>
                 <div onclick="ProductLibraryModule.toggleBubble()" style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0 1rem; height:56px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:${val ? '#eff6ff' : 'transparent'}; border-color:${val ? '#3b82f6' : '#94a3b8'}">
-                    <span style="font-size:1.1rem; font-weight:600; color:${val ? '#1d4ed8' : '#334155'}">kabarcÄ±k</span>
+                    <span style="font-size:1.1rem; font-weight:600; color:${val ? '#1d4ed8' : '#334155'}">kabarcÃ„Â±k</span>
                     ${val ? '<i data-lucide="check" width="16" style="margin-left:0.5rem; color:#1d4ed8"></i>' : ''}
                 </div>
             </div>
@@ -7924,7 +8087,7 @@ const ProductLibraryModule = {
         const { extruderTab, filters } = ProductLibraryModule.state;
         const allProducts = DB.data.data.products || [];
         const exactMatchExp = allProducts.find(p =>
-            p.category === 'EkstrÃ¼der' &&
+            p.category === 'EkstrÃƒÂ¼der' &&
             p.type === extruderTab &&
             p.specs.diameter == filters.dia &&
             p.specs.length == filters.len &&
@@ -7935,11 +8098,11 @@ const ProductLibraryModule = {
         const isFilled = filters.dia && filters.len && filters.color && (extruderTab === 'PIPE' ? filters.thick : filters.surface);
         const isDuplicate = !!exactMatchExp;
         const btnDisabled = !isFilled || isDuplicate;
-        const btnText = isDuplicate ? 'Zaten Mevcut!' : 'ÃœrÃ¼n Ekle +';
+        const btnText = isDuplicate ? 'Zaten Mevcut!' : 'ÃƒÅ“rÃƒÂ¼n Ekle +';
         const btnStyle = isDuplicate ? 'background:#f1f5f9; color:#94a3b8; border-color:#cbd5e1; cursor:not-allowed' : (isFilled ? 'background:#10b981; color:white; border-color:#059669; cursor:pointer' : 'background:white; color:#94a3b8; border-color:#cbd5e1; cursor:not-allowed');
 
         return `
-            ${isDuplicate ? '<div style="font-size:0.8rem; color:#ef4444; font-weight:700">âš ï¸ Bu kombinasyon zaten kayÄ±tlÄ±</div>' : ''}
+            ${isDuplicate ? '<div style="font-size:0.8rem; color:#ef4444; font-weight:700">Ã¢Å¡Â Ã¯Â¸Â Bu kombinasyon zaten kayÃ„Â±tlÃ„Â±</div>' : ''}
             <button id="btnAddExtProduct" onclick="ProductLibraryModule.addExtruderProduct()" ${btnDisabled ? 'disabled' : ''} style="padding:1rem 3rem; border:2px solid; border-radius:1.5rem; font-size:1.1rem; font-weight:600; transition:all 0.2s; ${btnStyle}">
                 ${btnText}
             </button>
@@ -7949,7 +8112,7 @@ const ProductLibraryModule = {
     renderProductList: () => {
         const { extruderTab, filters } = ProductLibraryModule.state;
         // Re-calculate filtered products locally
-        const products = (DB.data.data.products || []).filter(p => p.category === 'EkstrÃ¼der' && p.type === extruderTab);
+        const products = (DB.data.data.products || []).filter(p => p.category === 'EkstrÃƒÂ¼der' && p.type === extruderTab);
 
         // SORTING: Diameter/Size (smart sort) -> Length (asc) -> Color (alpha)
         products.sort((a, b) => {
@@ -7973,7 +8136,7 @@ const ProductLibraryModule = {
         if (extruderTab === 'PIPE' && filters.thick) filteredProducts = filteredProducts.filter(p => p.specs.thickness == filters.thick);
 
         return `
-            ${filteredProducts.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde Ã¼rÃ¼n yok. Yeni ekleyebilirsiniz.</div>' : ''}
+            ${filteredProducts.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ÃƒÂ¼rÃƒÂ¼n yok. Yeni ekleyebilirsiniz.</div>' : ''}
             
             ${filteredProducts.map(p => `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:1.5rem 0; border-bottom:1px solid #64748b;">
@@ -7983,12 +8146,12 @@ const ProductLibraryModule = {
                     <div style="display:flex; align-items:center; gap:3rem">
                         <div style="font-family:monospace; color:#64748b; font-size:1rem">ID; ${p.code || p.id.substring(0, 8)}</div>
                         <div style="display:flex; gap:0.5rem; align-items:center">
-                            <button class="list-btn" onclick="ProductLibraryModule.editExtruderProduct('${p.id}')">dÃ¼zenle</button>
+                            <button class="list-btn" onclick="ProductLibraryModule.editExtruderProduct('${p.id}')">dÃƒÂ¼zenle</button>
                             <span style="color:#cbd5e1">/</span>
                             <button class="list-btn" onclick="ProductLibraryModule.deleteExtruderProduct('${p.id}')">sil</button>
                         </div>
                         <input type="checkbox" style="width:1.5rem; height:1.5rem; border:2px solid #94a3b8; border-radius:0.4rem; cursor:pointer">
-                        <span style="color:#64748b; font-size:0.9rem">seÃ§</span>
+                        <span style="color:#64748b; font-size:0.9rem">seÃƒÂ§</span>
                     </div>
                 </div>
             `).join('')}
@@ -8000,11 +8163,11 @@ const ProductLibraryModule = {
     },
 
     formatProductTitle: (p) => {
-        let text = `Ã‡ap ${p.specs.diameter} mm / boy ${p.specs.length} mm`;
+        let text = `Ãƒâ€¡ap ${p.specs.diameter} mm / boy ${p.specs.length} mm`;
         if (p.specs.thickness) text += ` / ${p.specs.thickness} mm`;
         if (p.specs.surface) text += ` / ${p.specs.surface}`;
         // Backward comp for bubble boolean if needed
-        else if (p.specs.bubble) text += ` / kabarcÄ±klÄ±`;
+        else if (p.specs.bubble) text += ` / kabarcÃ„Â±klÃ„Â±`;
 
         text += ` / ${p.specs.color} renk`;
         return text;
@@ -8017,20 +8180,20 @@ const ProductLibraryModule = {
 
     openOptionLibrary: (key) => {
         const mapping = {
-            dia: { t: 'Ã‡ap KÃ¼tÃ¼phanesi', i: 'circle-dashed', k: 'diameters' },
-            thick: { t: 'KalÄ±nlÄ±k KÃ¼tÃ¼phanesi', i: 'layers', k: 'thicknesses' },
-            color: { t: 'Renk KÃ¼tÃ¼phanesi', i: 'palette', k: 'colors' },
-            surface: { t: 'YÃ¼zey Tipi KÃ¼tÃ¼phanesi', i: 'scan-line', k: 'surfaces' },
-            consumableTypes: { t: 'Alt TÃ¼r KÃ¼tÃ¼phanesi', i: 'list', k: 'consumableTypes' },
+            dia: { t: 'Ãƒâ€¡ap KÃƒÂ¼tÃƒÂ¼phanesi', i: 'circle-dashed', k: 'diameters' },
+            thick: { t: 'KalÃ„Â±nlÃ„Â±k KÃƒÂ¼tÃƒÂ¼phanesi', i: 'layers', k: 'thicknesses' },
+            color: { t: 'Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'colors' },
+            surface: { t: 'YÃƒÂ¼zey Tipi KÃƒÂ¼tÃƒÂ¼phanesi', i: 'scan-line', k: 'surfaces' },
+            consumableTypes: { t: 'Alt TÃƒÂ¼r KÃƒÂ¼tÃƒÂ¼phanesi', i: 'list', k: 'consumableTypes' },
             // Hardware Mappings
-            hardwareShapes: { t: 'Åekil KÃ¼tÃ¼phanesi', i: 'shapes', k: 'hardwareShapes' },
-            hardwareDias: { t: 'Ã‡ap KÃ¼tÃ¼phanesi', i: 'circle-dashed', k: 'hardwareDias' },
-            hardwareMaterials: { t: 'Malzeme KÃ¼tÃ¼phanesi', i: 'layers', k: 'hardwareMaterials' },
-            hardwareLengths: { t: 'Boy KÃ¼tÃ¼phanesi', i: 'ruler', k: 'hardwareLengths' },
+            hardwareShapes: { t: 'Ã…Âekil KÃƒÂ¼tÃƒÂ¼phanesi', i: 'shapes', k: 'hardwareShapes' },
+            hardwareDias: { t: 'Ãƒâ€¡ap KÃƒÂ¼tÃƒÂ¼phanesi', i: 'circle-dashed', k: 'hardwareDias' },
+            hardwareMaterials: { t: 'Malzeme KÃƒÂ¼tÃƒÂ¼phanesi', i: 'layers', k: 'hardwareMaterials' },
+            hardwareLengths: { t: 'Boy KÃƒÂ¼tÃƒÂ¼phanesi', i: 'ruler', k: 'hardwareLengths' },
             // Aluminum Mappings
-            aluAnodized: { t: 'Eloksal Renk KÃ¼tÃ¼phanesi', i: 'palette', k: 'aluAnodized' },
-            aluPainted: { t: 'Boya Renk KÃ¼tÃ¼phanesi', i: 'palette', k: 'aluPainted' },
-            aluLengths: { t: 'Profil Boyu KÃ¼tÃ¼phanesi', i: 'ruler', k: 'aluLengths' }
+            aluAnodized: { t: 'Eloksal Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'aluAnodized' },
+            aluPainted: { t: 'Boya Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'aluPainted' },
+            aluLengths: { t: 'Profil Boyu KÃƒÂ¼tÃƒÂ¼phanesi', i: 'ruler', k: 'aluLengths' }
         };
         const conf = mapping[key];
         if (!conf) return;
@@ -8053,13 +8216,13 @@ const ProductLibraryModule = {
 
                     <!-- Add New -->
                     <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem">
-                        <input id="newLibItemInput" placeholder="Yeni deÄŸer..." onkeydown="if(event.key==='Enter') ProductLibraryModule.addLibraryItem('${key}')" style="flex:1; padding:0.75rem 1rem; border:2px solid #e2e8f0; border-radius:0.75rem; font-weight:600; color:#475569; outline:none; font-size:0.95rem; transition:border-color 0.2s" onfocus="this.style.borderColor='#a78bfa'" onblur="this.style.borderColor='#e2e8f0'">
+                        <input id="newLibItemInput" placeholder="Yeni deÃ„Å¸er..." onkeydown="if(event.key==='Enter') ProductLibraryModule.addLibraryItem('${key}')" style="flex:1; padding:0.75rem 1rem; border:2px solid #e2e8f0; border-radius:0.75rem; font-weight:600; color:#475569; outline:none; font-size:0.95rem; transition:border-color 0.2s" onfocus="this.style.borderColor='#a78bfa'" onblur="this.style.borderColor='#e2e8f0'">
                         <button onclick="ProductLibraryModule.addLibraryItem('${key}')" style="background:#8b5cf6; color:white; border:none; padding:0 1.5rem; border-radius:0.75rem; font-weight:700; cursor:pointer; box-shadow:0 4px 6px -1px rgba(139, 92, 246, 0.4); transition:transform 0.1s" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">Ekle</button>
                     </div>
 
                     <!-- List -->
                     <div style="max-height:350px; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding-right:0.5rem">
-                        ${items.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1.5rem; font-style:italic">Liste boÅŸ.</div>' : ''}
+                        ${items.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1.5rem; font-style:italic">Liste boÃ…Å¸.</div>' : ''}
                         
                         ${items.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.8rem 1rem; border-radius:0.75rem; border:1px solid #f1f5f9; group">
@@ -8068,7 +8231,7 @@ const ProductLibraryModule = {
                                     <span style="font-weight:700; color:#475569; font-size:0.95rem;">${item}</span>
                                 </div>
                                 <div style="display:flex; gap:0.25rem">
-                                    <button title="DÃ¼zenle" onclick="ProductLibraryModule.editLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="pencil" width="16"></i></button>
+                                    <button title="DÃƒÂ¼zenle" onclick="ProductLibraryModule.editLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="pencil" width="16"></i></button>
                                     <button title="Sil" onclick="ProductLibraryModule.deleteLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="trash-2" width="16"></i></button>
                                 </div>
                             </div>
@@ -8076,7 +8239,7 @@ const ProductLibraryModule = {
                     </div>
 
                     <div style="margin-top:1.5rem; text-align:center; font-size:0.75rem; color:#cbd5e1; font-weight:500">
-                        DeÄŸiÅŸiklikler anÄ±nda kaydedilir.
+                        DeÃ„Å¸iÃ…Å¸iklikler anÃ„Â±nda kaydedilir.
                     </div>
                 </div>
             </div>
@@ -8087,7 +8250,7 @@ const ProductLibraryModule = {
     },
 
     getColorCode: (c) => {
-        const map = { 'Siyah': '#000', 'Beyaz': '#fff', 'Åeffaf': 'transparent', 'Antrasit': '#374151', 'FÃ¼me': '#525252', 'Gri': '#9ca3af', 'KÄ±rmÄ±zÄ±': '#ef4444', 'SarÄ±': '#facc15', 'Mavi': '#3b82f6' };
+        const map = { 'Siyah': '#000', 'Beyaz': '#fff', 'Ã…Âeffaf': 'transparent', 'Antrasit': '#374151', 'FÃƒÂ¼me': '#525252', 'Gri': '#9ca3af', 'KÃ„Â±rmÃ„Â±zÃ„Â±': '#ef4444', 'SarÃ„Â±': '#facc15', 'Mavi': '#3b82f6' };
         return map[c] || '#cbd5e1';
     },
 
@@ -8110,7 +8273,7 @@ const ProductLibraryModule = {
 
         // Type conversion (Strict for Thickness only, Smart for Dia)
         if (key === 'thick' || key === 'hardwareDias' || key === 'hardwareLengths') {
-            if (isNaN(Number(val))) return alert('LÃ¼tfen sayÄ±sal bir deÄŸer giriniz.');
+            if (isNaN(Number(val))) return alert('LÃƒÂ¼tfen sayÃ„Â±sal bir deÃ„Å¸er giriniz.');
             val = Number(val);
         } else if (key === 'dia') {
             // Keep as number if it's a pure number, otherwise string (for 40x40)
@@ -8122,7 +8285,7 @@ const ProductLibraryModule = {
         }
 
         if (current.some(x => String(x).toLowerCase() === String(val).toLowerCase())) {
-            alert('Bu deÄŸer zaten listede var.');
+            alert('Bu deÃ„Å¸er zaten listede var.');
             return;
         }
 
@@ -8138,7 +8301,7 @@ const ProductLibraryModule = {
     },
 
     deleteLibraryItem: async (key, itemVal) => {
-        if (!confirm('Silmek istediÄŸinize emin misiniz?')) return;
+        if (!confirm('Silmek istediÃ„Å¸inize emin misiniz?')) return;
 
         const mapping = {
             dia: 'diameters', thick: 'thicknesses', color: 'colors', surface: 'surfaces',
@@ -8174,13 +8337,13 @@ const ProductLibraryModule = {
         if (!Array.isArray(DB.data.meta.options[metaKey])) DB.data.meta.options[metaKey] = [];
         const current = DB.data.meta.options[metaKey];
 
-        const newVal = prompt("Yeni deÄŸeri giriniz:", oldVal);
+        const newVal = prompt("Yeni deÃ„Å¸eri giriniz:", oldVal);
         if (!newVal || newVal == oldVal) return;
 
         let processedVal = newVal.trim();
 
         if (key === 'thick' || key === 'hardwareDias' || key === 'hardwareLengths') {
-            if (isNaN(Number(processedVal))) return alert('LÃ¼tfen sayÄ±sal bir deÄŸer giriniz.');
+            if (isNaN(Number(processedVal))) return alert('LÃƒÂ¼tfen sayÃ„Â±sal bir deÃ„Å¸er giriniz.');
             processedVal = Number(processedVal);
         } else if (key === 'dia') {
             // Smart type for dia
@@ -8208,9 +8371,9 @@ const ProductLibraryModule = {
         // Initial Defaults
         if (!DB.data.meta.options) DB.data.meta.options = {};
         const defaults = {
-            hardwareShapes: ['HavÅŸa BaÅŸ', 'Anahtar BaÅŸ', 'Ä°nbus', 'HavÅŸa BaÅŸ Ä°nbus', 'Gijon Saplama', 'Somun', 'Pul', 'Kelebek Somun', 'AkÄ±llÄ± Vida'],
+            hardwareShapes: ['HavÃ…Å¸a BaÃ…Å¸', 'Anahtar BaÃ…Å¸', 'Ã„Â°nbus', 'HavÃ…Å¸a BaÃ…Å¸ Ã„Â°nbus', 'Gijon Saplama', 'Somun', 'Pul', 'Kelebek Somun', 'AkÃ„Â±llÃ„Â± Vida'],
             hardwareDias: ['M2', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10', 'M12', 'M14', 'M16', 'M18', 'M20', '3.9', '4.2', '4.8'],
-            hardwareMaterials: ['Siyah', 'Galvaniz', 'Paslanmaz', 'Ä°nox', 'PirinÃ§']
+            hardwareMaterials: ['Siyah', 'Galvaniz', 'Paslanmaz', 'Ã„Â°nox', 'PirinÃƒÂ§']
         };
         for (let k in defaults) {
             if (!DB.data.meta.options[k]) DB.data.meta.options[k] = defaults[k];
@@ -8246,15 +8409,15 @@ const ProductLibraryModule = {
             <div style="max-width:1400px; margin:0 auto; font-family: 'Inter', sans-serif;">
                 <!-- MAIN TITLE -->
                 <div style="text-align:center; margin-bottom:3rem; position:relative">
-                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">hÄ±rdavat & <span style="font-weight:700">baÄŸlantÄ± elemanlarÄ±</span></h1>
+                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">hÃ„Â±rdavat & <span style="font-weight:700">baÃ„Å¸lantÃ„Â± elemanlarÃ„Â±</span></h1>
                 </div>
 
                 <!-- ACTIONS ROW -->
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-bottom:3rem; justify-content:space-between">
                      <!-- SEARCH CAPSULES -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
-                         ${ProductLibraryModule.renderHardwareCapsule('ÅŸekil ile ara', 'shape', opts.hardwareShapes)}
-                         ${ProductLibraryModule.renderHardwareCapsule('Ã§ap ile ara', 'dia', opts.hardwareDias)}
+                         ${ProductLibraryModule.renderHardwareCapsule('Ã…Å¸ekil ile ara', 'shape', opts.hardwareShapes)}
+                         ${ProductLibraryModule.renderHardwareCapsule('ÃƒÂ§ap ile ara', 'dia', opts.hardwareDias)}
 
                          <!-- Length Capsule -->
                         <div class="search-capsule">
@@ -8269,9 +8432,9 @@ const ProductLibraryModule = {
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ä°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃœrÃ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
             }
                     </div>
                 </div>
@@ -8294,11 +8457,11 @@ const ProductLibraryModule = {
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="hwFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni HÄ±rdavat/CÄ±vata Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni HÃ„Â±rdavat/CÃ„Â±vata Ekle</h3>
 
                          <div style="display:flex; gap:2rem; flex-wrap:wrap; align-items:flex-end">
-                            ${ProductLibraryModule.renderHardwareInputGroup('civata ÅŸekli', 'shape', opts.hardwareShapes, '')}
-                            ${ProductLibraryModule.renderHardwareInputGroup('Ã§ap / ebat', 'dia', opts.hardwareDias, '')}
+                            ${ProductLibraryModule.renderHardwareInputGroup('civata Ã…Å¸ekli', 'shape', opts.hardwareShapes, '')}
+                            ${ProductLibraryModule.renderHardwareInputGroup('ÃƒÂ§ap / ebat', 'dia', opts.hardwareDias, '')}
 
                              <!-- Length Input for Form -->
                             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
@@ -8312,7 +8475,7 @@ const ProductLibraryModule = {
 
                             <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem">
                                 <button onclick="ProductLibraryModule.addHardwareProduct()" class="btn-primary" style="padding:1rem 3rem; border-radius:1.5rem; font-size:1.1rem; font-weight:600">
-                                    ÃœRÃœNÃœ EKLE +
+                                    ÃƒÅ“RÃƒÅ“NÃƒÅ“ EKLE +
                                 </button>
                             </div>
                          </div>
@@ -8340,7 +8503,7 @@ const ProductLibraryModule = {
         const val = ProductLibraryModule.state.hardwareFilters[key];
         return `
             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
-                 <button onclick="ProductLibraryModule.openOptionLibrary('${key === 'shape' ? 'hardwareShapes' : (key === 'dia' ? 'hardwareDias' : 'hardwareMaterials')}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃ–NET ekle/sil )</button>
+                 <button onclick="ProductLibraryModule.openOptionLibrary('${key === 'shape' ? 'hardwareShapes' : (key === 'dia' ? 'hardwareDias' : 'hardwareMaterials')}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃƒâ€“NET ekle/sil )</button>
                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0.2rem 1rem; position:relative; height:56px; display:flex; align-items:center;">
                    <select onchange="ProductLibraryModule.setHardwareFilter('${key}', this.value)" style="width:100%; border:none; background:transparent; font-size:1.1rem; color:#334155; font-weight:600; outline:none; appearance:none; cursor:pointer; text-align-last:center; padding-right:1rem">
                         <option value="">${label.toUpperCase()}</option>
@@ -8374,7 +8537,7 @@ const ProductLibraryModule = {
     },
 
     renderHardwareList: (products) => {
-        if (products.length === 0) return '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde Ã¼rÃ¼n yok. Yeni ekleyebilirsiniz.</div>';
+        if (products.length === 0) return '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ÃƒÂ¼rÃƒÂ¼n yok. Yeni ekleyebilirsiniz.</div>';
 
         return products.map(p => `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:1.5rem 0; border-bottom:1px solid #64748b;">
@@ -8386,13 +8549,13 @@ const ProductLibraryModule = {
                 <div style="display:flex; align-items:center; gap:3rem">
                     <div style="font-family:monospace; color:#3b82f6; font-size:0.9rem; font-weight:600">ID: ${p.code || '---'}</div>
                     <div style="display:flex; gap:0.5rem; align-items:center">
-                        <button class="list-btn" onclick="ProductLibraryModule.editHardwareProduct('${p.id}')">dÃ¼zenle</button>
+                        <button class="list-btn" onclick="ProductLibraryModule.editHardwareProduct('${p.id}')">dÃƒÂ¼zenle</button>
                         <span style="color:#cbd5e1">/</span>
                         <button class="list-btn" onclick="ProductLibraryModule.deleteHardwareProduct('${p.id}')">sil</button>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem; border-left:1px solid #e2e8f0; padding-left:1rem; margin-left:1rem">
                         <input type="checkbox" style="width:1.5rem; height:1.5rem; border:2px solid #94a3b8; border-radius:0.4rem; cursor:pointer">
-                        <span style="color:#64748b; font-size:0.9rem">seÃ§</span>
+                        <span style="color:#64748b; font-size:0.9rem">seÃƒÂ§</span>
                     </div>
                 </div>
             </div>
@@ -9069,17 +9232,17 @@ const ProductLibraryModule = {
         const { hardwareFilters } = ProductLibraryModule.state;
         // Validation
         if (!hardwareFilters.shape || !hardwareFilters.dia || !hardwareFilters.mat) {
-            alert("LÃ¼tfen Åekil, Ã‡ap ve Malzeme seÃ§iniz.");
+            alert("LÃƒÂ¼tfen Ã…Âekil, Ãƒâ€¡ap ve Malzeme seÃƒÂ§iniz.");
             return;
         }
 
         // Auto Generate ID Logic
         // Map Shape
         const shapeMap = {
-            'HavÅŸa BaÅŸ': 'HB', 'Anahtar BaÅŸ': 'AB', 'Ä°nbus': 'INB', 'HavÅŸa BaÅŸ Ä°nbus': 'HBI',
-            'Gijon Saplama': 'GSP', 'Somun': 'SOM', 'Pul': 'PUL', 'Kelebek Somun': 'KLB', 'AkÄ±llÄ± Vida': 'AKL'
+            'HavÃ…Å¸a BaÃ…Å¸': 'HB', 'Anahtar BaÃ…Å¸': 'AB', 'Ã„Â°nbus': 'INB', 'HavÃ…Å¸a BaÃ…Å¸ Ã„Â°nbus': 'HBI',
+            'Gijon Saplama': 'GSP', 'Somun': 'SOM', 'Pul': 'PUL', 'Kelebek Somun': 'KLB', 'AkÃ„Â±llÃ„Â± Vida': 'AKL'
         };
-        const matMap = { 'Siyah': 'SYH', 'Galvaniz': 'GLV', 'Paslanmaz': 'PSL', 'Ä°nox': 'INOX', 'PirinÃ§': 'PRC' };
+        const matMap = { 'Siyah': 'SYH', 'Galvaniz': 'GLV', 'Paslanmaz': 'PSL', 'Ã„Â°nox': 'INOX', 'PirinÃƒÂ§': 'PRC' };
 
         const sCode = shapeMap[hardwareFilters.shape] || hardwareFilters.shape.substring(0, 3).toUpperCase();
         const mCode = matMap[hardwareFilters.mat] || hardwareFilters.mat.substring(0, 3).toUpperCase();
@@ -9102,7 +9265,7 @@ const ProductLibraryModule = {
         const newProduct = {
             id: crypto.randomUUID(),
             category: 'Hardware',
-            type: 'CÄ±vata',
+            type: 'CÃ„Â±vata',
             name: `${hardwareFilters.shape} ${hardwareFilters.dia} ${hardwareFilters.len ? 'x ' + hardwareFilters.len : ''}`,
             code: code,
             specs: {
@@ -9124,7 +9287,7 @@ const ProductLibraryModule = {
     },
 
     deleteHardwareProduct: async (id) => {
-        if (confirm("Bu Ã¼rÃ¼nÃ¼ silmek istediÄŸinize emin misiniz?")) {
+        if (confirm("Bu ÃƒÂ¼rÃƒÂ¼nÃƒÂ¼ silmek istediÃ„Å¸inize emin misiniz?")) {
             DB.data.data.products = DB.data.data.products.filter(p => p.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -9147,7 +9310,7 @@ const ProductLibraryModule = {
         setTimeout(() => {
             const el = document.getElementById('hwFormSection');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
-            alert("ÃœrÃ¼n bilgileri forma yÃ¼klendi. DÃ¼zenleyip 'ÃœrÃ¼n Ekle' diyerek yeni bir kayÄ±t oluÅŸturabilirsiniz.");
+            alert("ÃƒÅ“rÃƒÂ¼n bilgileri forma yÃƒÂ¼klendi. DÃƒÂ¼zenleyip 'ÃƒÅ“rÃƒÂ¼n Ekle' diyerek yeni bir kayÃ„Â±t oluÃ…Å¸turabilirsiniz.");
         }, 50);
     },
 
@@ -9156,20 +9319,20 @@ const ProductLibraryModule = {
 
         // Validate required fields based on Tab
         if (!filters.dia || !filters.len || !filters.color) {
-            alert("LÃ¼tfen Ã§ap, boy ve renk seÃ§iniz.");
+            alert("LÃƒÂ¼tfen ÃƒÂ§ap, boy ve renk seÃƒÂ§iniz.");
             return;
         }
         if (extruderTab === 'PIPE' && !filters.thick) {
-            alert("LÃ¼tfen kalÄ±nlÄ±k seÃ§iniz.");
+            alert("LÃƒÂ¼tfen kalÃ„Â±nlÃ„Â±k seÃƒÂ§iniz.");
             return;
         }
         if (extruderTab === 'ROD' && !filters.surface) {
-            alert("LÃ¼tfen yÃ¼zey tipi seÃ§iniz.");
+            alert("LÃƒÂ¼tfen yÃƒÂ¼zey tipi seÃƒÂ§iniz.");
             return;
         }
 
         // Generate ID / Code
-        const typeCode = extruderTab === 'ROD' ? 'CB' : 'BR'; // CB: Ã‡ubuk, BR: Boru
+        const typeCode = extruderTab === 'ROD' ? 'CB' : 'BR'; // CB: Ãƒâ€¡ubuk, BR: Boru
         const specCode = `${filters.dia}-${filters.len}-${filters.color.substring(0, 3).toUpperCase()}`;
         let code = '';
         for (let i = 0; i < 5000; i += 1) {
@@ -9187,9 +9350,9 @@ const ProductLibraryModule = {
 
         const newProduct = {
             id: crypto.randomUUID(),
-            category: 'EkstrÃ¼der',
+            category: 'EkstrÃƒÂ¼der',
             type: extruderTab,
-            name: `${filters.dia}mm ${extruderTab === 'ROD' ? 'Ã‡ubuk' : 'Boru'}`,
+            name: `${filters.dia}mm ${extruderTab === 'ROD' ? 'Ãƒâ€¡ubuk' : 'Boru'}`,
             code: code,
             specs: {
                 diameter: filters.dia,
@@ -9197,7 +9360,7 @@ const ProductLibraryModule = {
                 color: filters.color,
                 thickness: filters.thick || null,
                 surface: filters.surface || null,
-                // bubble: filters.surface === 'KabarcÄ±klÄ±' // Keep backward compat logic if needed - REMOVED
+                // bubble: filters.surface === 'KabarcÃ„Â±klÃ„Â±' // Keep backward compat logic if needed - REMOVED
             },
             created_at: new Date().toISOString()
         };
@@ -9213,7 +9376,7 @@ const ProductLibraryModule = {
     },
 
     deleteExtruderProduct: async (id) => {
-        if (confirm("Bu Ã¼rÃ¼nÃ¼ silmek istediÄŸinize emin misiniz?")) {
+        if (confirm("Bu ÃƒÂ¼rÃƒÂ¼nÃƒÂ¼ silmek istediÃ„Å¸inize emin misiniz?")) {
             DB.data.data.products = DB.data.data.products.filter(p => p.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -9232,7 +9395,7 @@ const ProductLibraryModule = {
             len: p.specs.length,
             color: p.specs.color,
             thick: p.specs.thickness || '',
-            surface: p.specs.surface || (p.specs.bubble ? 'KabarcÄ±klÄ±' : 'KabarcÄ±ksÄ±z')
+            surface: p.specs.surface || (p.specs.bubble ? 'KabarcÃ„Â±klÃ„Â±' : 'KabarcÃ„Â±ksÃ„Â±z')
         };
         // We should probably delete the old one if they click "Update" but we only have "Add" button right now.
         // For Prototype, let's just populate the fields so they can add a NEW similar one or delete the old one.
@@ -9243,10 +9406,11 @@ const ProductLibraryModule = {
         setTimeout(() => {
             const el = document.getElementById('extFormSection');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
-            alert("ÃœrÃ¼n Ã¶zellikleri forma aktarÄ±ldÄ±. DÃ¼zenleyip 'ÃœrÃ¼n Ekle' diyerek yeni bir kayÄ±t oluÅŸturabilirsiniz.");
+            alert("ÃƒÅ“rÃƒÂ¼n ÃƒÂ¶zellikleri forma aktarÃ„Â±ldÃ„Â±. DÃƒÂ¼zenleyip 'ÃƒÅ“rÃƒÂ¼n Ekle' diyerek yeni bir kayÃ„Â±t oluÃ…Å¸turabilirsiniz.");
         }, 100);
     }
 };
+
 
 
 

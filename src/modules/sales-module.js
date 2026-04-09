@@ -1363,7 +1363,10 @@ const SalesModule = {
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
-                        <h2 class="stock-title">satis & pazarlama / urunler</h2>
+                        <div>
+                            <h2 class="stock-title">satis urun kutuphanesi</h2>
+                            <div style="font-size:0.84rem; color:#64748b; margin-top:0.1rem;">burada sadece satilan urunler eklenir.</div>
+                        </div>
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                     </div>
 
@@ -2237,7 +2240,7 @@ const SalesModule = {
                     </button>
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('products')">
                         <div class="stock-hub-icon" style="background:linear-gradient(135deg,#f97316 0%, #ef4444 100%);"><i data-lucide="boxes" width="24" height="24"></i></div>
-                        <div class="stock-hub-label">Urunler</div>
+                        <div class="stock-hub-label">Satis Urun Kutuphanesi</div>
                     </button>
                 </div>
             </div>

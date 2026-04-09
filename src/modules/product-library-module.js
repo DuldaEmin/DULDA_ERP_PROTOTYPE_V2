@@ -129,7 +129,7 @@ const ProductLibraryModule = {
         masterPickerSource: '',
         planningPickerSource: '',
         assemblyFormModalOpen: false,
-        workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors
+        workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors | sales-products
     },
 
     render: (container) => {
@@ -168,6 +168,10 @@ const ProductLibraryModule = {
         }
         if (view === 'colors') {
             ProductLibraryModule.renderColorLibraryPage(container);
+            return;
+        }
+        if (view === 'sales-products') {
+            ProductLibraryModule.renderSalesProductBuilderPage(container);
             return;
         }
         ProductLibraryModule.renderWorkspaceMenu(container);
@@ -236,6 +240,17 @@ const ProductLibraryModule = {
             ? 'models'
             : (normalized === 'semi' ? 'semi-components' : 'components');
         Router.navigate('products', { fromBack: true, preserveProductsState: true });
+    },
+
+    openSalesProductLibrary: () => {
+        if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('sales');
+            if (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.openWorkspace === 'function') {
+                SalesModule.openWorkspace('products');
+            }
+            return;
+        }
+        alert('Satis modulu su anda erisilebilir degil.');
     },
 
     cancelPlanningPicker: () => {
@@ -324,10 +339,33 @@ const ProductLibraryModule = {
                         <div class="icon-box g-emerald"><i data-lucide="factory" width="30" height="30"></i></div>
                         <div class="app-name">Yari Mamul Kutuphanesi</div>
                     </a>
+                    <a href="#" onclick="ProductLibraryModule.openWorkspace('sales-products'); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-purple"><i data-lucide="shopping-bag" width="30" height="30"></i></div>
+                        <div class="app-name">Satis Urun Olusturma</div>
+                    </a>
                 </div>
             </div>
         `;
         if (window.lucide) window.lucide.createIcons();
+    },
+
+    renderSalesProductBuilderPage: (container) => {
+        container.innerHTML = `
+            <div style="max-width:980px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+                    <h2 class="page-title" style="margin:0;">Satis Urun Olusturma</h2>
+                    <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
+                </div>
+                <div class="card-table" style="padding:1.25rem 1.2rem;">
+                    <div style="font-weight:800; color:#0f172a; font-size:1.04rem; margin-bottom:0.35rem;">Pilot ekran</div>
+                    <div style="color:#64748b; font-size:0.92rem; margin-bottom:0.9rem;">Mevcut urun modeli modulu korunarak yeni satis urun akisi burada adim adim test edilecektir.</div>
+                    <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
+                        <button class="btn-primary" onclick="ProductLibraryModule.openSalesProductLibrary()">Satis Urun Kutuphanesine Git</button>
+                        <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">Menuye Don</button>
+                    </div>
+                </div>
+            </div>
+        `;
     },
 
     renderWorkspacePlaceholder: (container, title, subtitle) => {

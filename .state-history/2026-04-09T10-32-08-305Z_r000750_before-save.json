@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-09T10:37:06.999Z",
+    "updated_at": "2026-04-09T10:30:57.605Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -44,7 +44,7 @@
         "130"
       ]
     },
-    "revision": 759
+    "revision": 750
   },
   "data": {
     "products": [
@@ -2102,24 +2102,6 @@
         "note": "nghjfhgjf",
         "created_at": "2026-04-07T12:44:28.967Z",
         "updated_at": "2026-04-07T12:44:28.967Z"
-      },
-      {
-        "id": "7a1cd1ae-7070-487f-a9c6-6d383286f83f",
-        "movementType": "STORE",
-        "type": "STORE",
-        "productCode": "PRC-000003",
-        "code": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "quantity": 111,
-        "qty": 111,
-        "unit": "ADET",
-        "depotId": "main",
-        "depotName": "ANA DEPO",
-        "locationId": "688ca280-fe92-4644-a57c-048222de6e41",
-        "locationCode": "R01-A2",
-        "note": "Depoya al / is emri WO-000016",
-        "created_at": "2026-04-09T10:35:07.716Z",
-        "updated_at": "2026-04-09T10:35:07.716Z"
       }
     ],
     "orders": [],
@@ -3493,85 +3475,7 @@
         "sourceItemCode": "PRC-000003",
         "sourceItemQty": 111,
         "created_at": "2026-04-09T10:27:31.822Z",
-        "updated_at": "2026-04-09T10:35:07.716Z"
-      },
-      {
-        "id": "eef338ec-72b8-4c94-855a-50827d96ecc6",
-        "workOrderCode": "WO-000017",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "productCode": "PRC-000003",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "lotQty": 20,
-        "dueDate": "2026-04-12",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "OPEN",
-        "lines": [
-          {
-            "id": "ca4db4bd-671d-4b2e-8c7d-9cc2592d8543",
-            "lineCode": "WO-000017-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "multiplier": 1,
-            "targetQty": 20,
-            "routes": [
-              {
-                "id": "59652637-a686-442e-ac38-d3e86f8d9823",
-                "seq": 1,
-                "stationId": "u1",
-                "stationName": "CNC ATOLYESI",
-                "processId": "CNC-000002"
-              },
-              {
-                "id": "d6e3aec1-110e-48e8-867b-03f135c2ce88",
-                "seq": 2,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000001"
-              },
-              {
-                "id": "0703654b-3745-456e-b519-ee05f71ec0fe",
-                "seq": 3,
-                "stationId": "u10",
-                "stationName": "IBRAHIM POLISAJ",
-                "processId": "IPS-000001"
-              },
-              {
-                "id": "0d4772f9-8479-42ea-9bb8-13104f40fffd",
-                "seq": 4,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000002"
-              },
-              {
-                "id": "56f97d17-3096-497d-b41b-58d9d5931000",
-                "seq": 5,
-                "stationId": "u11",
-                "stationName": "TEKIN ELOKSAL",
-                "processId": "ELX-000001"
-              },
-              {
-                "id": "c07e4dd2-95c1-467b-801d-9e974aedab35",
-                "seq": 6,
-                "stationId": "u_dtm",
-                "stationName": "DEPO TRANSFER",
-                "processId": "DTR-000004"
-              }
-            ],
-            "plans": {}
-          }
-        ],
-        "createdByUnitId": "",
-        "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "faf3f390-65c3-4d75-ae66-8380678346ec",
-        "sourceCode": "PLN-000005",
-        "sourceItemKey": "c52bb357-9b5e-4818-9f77-f77d09d651b7",
-        "sourceItemName": "40 lık aluminyum dikme yarıklı tapa",
-        "sourceItemCode": "PRC-000003",
-        "sourceItemQty": 20,
-        "created_at": "2026-04-09T10:37:06.999Z",
-        "updated_at": "2026-04-09T10:37:06.999Z"
+        "updated_at": "2026-04-09T10:30:57.605Z"
       }
     ],
     "workOrderTransactions": [
@@ -4316,104 +4220,6 @@
         "note": "Istasyon tamamlandi",
         "user": "Demo User",
         "created_at": "2026-04-09T10:30:57.605Z"
-      },
-      {
-        "id": "c263cc95-e14f-47d0-bd7f-573d3cb6d18b",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u_dtm",
-        "routeId": "6b31e8cc-18fd-486b-a8ee-dc142d0ba0b0",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "TAKE",
-        "qty": 111,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:32:08.227Z"
-      },
-      {
-        "id": "195f5409-0fcb-4381-a8b5-c615e48f1c5b",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u_dtm",
-        "routeId": "6b31e8cc-18fd-486b-a8ee-dc142d0ba0b0",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "COMPLETE",
-        "qty": 111,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000005",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:32:42.937Z"
-      },
-      {
-        "id": "7069db79-8270-4b43-96d9-71104dedabeb",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u11",
-        "routeId": "ac1581ff-a300-474b-8dd4-5c6e78e19433",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "TAKE",
-        "qty": 111,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:33:12.599Z"
-      },
-      {
-        "id": "fdf53ff9-8606-416b-a151-25df0b41e936",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u11",
-        "routeId": "ac1581ff-a300-474b-8dd4-5c6e78e19433",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "COMPLETE",
-        "qty": 111,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:33:29.883Z"
-      },
-      {
-        "id": "252deeb4-ed49-4684-96da-08ed83b85b7b",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u_dtm",
-        "routeId": "de7cbf33-4286-4925-99a2-4f181c0e263a",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 111,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:33:47.516Z"
-      },
-      {
-        "id": "c6dad8ac-c044-4735-8eca-6a30560eee6f",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u_dtm",
-        "routeId": "de7cbf33-4286-4925-99a2-4f181c0e263a",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 111,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:35:07.716Z"
-      },
-      {
-        "id": "dd9217cb-6295-433b-aa89-2b71c9ec10a2",
-        "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-        "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-        "stationId": "u_dtm",
-        "routeId": "de7cbf33-4286-4925-99a2-4f181c0e263a",
-        "routeSeq": 6,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 111,
-        "note": "Depoya alindi: ANA DEPO / R01-A2 (LOC-000004)",
-        "user": "Demo User",
-        "created_at": "2026-04-09T10:35:07.716Z"
       }
     ],
     "outsourceTransfers": [
@@ -4919,9 +4725,9 @@
         "code": "PRC-000003",
         "productName": "40 lık aluminyum dikme yarıklı tapa",
         "name": "40 lık aluminyum dikme yarıklı tapa",
-        "quantity": 331,
-        "qty": 331,
-        "amount": 331,
+        "quantity": 220,
+        "qty": 220,
+        "amount": 220,
         "unit": "ADET",
         "stockClass": "KULLANILABILIR",
         "status": "KULLANILABILIR",
@@ -4935,7 +4741,7 @@
         "locationId": "688ca280-fe92-4644-a57c-048222de6e41",
         "locationCode": "R01-A2",
         "created_at": "2026-04-07T12:36:06.170Z",
-        "updated_at": "2026-04-09T10:35:07.717Z"
+        "updated_at": "2026-04-07T12:36:06.170Z"
       },
       {
         "id": "0396db0b-bd24-4724-a948-5fd8f1d86003",
@@ -6407,82 +6213,6 @@
           "converted_at": "2026-04-09T10:27:31.822Z"
         },
         "released_at": "2026-04-09T10:27:31.822Z"
-      },
-      {
-        "id": "faf3f390-65c3-4d75-ae66-8380678346ec",
-        "demandCode": "PLN-000005",
-        "sourceType": "STOCK",
-        "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-04-09T10:36:32.178Z",
-        "items": [
-          {
-            "id": "c52bb357-9b5e-4818-9f77-f77d09d651b7",
-            "itemType": "COMPONENT",
-            "qty": 20,
-            "variantId": "",
-            "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-            "semiFinishedId": "",
-            "familyId": "",
-            "variantCode": "",
-            "componentCode": "PRC-000003",
-            "semiFinishedCode": "",
-            "productGroup": "aluminyum dikme aksesuarları",
-            "productName": "40 lık aluminyum dikme yarıklı tapa",
-            "productCode": "PRC-000003",
-            "montageCardId": "",
-            "montageCardCode": ""
-          }
-        ],
-        "itemType": "COMPONENT",
-        "variantId": "",
-        "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-        "semiFinishedId": "",
-        "familyId": "",
-        "variantCode": "",
-        "componentCode": "PRC-000003",
-        "semiFinishedCode": "",
-        "productGroup": "aluminyum dikme aksesuarları",
-        "productName": "40 lık aluminyum dikme yarıklı tapa",
-        "productCode": "PRC-000003",
-        "montageCardId": "",
-        "montageCardCode": "",
-        "qty": 20,
-        "dueDate": "2026-04-12",
-        "priority": "NORMAL",
-        "note": "",
-        "status": "RELEASED",
-        "workOrderId": "eef338ec-72b8-4c94-855a-50827d96ecc6",
-        "workOrderCode": "WO-000017",
-        "workOrderIds": [
-          "eef338ec-72b8-4c94-855a-50827d96ecc6"
-        ],
-        "workOrderCodes": [
-          "WO-000017"
-        ],
-        "updated_at": "2026-04-09T10:37:06.999Z",
-        "releasedQty": 20,
-        "poolAnalysis": {
-          "rows": [
-            {
-              "key": "c52bb357-9b5e-4818-9f77-f77d09d651b7::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "itemKey": "c52bb357-9b5e-4818-9f77-f77d09d651b7",
-              "itemName": "40 lık aluminyum dikme yarıklı tapa",
-              "itemCode": "PRC-000003",
-              "itemQty": 20,
-              "code": "PRC-000003",
-              "name": "40 lık aluminyum dikme yarıklı tapa",
-              "componentLibrary": "PART",
-              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "requiredQty": 20,
-              "useEnabled": false,
-              "useStockQty": 0,
-              "useSemiQty": 0,
-              "netQty": 20
-            }
-          ],
-          "converted_at": "2026-04-09T10:37:06.999Z"
-        },
-        "released_at": "2026-04-09T10:37:06.999Z"
       }
     ],
     "semiFinishedCards": [
@@ -6740,51 +6470,6 @@
           }
         ],
         "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000004</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000004</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">IBRAHIM POLISAJ</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">09.04.2026 13:29</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000016</div><div>WO-000016-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">IPS-000001</div>\n                            <div class=\"proc-name\">parlak polisaj</div>\n                        </td>\n                        <td class=\"right\"><strong>111</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">111</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>09.04.2026 13:29</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 09.04.2026 13:29</span>\n        </div>\n    </section>\n</body>\n</html>\n        "
-      },
-      {
-        "id": "a2fe6461-16a9-4f0c-8fda-6e73e5ac65ff",
-        "docNo": "DSI-000005",
-        "stationId": "u_dtm",
-        "targetUnitId": "u11",
-        "targetUnitName": "TEKIN ELOKSAL",
-        "status": "TESLIM_EDILDI",
-        "isArchived": false,
-        "created_at": "2026-04-09T10:32:42.937Z",
-        "created_by": "Demo User",
-        "note": "",
-        "history": [
-          {
-            "at": "2026-04-09T10:32:42.937Z",
-            "status": "HAZIRLANDI",
-            "user": "Demo User"
-          },
-          {
-            "at": "2026-04-09T10:32:49.883Z",
-            "status": "TESLIM_EDILDI",
-            "user": "Demo User"
-          }
-        ],
-        "rows": [
-          {
-            "workOrderId": "3411eb6f-c519-4884-a54e-f2ac1f163029",
-            "workOrderCode": "WO-000016",
-            "lineId": "e7eec0f7-03f1-43ba-aea7-e02bebc84406",
-            "lineCode": "WO-000016-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 111,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "6b31e8cc-18fd-486b-a8ee-dc142d0ba0b0",
-            "sourceRouteSeq": 4,
-            "sourceProcessId": "DTR-000002",
-            "targetProcessId": "ELX-000001",
-            "targetProcessName": "sarı eloksal",
-            "targetUnitId": "u11"
-          }
-        ],
-        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000005</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000005</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">TEKIN ELOKSAL</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">09.04.2026 13:32</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000016</div><div>WO-000016-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">ELX-000001</div>\n                            <div class=\"proc-name\">sarı eloksal</div>\n                        </td>\n                        <td class=\"right\"><strong>111</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">111</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>09.04.2026 13:32</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 09.04.2026 13:32</span>\n        </div>\n    </section>\n</body>\n</html>\n        ",
-        "updated_at": "2026-04-09T10:32:49.883Z",
-        "updated_by": "Demo User"
       }
     ],
     "stockGoodsReceipts": [

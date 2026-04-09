@@ -485,12 +485,67 @@ const ActionGuard = {
     }
 };
 
+const RuntimePerformance = {
+    installed: false,
+    installLucideBatcher: () => {
+        if (RuntimePerformance.installed) return;
+        RuntimePerformance.installed = true;
+
+        if (!globalThis.lucide || typeof globalThis.lucide.createIcons !== "function") return;
+        const rawCreateIcons = globalThis.lucide.createIcons.bind(globalThis.lucide);
+        if (rawCreateIcons.__batchedCreateIcons) return;
+
+        let scheduled = false;
+        let latestArgs = [];
+
+        const flush = () => {
+            scheduled = false;
+            try {
+                rawCreateIcons(...latestArgs);
+            } catch (error) {
+                console.warn("Lucide icon refresh failed.", error);
+            }
+        };
+
+        const batchedCreateIcons = (...args) => {
+            latestArgs = args;
+            if (scheduled) return;
+            scheduled = true;
+            const runner = globalThis.requestAnimationFrame || ((cb) => setTimeout(cb, 16));
+            runner(flush);
+        };
+
+        batchedCreateIcons.__batchedCreateIcons = true;
+        globalThis.lucide.createIcons = batchedCreateIcons;
+    }
+};
+
+const NavigationGuard = {
+    installed: false,
+    installLinkClickGuard: () => {
+        if (NavigationGuard.installed) return;
+        NavigationGuard.installed = true;
+
+        document.addEventListener("click", (event) => {
+            const targetNode = event.target;
+            const targetElement = targetNode && targetNode.nodeType === 1
+                ? targetNode
+                : targetNode?.parentElement || null;
+            const link = targetElement?.closest?.('a[href="#"], a[href="javascript:void(0)"]');
+            if (!link) return;
+            event.preventDefault();
+        }, true);
+    }
+};
+
 const App = {
     init: async () => {
         console.log("DULDA ERP Initializing...");
 
+        RuntimePerformance.installLucideBatcher();
         await DB.loadState();
         ActionGuard.install();
+        NavigationGuard.installLinkClickGuard();
 
         // Initialize Router and UI
         Router.init();
@@ -896,22 +951,36 @@ const IDB = {
 const Router = {
     currentPage: 'dashboard',
     history: [],
+    lastNavigateAt: 0,
+    lastNavigateTarget: '',
+    minNavigateIntervalMs: 220,
     init: () => {
         Router.history = [];
         Router.navigate('dashboard', { skipHistory: true });
     },
     navigate: (pageId, options = {}) => {
+        const targetPage = String(pageId || 'dashboard');
+        const currentPage = String(Router.currentPage || '');
+        const now = Date.now();
+        const isBurstDuplicate = Router.lastNavigateTarget === targetPage
+            && (now - Router.lastNavigateAt) < Router.minNavigateIntervalMs;
+        Router.lastNavigateTarget = targetPage;
+        Router.lastNavigateAt = now;
+
+        if (isBurstDuplicate) return;
+        if (!options?.force && targetPage === currentPage) return;
+
         const { fromBack = false, skipHistory = false } = options;
-        if (!skipHistory && !fromBack && Router.currentPage && Router.currentPage !== pageId) {
+        if (!skipHistory && !fromBack && currentPage && currentPage !== targetPage) {
             Router.history.push(Router.currentPage);
         }
         // Fresh open rule: entering Units from another page should start at unit list.
-        if (pageId === 'units' && Router.currentPage !== 'units' && !fromBack) {
+        if (targetPage === 'units' && currentPage !== 'units' && !fromBack) {
             UnitModule.state.view = 'list';
             UnitModule.state.activeUnitId = null;
         }
         // Fresh open rule: entering Product workspace resets open panels/forms unless caller explicitly preserves UI state.
-        if (pageId === 'products' && Router.currentPage !== 'products') {
+        if (targetPage === 'products' && currentPage !== 'products') {
             const preserveProductsState = !!options.preserveProductsState;
             if (!preserveProductsState) {
                 if (typeof ProductLibraryModule?.resetWorkspaceEntryUiState === 'function') {
@@ -922,20 +991,20 @@ const Router = {
             }
         }
         // Fresh open rule: entering Stock workspace starts from menu.
-        if (pageId === 'stock' && Router.currentPage !== 'stock' && !fromBack) {
+        if (targetPage === 'stock' && currentPage !== 'stock' && !fromBack) {
             StockModule.state.workspaceView = 'menu';
             StockModule.state.selectedKey = 'all';
         }
-        if (pageId === 'planlama' && Router.currentPage !== 'planlama' && !fromBack) {
+        if (targetPage === 'planlama' && currentPage !== 'planlama' && !fromBack) {
             PlanningModule.state.workspaceView = 'menu';
         }
-        if (pageId === 'sales' && Router.currentPage !== 'sales' && !fromBack) {
+        if (targetPage === 'sales' && currentPage !== 'sales' && !fromBack) {
             SalesModule.state.workspaceView = 'menu';
             SalesModule.state.customerDetailId = null;
             SalesModule.state.customerDetailMode = 'view';
             SalesModule.state.customerEditDraft = null;
         }
-        Router.currentPage = pageId;
+        Router.currentPage = targetPage;
         UI.renderCurrentPage();
     },
     back: () => {
@@ -1113,7 +1182,7 @@ const UI = {
             </div>
             <div class="apps-grid">
                 ${apps.map(app => `
-                    <a href="#" onclick="Router.navigate('${app.id}')" class="app-card">
+                    <a href="#" onclick="Router.navigate('${app.id}'); return false;" class="app-card">
                         <div class="icon-box ${app.gradient}"><i data-lucide="${app.icon}" width="32" height="32"></i></div>
                         <div class="app-name">${app.title}</div>
                     </a>

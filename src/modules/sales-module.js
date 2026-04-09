@@ -1233,8 +1233,11 @@ const SalesModule = {
         `;
     },
 
-    renderCatalogCardsHtml: (rows, searchText = '') => {
+    renderCatalogCardsHtml: (rows, searchText = '', options = {}) => {
         const list = Array.isArray(rows) ? rows : [];
+        const requestedSelectAction = String(options?.onSelectAction || '').trim();
+        const hasCustomSelectAction = /^[A-Za-z_$][A-Za-z0-9_$.]*$/.test(requestedSelectAction);
+        const viewButtonLabel = String(options?.viewButtonLabel || '').trim() || 'goruntule';
         if (!list.length) {
             return `
                 <div class="sales-catalog-empty">
@@ -1251,8 +1254,11 @@ const SalesModule = {
             const isBoru = SalesModule.isPipeCategory(row.categoryId);
             const isCubuk = SalesModule.isRodCategory(row.categoryId);
             const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
+            const selectAction = hasCustomSelectAction
+                ? `${requestedSelectAction}('${id}')`
+                : `SalesModule.openCatalogDetailModal('${id}')`;
             return `
-                <button class="sales-catalog-card" onclick="SalesModule.openCatalogDetailModal('${id}')">
+                <button class="sales-catalog-card" onclick="${selectAction}">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
                         ${image
                     ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-card-image">`
@@ -1274,7 +1280,7 @@ const SalesModule = {
                                    <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>` : ''}
                         </div>
                         <div class="sales-catalog-card-actions">
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditCatalogModal('${id}')">duzenle</button>
                         </div>
                     </div>
@@ -1283,8 +1289,11 @@ const SalesModule = {
         }).join('');
     },
 
-    renderPipeRowsTableHtml: (rows, searchText = '') => {
+    renderPipeRowsTableHtml: (rows, searchText = '', options = {}) => {
         const list = Array.isArray(rows) ? rows : [];
+        const requestedSelectAction = String(options?.onSelectAction || '').trim();
+        const hasCustomSelectAction = /^[A-Za-z_$][A-Za-z0-9_$.]*$/.test(requestedSelectAction);
+        const viewButtonLabel = String(options?.viewButtonLabel || '').trim() || 'goruntule';
         if (!list.length) {
             return `
                 <div class="sales-catalog-empty">
@@ -1320,6 +1329,9 @@ const SalesModule = {
                         ${list.map((row) => {
                 const id = SalesModule.escapeHtml(String(row.id || ''));
                 const bubbleText = String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
+                const selectAction = hasCustomSelectAction
+                    ? `${requestedSelectAction}('${id}')`
+                    : `SalesModule.openCatalogDetailModal('${id}')`;
                 return `
                                 <tr>
                                     <td>${SalesModule.escapeHtml(row.name || '-')}</td>
@@ -1330,7 +1342,7 @@ const SalesModule = {
                                     <td>${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}</td>
                                     ${(isCubuk || isOzel) ? `<td>${SalesModule.escapeHtml(bubbleText)}</td>` : ''}
                                     <td class="sales-catalog-table-actions">
-                                        <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openCatalogDetailModal('${id}')">goruntule</button>
+                                        <button type="button" class="sales-catalog-card-action-btn" onclick="${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
                                         <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openEditCatalogModal('${id}')">duzenle</button>
                                         <button type="button" class="sales-catalog-card-action-btn" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteCatalogProduct('${id}')">sil</button>
                                     </td>
@@ -1413,8 +1425,8 @@ const SalesModule = {
                             <div class="${isPipeLeaf ? 'sales-catalog-list' : 'sales-catalog-grid'}">
                                 ${(supportsCrud && activeLeaf)
                 ? (isPipeLeaf
-                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText)
-                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText))
+                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
+                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
                 : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
                                         <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>

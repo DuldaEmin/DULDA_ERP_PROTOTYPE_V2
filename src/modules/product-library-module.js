@@ -129,6 +129,7 @@ const ProductLibraryModule = {
         masterPickerSource: '',
         planningPickerSource: '',
         assemblyFormModalOpen: false,
+        salesProductDetailId: '',
         workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors | sales-products
     },
 
@@ -205,6 +206,9 @@ const ProductLibraryModule = {
         }
         if (nextView === 'assembly') {
             ProductLibraryModule.state.assemblyViewReturnContext = null;
+        }
+        if (nextView !== 'sales-products') {
+            ProductLibraryModule.state.salesProductDetailId = '';
         }
         ProductLibraryModule.state.workspaceView = nextView;
         if (nextView !== 'master') ProductLibraryModule.state.masterPickerSource = '';
@@ -308,6 +312,7 @@ const ProductLibraryModule = {
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.planningPickerSource = '';
+        ProductLibraryModule.state.salesProductDetailId = '';
     },
 
     renderWorkspaceMenu: (container) => {
@@ -350,9 +355,22 @@ const ProductLibraryModule = {
     },
 
     renderSalesProductBuilderPage: (container) => {
+        const selectedProductId = String(ProductLibraryModule.state.salesProductDetailId || '').trim();
+        if (selectedProductId) {
+            const selectedProduct = ProductLibraryModule.getSalesCatalogProductById(selectedProductId);
+            if (selectedProduct) {
+                ProductLibraryModule.renderSalesProductVariationPage(container, selectedProduct);
+                return;
+            }
+            ProductLibraryModule.state.salesProductDetailId = '';
+        }
         if (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.renderProductsLayout === 'function') {
             SalesModule.ensureCatalogState();
-            container.innerHTML = SalesModule.renderProductsLayout({ host: 'product-library' });
+            container.innerHTML = SalesModule.renderProductsLayout({
+                host: 'product-library',
+                onSelectAction: 'ProductLibraryModule.openSalesProductVariationPage',
+                viewButtonLabel: 'varyasyonlar'
+            });
             return;
         }
         ProductLibraryModule.renderWorkspacePlaceholder(
@@ -360,6 +378,151 @@ const ProductLibraryModule = {
             'Satis Urun Kutuphanesi',
             'Satis modulu yuklenmedigi icin bu ekran acilamadi.'
         );
+    },
+
+    openSalesProductVariationPage: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        ProductLibraryModule.state.salesProductDetailId = id;
+        UI.renderCurrentPage();
+    },
+
+    closeSalesProductVariationPage: () => {
+        ProductLibraryModule.state.salesProductDetailId = '';
+        UI.renderCurrentPage();
+    },
+
+    getSalesCatalogProductById: (id) => {
+        const list = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        return list.find((row) => String(row?.id || '').trim() === String(id || '').trim()) || null;
+    },
+
+    getSalesProductVariationRows: (productId) => {
+        const sourceId = String(productId || '').trim();
+        if (!sourceId || typeof ProductLibraryModule.getCatalogProductVariants !== 'function') return [];
+        const list = ProductLibraryModule.getCatalogProductVariants();
+        return list
+            .filter((row) => {
+                const refCandidates = [
+                    row?.sourceCatalogProductId,
+                    row?.sourceCatalogId,
+                    row?.salesCatalogProductId,
+                    row?.sourceProductId
+                ];
+                return refCandidates.some((value) => String(value || '').trim() === sourceId);
+            })
+            .sort((a, b) => {
+                const aTime = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+                const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+                return bTime - aTime;
+            });
+    },
+
+    renderSalesProductVariationPage: (container, product) => {
+        const row = product && typeof product === 'object' ? product : null;
+        if (!row) {
+            ProductLibraryModule.renderWorkspacePlaceholder(
+                container,
+                'Urun Detayi',
+                'Urun kaydi bulunamadi.'
+            );
+            return;
+        }
+
+        const image = String(row?.images?.product || row?.images?.application || '').trim();
+        const technicalImage = String(row?.images?.technical || '').trim();
+        const categoryPath = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogCategoryPathText === 'function')
+            ? SalesModule.getCatalogCategoryPathText(row?.categoryId || '')
+            : String(row?.categoryId || '').trim();
+        const diameters = Array.isArray(row?.diameters) ? row.diameters.filter(Boolean) : [];
+        const variantRows = ProductLibraryModule.getSalesProductVariationRows(row?.id);
+
+        container.innerHTML = `
+            <div style="max-width:1500px; margin:0 auto;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.85rem;">
+                    <div>
+                        <h2 class="page-title" style="margin:0;">Urun Detayi ve Varyasyonlar</h2>
+                        <div style="font-size:0.82rem; color:#64748b; margin-top:0.15rem;">Satis kutuphanesi urun karti ustte sabit kalir, varyasyonlar asagida satir bazinda yonetilir.</div>
+                    </div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.closeSalesProductVariationPage()">listeye don</button>
+                </div>
+
+                <div class="card-table" style="padding:0.9rem; margin-bottom:0.9rem;">
+                    <div style="display:grid; grid-template-columns:320px 1fr; gap:0.9rem;">
+                        <div style="border:1px solid #e2e8f0; border-radius:0.9rem; overflow:hidden; min-height:220px; background:${image ? '#0f172a' : '#f8fafc'}; display:flex; align-items:center; justify-content:center;">
+                            ${image
+                ? `<img src="${ProductLibraryModule.escapeHtml(image)}" alt="${ProductLibraryModule.escapeHtml(row?.name || 'Urun')}" style="width:100%; height:100%; object-fit:cover;">`
+                : '<div style="color:#94a3b8; font-weight:700;">Gorsel yok</div>'}
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:0.55rem;">
+                            <div style="font-size:0.8rem; color:#64748b;">${ProductLibraryModule.escapeHtml(categoryPath || '-')}</div>
+                            <div style="font-size:1.4rem; font-weight:800; color:#0f172a;">${ProductLibraryModule.escapeHtml(row?.name || '-')}</div>
+                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">ID: ${ProductLibraryModule.escapeHtml(row?.idCode || '-')}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Urun kodu: ${ProductLibraryModule.escapeHtml(row?.productCode || '-')}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Caplar: ${ProductLibraryModule.escapeHtml(diameters.length > 0 ? diameters.join(', ') : (row?.selectedDiameter || '-'))}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Kabarcik: ${ProductLibraryModule.escapeHtml(String(row?.bubble || 'yok').trim() || 'yok')}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Boy: ${ProductLibraryModule.escapeHtml(row?.pipe?.lengthMm || '-')} mm</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Pleksi: ${ProductLibraryModule.escapeHtml(row?.colors?.plexi?.color || '-')}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Aksesuar: ${ProductLibraryModule.escapeHtml(row?.colors?.accessory?.color || '-')}</span>
+                                <span style="padding:0.2rem 0.55rem; border-radius:999px; border:1px solid #cbd5e1; font-size:0.8rem; color:#334155; font-weight:700;">Boru: ${ProductLibraryModule.escapeHtml(row?.colors?.tube?.color || '-')}</span>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem; margin-top:0.2rem;">
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem; min-height:84px;">
+                                    <div style="font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">teknik gorsel</div>
+                                    ${technicalImage ? `<div style="font-size:0.82rem; color:#334155; font-weight:700;">Yuklu</div>` : `<div style="font-size:0.82rem; color:#94a3b8;">Yok</div>`}
+                                </div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem; min-height:84px;">
+                                    <div style="font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not</div>
+                                    <div style="font-size:0.82rem; color:#334155;">${ProductLibraryModule.escapeHtml(row?.note || '-')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-table" style="padding:0.9rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.65rem;">
+                        <div>
+                            <div style="font-weight:800; color:#0f172a; font-size:1.02rem;">Varyasyonlar</div>
+                            <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">Bu urune bagli varyasyonlar satir satir listelenir.</div>
+                        </div>
+                        <button class="btn-primary" type="button" disabled style="opacity:0.58; cursor:not-allowed;">yeni varyasyon ekle +</button>
+                    </div>
+
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:hidden;">
+                        <table style="width:100%; border-collapse:collapse;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                    <th style="padding:0.58rem; text-align:left;">Varyasyon ID</th>
+                                    <th style="padding:0.58rem; text-align:left;">Varyasyon Adi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Pleksi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Aksesuar</th>
+                                    <th style="padding:0.58rem; text-align:left;">Boru</th>
+                                    <th style="padding:0.58rem; text-align:left;">Montaj Karti</th>
+                                    <th style="padding:0.58rem; text-align:left;">Guncelleme</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${variantRows.length === 0
+                ? '<tr><td colspan="7" style="padding:1.05rem; color:#94a3b8; text-align:center;">Bu urune henuz varyasyon eklenmedi.</td></tr>'
+                : variantRows.map((item) => `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item?.variantCode || '-')}</td>
+                                            <td style="padding:0.58rem; color:#0f172a; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.productName || '-')}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.plexi?.name || '-')}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.accessory?.name || '-')}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.tube?.name || '-')}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.montageCard?.cardCode || '-')}</td>
+                                            <td style="padding:0.58rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.updatedAt || item?.createdAt || '-')}</td>
+                                        </tr>
+                                    `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
     },
 
     renderWorkspacePlaceholder: (container, title, subtitle) => {

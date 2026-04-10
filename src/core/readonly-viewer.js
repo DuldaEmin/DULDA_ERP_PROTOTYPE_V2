@@ -323,6 +323,7 @@ const ReadOnlyViewer = {
         const unitModule = ReadOnlyViewer.getGlobalModule('UnitModule');
         const cncModule = ReadOnlyViewer.getGlobalModule('CncLibraryModule');
         const montageModule = ReadOnlyViewer.getGlobalModule('MontageLibraryModule');
+        const productLibraryModule = ReadOnlyViewer.getGlobalModule('ProductLibraryModule');
 
         const part = (Array.isArray(d.partComponentCards) ? d.partComponentCards : [])
             .find((row) => ReadOnlyViewer.normalizeCode(row?.code) === code);
@@ -338,7 +339,9 @@ const ReadOnlyViewer = {
             return true;
         }
 
-        const variants = (Array.isArray(d.catalogProductVariants) ? d.catalogProductVariants : []);
+        const variants = (productLibraryModule && typeof productLibraryModule.getPlanningModelVariants === 'function')
+            ? productLibraryModule.getPlanningModelVariants()
+            : (Array.isArray(d.catalogProductVariants) ? d.catalogProductVariants : []);
         const variant = variants
             .find((row) => ReadOnlyViewer.normalizeCode(row?.variantCode) === code);
         if (variant) {

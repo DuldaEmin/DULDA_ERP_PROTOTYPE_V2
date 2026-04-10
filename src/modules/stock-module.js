@@ -2345,7 +2345,7 @@ const StockModule = {
         const key = StockModule.normalizeInventoryRegistrationSourceKind(kind);
         if (key === 'component') return { key, label: 'Parca & Bilesen', productType: 'PARCA/BILESEN' };
         if (key === 'semi') return { key, label: 'Yari Mamul', productType: 'YARI MAMUL' };
-        if (key === 'model') return { key, label: 'Urun Modelleri', productType: 'URUN MODELI' };
+        if (key === 'model') return { key, label: 'Satilan Urun Varyasyonlari', productType: 'URUN MODELI' };
         return { key: 'master', label: 'Master Urun Kutuphanesi', productType: 'MASTER' };
     },
 
@@ -2754,7 +2754,7 @@ const StockModule = {
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('master')">Master Urun Kutuphanesi</button>
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('component')">Parca & Bilesen</button>
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('semi')">Yari Mamul</button>
-                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('model')">Urun Modelleri</button>
+                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('model')">Satilan Urun Varyasyonlari</button>
                 </div>
                 <div style="font-size:0.78rem; color:#94a3b8;">Secimden sonra ilgili kutuphane acilir, urune "ekle" dediginde bu forma geri donersin.</div>
             </div>
@@ -2859,8 +2859,8 @@ const StockModule = {
                 unit: StockModule.resolveInventoryRegistrationUnitFromMasterCode(masterCode || '')
             };
         }
-        const variant = typeof ProductLibraryModule !== 'undefined' && typeof ProductLibraryModule.getCatalogVariantById === 'function'
-            ? ProductLibraryModule.getCatalogVariantById(refId)
+        const variant = typeof ProductLibraryModule !== 'undefined' && typeof ProductLibraryModule.getPlanningModelById === 'function'
+            ? ProductLibraryModule.getPlanningModelById(refId)
             : ((Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : []).find((item) => String(item?.id || '') === refId) || null);
         if (!variant) return null;
         const masterRefs = Array.isArray(variant?.masterRefs) ? variant.masterRefs : [];
@@ -2963,9 +2963,29 @@ const StockModule = {
         }
         let targetId = refId;
         if (!targetId && code) {
-            const hit = (Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : [])
-                .find((row) => StockModule.normalize(row?.variantCode || '') === StockModule.normalize(code));
+            const hit = (typeof ProductLibraryModule !== 'undefined'
+                && ProductLibraryModule
+                && typeof ProductLibraryModule.getPlanningModelVariants === 'function')
+                ? ProductLibraryModule.getPlanningModelVariants()
+                    .find((row) => StockModule.normalize(row?.variantCode || '') === StockModule.normalize(code))
+                : (Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : [])
+                    .find((row) => StockModule.normalize(row?.variantCode || '') === StockModule.normalize(code));
             targetId = String(hit?.id || '').trim();
+        }
+        const targetModel = (typeof ProductLibraryModule.getPlanningModelById === 'function')
+            ? ProductLibraryModule.getPlanningModelById(targetId)
+            : null;
+        if (targetModel && String(targetModel?.sourceType || '').toUpperCase() === 'SALES_VARIATION') {
+            ProductLibraryModule.state.workspaceView = 'sales-products';
+            ProductLibraryModule.state.salesProductDetailId = String(targetModel?.sourceCatalogProductId || '').trim();
+            ProductLibraryModule.state.salesVariationEditorMode = '';
+            ProductLibraryModule.state.salesVariationEditingId = '';
+            ProductLibraryModule.state.salesVariationDraft = null;
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            if (String(targetModel?.sourceVariationId || '').trim() && typeof ProductLibraryModule.openSalesVariationEditor === 'function') {
+                setTimeout(() => ProductLibraryModule.openSalesVariationEditor('view', String(targetModel.sourceVariationId || '').trim()), 0);
+            }
+            return;
         }
         ProductLibraryModule.state.workspaceView = 'models';
         ProductLibraryModule.state.modelViewingId = null;

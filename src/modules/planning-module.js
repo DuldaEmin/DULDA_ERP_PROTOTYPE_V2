@@ -1444,10 +1444,10 @@ const PlanningModule = {
             const prettyLabel = label ? ` (${label})` : '';
             const reason = String(firstInvalid?.invalidReason || '');
             if (reason === 'MODEL_MONTAGE_MISSING') {
-                return alert(`Secilen urun modelinde montaj karti bagli degil${prettyLabel}. Urun Modelleri ekraninda montaj karti secip kaydediniz.`);
+                return alert(`Secilen urun varyasyonunda montaj karti bagli degil${prettyLabel}. Satilan Urun Kutuphanesi varyasyonunda montaj karti secip kaydediniz.`);
             }
             if (reason === 'MODEL_NOT_FOUND') {
-                return alert(`Secilen urun modeli bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
+                return alert(`Secilen urun varyasyonu bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
             }
             if (reason === 'COMPONENT_NOT_FOUND') {
                 return alert(`Secilen parca/bilesen bulunamadi veya silinmis${prettyLabel}. Lutfen listeyi yenileyip urunu tekrar seciniz.`);
@@ -2063,8 +2063,8 @@ const PlanningModule = {
         const sourceKindRaw = String(PlanningModule.state.stockDraftSourceKind || 'MODEL').toUpperCase();
         const sourceKind = ['MODEL', 'COMPONENT', 'SEMI'].includes(sourceKindRaw) ? sourceKindRaw : 'MODEL';
         const pickerKind = sourceKind === 'COMPONENT' ? 'component' : (sourceKind === 'SEMI' ? 'semi' : 'model');
-        const sourceLabel = sourceKind === 'COMPONENT' ? 'Parca/bilesen' : (sourceKind === 'SEMI' ? 'Yari mamul' : 'Urun model');
-        const addLabel = sourceKind === 'COMPONENT' ? 'parca bilesen ekle +' : (sourceKind === 'SEMI' ? 'yari mamul ekle +' : 'urun modeli ekle +');
+        const sourceLabel = sourceKind === 'COMPONENT' ? 'Parca/bilesen' : (sourceKind === 'SEMI' ? 'Yari mamul' : 'Satılan Ürün Kütüphanesi');
+        const addLabel = sourceKind === 'COMPONENT' ? 'parca bilesen ekle +' : (sourceKind === 'SEMI' ? 'yari mamul ekle +' : 'satılan ürün kütüphanesi ekle +');
         const isFormOpen = !!PlanningModule.state.stockDraftFormOpen;
         const draftItems = PlanningModule.getResolvedStockDraftItems();
         const totalDraftQty = draftItems.reduce((sum, row) => sum + Number(row?.qty || 0), 0);
@@ -2195,7 +2195,7 @@ const PlanningModule = {
                         <div style="border:1px solid #cbd5e1; border-radius:0.95rem; background:white; padding:0.85rem;">
                             <div style="display:flex; justify-content:space-between; gap:0.6rem; align-items:center; flex-wrap:wrap; margin-bottom:0.65rem;">
                                 <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-                                <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','MODEL')" style="${sourceKind === 'MODEL' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Urun model</button>
+                                <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','MODEL')" style="${sourceKind === 'MODEL' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Satılan Ürün Kütüphanesi</button>
                                 <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','COMPONENT')" style="${sourceKind === 'COMPONENT' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Parca/bilesen</button>
                                 <button class="btn-sm" onclick="PlanningModule.setStockDraftField('stockDraftSourceKind','SEMI')" style="${sourceKind === 'SEMI' ? 'background:#0f172a; color:#fff; border-color:#0f172a;' : ''}">Yari mamul</button>
                             </div>

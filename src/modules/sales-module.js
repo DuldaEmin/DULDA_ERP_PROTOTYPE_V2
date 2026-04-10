@@ -110,6 +110,15 @@ const SalesModule = {
         return { text: 'Aktif', bg: '#dcfce7', color: '#166534', border: '#86efac' };
     },
 
+    getCustomerMissingInfoWarnings: (row = {}) => {
+        const warnings = [];
+        if (!String(row?.externalCode || '').trim()) warnings.push('Cari kodu eksik');
+        if (!String(row?.phone || '').trim()) warnings.push('Telefon eksik');
+        if (!String(row?.taxNo || '').trim()) warnings.push('Vergi no eksik');
+        if (!String(row?.city || '').trim()) warnings.push('Sehir eksik');
+        return warnings;
+    },
+
     getSalesPersonnelRows: () => {
         if (typeof PersonnelModule !== 'undefined' && PersonnelModule && typeof PersonnelModule.ensureData === 'function') {
             PersonnelModule.ensureData();
@@ -3209,11 +3218,11 @@ const SalesModule = {
                                 <thead>
                                     <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
                                         <th style="padding:0.55rem; text-align:left;">Kod</th>
+                                        <th style="padding:0.55rem; text-align:left;">Cari kodu</th>
                                         <th style="padding:0.55rem; text-align:left;">Musteri</th>
                                         <th style="padding:0.55rem; text-align:left;">Sehir</th>
                                         <th style="padding:0.55rem; text-align:left;">Telefon</th>
-                                        <th style="padding:0.55rem; text-align:right;">Iskonto</th>
-                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:left;">Bilgi durumu</th>
                                         <th style="padding:0.55rem; text-align:center;">Islem</th>
                                     </tr>
                                 </thead>
@@ -3221,17 +3230,21 @@ const SalesModule = {
                                     ${rows.length === 0
                 ? '<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>'
                 : rows.map((row) => {
-                    const meta = SalesModule.getCustomerStatusMeta(row?.isActive !== false);
+                    const warnings = SalesModule.getCustomerMissingInfoWarnings(row);
+                    const warningText = warnings.length ? warnings.join(', ') : 'Tam';
+                    const warningStyle = warnings.length
+                        ? 'display:inline-flex; align-items:center; padding:0.22rem 0.62rem; border:1px solid #fcd34d; border-radius:999px; font-size:0.74rem; font-weight:700; background:#fffbeb; color:#92400e;'
+                        : 'display:inline-flex; align-items:center; padding:0.22rem 0.62rem; border:1px solid #86efac; border-radius:999px; font-size:0.74rem; font-weight:700; background:#f0fdf4; color:#166534;';
                     const rowId = SalesModule.escapeHtml(String(row?.id || ''));
                     return `
                                                 <tr style="border-bottom:1px solid #f1f5f9;">
                                                     <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.customerCode || '-'))}</td>
+                                                    <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:700;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</td>
                                                     <td style="padding:0.55rem; font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.name || '-'))}</td>
                                                     <td style="padding:0.55rem;">${SalesModule.escapeHtml([row?.city, row?.district].filter(Boolean).join(' / ') || '-')}</td>
                                                     <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(row?.phone || '-'))}</td>
-                                                    <td style="padding:0.55rem; text-align:right; font-weight:800;">% ${SalesModule.escapeHtml(String(row?.discountRate || 0))}</td>
                                                     <td style="padding:0.55rem;">
-                                                        <span style="display:inline-flex; align-items:center; padding:0.22rem 0.62rem; border:1px solid ${SalesModule.escapeHtml(meta.border)}; border-radius:999px; font-size:0.74rem; font-weight:700; background:${SalesModule.escapeHtml(meta.bg)}; color:${SalesModule.escapeHtml(meta.color)};">${SalesModule.escapeHtml(meta.text)}</span>
+                                                        <span style="${warningStyle}">${SalesModule.escapeHtml(warningText)}</span>
                                                     </td>
                                                     <td style="padding:0.55rem; text-align:center;">
                                                         <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">

@@ -465,6 +465,9 @@
                     id: String(row?.id || '').trim(),
                     orderIndex: index,
                     sourceCatalogProductId: sourceId,
+                    sourceCatalogProductCode: String(row?.sourceCatalogProductCode || row?.sourceCatalogCode || '').trim().toUpperCase(),
+                    sourceCatalogIdCode: String(row?.sourceCatalogIdCode || '').trim().toUpperCase(),
+                    sourceCatalogName: String(row?.sourceCatalogName || '').trim(),
                     variantCode: String(row?.variantCode || '').trim().toUpperCase(),
                     productName: String(row?.productName || '').trim(),
                     bubble: String(row?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
@@ -1535,32 +1538,48 @@
                         <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon ekle +</button>
                     </div>
 
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:hidden;">
-                        <table style="width:100%; border-collapse:collapse;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:auto;">
+                        <table style="width:100%; min-width:1280px; border-collapse:collapse;">
                             <thead>
                                 <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
-                                    <th style="padding:0.58rem; text-align:left;">Varyasyon ID</th>
-                                    <th style="padding:0.58rem; text-align:left;">Varyasyon Adi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Pleksi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Aksesuar</th>
-                                    <th style="padding:0.58rem; text-align:left;">Boru</th>
-                                    <th style="padding:0.58rem; text-align:left;">Montaj Karti</th>
-                                    <th style="padding:0.58rem; text-align:left;">Guncelleme</th>
+                                    <th style="padding:0.58rem; text-align:left;">Urun adi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Urun kodu</th>
+                                    <th style="padding:0.58rem; text-align:left;">ID kodu</th>
+                                    <th style="padding:0.58rem; text-align:left;">Cap</th>
+                                    <th style="padding:0.58rem; text-align:left;">Aksesuar rengi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Boru rengi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Pleksi rengi</th>
+                                    <th style="padding:0.58rem; text-align:left;">Kabarcik</th>
+                                    <th style="padding:0.58rem; text-align:left;">Alt boru uzunlugu</th>
                                     <th style="padding:0.58rem; text-align:left;">Islem</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${variantRows.length === 0
-                ? '<tr><td colspan="8" style="padding:1.05rem; color:#94a3b8; text-align:center;">Bu urune henuz varyasyon eklenmedi.</td></tr>'
-                : variantRows.map((item) => `
+                ? '<tr><td colspan="10" style="padding:1.05rem; color:#94a3b8; text-align:center;">Bu urune henuz varyasyon eklenmedi.</td></tr>'
+                : variantRows.map((item) => {
+                    const productCode = String(item?.variantCode || item?.sourceCatalogProductCode || '').trim() || '-';
+                    const idCode = String(item?.sourceCatalogIdCode || row?.idCode || '').trim() || '-';
+                    const diameter = String(item?.selectedDiameter || row?.selectedDiameter || '').trim() || '-';
+                    const accessoryColor = String(item?.colors?.accessory?.color || item?.colors?.accessory?.name || '').trim() || '-';
+                    const tubeColor = String(item?.colors?.tube?.color || item?.colors?.tube?.name || '').trim() || '-';
+                    const plexiColor = String(item?.colors?.plexi?.color || item?.colors?.plexi?.name || '').trim() || '-';
+                    const bubble = String(item?.bubble || 'yok').trim() || 'yok';
+                    const lowerTubeValue = String(item?.lowerTubeLengthMm ?? row?.lowerTubeLength ?? '').trim();
+                    const lowerTubeText = !lowerTubeValue || lowerTubeValue.toLocaleLowerCase('tr-TR') === 'standart'
+                        ? 'standart'
+                        : lowerTubeValue;
+                    return `
                                         <tr style="border-bottom:1px solid #f1f5f9;">
-                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(item?.variantCode || '-')}</td>
                                             <td style="padding:0.58rem; color:#0f172a; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.productName || '-')}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.plexi?.color || item?.colors?.plexi?.name || '-')}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.accessory?.color || item?.colors?.accessory?.name || '-')}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.colors?.tube?.color || item?.colors?.tube?.name || '-')}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(item?.montageCard?.cardCode || '-')}</td>
-                                            <td style="padding:0.58rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.updatedAt || item?.createdAt || '-')}</td>
+                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(productCode)}</td>
+                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(idCode)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(diameter)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(accessoryColor)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(tubeColor)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(plexiColor)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(bubble)}</td>
+                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(lowerTubeText)}</td>
                                             <td style="padding:0.58rem;">
                                                 <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
                                                     <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('view', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">goruntule</button>
@@ -1569,7 +1588,8 @@
                                                 </div>
                                             </td>
                                         </tr>
-                                    `).join('')}
+                                    `;
+                }).join('')}
                             </tbody>
                         </table>
                     </div>

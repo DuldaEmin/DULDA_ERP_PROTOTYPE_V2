@@ -130,6 +130,7 @@
         planningPickerSource: '',
         assemblyFormModalOpen: false,
         salesProductDetailId: '',
+        salesProductEntrySource: '',
         salesVariationEditorMode: '',
         salesVariationEditingId: '',
         salesVariationDraft: null,
@@ -210,8 +211,14 @@
         if (nextView === 'assembly') {
             ProductLibraryModule.state.assemblyViewReturnContext = null;
         }
+        if (nextView === 'sales-products') {
+            if (String(ProductLibraryModule.state.salesProductEntrySource || '').trim().toLowerCase() !== 'sales') {
+                ProductLibraryModule.state.salesProductEntrySource = 'product-library';
+            }
+        }
         if (nextView !== 'sales-products') {
             ProductLibraryModule.state.salesProductDetailId = '';
+            ProductLibraryModule.state.salesProductEntrySource = '';
             ProductLibraryModule.state.salesVariationEditorMode = '';
             ProductLibraryModule.state.salesVariationEditingId = '';
             ProductLibraryModule.state.salesVariationDraft = null;
@@ -267,6 +274,7 @@
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
+        ProductLibraryModule.state.salesProductEntrySource = '';
         if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
             if (typeof StockModule.cancelInventoryRegistrationProductPicker === 'function') {
                 StockModule.cancelInventoryRegistrationProductPicker();
@@ -405,6 +413,7 @@
     openSalesProductVariationPage: (productId) => {
         const id = String(productId || '').trim();
         if (!id) return;
+        ProductLibraryModule.state.salesProductEntrySource = 'product-library';
         ProductLibraryModule.state.salesProductDetailId = id;
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
@@ -413,10 +422,20 @@
     },
 
     closeSalesProductVariationPage: () => {
+        const source = String(ProductLibraryModule.state.salesProductEntrySource || '').trim().toLowerCase();
         ProductLibraryModule.state.salesProductDetailId = '';
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
+        if (source === 'sales' && typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            if (typeof SalesModule !== 'undefined' && SalesModule?.state) {
+                SalesModule.state.workspaceView = 'products';
+            }
+            ProductLibraryModule.state.salesProductEntrySource = '';
+            Router.navigate('sales', { fromBack: true });
+            return;
+        }
+        ProductLibraryModule.state.salesProductEntrySource = '';
         UI.renderCurrentPage();
     },
 
@@ -512,8 +531,17 @@
                         })).filter((file) => file.data)
                         : [],
                     note: String(row?.note || '').trim(),
+                    productionReady: !!row?.productionReady,
                     createdAt: String(row?.created_at || ''),
                     updatedAt: String(row?.updated_at || '')
+                };
+            })
+            .map((row) => {
+                const status = ProductLibraryModule.getSalesVariationProductionStatus(row);
+                return {
+                    ...row,
+                    productionReady: status.ready,
+                    productionStatusReason: status.reason
                 };
             })
             .filter((row) => row.id && row.variantCode)
@@ -522,6 +550,22 @@
                 const bTime = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
                 return bTime - aTime;
             });
+    },
+
+    getSalesVariationProductionStatus: (row = {}) => {
+        const montageCode = String(row?.montageCard?.cardCode || row?.montageCardCode || '').trim();
+        const hasMasterRefs = Array.isArray(row?.masterRefs) && row.masterRefs.some((item) =>
+            String(item?.code || item?.refId || '').trim()
+        );
+        const hasComponentItems = Array.isArray(row?.items)
+            ? row.items.some((item) => String(item?.code || item?.refId || '').trim())
+            : (Array.isArray(row?.componentItems) && row.componentItems.some((item) => String(item?.code || item?.refId || '').trim()));
+        const missing = [];
+        if (!montageCode) missing.push('montaj karti');
+        if (!hasMasterRefs) missing.push('master urun bagi');
+        if (!hasComponentItems) missing.push('parca/bilesen bagi');
+        if (!missing.length) return { ready: true, reason: '' };
+        return { ready: false, reason: `Uretim plani eksik: ${missing.join(', ')}` };
     },
 
     getPlanningModelIdFromSalesVariationId: (variationId) => {
@@ -1160,6 +1204,8 @@
             created_at: String(prev?.created_at || now),
             updated_at: now
         };
+        const productionStatus = ProductLibraryModule.getSalesVariationProductionStatus(savedRow);
+        savedRow.productionReady = productionStatus.ready;
 
         if (idx >= 0 && !isCreate) store[idx] = savedRow;
         else store.push(savedRow);
@@ -1258,6 +1304,7 @@
         const productImage = String(sourceProduct?.images?.product || sourceProduct?.images?.application || '').trim();
         const technicalImage = String(sourceProduct?.images?.technical || '').trim();
         const statusCode = String(sourceProduct?.idCode || sourceProduct?.productCode || '-').trim();
+        const isSalesEntry = String(ProductLibraryModule.state.salesProductEntrySource || '').trim().toLowerCase() === 'sales';
 
         return `
             <div class="card-table" style="padding:1.2rem; margin-top:0.95rem; border:1.5px solid #111827; border-radius:1rem;">
@@ -1355,42 +1402,45 @@
                             </div>
                         </div>
 
-                        <div style="margin-top:0.44rem;">
-                            <label class="svx-label">Montaj Islem Karti</label>
-                            <div style="display:grid; grid-template-columns:1fr 84px 58px; gap:0.35rem;">
-                                <input ${readOnly ? 'readonly' : ''} class="svx-input" value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi">
-                                <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationMontagePicker()" style="${String(draft.montageCardCode || '').trim() ? 'background:#ecfdf5; border-color:#86efac; color:#166534;' : ''}">goruntule</button>
-                                ${readOnly
+                        ${isSalesEntry ? '' : `
+                            <div style="margin-top:0.44rem;">
+                                <label class="svx-label">Montaj Islem Karti</label>
+                                <div style="display:grid; grid-template-columns:1fr 84px 58px; gap:0.35rem;">
+                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi">
+                                    <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationMontagePicker()" style="${String(draft.montageCardCode || '').trim() ? 'background:#ecfdf5; border-color:#86efac; color:#166534;' : ''}">goruntule</button>
+                                    ${readOnly
                 ? '<button class="btn-sm" type="button" disabled>sil</button>'
                 : '<button class="btn-sm" type="button" onclick="ProductLibraryModule.setSalesVariationDraftField(\'montageCardCode\', \'\'); UI.renderCurrentPage();">sil</button>'}
+                                </div>
                             </div>
-                        </div>
 
-                        <div style="margin-top:0.55rem;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
-                                <label class="svx-label" style="margin:0;">Master Urun Kutuphanesi</label>
-                                ${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationMasterRef()" style="height:28px; padding:0 0.55rem;">master urun ekle +</button>'}
-                            </div>
-                            <div style="margin-top:0.25rem; display:flex; flex-direction:column; gap:0.25rem;">
-                                ${masterRefs.length === 0
+                            <div style="margin-top:0.55rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
+                                    <label class="svx-label" style="margin:0;">Master Urun Kutuphanesi</label>
+                                    ${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationMasterRef()" style="height:28px; padding:0 0.55rem;">master urun ekle +</button>'}
+                                </div>
+                                <div style="margin-top:0.25rem; display:flex; flex-direction:column; gap:0.25rem;">
+                                    ${masterRefs.length === 0
                 ? '<div style="font-size:0.8rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.45rem;">Bu varyanta bagli master urun yok.</div>'
                 : masterRefs.map((item, idx) => `
-                                        <div class="svx-row master">
-                                            <div style="font-size:0.74rem; color:#64748b;">${idx + 1}</div>
-                                            <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.28rem 0.4rem;">
-                                                <div style="font-size:0.74rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
-                                                <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                            <div class="svx-row master">
+                                                <div style="font-size:0.74rem; color:#64748b;">${idx + 1}</div>
+                                                <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.28rem 0.4rem;">
+                                                    <div style="font-size:0.74rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
+                                                    <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                                </div>
+                                                <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px;">goruntule</button>
+                                                <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
+                                                ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:30px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:30px;">sil</button>`}
                                             </div>
-                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px;">goruntule</button>
-                                            <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
-                                            ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:30px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:30px;">sil</button>`}
-                                        </div>
-                                    `).join('')}
+                                        `).join('')}
+                                </div>
                             </div>
-                        </div>
+                        `}
                     </div>
                 </div>
 
+                ${isSalesEntry ? '' : `
                 <div class="svx-grid svx-bottom" style="margin-top:0.95rem;">
                     <div class="svx-soft" style="padding:0.68rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem;">
@@ -1434,6 +1484,7 @@
                         </div>
                     </div>
                 </div>
+                `}
 
                 <div class="svx-note" style="margin-top:0.95rem;">
                     <label class="svx-label" style="font-size:1rem; color:#0f172a; font-weight:900;">not</label>
@@ -1569,9 +1620,15 @@
                     const lowerTubeText = !lowerTubeValue || lowerTubeValue.toLocaleLowerCase('tr-TR') === 'standart'
                         ? 'standart'
                         : lowerTubeValue;
+                    const productionStatus = ProductLibraryModule.getSalesVariationProductionStatus(item);
+                    const isIncomplete = !productionStatus.ready;
+                    const rowStyle = isIncomplete ? 'border-bottom:1px solid #fecdd3; background:#fff1f2;' : 'border-bottom:1px solid #f1f5f9;';
                     return `
-                                        <tr style="border-bottom:1px solid #f1f5f9;">
-                                            <td style="padding:0.58rem; color:#0f172a; font-weight:700;">${ProductLibraryModule.escapeHtml(item?.productName || '-')}</td>
+                                        <tr style="${rowStyle}" title="${ProductLibraryModule.escapeHtml(isIncomplete ? productionStatus.reason : '')}">
+                                            <td style="padding:0.58rem; color:#0f172a; font-weight:700;">
+                                                ${ProductLibraryModule.escapeHtml(item?.productName || '-')}
+                                                ${isIncomplete ? '<span style="margin-left:0.4rem; display:inline-flex; align-items:center; padding:0.1rem 0.45rem; border:1px solid #fda4af; border-radius:999px; background:#ffe4e6; color:#be123c; font-size:0.68rem; font-weight:800;">eksik</span>' : ''}
+                                            </td>
                                             <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(productCode)}</td>
                                             <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(idCode)}</td>
                                             <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(diameter)}</td>

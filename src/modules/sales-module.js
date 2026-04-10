@@ -69,6 +69,7 @@ const SalesModule = {
         if (!id) return;
         if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
             ProductLibraryModule.state.workspaceView = 'sales-products';
+            ProductLibraryModule.state.salesProductEntrySource = 'sales';
             ProductLibraryModule.state.salesProductDetailId = id;
             ProductLibraryModule.state.salesVariationEditorMode = '';
             ProductLibraryModule.state.salesVariationEditingId = '';

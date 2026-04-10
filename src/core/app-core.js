@@ -4,6 +4,8 @@
  */
 const STORAGE_KEY = "DULDA_ERP_STATE";
 const CONFLICT_DRAFT_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT";
+const BROWSER_MIRROR_IDB_KEY = "DULDA_ERP_STATE_IDB_MIRROR";
+const CONFLICT_DRAFT_IDB_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT_IDB";
 
 const MojibakeFix = {
     markerRegex: /[ÃÂâÄÅÆƒ‚�]/,
@@ -607,29 +609,58 @@ const DB = {
         : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
 
     mirrorStateToLocalStorage: (state = DB.data) => {
-        let mirrored = true;
         try {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            return true;
         } catch (error) {
-            mirrored = false;
             console.warn("Disk save succeeded, but browser mirror could not be updated.", error);
+            return false;
         }
+    },
+
+    clearConflictDrafts: async () => {
         try {
             localStorage.removeItem(CONFLICT_DRAFT_KEY);
         } catch (error) {
             console.warn("Could not clear local conflict draft key.", error);
         }
-        return mirrored;
+        const cleared = await IDB.del(CONFLICT_DRAFT_IDB_KEY);
+        if (!cleared) {
+            console.warn("Could not clear IndexedDB conflict draft key.");
+        }
     },
 
-    storeConflictDraft: (snapshot) => {
+    mirrorStateToBrowserBackup: async (state = DB.data) => {
+        const localMirrored = DB.mirrorStateToLocalStorage(state);
+        const idbMirrored = await IDB.set(BROWSER_MIRROR_IDB_KEY, state);
+        if (!idbMirrored) {
+            console.warn("Disk save succeeded, but IndexedDB mirror could not be updated.");
+        }
+        await DB.clearConflictDrafts();
+        return {
+            localMirrored,
+            idbMirrored,
+            mirrored: localMirrored || idbMirrored
+        };
+    },
+
+    storeConflictDraft: async (snapshot) => {
+        let localSaved = false;
         try {
             localStorage.setItem(CONFLICT_DRAFT_KEY, JSON.stringify(snapshot));
-            return true;
+            localSaved = true;
         } catch (error) {
-            console.error("Could not write local recovery draft.", error);
-            return false;
+            console.warn("Could not write local recovery draft.", error);
         }
+        const idbSaved = await IDB.set(CONFLICT_DRAFT_IDB_KEY, snapshot);
+        if (!idbSaved) {
+            console.warn("Could not write IndexedDB recovery draft.");
+        }
+        return {
+            saved: localSaved || idbSaved,
+            localSaved,
+            idbSaved
+        };
     },
 
     normalizeData: () => {
@@ -684,6 +715,8 @@ const DB = {
     loadState: async () => {
         let diskState = null;
         let localState = null;
+        let localStateSource = "";
+        let recoveryDraftState = null;
         let loaded = null;
 
         const stateTime = (state) => {
@@ -714,8 +747,31 @@ const DB = {
         if (saved) {
             try {
                 localState = JSON.parse(saved);
+                localStateSource = "localStorage";
             } catch (e) {
                 console.error("localStorage verisi bozuk, temiz başlangıç yapılacak.", e);
+            }
+        }
+        if (!localState) {
+            const indexedMirror = await IDB.get(BROWSER_MIRROR_IDB_KEY);
+            if (indexedMirror && typeof indexedMirror === "object") {
+                localState = indexedMirror;
+                localStateSource = "indexedDB";
+            }
+        }
+
+        const recoveryDraftRaw = localStorage.getItem(CONFLICT_DRAFT_KEY);
+        if (recoveryDraftRaw) {
+            try {
+                recoveryDraftState = JSON.parse(recoveryDraftRaw);
+            } catch (e) {
+                console.warn("local conflict draft bozuk, atlandi.", e);
+            }
+        }
+        if (!recoveryDraftState) {
+            const indexedDraft = await IDB.get(CONFLICT_DRAFT_IDB_KEY);
+            if (indexedDraft && typeof indexedDraft === "object") {
+                recoveryDraftState = indexedDraft;
             }
         }
 
@@ -746,6 +802,10 @@ const DB = {
         } else if (localState) {
             loaded = localState;
             DB.storageMode = "localStorage";
+        } else if (recoveryDraftState) {
+            loaded = recoveryDraftState;
+            DB.storageMode = "localStorage";
+            console.warn("Recovered unsynced state draft from browser backup.");
         }
 
         if (loaded) DB.data = loaded;
@@ -765,8 +825,14 @@ const DB = {
             await DB.save();
         }
 
-        if (!loaded) console.log("No saved data found, starting fresh.");
-        else console.log(`Data loaded from ${DB.storageMode}`);
+        if (!loaded) {
+            console.log("No saved data found, starting fresh.");
+        } else {
+            const sourceSuffix = (loaded === localState && localStateSource === "indexedDB")
+                ? " (IndexedDB mirror)"
+                : "";
+            console.log(`Data loaded from ${DB.storageMode}${sourceSuffix}`);
+        }
     },
 
     saveToDisk: async (state = DB.data, options = {}) => {
@@ -829,8 +895,8 @@ const DB = {
         }
         DB.data = latestSnapshot;
         DB.storageMode = "disk";
-        const mirrored = DB.mirrorStateToLocalStorage(DB.data);
-        UI.updateStatus(mirrored ? "🟢 Otomatik Kayit" : "🟢 Otomatik Kayit (Yerel yedek sinirli)");
+        const backup = await DB.mirrorStateToBrowserBackup(DB.data);
+        UI.updateStatus(backup.mirrored ? "🟢 Otomatik Kayit" : "🟢 Otomatik Kayit (Tarayici yedegi sinirli)");
         console.warn("Save conflict auto-resolved with latest snapshot.");
         return result;
     },
@@ -859,36 +925,30 @@ const DB = {
                     }
                     DB.storageMode = "disk";
                     // Keep local copy as backup mirror of the accepted disk state.
-                    const mirrored = DB.mirrorStateToLocalStorage(DB.data);
-                    UI.updateStatus(mirrored ? "🟢 Dosyaya Otomatik Kayıt" : "🟢 Dosyaya Otomatik Kayıt (Tarayici yedegi sinirli)");
+                    const backup = await DB.mirrorStateToBrowserBackup(DB.data);
+                    UI.updateStatus(backup.mirrored ? "🟢 Dosyaya Otomatik Kayıt" : "🟢 Dosyaya Otomatik Kayıt (Tarayici yedegi sinirli)");
                     console.log("Data saved to demo_state.json");
                 } catch (diskError) {
                     if (diskError?.code === "save_conflict") {
                         try {
                             await DB.resolveConflictAndSaveLatest(snapshot, diskError?.payload || null);
                         } catch (retryError) {
-                            const draftSaved = DB.storeConflictDraft(snapshot);
-                            UI.updateStatus(draftSaved ? "🟠 Kayit cakismasi - veri korunuyor" : "🔴 Kayit cakismasi - yedek alinamadi");
+                            const draftResult = await DB.storeConflictDraft(snapshot);
+                            UI.updateStatus(draftResult.saved ? "🟠 Kayit cakismasi - veri korunuyor" : "🔴 Kayit cakismasi - yedek alinamadi");
                             console.warn("Save conflict could not be auto-resolved.", retryError);
-                            alert(draftSaved
-                                ? "Kayit cakismasi otomatik cozulmedi. Lutfen sayfayi yenileyin."
-                                : "Kayit cakismasi ve yedekleme basarisiz. Lutfen sayfayi yenileyin.");
                         }
                     } else {
-                        const draftSaved = DB.storeConflictDraft(snapshot);
+                        const draftResult = await DB.storeConflictDraft(snapshot);
                         const serviceDown = diskError?.code === "state_service_unreachable";
-                        if (draftSaved) {
-                            UI.updateStatus("🟡 Gecici yedek alindi");
-                            if (serviceDown) {
-                                alert("Kayit sunucusuna ulasilamadi. Uygulamayi acik olan porttan tekrar acin.");
-                            }
-                            console.warn("Disk save failed, stored local recovery draft.", diskError);
+                        if (draftResult.saved) {
+                            const backupLabel = draftResult.localSaved ? "localStorage" : "IndexedDB";
+                            UI.updateStatus(serviceDown
+                                ? `🟡 Kayit sunucusu gecici ulasilamiyor - yedek alindi (${backupLabel})`
+                                : `🟡 Gecici yedek alindi (${backupLabel})`);
+                            console.warn("Disk save failed, stored browser recovery draft.", diskError);
                         } else {
-                            UI.updateStatus("🔴 Disk kaydi ve yerel yedek basarisiz");
+                            UI.updateStatus("🔴 Disk kaydi ve tarayici yedegi basarisiz");
                             console.error("Save failed", diskError);
-                            alert(serviceDown
-                                ? "Kayit sunucusuna ulasilamadi ve yerel yedek de alinamadi. Uygulamayi acik olan porttan tekrar acin."
-                                : "Kayit basarisiz. Lutfen tekrar deneyin.");
                         }
                     }
                 }
@@ -922,28 +982,89 @@ const DB = {
 };
 
 const IDB = {
-    get: async (key) => {
-        return new Promise(r => {
+    open: async () => {
+        return new Promise((resolve) => {
+            if (typeof indexedDB === "undefined") {
+                resolve(null);
+                return;
+            }
             const req = indexedDB.open('dulda_sys', 1);
-            req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
-            req.onsuccess = e => {
-                const tx = e.target.result.transaction('handles', 'readonly');
+            req.onupgradeneeded = e => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains('handles')) db.createObjectStore('handles');
+            };
+            req.onsuccess = e => resolve(e.target.result);
+            req.onerror = () => resolve(null);
+        });
+    },
+    get: async (key) => {
+        const db = await IDB.open();
+        if (!db) return null;
+        return new Promise((resolve) => {
+            let settled = false;
+            const done = (value) => {
+                if (settled) return;
+                settled = true;
+                try { db.close(); } catch (_e) {}
+                resolve(value);
+            };
+            try {
+                const tx = db.transaction('handles', 'readonly');
                 const store = tx.objectStore('handles');
                 const g = store.get(key);
-                g.onsuccess = () => r(g.result);
-                g.onerror = () => r(null);
-            };
-            req.onerror = () => r(null);
+                g.onsuccess = () => done(g.result ?? null);
+                g.onerror = () => done(null);
+                tx.onerror = () => done(null);
+                tx.onabort = () => done(null);
+            } catch (_e) {
+                done(null);
+            }
         });
     },
     set: async (key, val) => {
-        return new Promise(r => {
-            const req = indexedDB.open('dulda_sys', 1);
-            req.onsuccess = e => {
-                const tx = e.target.result.transaction('handles', 'readwrite');
-                tx.objectStore('handles').put(val, key);
-                tx.oncomplete = () => r();
+        const db = await IDB.open();
+        if (!db) return false;
+        return new Promise((resolve) => {
+            let settled = false;
+            const done = (ok) => {
+                if (settled) return;
+                settled = true;
+                try { db.close(); } catch (_e) {}
+                resolve(!!ok);
             };
+            try {
+                const tx = db.transaction('handles', 'readwrite');
+                const putReq = tx.objectStore('handles').put(val, key);
+                tx.oncomplete = () => done(true);
+                tx.onerror = () => done(false);
+                tx.onabort = () => done(false);
+                putReq.onerror = () => done(false);
+            } catch (_e) {
+                done(false);
+            }
+        });
+    },
+    del: async (key) => {
+        const db = await IDB.open();
+        if (!db) return false;
+        return new Promise((resolve) => {
+            let settled = false;
+            const done = (ok) => {
+                if (settled) return;
+                settled = true;
+                try { db.close(); } catch (_e) {}
+                resolve(!!ok);
+            };
+            try {
+                const tx = db.transaction('handles', 'readwrite');
+                const delReq = tx.objectStore('handles').delete(key);
+                tx.oncomplete = () => done(true);
+                tx.onerror = () => done(false);
+                tx.onabort = () => done(false);
+                delReq.onerror = () => done(false);
+            } catch (_e) {
+                done(false);
+            }
         });
     }
 };

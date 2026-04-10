@@ -125,6 +125,7 @@
         modelDraftNote: '',
         modelMasterPickerRowId: '',
         modelComponentPickerRowId: '',
+        salesVariationComponentPickerRowId: '',
         componentPickerSource: '',
         masterPickerSource: '',
         planningPickerSource: '',
@@ -875,6 +876,7 @@
             ProductLibraryModule.state.salesVariationEditorMode = 'create';
             ProductLibraryModule.state.salesVariationEditingId = '';
             ProductLibraryModule.state.salesVariationDraft = ProductLibraryModule.buildSalesVariationDraft(sourceProduct);
+            ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
             UI.renderCurrentPage();
             return;
         }
@@ -884,6 +886,7 @@
         ProductLibraryModule.state.salesVariationEditorMode = normalizedMode;
         ProductLibraryModule.state.salesVariationEditingId = String(selected.id || '');
         ProductLibraryModule.state.salesVariationDraft = ProductLibraryModule.buildSalesVariationDraft(sourceProduct, selected);
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         UI.renderCurrentPage();
     },
 
@@ -891,6 +894,7 @@
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         UI.renderCurrentPage();
     },
 
@@ -980,6 +984,21 @@
         if (!ProductLibraryModule.state.salesVariationDraft) return;
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = 'sales-variation-component';
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
+        ProductLibraryModule.state.componentLibraryKind = 'PART';
+        ProductLibraryModule.state.componentViewingId = null;
+        ProductLibraryModule.state.componentFormOpen = false;
+        ProductLibraryModule.state.workspaceView = 'components';
+        UI.renderCurrentPage();
+    },
+
+    editSalesVariationComponentItem: (id) => {
+        if (!ProductLibraryModule.state.salesVariationDraft) return;
+        const rowId = String(id || '').trim();
+        if (!rowId) return;
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = 'sales-variation-component-row';
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = rowId;
         ProductLibraryModule.state.componentLibraryKind = 'PART';
         ProductLibraryModule.state.componentViewingId = null;
         ProductLibraryModule.state.componentFormOpen = false;
@@ -1018,6 +1037,10 @@
     selectSalesVariationComponent: (id) => {
         const row = ProductLibraryModule.getComponentCardById(id);
         if (!row || !ProductLibraryModule.state.salesVariationDraft) return;
+        const source = String(ProductLibraryModule.state.componentPickerSource || '').trim();
+        const editingRowId = source === 'sales-variation-component-row'
+            ? String(ProductLibraryModule.state.salesVariationComponentPickerRowId || '').trim()
+            : '';
         const code = String(row.code || '').trim().toUpperCase();
         if (!code) {
             alert('Secilen kayitta parca/bilesen kodu bulunamadi.');
@@ -1026,19 +1049,43 @@
         const list = Array.isArray(ProductLibraryModule.state.salesVariationDraft.componentItems)
             ? ProductLibraryModule.state.salesVariationDraft.componentItems
             : [];
-        if (list.some((item) => String(item?.code || '').trim().toUpperCase() === code)) {
+        const duplicate = list.some((item) => {
+            const sameCode = String(item?.code || '').trim().toUpperCase() === code;
+            if (!sameCode) return false;
+            if (!editingRowId) return true;
+            return String(item?.id || '').trim() !== editingRowId;
+        });
+        if (duplicate) {
             alert('Bu parca/bilesen zaten listede var.');
             return;
         }
-        list.push({
-            id: crypto.randomUUID(),
-            refId: String(row.id || '').trim(),
-            code,
-            name: String(row.name || '').trim(),
-            qty: 1
-        });
+        if (editingRowId) {
+            const target = list.find((item) => String(item?.id || '').trim() === editingRowId);
+            if (target) {
+                target.refId = String(row.id || '').trim();
+                target.code = code;
+                target.name = String(row.name || '').trim();
+            } else {
+                list.push({
+                    id: crypto.randomUUID(),
+                    refId: String(row.id || '').trim(),
+                    code,
+                    name: String(row.name || '').trim(),
+                    qty: 1
+                });
+            }
+        } else {
+            list.push({
+                id: crypto.randomUUID(),
+                refId: String(row.id || '').trim(),
+                code,
+                name: String(row.name || '').trim(),
+                qty: 1
+            });
+        }
         ProductLibraryModule.state.salesVariationDraft.componentItems = list;
         ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         ProductLibraryModule.state.workspaceView = 'sales-products';
         UI.renderCurrentPage();
     },
@@ -1056,31 +1103,85 @@
                 ) || null;
             }
             if (!target) return alert('Bagli master urun kaydi bulunamadi.');
-            ProductLibraryModule.state.masterPickerSource = '';
-            ProductLibraryModule.state.componentPickerSource = '';
-            ProductLibraryModule.state.workspaceView = 'master';
-            ProductLibraryModule.state.masterSelectedId = String(target.id || '');
-            ProductLibraryModule.state.masterFormOpen = false;
-            ProductLibraryModule.state.masterEditingId = null;
-            UI.renderCurrentPage();
+            const summaryHtml = `
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                    <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(target.name || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">kategori</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(target.categoryName || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-weight:700; font-family:monospace; color:#0f172a;">${ProductLibraryModule.escapeHtml(target.code || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">olcu / birim</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml([target.unitAmount, target.unitAmountType].filter(Boolean).join(' ') || target.unit || '-')}</div></div>
+                    <div style="grid-column:1 / -1;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155; white-space:pre-wrap;">${ProductLibraryModule.escapeHtml(target.note || 'Not bulunmuyor.')}</div></div>
+                </div>`;
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.open === 'function') {
+                Modal.open('Master urun bilgisi', summaryHtml, { maxWidth: '560px' });
+            } else {
+                alert(`${target.name || 'Master urun'}\n${target.code || ''}`.trim());
+            }
             return;
         }
 
         if (type === 'component') {
-            let target = normalizedRefId ? ProductLibraryModule.getComponentCardById(normalizedRefId) : null;
+            let target = normalizedRefId
+                ? (ProductLibraryModule.getComponentCardById(normalizedRefId) || ProductLibraryModule.getSemiFinishedCardById(normalizedRefId))
+                : null;
+            let libraryKind = ProductLibraryModule.getSemiFinishedCardById(String(target?.id || '')) ? 'SEMI' : 'PART';
             if (!target && normalizedCode) {
-                target = ProductLibraryModule.getComponentCardsByLibraryKind('PART').find((row) =>
+                const partHit = ProductLibraryModule.getComponentCardsByKind('PART').find((row) =>
                     String(row?.code || '').trim().toUpperCase() === normalizedCode
                 ) || null;
+                const semiHit = ProductLibraryModule.getComponentCardsByKind('SEMI').find((row) =>
+                    String(row?.code || '').trim().toUpperCase() === normalizedCode
+                ) || null;
+                target = partHit || semiHit || null;
+                libraryKind = semiHit ? 'SEMI' : 'PART';
             }
             if (!target) return alert('Bagli parca/bilesen kaydi bulunamadi.');
-            ProductLibraryModule.state.masterPickerSource = '';
-            ProductLibraryModule.state.componentPickerSource = '';
-            ProductLibraryModule.state.componentLibraryKind = 'PART';
-            ProductLibraryModule.state.workspaceView = 'components';
-            ProductLibraryModule.state.componentViewingId = String(target.id || '');
-            ProductLibraryModule.state.componentFormOpen = false;
-            UI.renderCurrentPage();
+            const routes = Array.isArray(target?.routes) ? target.routes : [];
+            const files = Array.isArray(target?.attachments) ? target.attachments : [];
+            const unitMap = ProductLibraryModule.getRouteStationMap();
+            const routeRows = routes.length === 0
+                ? '<tr><td colspan="4" style="padding:0.6rem; color:#94a3b8;">Rota tanimli degil.</td></tr>'
+                : routes.map((r, idx) => `
+                    <tr style="border-bottom:1px solid #f1f5f9;">
+                        <td style="padding:0.45rem;">${idx + 1}</td>
+                        <td style="padding:0.45rem;">${ProductLibraryModule.escapeHtml(unitMap[r?.stationId] || r?.stationId || '-')}</td>
+                        <td style="padding:0.45rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessDisplayValue(r) || '-')}</td>
+                        <td style="padding:0.45rem; color:#334155; font-weight:700;">${ProductLibraryModule.escapeHtml(ProductLibraryModule.getRouteProcessName(r) || '-')}</td>
+                    </tr>
+                `).join('');
+            const summaryHtml = `
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                    <div><div style="font-size:0.72rem; color:#64748b;">urun adi</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(target.name || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">kutuphane</div><div style="font-weight:700; color:#111827;">${libraryKind === 'SEMI' ? 'Yari Mamul' : 'Parca ve Bilesen'}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">kategori</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(target.group || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">renk</div><div style="font-weight:700; color:#111827;">${ProductLibraryModule.escapeHtml(target.subGroup || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">ID kod</div><div style="font-weight:700; font-family:monospace; color:#0f172a;">${ProductLibraryModule.escapeHtml(target.code || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">bagli master kod</div><div style="font-weight:700; font-family:monospace; color:#0f172a;">${ProductLibraryModule.escapeHtml(target.masterCode || '-')}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">dosya sayisi</div><div style="font-weight:700; color:#111827;">${String(files.length)}</div></div>
+                    <div><div style="font-size:0.72rem; color:#64748b;">rota adimi</div><div style="font-weight:700; color:#111827;">${String(routes.length)}</div></div>
+                    <div style="grid-column:1 / -1;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155; white-space:pre-wrap;">${ProductLibraryModule.escapeHtml(target.note || 'Not bulunmuyor.')}</div></div>
+                </div>
+                <div style="margin-top:0.75rem;">
+                    <div style="font-size:0.78rem; color:#64748b; margin-bottom:0.28rem;">rota</div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; overflow:auto;">
+                        <table style="width:100%; border-collapse:collapse; min-width:560px;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                    <th style="padding:0.45rem; text-align:left;">Sira</th>
+                                    <th style="padding:0.45rem; text-align:left;">Istasyon</th>
+                                    <th style="padding:0.45rem; text-align:left;">Islem ID</th>
+                                    <th style="padding:0.45rem; text-align:left;">Islem adi</th>
+                                </tr>
+                            </thead>
+                            <tbody>${routeRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.open === 'function') {
+                Modal.open('Parca / Bilesen bilgisi', summaryHtml, { maxWidth: '900px' });
+            } else {
+                alert(`${target.name || 'Parca/bilesen'}\n${target.code || ''}`.trim());
+            }
         }
     },
 
@@ -1233,6 +1334,7 @@
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         UI.renderCurrentPage();
         alert(asCopy ? `Yeni varyasyon olusturuldu: ${normalizedCode}` : (isCreate ? 'Yeni varyasyon olusturuldu.' : 'Varyasyon guncellendi.'));
     },
@@ -1248,6 +1350,7 @@
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         UI.renderCurrentPage();
         alert('Varyasyon silindi.');
     },
@@ -1445,7 +1548,7 @@
                                             <div class="svx-row master">
                                                 <div style="font-size:0.74rem; color:#64748b;">${idx + 1}</div>
                                                 <div style="border:1px solid #e2e8f0; border-radius:0.5rem; padding:0.28rem 0.4rem;">
-                                                    <div style="font-size:0.74rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
+                                                    <button type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="font-size:0.74rem; font-weight:800; color:#1d4ed8; font-family:monospace; background:none; border:none; padding:0; cursor:pointer; text-align:left;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
                                                     <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                                 </div>
                                                 <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px;">goruntule</button>
@@ -1473,15 +1576,20 @@
                             ${componentItems.length === 0
                 ? '<div style="font-size:0.84rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.6rem; padding:0.6rem;">Bagli parca/bilesen yok.</div>'
                 : componentItems.map((item, idx) => `
-                                        <div class="svx-row comp">
+                                        <div style="display:grid; grid-template-columns:28px minmax(360px, 1fr) 210px 150px 150px; gap:0.42rem; align-items:center;">
                                             <div style="font-size:0.76rem; color:#64748b;">${idx + 1}</div>
-                                            <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.35rem 0.45rem;">
-                                                <div style="font-size:0.76rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
-                                                <div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                            <div style="border:1px solid #dbe2eb; border-radius:0.75rem; padding:0.45rem 0.6rem; background:#f8fafc;">
+                                                <button type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="font-size:0.9rem; font-weight:900; color:#1d4ed8; font-family:monospace; background:none; border:none; padding:0; cursor:pointer; text-align:left;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
+                                                <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                             </div>
-                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:31px;">goruntule</button>
-                                            <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
-                                            ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:31px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:31px;">sil</button>`}
+                                            <div style="display:flex; align-items:center; gap:0.45rem;">
+                                                <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:44px; width:92px; border-radius:0.75rem; font-size:1.55rem; font-weight:500;">
+                                                <span style="font-size:0.72rem; font-weight:800; color:#334155; letter-spacing:0.02em;">adet</span>
+                                            </div>
+                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">goruntule</button>
+                                            ${readOnly
+                    ? '<button class="btn-sm" type="button" disabled style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">duzenle</button>'
+                    : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">duzenle</button>`}
                                         </div>
                                     `).join('')}
                         </div>
@@ -2433,6 +2541,7 @@
         ProductLibraryModule.state.masterPickerSource = '';
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.modelComponentPickerRowId = '';
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
         if (src === 'model-component' || src === 'model-component-row') {
             if (src === 'model-component-row' && pendingRowId) {
                 const items = Array.isArray(ProductLibraryModule.state.modelDraftItems) ? ProductLibraryModule.state.modelDraftItems : [];
@@ -2443,7 +2552,7 @@
             ProductLibraryModule.state.workspaceView = 'models';
             ProductLibraryModule.state.modelFormOpen = true;
             ProductLibraryModule.state.modelViewingId = null;
-        } else if (src === 'sales-variation-component') {
+        } else if (src === 'sales-variation-component' || src === 'sales-variation-component-row') {
             ProductLibraryModule.state.workspaceView = 'sales-products';
         } else {
             ProductLibraryModule.state.workspaceView = 'assembly';
@@ -3456,7 +3565,8 @@
         const state = ProductLibraryModule.state;
         const isAssemblyComponentPicker = state.componentPickerSource === 'assembly-component';
         const isModelComponentPicker = state.componentPickerSource === 'model-component' || state.componentPickerSource === 'model-component-row';
-        const isSalesVariationComponentPicker = state.componentPickerSource === 'sales-variation-component';
+        const isSalesVariationComponentPicker = state.componentPickerSource === 'sales-variation-component'
+            || state.componentPickerSource === 'sales-variation-component-row';
         const planningPickerSource = String(state.planningPickerSource || '');
         const isPlanningComponentPicker = planningPickerSource === 'component' || planningPickerSource === 'semi';
         const isStockInventoryPicker = isPlanningComponentPicker

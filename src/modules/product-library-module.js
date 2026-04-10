@@ -841,6 +841,17 @@
         };
         const sourceColors = sourceRow?.colors || {};
         const productColors = sourceProduct?.colors || {};
+        const componentItems = Array.isArray(sourceRow?.items)
+            ? sourceRow.items
+                .map((item) => ({
+                    id: String(item?.id || crypto.randomUUID()),
+                    refId: String(item?.refId || '').trim(),
+                    code: String(item?.code || '').trim().toUpperCase(),
+                    name: String(item?.name || '').trim(),
+                    qty: Math.max(1, Number(item?.qty || 1))
+                }))
+                .filter((item) => item.code)
+            : [];
         return {
             id: asCopy ? '' : String(sourceRow?.id || '').trim(),
             sourceCatalogProductId: String(sourceProduct?.id || '').trim(),
@@ -858,7 +869,8 @@
             },
             montageCardCode: String(sourceRow?.montageCard?.cardCode || '').trim().toUpperCase(),
             masterRefs: Array.isArray(sourceRow?.masterRefs) ? sourceRow.masterRefs.map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
-            componentItems: Array.isArray(sourceRow?.items) ? sourceRow.items.map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
+            componentItems,
+            componentItemsBaseline: componentItems.map((item) => ({ ...item })),
             explodedFiles: Array.isArray(sourceRow?.explodedFiles) ? sourceRow.explodedFiles.map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data) : [],
             note: String(sourceRow?.note || '').trim()
         };
@@ -1220,6 +1232,33 @@
         target.qty = Math.max(1, Number(String(value || '').replace(',', '.')) || 1);
     },
 
+    getSalesVariationComponentBaselineMap: (draft = {}) => {
+        const baseline = Array.isArray(draft?.componentItemsBaseline) ? draft.componentItemsBaseline : [];
+        const map = new Map();
+        baseline.forEach((item) => {
+            const id = String(item?.id || '').trim();
+            if (!id) return;
+            map.set(id, {
+                id,
+                code: String(item?.code || '').trim().toUpperCase(),
+                qty: Math.max(1, Number(item?.qty || 1))
+            });
+        });
+        return map;
+    },
+
+    getSalesVariationComponentChangeInfo: (item = {}, baselineMap = new Map()) => {
+        const id = String(item?.id || '').trim();
+        const code = String(item?.code || '').trim().toUpperCase();
+        const qty = Math.max(1, Number(item?.qty || 1));
+        const base = id ? baselineMap.get(id) : null;
+        if (!base) return { changed: true, detail: 'yeni satir' };
+        const diffs = [];
+        if (base.code !== code) diffs.push(`${base.code || '-'} -> ${code || '-'}`);
+        if (base.qty !== qty) diffs.push(`adet ${base.qty} -> ${qty}`);
+        return { changed: diffs.length > 0, detail: diffs.join(' / ') };
+    },
+
     handleSalesVariationExplodedFiles: (input) => {
         if (!ProductLibraryModule.state.salesVariationDraft) return;
         const files = Array.from(input?.files || []);
@@ -1420,6 +1459,7 @@
         const explodedFiles = Array.isArray(draft?.explodedFiles) ? draft.explodedFiles : [];
         const masterRefs = Array.isArray(draft?.masterRefs) ? draft.masterRefs : [];
         const componentItems = Array.isArray(draft?.componentItems) ? draft.componentItems : [];
+        const componentBaselineMap = ProductLibraryModule.getSalesVariationComponentBaselineMap(draft);
         const categoryPath = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogCategoryPathText === 'function')
             ? SalesModule.getCatalogCategoryPathText(sourceProduct?.categoryId || '')
             : String(sourceProduct?.categoryId || '').trim();
@@ -1459,6 +1499,9 @@
                     .svx-unit{font-size:0.72rem; font-weight:800; color:#334155; letter-spacing:0.01em;}
                     .svx-action-btn{height:40px; width:100%; min-width:0; border-radius:0.65rem; font-size:0.78rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; text-align:center; line-height:1; padding:0 0.35rem; white-space:nowrap;}
                     .svx-add-btn{height:32px; min-width:170px; display:inline-flex; align-items:center; justify-content:center; text-align:center; line-height:1;}
+                    .svx-component-row.is-changed{background:#fff7d6; border:1px solid #fde68a; border-radius:0.72rem; padding:0.16rem;}
+                    .svx-change-badge{display:inline-flex; align-items:center; padding:0.08rem 0.42rem; border:1px solid #f59e0b; border-radius:999px; background:#ffedd5; color:#9a3412; font-size:0.66rem; font-weight:900; margin-top:0.16rem;}
+                    .svx-change-text{font-size:0.7rem; color:#9a3412; margin-top:0.14rem; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
                     @media (max-width: 1260px){
                         .svx-top,.svx-bottom{grid-template-columns:1fr;}
                         .svx-note{max-width:100%;}
@@ -1587,11 +1630,16 @@
                             ${componentItems.length === 0
                 ? '<div style="font-size:0.84rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.6rem; padding:0.6rem;">Bagli parca/bilesen yok.</div>'
                 : componentItems.map((item, idx) => `
-                                        <div class="svx-component-row">
+                                        ${(() => {
+                    const changeInfo = ProductLibraryModule.getSalesVariationComponentChangeInfo(item, componentBaselineMap);
+                    const rowClass = changeInfo.changed ? 'svx-component-row is-changed' : 'svx-component-row';
+                    return `
+                                        <div class="${rowClass}">
                                             <div style="font-size:0.76rem; color:#64748b;">${idx + 1}</div>
                                             <div class="svx-code-card">
                                                 <button type="button" class="svx-code-link" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
                                                 <div class="svx-code-name">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                                ${changeInfo.changed ? `<div class="svx-change-badge">DEGISTI</div><div class="svx-change-text">${ProductLibraryModule.escapeHtml(changeInfo.detail || '')}</div>` : ''}
                                             </div>
                                             <div class="svx-qty-wrap">
                                                 <input ${readOnly ? 'readonly' : ''} class="svx-qty-input" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
@@ -1602,6 +1650,8 @@
                     ? '<button class="btn-sm svx-action-btn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">duzenle</button>'
                     : `<button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>`}
                                         </div>
+                                    `;
+                })()}
                                     `).join('')}
                         </div>
                     </div>

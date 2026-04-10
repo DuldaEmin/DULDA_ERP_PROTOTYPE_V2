@@ -1150,7 +1150,9 @@
         const mode = String(ProductLibraryModule.state.salesVariationEditorMode || '').trim();
         const isCreate = asCopy || mode === 'create' || !editingId;
         const normalizedCode = (() => {
-            if (asCopy) return ProductLibraryModule.generateSalesVariantCode(sourceProduct, editingId);
+            // "Farkli Kaydet" her zaman yeni bir varyasyon kodu uretmeli.
+            // Eski satiri dislamak burada ayni kodu tekrar uretebiliyordu (ornek: 2015-001).
+            if (asCopy) return ProductLibraryModule.generateSalesVariantCode(sourceProduct);
             return String(draft.variantCode || '').trim().toUpperCase();
         })();
         if (!normalizedCode) return alert('Varyasyon ID zorunlu.');

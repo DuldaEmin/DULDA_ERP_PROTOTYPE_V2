@@ -8,6 +8,7 @@ const SalesModule = {
         customerDetailId: null,
         customerDetailMode: 'view',
         customerEditDraft: null,
+        customerImportPreview: null,
         catalogActiveMainId: 'korkuluk',
         catalogActiveGroupId: '',
         catalogActiveCategoryId: '',
@@ -128,10 +129,19 @@ const SalesModule = {
                 city: String(row?.city || '').trim(),
                 district: String(row?.district || '').trim(),
                 phone: String(row?.phone || '').trim(),
+                phoneCountryCode: String(row?.phoneCountryCode || '').trim(),
+                phoneAreaCode: String(row?.phoneAreaCode || '').trim(),
+                phoneAlt: String(row?.phoneAlt || '').trim(),
                 email: String(row?.email || '').trim(),
                 taxOffice: String(row?.taxOffice || '').trim(),
                 taxNo: String(row?.taxNo || '').trim(),
                 address: String(row?.address || '').trim(),
+                addressNo: String(row?.addressNo || '').trim(),
+                postalCode: String(row?.postalCode || '').trim(),
+                country: String(row?.country || '').trim(),
+                externalCode: String(row?.externalCode || '').trim(),
+                faxNo: String(row?.faxNo || '').trim(),
+                modemNo: String(row?.modemNo || '').trim(),
                 authorizedPerson: String(row?.authorizedPerson || '').trim(),
                 discountRate: SalesModule.parsePercent(row?.discountRate || 0),
                 paymentTermDays: SalesModule.parseDays(row?.paymentTermDays || 0),
@@ -198,10 +208,19 @@ const SalesModule = {
             city: String(row?.city || '').trim(),
             district: String(row?.district || '').trim(),
             phone: String(row?.phone || '').trim(),
+            phoneCountryCode: String(row?.phoneCountryCode || '').trim(),
+            phoneAreaCode: String(row?.phoneAreaCode || '').trim(),
+            phoneAlt: String(row?.phoneAlt || '').trim(),
             email: String(row?.email || '').trim(),
             taxOffice: String(row?.taxOffice || '').trim(),
             taxNo: String(row?.taxNo || '').trim(),
             address: String(row?.address || '').trim(),
+            addressNo: String(row?.addressNo || '').trim(),
+            postalCode: String(row?.postalCode || '').trim(),
+            country: String(row?.country || '').trim(),
+            externalCode: String(row?.externalCode || '').trim(),
+            faxNo: String(row?.faxNo || '').trim(),
+            modemNo: String(row?.modemNo || '').trim(),
             authorizedPerson: String(row?.authorizedPerson || '').trim(),
             discountRate: SalesModule.parsePercent(row?.discountRate || 0),
             paymentTermDays: SalesModule.parseDays(row?.paymentTermDays || 0),
@@ -226,64 +245,118 @@ const SalesModule = {
 
     renderCustomerModalFormHtml: (draft, isEdit) => {
         return `
-            <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri adi *</label>
-                    <input id="sales_customer_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum">
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
+                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Kimlik ve Iletisim</div>
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri adi *</label>
+                            <input id="sales_customer_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili kisi</label>
+                            <input id="sales_customer_authorized" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.authorizedPerson || ''))}" placeholder="or: Ahmet Yilmaz">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">E-posta</label>
+                            <input id="sales_customer_email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.email || ''))}" placeholder="or: satis@firma.com">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Telefon</label>
+                            <input id="sales_customer_phone" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phone || ''))}" placeholder="or: 0532...">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel ulke kodu</label>
+                            <input id="sales_customer_phone_country_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneCountryCode || ''))}" placeholder="or: 90">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel bolge kodu</label>
+                            <input id="sales_customer_phone_area_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAreaCode || ''))}" placeholder="or: 312">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel no2</label>
+                            <input id="sales_customer_phone_alt" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAlt || ''))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Fax no</label>
+                            <input id="sales_customer_fax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.faxNo || ''))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Modem no</label>
+                            <input id="sales_customer_modem_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.modemNo || ''))}">
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sehir</label>
-                    <input id="sales_customer_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Istanbul">
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
+                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Adres ve Konum</div>
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ulke</label>
+                            <input id="sales_customer_country" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.country || ''))}" placeholder="or: Turkiye">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sehir</label>
+                            <input id="sales_customer_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Istanbul">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ilce</label>
+                            <input id="sales_customer_district" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.district || ''))}" placeholder="or: Umraniye">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Posta kodu</label>
+                            <input id="sales_customer_postal_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.postalCode || ''))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Adres no</label>
+                            <input id="sales_customer_address_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.addressNo || ''))}">
+                        </div>
+                        <div style="grid-column:span 3;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label>
+                            <textarea id="sales_customer_address" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ilce</label>
-                    <input id="sales_customer_district" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.district || ''))}" placeholder="or: Umraniye">
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
+                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Ticari ve Resmi Bilgiler</div>
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+                        <div>
+                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Cari kodu</label>
+                            <input id="sales_customer_external_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
+                            <input id="sales_customer_tax_office" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
+                            <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
+                            <input id="sales_customer_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label>
+                            <input id="sales_customer_term_days" type="number" min="0" step="1" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.paymentTermDays || 0))}">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label>
+                            <input id="sales_customer_risk_limit" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.riskLimit || 0))}">
+                        </div>
+                        <div style="grid-column:span 3;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Etiketler</label>
+                            <input id="sales_customer_tags" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.tagsText || ''))}" placeholder="bayi, proje, perakende">
+                        </div>
+                        <div style="grid-column:span 3;">
+                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
+                            <textarea id="sales_customer_note" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.note || ''))}</textarea>
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Telefon</label>
-                    <input id="sales_customer_phone" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phone || ''))}" placeholder="or: 0532...">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">E-posta</label>
-                    <input id="sales_customer_email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.email || ''))}" placeholder="or: satis@firma.com">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili kisi</label>
-                    <input id="sales_customer_authorized" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.authorizedPerson || ''))}" placeholder="or: Ahmet Yilmaz">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
-                    <input id="sales_customer_tax_office" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
-                    <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
-                    <input id="sales_customer_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label>
-                    <input id="sales_customer_term_days" type="number" min="0" step="1" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.paymentTermDays || 0))}">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label>
-                    <input id="sales_customer_risk_limit" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.riskLimit || 0))}">
-                </div>
-                <div>
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Etiketler</label>
-                    <input id="sales_customer_tags" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.tagsText || ''))}" placeholder="bayi, proje, perakende">
-                </div>
-                <div style="grid-column:span 3;">
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label>
-                    <textarea id="sales_customer_address" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea>
-                </div>
-                <div style="grid-column:span 3;">
-                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
-                    <textarea id="sales_customer_note" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.note || ''))}</textarea>
-                </div>
-                <div style="grid-column:span 3; display:flex; justify-content:flex-end; gap:0.45rem;">
+
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
                     <button class="btn-sm" onclick="Modal.close()">iptal</button>
                     <button class="btn-primary" onclick="${isEdit ? 'SalesModule.saveCustomerDetail()' : 'SalesModule.saveCustomerFromModal()'}">kaydet</button>
                 </div>
@@ -298,11 +371,20 @@ const SalesModule = {
             city: String(read('sales_customer_city')).trim(),
             district: String(read('sales_customer_district')).trim(),
             phone: String(read('sales_customer_phone')).trim(),
+            phoneCountryCode: String(read('sales_customer_phone_country_code')).trim(),
+            phoneAreaCode: String(read('sales_customer_phone_area_code')).trim(),
+            phoneAlt: String(read('sales_customer_phone_alt')).trim(),
             email: String(read('sales_customer_email')).trim(),
             authorizedPerson: String(read('sales_customer_authorized')).trim(),
             taxOffice: String(read('sales_customer_tax_office')).trim(),
             taxNo: String(read('sales_customer_tax_no')).trim(),
             address: String(read('sales_customer_address')).trim(),
+            addressNo: String(read('sales_customer_address_no')).trim(),
+            postalCode: String(read('sales_customer_postal_code')).trim(),
+            country: String(read('sales_customer_country')).trim(),
+            externalCode: String(read('sales_customer_external_code')).trim(),
+            faxNo: String(read('sales_customer_fax_no')).trim(),
+            modemNo: String(read('sales_customer_modem_no')).trim(),
             note: String(read('sales_customer_note')).trim(),
             discountRate: SalesModule.parsePercent(read('sales_customer_discount')),
             paymentTermDays: SalesModule.parseDays(read('sales_customer_term_days')),
@@ -329,10 +411,19 @@ const SalesModule = {
             city: draft.city,
             district: draft.district,
             phone: draft.phone,
+            phoneCountryCode: draft.phoneCountryCode,
+            phoneAreaCode: draft.phoneAreaCode,
+            phoneAlt: draft.phoneAlt,
             email: draft.email,
             taxOffice: draft.taxOffice,
             taxNo: draft.taxNo,
             address: draft.address,
+            addressNo: draft.addressNo,
+            postalCode: draft.postalCode,
+            country: draft.country,
+            externalCode: draft.externalCode,
+            faxNo: draft.faxNo,
+            modemNo: draft.modemNo,
             authorizedPerson: draft.authorizedPerson,
             discountRate: draft.discountRate,
             paymentTermDays: draft.paymentTermDays,
@@ -435,10 +526,19 @@ const SalesModule = {
             city: String(draft.city || '').trim(),
             district: String(draft.district || '').trim(),
             phone: String(draft.phone || '').trim(),
+            phoneCountryCode: String(draft.phoneCountryCode || '').trim(),
+            phoneAreaCode: String(draft.phoneAreaCode || '').trim(),
+            phoneAlt: String(draft.phoneAlt || '').trim(),
             email: String(draft.email || '').trim(),
             taxOffice: String(draft.taxOffice || '').trim(),
             taxNo: String(draft.taxNo || '').trim(),
             address: String(draft.address || '').trim(),
+            addressNo: String(draft.addressNo || '').trim(),
+            postalCode: String(draft.postalCode || '').trim(),
+            country: String(draft.country || '').trim(),
+            externalCode: String(draft.externalCode || '').trim(),
+            faxNo: String(draft.faxNo || '').trim(),
+            modemNo: String(draft.modemNo || '').trim(),
             authorizedPerson: String(draft.authorizedPerson || '').trim(),
             discountRate: SalesModule.parsePercent(draft.discountRate || 0),
             paymentTermDays: SalesModule.parseDays(draft.paymentTermDays || 0),
@@ -483,6 +583,390 @@ const SalesModule = {
         await DB.save();
         UI.renderCurrentPage();
         alert('Musteri silindi.');
+    },
+
+    ensureXlsxLib: async () => {
+        if (typeof window !== 'undefined' && window.XLSX) return window.XLSX;
+        const scriptId = 'xlsx-lib-cdn';
+        const existing = document.getElementById(scriptId);
+        if (existing) {
+            await new Promise((resolve, reject) => {
+                if (window.XLSX) return resolve();
+                existing.addEventListener('load', () => resolve(), { once: true });
+                existing.addEventListener('error', () => reject(new Error('XLSX kutuphanesi yuklenemedi.')), { once: true });
+            });
+            return window.XLSX;
+        }
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.id = scriptId;
+            script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+            script.async = true;
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error('XLSX kutuphanesi yuklenemedi.'));
+            document.head.appendChild(script);
+        });
+        if (!window.XLSX) throw new Error('XLSX kutuphanesi kullanilamiyor.');
+        return window.XLSX;
+    },
+
+    normalizeImportToken: (value) => String(value || '')
+        .trim()
+        .toLocaleLowerCase('tr-TR')
+        .replace(/ı/g, 'i')
+        .replace(/İ/g, 'i')
+        .replace(/ş/g, 's')
+        .replace(/Ş/g, 's')
+        .replace(/ğ/g, 'g')
+        .replace(/Ğ/g, 'g')
+        .replace(/ü/g, 'u')
+        .replace(/Ü/g, 'u')
+        .replace(/ö/g, 'o')
+        .replace(/Ö/g, 'o')
+        .replace(/ç/g, 'c')
+        .replace(/Ç/g, 'c')
+        .replace(/[^a-z0-9]+/g, ''),
+
+    normalizeCustomerNameKey: (value) => String(value || '')
+        .trim()
+        .toLocaleUpperCase('tr-TR')
+        .replace(/\s+/g, ' '),
+
+    normalizePhoneKey: (value) => String(value || '').replace(/\D+/g, ''),
+
+    normalizeTaxKey: (value) => String(value || '')
+        .trim()
+        .toLocaleUpperCase('tr-TR')
+        .replace(/\s+/g, ''),
+
+    findImportColumnIndex: (headerMap, names = []) => {
+        for (let i = 0; i < names.length; i += 1) {
+            const key = SalesModule.normalizeImportToken(names[i]);
+            if (!key) continue;
+            if (Object.prototype.hasOwnProperty.call(headerMap, key)) return headerMap[key];
+        }
+        return -1;
+    },
+
+    buildImportAddress: (...parts) => parts
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' '),
+
+    toImportRowValue: (row, idx) => String(Array.isArray(row) ? (row[idx] ?? '') : '').trim(),
+
+    parseCustomersFromWorksheetRows: (sheetRows = []) => {
+        if (!Array.isArray(sheetRows) || !sheetRows.length) {
+            return { parsedRows: [], skippedRows: [], fileRowCount: 0 };
+        }
+        const headerRaw = Array.isArray(sheetRows[0]) ? sheetRows[0] : [];
+        const headerMap = {};
+        const addressColumnIndexes = [];
+        headerRaw.forEach((cell, index) => {
+            const key = SalesModule.normalizeImportToken(cell);
+            if (!key) return;
+            if (key.startsWith('adres') && key !== 'adresno') addressColumnIndexes.push(index);
+            if (!Object.prototype.hasOwnProperty.call(headerMap, key)) headerMap[key] = index;
+        });
+
+        const idxCariCode = SalesModule.findImportColumnIndex(headerMap, ['cari kodu', 'cari kod', 'cari kodu']);
+        const idxName = SalesModule.findImportColumnIndex(headerMap, ['cari adi', 'cari adi', 'musteri adi', 'unvan']);
+        const idxAddressNo = SalesModule.findImportColumnIndex(headerMap, ['adres no', 'adresno']);
+        const idxPostal = SalesModule.findImportColumnIndex(headerMap, ['posta kodu', 'posta kod']);
+        const idxDistrict = SalesModule.findImportColumnIndex(headerMap, ['ilce', 'ilceadi']);
+        const idxCity = SalesModule.findImportColumnIndex(headerMap, ['il']);
+        const idxCountry = SalesModule.findImportColumnIndex(headerMap, ['ulke']);
+        const idxTelCountry = SalesModule.findImportColumnIndex(headerMap, ['tel ulke kodu', 'telefon ulke kodu']);
+        const idxTelArea = SalesModule.findImportColumnIndex(headerMap, ['tel bolge kodu', 'telefon bolge kodu']);
+        const idxTel1 = SalesModule.findImportColumnIndex(headerMap, ['tel no1', 'telefon', 'tel no']);
+        const idxTel2 = SalesModule.findImportColumnIndex(headerMap, ['tel no2', 'telefon2']);
+        const idxFax = SalesModule.findImportColumnIndex(headerMap, ['fax no', 'fax']);
+        const idxModem = SalesModule.findImportColumnIndex(headerMap, ['modem no', 'modem']);
+        const idxTaxNo = SalesModule.findImportColumnIndex(headerMap, ['vergi no', 'vkn', 'tc kimlik no', 'tc']);
+        const idxTaxOffice = SalesModule.findImportColumnIndex(headerMap, ['vergi dairesi']);
+        const idxNote = SalesModule.findImportColumnIndex(headerMap, ['ozel not', 'not']);
+        const idxEmail = SalesModule.findImportColumnIndex(headerMap, ['eposta', 'e posta', 'mail']);
+        const idxAuthorized = SalesModule.findImportColumnIndex(headerMap, ['yetkili', 'yetkili kisi', 'yetkili ad']);
+
+        const parsedRows = [];
+        const skippedRows = [];
+
+        for (let i = 1; i < sheetRows.length; i += 1) {
+            const row = Array.isArray(sheetRows[i]) ? sheetRows[i] : [];
+            const rawName = SalesModule.toImportRowValue(row, idxName);
+            const name = String(rawName || '').trim();
+            if (!name) {
+                const isCompletelyEmpty = row.every((cell) => String(cell || '').trim() === '');
+                if (isCompletelyEmpty) continue;
+                skippedRows.push({ sheetRow: i + 1, reason: 'Musteri adi bos oldugu icin atlandi.' });
+                continue;
+            }
+
+            const phoneCountryCode = SalesModule.toImportRowValue(row, idxTelCountry);
+            const phoneAreaCode = SalesModule.toImportRowValue(row, idxTelArea);
+            const phoneRaw = SalesModule.toImportRowValue(row, idxTel1);
+            const phoneAlt = SalesModule.toImportRowValue(row, idxTel2);
+            const phone = String(phoneRaw || [phoneCountryCode, phoneAreaCode].filter(Boolean).join(' ')).trim();
+
+            const addressParts = (addressColumnIndexes.length ? addressColumnIndexes : [])
+                .map((colIdx) => SalesModule.toImportRowValue(row, colIdx));
+            const address = SalesModule.buildImportAddress(...addressParts);
+
+            parsedRows.push({
+                sourceRow: i + 1,
+                externalCode: SalesModule.toImportRowValue(row, idxCariCode),
+                name,
+                addressNo: SalesModule.toImportRowValue(row, idxAddressNo),
+                address,
+                postalCode: SalesModule.toImportRowValue(row, idxPostal),
+                district: SalesModule.toImportRowValue(row, idxDistrict),
+                city: SalesModule.toImportRowValue(row, idxCity),
+                country: SalesModule.toImportRowValue(row, idxCountry),
+                phoneCountryCode,
+                phoneAreaCode,
+                phone,
+                phoneAlt,
+                faxNo: SalesModule.toImportRowValue(row, idxFax),
+                modemNo: SalesModule.toImportRowValue(row, idxModem),
+                taxNo: SalesModule.toImportRowValue(row, idxTaxNo),
+                taxOffice: SalesModule.toImportRowValue(row, idxTaxOffice),
+                email: SalesModule.toImportRowValue(row, idxEmail),
+                authorizedPerson: SalesModule.toImportRowValue(row, idxAuthorized),
+                note: SalesModule.toImportRowValue(row, idxNote),
+                isActive: true
+            });
+        }
+
+        return { parsedRows, skippedRows, fileRowCount: Math.max(0, sheetRows.length - 1) };
+    },
+
+    buildCustomerImportPreview: (parsedRows = [], skippedRows = []) => {
+        const existing = SalesModule.getCustomers();
+        const existingTax = new Set();
+        const existingNamePhone = new Set();
+
+        existing.forEach((row) => {
+            const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
+            if (taxKey) existingTax.add(taxKey);
+            const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
+            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || '');
+            if (nameKey && phoneKey) existingNamePhone.add(`${nameKey}|${phoneKey}`);
+        });
+
+        const incomingTax = new Set();
+        const incomingNamePhone = new Set();
+        const previewRows = parsedRows.map((row) => {
+            const warnings = [];
+            const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
+            const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
+            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || '');
+            const namePhoneKey = (nameKey && phoneKey) ? `${nameKey}|${phoneKey}` : '';
+            let status = 'ready';
+            let reason = '';
+
+            if (!phoneKey) warnings.push('Telefon eksik');
+            if (!taxKey) warnings.push('Vergi no eksik');
+            if (!String(row?.city || '').trim()) warnings.push('Sehir eksik');
+
+            if (taxKey && (existingTax.has(taxKey) || incomingTax.has(taxKey))) {
+                status = 'duplicate';
+                reason = 'Vergi no ayni oldugu icin mukerrer.';
+            } else if (namePhoneKey && (existingNamePhone.has(namePhoneKey) || incomingNamePhone.has(namePhoneKey))) {
+                status = 'duplicate';
+                reason = 'Isim + telefon ayni oldugu icin mukerrer.';
+            }
+
+            if (status !== 'duplicate') {
+                if (taxKey) incomingTax.add(taxKey);
+                if (namePhoneKey) incomingNamePhone.add(namePhoneKey);
+            }
+
+            if (status === 'ready' && warnings.length > 0) {
+                status = 'warning';
+                reason = warnings.join(', ');
+            }
+
+            return {
+                ...row,
+                status,
+                reason,
+                warnings,
+                importable: status === 'ready' || status === 'warning'
+            };
+        });
+
+        const counters = {
+            ready: previewRows.filter((row) => row.status === 'ready').length,
+            warning: previewRows.filter((row) => row.status === 'warning').length,
+            duplicate: previewRows.filter((row) => row.status === 'duplicate').length,
+            skipped: Array.isArray(skippedRows) ? skippedRows.length : 0
+        };
+
+        return { rows: previewRows, skippedRows, counters };
+    },
+
+    renderCustomerImportPreviewRowsHtml: (rows = []) => {
+        if (!Array.isArray(rows) || !rows.length) {
+            return '<tr><td colspan="7" style="padding:0.9rem; text-align:center; color:#94a3b8;">Aktarilacak uygun satir bulunamadi.</td></tr>';
+        }
+        return rows.map((row) => {
+            const statusMeta = row.status === 'duplicate'
+                ? { text: 'Mukerrer', bg: '#fee2e2', color: '#991b1b', border: '#fecaca' }
+                : (row.status === 'warning'
+                    ? { text: 'Eksik Bilgi', bg: '#fef3c7', color: '#92400e', border: '#fcd34d' }
+                    : { text: 'Eklenecek', bg: '#dcfce7', color: '#166534', border: '#86efac' });
+            return `
+                <tr style="border-bottom:1px solid #eef2f7;">
+                    <td style="padding:0.5rem; font-family:Consolas,monospace; color:#475569;">${SalesModule.escapeHtml(String(row?.sourceRow || '-'))}</td>
+                    <td style="padding:0.5rem;">
+                        <span style="display:inline-flex; align-items:center; padding:0.18rem 0.52rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span>
+                    </td>
+                    <td style="padding:0.5rem; font-family:Consolas,monospace;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</td>
+                    <td style="padding:0.5rem; font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.name || '-'))}</td>
+                    <td style="padding:0.5rem;">${SalesModule.escapeHtml(String(row?.phone || '-'))}</td>
+                    <td style="padding:0.5rem;">${SalesModule.escapeHtml(String(row?.city || '-'))}</td>
+                    <td style="padding:0.5rem; color:#64748b;">${SalesModule.escapeHtml(String(row?.reason || '-'))}</td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    openCustomerExcelImportPicker: () => {
+        const input = document.getElementById('sales_customer_excel_import_input');
+        if (!input) return alert('Dosya secme alani bulunamadi.');
+        input.value = '';
+        input.click();
+    },
+
+    handleCustomerExcelImportInput: async (input) => {
+        try {
+            const file = input?.files?.[0];
+            if (!file) return;
+            await SalesModule.ensureXlsxLib();
+            const buffer = await file.arrayBuffer();
+            const workbook = window.XLSX.read(buffer, { type: 'array', raw: false, cellText: true, cellDates: false });
+            const firstSheetName = Array.isArray(workbook?.SheetNames) ? workbook.SheetNames[0] : '';
+            if (!firstSheetName) return alert('Dosyada sayfa bulunamadi.');
+            const sheet = workbook.Sheets[firstSheetName];
+            const sheetRows = window.XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            const parsed = SalesModule.parseCustomersFromWorksheetRows(sheetRows);
+            const preview = SalesModule.buildCustomerImportPreview(parsed.parsedRows, parsed.skippedRows);
+            SalesModule.state.customerImportPreview = {
+                fileName: String(file?.name || 'dosya'),
+                fileRowCount: parsed.fileRowCount,
+                rows: preview.rows,
+                skippedRows: preview.skippedRows,
+                counters: preview.counters
+            };
+            SalesModule.openCustomerImportPreviewModal();
+        } catch (error) {
+            console.error(error);
+            alert(`Excel dosyasi okunamadi: ${error?.message || 'Bilinmeyen hata'}`);
+        } finally {
+            if (input) input.value = '';
+        }
+    },
+
+    openCustomerImportPreviewModal: () => {
+        const preview = SalesModule.state.customerImportPreview;
+        if (!preview || !Array.isArray(preview.rows)) return alert('Onizleme verisi bulunamadi.');
+        const counters = preview.counters || { ready: 0, warning: 0, duplicate: 0, skipped: 0 };
+        const importableCount = preview.rows.filter((row) => row.importable).length;
+        const skippedHtml = (preview.skippedRows || []).length
+            ? `
+                <div style="margin-top:0.55rem; border:1px solid #fcd34d; background:#fffbeb; color:#92400e; border-radius:0.6rem; padding:0.55rem; font-size:0.82rem;">
+                    <strong>Atlanan satirlar:</strong>
+                    ${(preview.skippedRows || []).slice(0, 8).map((item) => `Satir ${SalesModule.escapeHtml(String(item?.sheetRow || '-'))}: ${SalesModule.escapeHtml(String(item?.reason || '-'))}`).join(' | ')}
+                    ${(preview.skippedRows || []).length > 8 ? ` | +${(preview.skippedRows || []).length - 8} satir daha` : ''}
+                </div>
+            `
+            : '';
+
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Dosya satiri</div><div style="font-weight:800; color:#0f172a;">${SalesModule.escapeHtml(String(preview.fileRowCount || 0))}</div></div>
+                    <div style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#166534;">Eklenecek</div><div style="font-weight:800; color:#166534;">${SalesModule.escapeHtml(String(counters.ready || 0))}</div></div>
+                    <div style="border:1px solid #fde68a; background:#fffbeb; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#92400e;">Eksik bilgi ile</div><div style="font-weight:800; color:#92400e;">${SalesModule.escapeHtml(String(counters.warning || 0))}</div></div>
+                    <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#991b1b;">Mukerrer/atlanan</div><div style="font-weight:800; color:#991b1b;">${SalesModule.escapeHtml(String((counters.duplicate || 0) + (counters.skipped || 0)))}</div></div>
+                </div>
+                <div style="font-size:0.82rem; color:#64748b;">Dosya: <strong>${SalesModule.escapeHtml(String(preview.fileName || '-'))}</strong></div>
+                <div style="max-height:52vh; overflow:auto; border:1px solid #e2e8f0; border-radius:0.7rem;">
+                    <table style="width:100%; min-width:900px; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.5rem; text-align:left;">Satir</th>
+                                <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                <th style="padding:0.5rem; text-align:left;">Cari kodu</th>
+                                <th style="padding:0.5rem; text-align:left;">Musteri</th>
+                                <th style="padding:0.5rem; text-align:left;">Telefon</th>
+                                <th style="padding:0.5rem; text-align:left;">Sehir</th>
+                                <th style="padding:0.5rem; text-align:left;">Aciklama</th>
+                            </tr>
+                        </thead>
+                        <tbody>${SalesModule.renderCustomerImportPreviewRowsHtml(preview.rows)}</tbody>
+                    </table>
+                </div>
+                ${skippedHtml}
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
+                    <button class="btn-sm" onclick="Modal.close()">vazgec</button>
+                    <button class="btn-primary" onclick="SalesModule.commitCustomerExcelImport()" ${importableCount > 0 ? '' : 'disabled'}>${importableCount} kaydi iceri al</button>
+                </div>
+            </div>
+        `;
+        Modal.open('Musteri Excel Iceri Aktarma Onizleme', html, { maxWidth: '1200px' });
+    },
+
+    commitCustomerExcelImport: async () => {
+        SalesModule.ensureData();
+        const preview = SalesModule.state.customerImportPreview;
+        if (!preview || !Array.isArray(preview.rows)) return alert('Aktarma onizlemesi bulunamadi.');
+        const importableRows = preview.rows.filter((row) => row.importable);
+        if (!importableRows.length) return alert('Iceri alinacak kayit yok.');
+        const now = new Date().toISOString();
+        let added = 0;
+        importableRows.forEach((item) => {
+            const row = {
+                id: crypto.randomUUID(),
+                customerCode: SalesModule.generateCustomerCode(),
+                name: String(item?.name || '').trim(),
+                city: String(item?.city || '').trim(),
+                district: String(item?.district || '').trim(),
+                phone: String(item?.phone || '').trim(),
+                phoneCountryCode: String(item?.phoneCountryCode || '').trim(),
+                phoneAreaCode: String(item?.phoneAreaCode || '').trim(),
+                phoneAlt: String(item?.phoneAlt || '').trim(),
+                email: String(item?.email || '').trim(),
+                taxOffice: String(item?.taxOffice || '').trim(),
+                taxNo: String(item?.taxNo || '').trim(),
+                address: String(item?.address || '').trim(),
+                addressNo: String(item?.addressNo || '').trim(),
+                postalCode: String(item?.postalCode || '').trim(),
+                country: String(item?.country || '').trim(),
+                externalCode: String(item?.externalCode || '').trim(),
+                faxNo: String(item?.faxNo || '').trim(),
+                modemNo: String(item?.modemNo || '').trim(),
+                authorizedPerson: String(item?.authorizedPerson || '').trim(),
+                discountRate: 0,
+                paymentTermDays: 0,
+                riskLimit: 0,
+                tags: [],
+                note: String(item?.note || '').trim(),
+                isActive: true,
+                created_at: now,
+                updated_at: now
+            };
+            if (!row.name) return;
+            DB.data.data.customers.push(row);
+            added += 1;
+        });
+        await DB.save();
+        SalesModule.state.customerImportPreview = null;
+        Modal.close();
+        UI.renderCurrentPage();
+        const duplicateCount = Number(preview?.counters?.duplicate || 0) + Number(preview?.counters?.skipped || 0);
+        const warningCount = Number(preview?.counters?.warning || 0);
+        alert(`Iceri aktarma tamamlandi. Eklenen: ${added}, Eksik bilgi ile eklenen: ${warningCount}, Atlanan: ${duplicateCount}.`);
     },
 
     getCatalogTree: () => ([
@@ -2409,6 +2893,20 @@ const SalesModule = {
                                 <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Etiketler</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.tagsText || ''))}" placeholder="bayi, proje, perakende" oninput="SalesModule.setCustomerEditDraftField('tagsText', this.value)"></div>
                                 <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label><textarea class="stock-textarea" style="min-height:66px;" oninput="SalesModule.setCustomerEditDraftField('address', this.value)">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea></div>
                                 <div style="grid-column:span 3;"><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:66px;" oninput="SalesModule.setCustomerEditDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft?.note || ''))}</textarea></div>
+                                <div style="grid-column:span 3; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem; background:#f8fafc;">
+                                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Ek Iletisim ve Referans Bilgileri</div>
+                                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Cari kodu</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" oninput="SalesModule.setCustomerEditDraftField('externalCode', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Ulke</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.country || ''))}" oninput="SalesModule.setCustomerEditDraftField('country', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Posta kodu</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.postalCode || ''))}" oninput="SalesModule.setCustomerEditDraftField('postalCode', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Adres no</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.addressNo || ''))}" oninput="SalesModule.setCustomerEditDraftField('addressNo', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel ulke kodu</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneCountryCode || ''))}" oninput="SalesModule.setCustomerEditDraftField('phoneCountryCode', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel bolge kodu</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAreaCode || ''))}" oninput="SalesModule.setCustomerEditDraftField('phoneAreaCode', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel no2</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAlt || ''))}" oninput="SalesModule.setCustomerEditDraftField('phoneAlt', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Fax no</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.faxNo || ''))}" oninput="SalesModule.setCustomerEditDraftField('faxNo', this.value)"></div>
+                                        <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Modem no</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.modemNo || ''))}" oninput="SalesModule.setCustomerEditDraftField('modemNo', this.value)"></div>
+                                    </div>
+                                </div>
                             </div>
                         ` : `
                             <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.6rem;">
@@ -2421,6 +2919,15 @@ const SalesModule = {
                                 <div><div style="font-size:0.73rem; color:#64748b;">Odeme vadesi</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.paymentTermDays || 0))} gun</div></div>
                                 <div><div style="font-size:0.73rem; color:#64748b;">Risk limiti</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.riskLimit || 0))}</div></div>
                                 <div style="grid-column:span 4;"><div style="font-size:0.73rem; color:#64748b;">Adres</div><div style="font-weight:700; color:#334155; white-space:pre-wrap;">${SalesModule.escapeHtml(String(row?.address || '-'))}</div></div>
+                                <div style="grid-column:span 4; border-top:1px dashed #cbd5e1; margin-top:0.2rem; padding-top:0.45rem;"><div style="font-size:0.72rem; font-weight:800; color:#334155; margin-bottom:0.35rem;">Ek Iletisim ve Referans Bilgileri</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Cari kodu</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Ulke</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.country || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Posta kodu</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.postalCode || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Adres no</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.addressNo || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Tel kodlari</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(([row?.phoneCountryCode, row?.phoneAreaCode].filter(Boolean).join(' / ')) || '-')}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Tel no2</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.phoneAlt || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Fax no</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.faxNo || '-'))}</div></div>
+                                <div><div style="font-size:0.73rem; color:#64748b;">Modem no</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.modemNo || '-'))}</div></div>
                                 <div style="grid-column:span 4;"><div style="font-size:0.73rem; color:#64748b;">Etiketler</div><div style="font-weight:700; color:#334155;">${SalesModule.escapeHtml((Array.isArray(row?.tags) ? row.tags.join(', ') : '') || '-')}</div></div>
                                 <div style="grid-column:span 4;"><div style="font-size:0.73rem; color:#64748b;">Not</div><div style="font-weight:700; color:#334155; white-space:pre-wrap;">${SalesModule.escapeHtml(String(row?.note || '-'))}</div></div>
                             </div>
@@ -2535,7 +3042,11 @@ const SalesModule = {
                     <div class="card-table" style="padding:1rem 1.1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
                             <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli musteriler</div>
-                            <button class="btn-primary" onclick="SalesModule.openCreateCustomerModal()">yeni musteri ekle +</button>
+                            <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap;">
+                                <input id="sales_customer_excel_import_input" type="file" accept=".xls,.xlsx" style="display:none;" onchange="SalesModule.handleCustomerExcelImportInput(this)">
+                                <button class="btn-sm" onclick="SalesModule.openCustomerExcelImportPicker()">excelden ice aktar</button>
+                                <button class="btn-primary" onclick="SalesModule.openCreateCustomerModal()">yeni musteri ekle +</button>
+                            </div>
                         </div>
                         <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:0.55rem; margin-bottom:0.75rem;">
                             <input id="sales_customer_filter_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.name || ''))}" oninput="SalesModule.setCustomerFilter('name', this.value)" placeholder="isme gore ara (ad veya kod)">

@@ -1535,7 +1535,7 @@
                             <div style="font-weight:800; color:#0f172a; font-size:1.02rem;">Varyasyonlar</div>
                             <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">Bu urune bagli varyasyonlar satir satir listelenir.</div>
                         </div>
-                        <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon ekle +</button>
+                        <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon olustur</button>
                     </div>
 
                     <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:auto;">

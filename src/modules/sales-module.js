@@ -64,6 +64,23 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
+    openSalesCatalogVariationPage: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
+            ProductLibraryModule.state.workspaceView = 'sales-products';
+            ProductLibraryModule.state.salesProductDetailId = id;
+            ProductLibraryModule.state.salesVariationEditorMode = '';
+            ProductLibraryModule.state.salesVariationEditingId = '';
+            ProductLibraryModule.state.salesVariationDraft = null;
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('products', { preserveProductsState: true });
+                return;
+            }
+        }
+        SalesModule.openCatalogDetailModal(id);
+    },
+
     render: (container) => {
         if (!container) return;
         SalesModule.ensureData();
@@ -1939,7 +1956,7 @@ const SalesModule = {
             const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
             const selectAction = hasCustomSelectAction
                 ? `${requestedSelectAction}('${id}')`
-                : `SalesModule.openCatalogDetailModal('${id}')`;
+                : `SalesModule.openSalesCatalogVariationPage('${id}')`;
             return `
                 <div class="sales-catalog-card" role="button" tabindex="0" onclick="${selectAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${selectAction};}">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
@@ -2014,7 +2031,7 @@ const SalesModule = {
                 const bubbleText = String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
                 const selectAction = hasCustomSelectAction
                     ? `${requestedSelectAction}('${id}')`
-                    : `SalesModule.openCatalogDetailModal('${id}')`;
+                    : `SalesModule.openSalesCatalogVariationPage('${id}')`;
                 return `
                                 <tr>
                                     <td>${SalesModule.escapeHtml(row.name || '-')}</td>

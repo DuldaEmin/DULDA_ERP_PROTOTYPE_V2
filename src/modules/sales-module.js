@@ -984,23 +984,58 @@ const SalesModule = {
         const exclude = rowId
             ? { collection: 'salesCatalogProducts', id: rowId, field: 'idCode' }
             : null;
+
+        const normalizeCode = (value) => {
+            if (typeof IdentityPolicy !== 'undefined'
+                && IdentityPolicy
+                && typeof IdentityPolicy.normalizeCode === 'function') {
+                return IdentityPolicy.normalizeCode(value);
+            }
+            return String(value ?? '').trim().toUpperCase().replace(/[\s_]+/g, '-').replace(/-+/g, '-');
+        };
+
         if (typeof IdentityPolicy !== 'undefined'
             && IdentityPolicy
-            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
-            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'SAL', digits: 6, exclude });
+            && typeof IdentityPolicy.collectGlobalCodes === 'function') {
+            const usedCodes = IdentityPolicy.collectGlobalCodes(DB.data, exclude);
+            if (typeof IdentityPolicy.makeId === 'function') {
+                for (let i = 0; i < 30; i += 1) {
+                    const candidate = String(IdentityPolicy.makeId('SAL', usedCodes) || '').trim();
+                    if (!candidate) continue;
+                    const normalized = normalizeCode(candidate);
+                    if (!normalized || usedCodes.has(normalized)) continue;
+                    return normalized;
+                }
+            }
+            if (typeof IdentityPolicy.getNextGlobalCode === 'function') {
+                return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'SAL', digits: 6, exclude });
+            }
         }
         const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
         const used = new Set(
             rows
                 .filter((row) => !rowId || String(row?.id || '').trim() !== rowId)
-                .map((row) => String(row?.idCode || '').trim().toUpperCase())
+                .map((row) => normalizeCode(row?.idCode || ''))
                 .filter(Boolean)
         );
+
+        const buildRandomCandidate = () => {
+            const token = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+                ? globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
+                : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+            return `SAL-${token}`;
+        };
+
+        for (let i = 0; i < 30; i += 1) {
+            const candidate = normalizeCode(buildRandomCandidate());
+            if (!candidate || used.has(candidate)) continue;
+            return candidate;
+        }
         let seq = rows.length + 1;
-        let candidate = `SAL-${String(seq).padStart(6, '0')}`;
-        while (used.has(candidate.toUpperCase())) {
+        let candidate = normalizeCode(`SAL-${String(seq).padStart(6, '0')}`);
+        while (used.has(candidate)) {
             seq += 1;
-            candidate = `SAL-${String(seq).padStart(6, '0')}`;
+            candidate = normalizeCode(`SAL-${String(seq).padStart(6, '0')}`);
         }
         return candidate;
     },
@@ -2014,30 +2049,48 @@ const SalesModule = {
             : -1;
         const existingRow = existingIdx >= 0 ? (DB.data.data.salesCatalogProducts[existingIdx] || {}) : {};
         const nowIso = new Date().toISOString();
+        const normalizeIdCode = (value) => {
+            if (typeof IdentityPolicy !== 'undefined'
+                && IdentityPolicy
+                && typeof IdentityPolicy.normalizeCode === 'function') {
+                return IdentityPolicy.normalizeCode(value);
+            }
+            return String(value || '').trim().replace(/\s+/g, '-').toUpperCase();
+        };
         const resolvedIdCode = String(draft.idCode || '').trim()
             || String(existingRow.idCode || '').trim()
             || SalesModule.generateCatalogPublicId({ rowId: editingId });
-        const normalizedIdCode = (typeof IdentityPolicy !== 'undefined'
-            && IdentityPolicy
-            && typeof IdentityPolicy.normalizeCode === 'function')
-            ? IdentityPolicy.normalizeCode(resolvedIdCode)
-            : resolvedIdCode.replace(/\s+/g, '-').toUpperCase();
+        let normalizedIdCode = normalizeIdCode(resolvedIdCode);
         if (!normalizedIdCode) {
             return alert('Urun ID zorunlu.');
         }
-        const hasDuplicateIdCode = (typeof IdentityPolicy !== 'undefined'
+
+        const isIdCodeTaken = (candidateCode) => ((typeof IdentityPolicy !== 'undefined'
             && IdentityPolicy
             && typeof IdentityPolicy.isGlobalCodeTaken === 'function')
-            ? IdentityPolicy.isGlobalCodeTaken(DB.data, normalizedIdCode, editingId ? { collection: 'salesCatalogProducts', id: editingId, field: 'idCode' } : null)
+            ? IdentityPolicy.isGlobalCodeTaken(DB.data, candidateCode, editingId ? { collection: 'salesCatalogProducts', id: editingId, field: 'idCode' } : null)
             : DB.data.data.salesCatalogProducts.some((item) => {
                 const rowId = String(item?.id || '').trim();
                 const rowIdCode = String(item?.idCode || '').trim().replace(/\s+/g, '-').toUpperCase();
                 if (!rowIdCode) return false;
                 if (editingId && rowId === editingId) return false;
-                return rowIdCode === normalizedIdCode;
-            });
-        if (hasDuplicateIdCode) {
-            return alert(`Bu Urun ID zaten kullaniliyor: ${normalizedIdCode}`);
+                return rowIdCode === candidateCode;
+            }));
+
+        if (isIdCodeTaken(normalizedIdCode)) {
+            if (editingId) return alert(`Bu Urun ID zaten kullaniliyor: ${normalizedIdCode}`);
+            let regenerated = '';
+            for (let i = 0; i < 5; i += 1) {
+                const nextCode = normalizeIdCode(SalesModule.generateCatalogPublicId());
+                if (!nextCode || isIdCodeTaken(nextCode)) continue;
+                regenerated = nextCode;
+                break;
+            }
+            if (!regenerated) return alert('Urun ID benzersiz olusturulamadi. Lutfen tekrar deneyiniz.');
+            normalizedIdCode = regenerated;
+            if (SalesModule.state.catalogDraft && typeof SalesModule.state.catalogDraft === 'object') {
+                SalesModule.state.catalogDraft.idCode = normalizedIdCode;
+            }
         }
         const row = {
             id: SalesModule.generateCatalogRowId(),

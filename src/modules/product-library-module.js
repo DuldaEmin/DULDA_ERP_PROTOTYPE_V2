@@ -6824,6 +6824,8 @@
         const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
         const isStockInventoryRegistrationPicker = state.masterPickerSource === 'stock-inventory-registration';
         const isMasterPicker = isComponentPicker || isSalesVariationMasterPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
+        const showSelectColumn = isMasterPicker || showForm;
+        const masterTableColspan = showSelectColumn ? 14 : 13;
         const masterPickerHint = isAssemblyMasterPicker
             ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'
             : (isModelMasterPicker
@@ -6975,14 +6977,16 @@
                     <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>${isSalesMirror ? 'kilitli' : 'duzenle'}</button></td>
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>
+                    ${showSelectColumn
+                        ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>`
+                        : ''}
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>sil</button></td>
                 </tr>
             `;
         };
 
         const rowsHtml = sorted.length === 0
-            ? `<tr><td colspan="14" style="text-align:center; padding:1.3rem; color:#94a3b8;">Kayit bulunamadi.</td></tr>`
+            ? `<tr><td colspan="${masterTableColspan}" style="text-align:center; padding:1.3rem; color:#94a3b8;">Kayit bulunamadi.</td></tr>`
             : qCategoryId
                 ? sorted.map(renderMasterRow).join('')
                 : (() => {
@@ -7005,7 +7009,7 @@
                         const rows = isOpen ? group.items.map(renderMasterRow).join('') : '';
                         return `
                             <tr>
-                                <td colspan="14" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
+                                <td colspan="${masterTableColspan}" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
                                     <button type="button" onclick='ProductLibraryModule.toggleMasterCategorySection(${JSON.stringify(group.key)})' style="width:calc(100% - 0.7rem); margin:0.3rem 0.35rem; border:1px solid #cbd5e1; border-radius:0.62rem; background:${isOpen ? '#eef2ff' : 'white'}; padding:0.65rem 0.8rem; display:flex; align-items:center; gap:0.6rem; cursor:pointer; text-align:left;">
                                         <span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #0f172a; border-radius:999px; color:#0f172a; background:white;">
                                             <i data-lucide="${arrowIcon}" width="16" height="16"></i>
@@ -7070,7 +7074,7 @@
                                     <th style="font-family:monospace">KOD</th>
                                     <th style="text-align:center;">GORUNTULE</th>
                                     <th style="text-align:center;">DUZENLE</th>
-                                    <th style="text-align:center;">SEC</th>
+                                    ${showSelectColumn ? '<th style="text-align:center;">SEC</th>' : ''}
                                     <th style="text-align:center;">SIL</th>
                                 </tr>
                             </thead>

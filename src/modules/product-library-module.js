@@ -553,6 +553,22 @@
     },
 
     getSalesVariationProductionStatus: (row = {}) => {
+        const variationId = String(row?.id || row?.sourceVariationId || '').trim();
+        const planningModelId = variationId
+            ? ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId)
+            : '';
+        const demands = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+        const hasProductionPlan = !!planningModelId && demands.some((demand) => {
+            const demandVariantId = String(demand?.variantId || '').trim();
+            if (demandVariantId === planningModelId || demandVariantId === variationId) return true;
+            const items = Array.isArray(demand?.items) ? demand.items : [];
+            return items.some((item) => {
+                const kind = String(item?.itemType || '').trim().toUpperCase();
+                if (kind !== 'MODEL') return false;
+                const itemVariantId = String(item?.variantId || '').trim();
+                return itemVariantId === planningModelId || itemVariantId === variationId;
+            });
+        });
         const montageCode = String(row?.montageCard?.cardCode || row?.montageCardCode || '').trim();
         const hasMasterRefs = Array.isArray(row?.masterRefs) && row.masterRefs.some((item) =>
             String(item?.code || item?.refId || '').trim()
@@ -561,11 +577,12 @@
             ? row.items.some((item) => String(item?.code || item?.refId || '').trim())
             : (Array.isArray(row?.componentItems) && row.componentItems.some((item) => String(item?.code || item?.refId || '').trim()));
         const missing = [];
+        if (!hasProductionPlan) missing.push('uretim plani');
         if (!montageCode) missing.push('montaj karti');
         if (!hasMasterRefs) missing.push('master urun bagi');
         if (!hasComponentItems) missing.push('parca/bilesen bagi');
         if (!missing.length) return { ready: true, reason: '' };
-        return { ready: false, reason: `Uretim plani eksik: ${missing.join(', ')}` };
+        return { ready: false, reason: `Eksik: ${missing.join(', ')}` };
     },
 
     getPlanningModelIdFromSalesVariationId: (variationId) => {
@@ -1629,7 +1646,7 @@
                                         <tr style="${rowStyle}" title="${ProductLibraryModule.escapeHtml(isIncomplete ? productionStatus.reason : '')}">
                                             <td style="padding:0.58rem; color:#0f172a; font-weight:700;">
                                                 ${ProductLibraryModule.escapeHtml(item?.productName || '-')}
-                                                ${isIncomplete ? '<span style="margin-left:0.4rem; display:inline-flex; align-items:center; padding:0.1rem 0.45rem; border:1px solid #fda4af; border-radius:999px; background:#ffe4e6; color:#be123c; font-size:0.68rem; font-weight:800;">eksik</span>' : ''}
+                                                ${isIncomplete ? '<span style="margin-left:0.4rem; display:inline-flex; align-items:center; padding:0.1rem 0.45rem; border:1px solid #fda4af; border-radius:999px; background:#ffe4e6; color:#be123c; font-size:0.68rem; font-weight:800;">URETIM PLANI EKSIK!</span>' : ''}
                                             </td>
                                             <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(productCode)}</td>
                                             <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(idCode)}</td>

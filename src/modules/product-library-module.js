@@ -910,6 +910,27 @@
         UI.renderCurrentPage();
     },
 
+    completeSalesVariationProductionPlan: () => {
+        const draft = ProductLibraryModule.state.salesVariationDraft;
+        const variationId = String(ProductLibraryModule.state.salesVariationEditingId || draft?.id || '').trim();
+        if (!variationId) {
+            alert('Planlamaya yonlenmek icin once varyasyonu kaydetmelisiniz.');
+            return;
+        }
+        const proceed = confirm('Bu varyasyon icin uretim planini tamamlamaya gecilsin mi?');
+        if (!proceed) return;
+        const planningModelId = ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId);
+        if (!planningModelId) {
+            alert('Planlama modeli olusturulamadi.');
+            return;
+        }
+        if (typeof ProductLibraryModule.selectPlanningModel === 'function') {
+            ProductLibraryModule.selectPlanningModel(planningModelId);
+            return;
+        }
+        alert('Planlama ekrani acilamadi.');
+    },
+
     setSalesVariationDraftField: (key, value) => {
         if (!ProductLibraryModule.state.salesVariationDraft || typeof ProductLibraryModule.state.salesVariationDraft !== 'object') return;
         ProductLibraryModule.state.salesVariationDraft[key] = String(value ?? '');
@@ -1467,6 +1488,16 @@
         const technicalImage = String(sourceProduct?.images?.technical || '').trim();
         const statusCode = String(sourceProduct?.idCode || sourceProduct?.productCode || '-').trim();
         const isSalesEntry = String(ProductLibraryModule.state.salesProductEntrySource || '').trim().toLowerCase() === 'sales';
+        const editingVariationId = String(ProductLibraryModule.state.salesVariationEditingId || draft?.id || '').trim();
+        const draftProductionStatus = ProductLibraryModule.getSalesVariationProductionStatus({
+            id: editingVariationId,
+            montageCardCode: String(draft?.montageCardCode || '').trim(),
+            masterRefs,
+            componentItems
+        });
+        const reasonText = String(draftProductionStatus?.reason || '').toLocaleLowerCase('tr-TR');
+        const hasProductionPlanGap = reasonText.includes('uretim plani');
+        const showCompletePlanAction = mode === 'edit' && hasProductionPlanGap;
 
         return `
             <div class="card-table" style="padding:1.2rem; margin-top:0.95rem; border:1.5px solid #111827; border-radius:1rem;">
@@ -1683,7 +1714,11 @@
                     <div>${mode === 'edit' ? '<button class="btn-sm" onclick="ProductLibraryModule.deleteSalesVariation()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">sil</button>' : ''}</div>
                     <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
                         ${mode === 'view' ? `<button class="btn-sm" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')">duzenle</button>` : ''}
-                        ${mode === 'edit' ? '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(true)" style="background:#6b7280;">Farkli Kaydet</button>' : ''}
+                        ${mode === 'edit'
+                ? (showCompletePlanAction
+                    ? '<button class="btn-primary" onclick="ProductLibraryModule.completeSalesVariationProductionPlan()" style="background:#b45309;">Uretim Planini Tamamla</button>'
+                    : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(true)" style="background:#6b7280;">Farkli Kaydet</button>')
+                : ''}
                         <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">Vazgec</button>
                         ${mode === 'view' ? '' : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(false)">Kaydet</button>'}
                     </div>

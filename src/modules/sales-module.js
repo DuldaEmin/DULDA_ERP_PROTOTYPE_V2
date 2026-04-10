@@ -8,6 +8,7 @@ const SalesModule = {
         customerDetailId: null,
         customerDetailMode: 'view',
         customerEditDraft: null,
+        customerModalEditId: '',
         customerImportPreview: null,
         catalogActiveMainId: 'korkuluk',
         catalogActiveGroupId: '',
@@ -317,9 +318,25 @@ const SalesModule = {
     },
 
     openCreateCustomerModal: () => {
+        SalesModule.state.customerModalEditId = '';
         const draft = SalesModule.buildCustomerDraft();
         const html = SalesModule.renderCustomerModalFormHtml(draft, false);
         Modal.open('Yeni Musteri Ekle', html, { maxWidth: '940px' });
+    },
+
+    openEditCustomerModal: (customerId) => {
+        SalesModule.ensureData();
+        const row = SalesModule.getCustomerById(customerId);
+        if (!row) return alert('Musteri kaydi bulunamadi.');
+        SalesModule.state.customerModalEditId = String(row.id || '').trim();
+        const draft = SalesModule.buildCustomerDraft(row);
+        const html = SalesModule.renderCustomerModalFormHtml(draft, true);
+        Modal.open('Musteriyi Duzenle', html, { maxWidth: '940px' });
+    },
+
+    closeCustomerFormModal: () => {
+        SalesModule.state.customerModalEditId = '';
+        Modal.close();
     },
 
     renderCustomerModalFormHtml: (draft, isEdit) => {
@@ -409,13 +426,6 @@ const SalesModule = {
                             <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Fax / Modem</label>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.35rem;">
-                                <input id="sales_customer_fax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.faxNo || ''))}" placeholder="fax">
-                                <input id="sales_customer_modem_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.modemNo || ''))}" placeholder="modem">
-                            </div>
-                        </div>
-                        <div>
                             <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
                             <input id="sales_customer_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}">
                         </div>
@@ -435,8 +445,8 @@ const SalesModule = {
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
-                    <button class="btn-sm" onclick="Modal.close()">iptal</button>
-                    <button class="btn-primary" onclick="${isEdit ? 'SalesModule.saveCustomerDetail()' : 'SalesModule.saveCustomerFromModal()'}">kaydet</button>
+                    <button class="btn-sm" onclick="SalesModule.closeCustomerFormModal()">iptal</button>
+                    <button class="btn-primary" onclick="${isEdit ? 'SalesModule.saveCustomerEditFromModal()' : 'SalesModule.saveCustomerFromModal()'}">kaydet</button>
                 </div>
             </div>
         `;
@@ -464,8 +474,6 @@ const SalesModule = {
             postalCode: String(read('sales_customer_postal_code')).trim(),
             country: String(read('sales_customer_country')).trim(),
             externalCode: String(read('sales_customer_external_code')).trim(),
-            faxNo: String(read('sales_customer_fax_no')).trim(),
-            modemNo: String(read('sales_customer_modem_no')).trim(),
             note: String(read('sales_customer_note')).trim(),
             discountRate: SalesModule.parsePercent(read('sales_customer_discount')),
             paymentTermDays: SalesModule.parseDays(read('sales_customer_term_days')),
@@ -499,8 +507,6 @@ const SalesModule = {
             postalCode: draft.postalCode,
             country: draft.country,
             externalCode: draft.externalCode,
-            faxNo: draft.faxNo,
-            modemNo: draft.modemNo,
             authorizedPerson: draft.authorizedPerson,
             discountRate: draft.discountRate,
             paymentTermDays: draft.paymentTermDays,
@@ -517,6 +523,50 @@ const SalesModule = {
         Modal.close();
         UI.renderCurrentPage();
         alert(`${row.customerCode} olusturuldu.`);
+    },
+
+    saveCustomerEditFromModal: async () => {
+        SalesModule.ensureData();
+        const targetId = String(SalesModule.state.customerModalEditId || '').trim();
+        if (!targetId) return alert('Duzenlenecek musteri secilemedi.');
+        const draft = SalesModule.readCustomerDraftFromDom();
+        const validation = SalesModule.validateCustomerDraft(draft);
+        if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
+        if (idx === -1) return alert('Musteri kaydi bulunamadi.');
+        const prev = rows[idx] || {};
+        rows[idx] = {
+            ...prev,
+            name: String(draft.name || '').trim(),
+            city: String(draft.city || '').trim(),
+            district: String(draft.district || '').trim(),
+            phone: String(draft.phone || '').trim(),
+            phoneCountryCode: String(draft.phoneCountryCode || '').trim(),
+            phoneAreaCode: String(draft.phoneAreaCode || '').trim(),
+            phoneAlt: String(draft.phoneAlt || '').trim(),
+            email: String(draft.email || '').trim(),
+            taxOffice: String(draft.taxOffice || '').trim(),
+            taxNo: String(draft.taxNo || '').trim(),
+            address: String(draft.address || '').trim(),
+            addressNo: String(draft.addressNo || '').trim(),
+            postalCode: String(draft.postalCode || '').trim(),
+            country: String(draft.country || '').trim(),
+            externalCode: String(draft.externalCode || '').trim(),
+            authorizedPerson: String(draft.authorizedPerson || '').trim(),
+            discountRate: SalesModule.parsePercent(draft.discountRate || 0),
+            paymentTermDays: SalesModule.parseDays(draft.paymentTermDays || 0),
+            riskLimit: SalesModule.parseMoney(draft.riskLimit || 0),
+            customerTypes: SalesModule.normalizeCustomerTypeList(draft.customerTypes || []),
+            tags: Array.isArray(prev?.tags) ? prev.tags : [],
+            note: String(draft.note || '').trim(),
+            updated_at: new Date().toISOString()
+        };
+        await DB.save();
+        SalesModule.state.customerModalEditId = '';
+        Modal.close();
+        UI.renderCurrentPage();
+        alert('Musteri guncellendi.');
     },
 
     getCustomerOrderHistory: (customer) => {
@@ -549,11 +599,13 @@ const SalesModule = {
     openCustomerDetail: (customerId, mode = 'view') => {
         const row = SalesModule.getCustomerById(customerId);
         if (!row) return;
+        if (String(mode || 'view') === 'edit') {
+            SalesModule.openEditCustomerModal(customerId);
+            return;
+        }
         SalesModule.state.customerDetailId = String(row.id || '');
-        SalesModule.state.customerDetailMode = String(mode || 'view') === 'edit' ? 'edit' : 'view';
-        SalesModule.state.customerEditDraft = SalesModule.state.customerDetailMode === 'edit'
-            ? SalesModule.buildCustomerDraft(row)
-            : null;
+        SalesModule.state.customerDetailMode = 'view';
+        SalesModule.state.customerEditDraft = null;
         UI.renderCurrentPage();
     },
 
@@ -615,8 +667,6 @@ const SalesModule = {
             postalCode: String(draft.postalCode || '').trim(),
             country: String(draft.country || '').trim(),
             externalCode: String(draft.externalCode || '').trim(),
-            faxNo: String(draft.faxNo || '').trim(),
-            modemNo: String(draft.modemNo || '').trim(),
             authorizedPerson: String(draft.authorizedPerson || '').trim(),
             discountRate: SalesModule.parsePercent(draft.discountRate || 0),
             paymentTermDays: SalesModule.parseDays(draft.paymentTermDays || 0),
@@ -2970,13 +3020,6 @@ const SalesModule = {
                 <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}" oninput="SalesModule.setCustomerEditDraftField('taxOffice', this.value)"></div>
                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi no</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}" oninput="SalesModule.setCustomerEditDraftField('taxNo', this.value)"></div>
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Fax / Modem</label>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.35rem;">
-                            <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.faxNo || ''))}" placeholder="fax" oninput="SalesModule.setCustomerEditDraftField('faxNo', this.value)">
-                            <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.modemNo || ''))}" placeholder="modem" oninput="SalesModule.setCustomerEditDraftField('modemNo', this.value)">
-                        </div>
-                    </div>
                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}" onchange="SalesModule.setCustomerEditDraftField('discountRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label><input class="stock-input stock-input-tall" type="number" min="0" step="1" value="${SalesModule.escapeHtml(String(draft?.paymentTermDays || 0))}" onchange="SalesModule.setCustomerEditDraftField('paymentTermDays', this.value)"></div>
                     <div><label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(draft?.riskLimit || 0))}" onchange="SalesModule.setCustomerEditDraftField('riskLimit', this.value)"></div>

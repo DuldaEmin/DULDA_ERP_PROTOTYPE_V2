@@ -2062,7 +2062,7 @@ const SalesModule = {
         const backAction = isEmbeddedInProducts
             ? 'ProductLibraryModule.goWorkspaceMenu()'
             : "SalesModule.openWorkspace('menu')";
-        const titleText = isEmbeddedInProducts ? 'master urun kutuphanesi / satis urun kutuphanesi' : 'satis urun kutuphanesi';
+        const titleText = isEmbeddedInProducts ? 'urun ve parca olusturma / satilan urun kutuphanesi' : 'satis urun kutuphanesi';
         const subtitleText = isEmbeddedInProducts
             ? 'bu ekran master tarafinda referans icin gorunur. urun ekleme ve duzenleme bu ekrandan da yapilabilir.'
             : 'burada sadece satilan urunler eklenir.';

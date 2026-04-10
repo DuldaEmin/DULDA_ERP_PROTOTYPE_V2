@@ -1941,7 +1941,7 @@ const SalesModule = {
                 ? `${requestedSelectAction}('${id}')`
                 : `SalesModule.openCatalogDetailModal('${id}')`;
             return `
-                <button class="sales-catalog-card" onclick="${selectAction}">
+                <div class="sales-catalog-card" role="button" tabindex="0" onclick="${selectAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${selectAction};}">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
                         ${image
                     ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-card-image">`
@@ -1967,7 +1967,7 @@ const SalesModule = {
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditCatalogModal('${id}')">duzenle</button>
                         </div>
                     </div>
-                </button>
+                </div>
             `;
         }).join('');
     },

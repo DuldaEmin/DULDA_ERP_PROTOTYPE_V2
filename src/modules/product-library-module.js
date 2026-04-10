@@ -1449,9 +1449,20 @@
                     .svx-mini::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
                     .svx-mini[readonly]{background:#f8fafc; color:#64748b;}
                     .svx-note{max-width:62%;}
+                    .svx-component-row{display:grid; grid-template-columns:22px minmax(0, 1fr) minmax(104px, 130px) minmax(96px, 118px) minmax(96px, 118px); gap:0.35rem; align-items:center;}
+                    .svx-code-card{border:1px solid #dbe2eb; border-radius:0.75rem; padding:0.45rem 0.6rem; background:#f8fafc;}
+                    .svx-code-link{font-size:0.88rem; font-weight:900; color:#1d4ed8; font-family:monospace; background:none; border:none; padding:0; cursor:pointer; text-align:left; display:block; width:100%; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+                    .svx-code-name{font-size:0.78rem; color:#64748b; margin-top:0.12rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+                    .svx-qty-wrap{display:flex; align-items:center; gap:0.25rem;}
+                    .svx-qty-input{height:40px; width:58px; border:1px solid #b8c5d9; border-radius:0.65rem; background:white; text-align:center; font-size:1.35rem; font-weight:600; color:#111827; -moz-appearance:textfield; appearance:textfield;}
+                    .svx-qty-input::-webkit-outer-spin-button,.svx-qty-input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+                    .svx-unit{font-size:0.72rem; font-weight:800; color:#334155; letter-spacing:0.01em;}
+                    .svx-action-btn{height:40px; width:100%; min-width:0; border-radius:0.65rem; font-size:0.78rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; text-align:center; line-height:1; padding:0 0.35rem; white-space:nowrap;}
+                    .svx-add-btn{height:32px; min-width:170px; display:inline-flex; align-items:center; justify-content:center; text-align:center; line-height:1;}
                     @media (max-width: 1260px){
                         .svx-top,.svx-bottom{grid-template-columns:1fr;}
                         .svx-note{max-width:100%;}
+                        .svx-component-row{grid-template-columns:22px minmax(0, 1fr) minmax(96px, 120px) minmax(90px, 110px) minmax(90px, 110px);}
                     }
                 </style>
 
@@ -1570,26 +1581,26 @@
                                 <div style="font-size:1rem; font-weight:900; color:#0f172a;">Parca ve Bilesen Baglantilari</div>
                                 <div style="font-size:0.76rem; color:#64748b;">Patlatilmis resimdeki parcalari satir satir ekleyin.</div>
                             </div>
-                            ${readOnly ? '' : '<button class="btn-primary" type="button" onclick="ProductLibraryModule.addSalesVariationComponentItem()" style="height:32px;">parca bilesen ekle +</button>'}
+                            ${readOnly ? '' : '<button class="btn-primary svx-add-btn" type="button" onclick="ProductLibraryModule.addSalesVariationComponentItem()">parca bilesen ekle +</button>'}
                         </div>
                         <div style="margin-top:0.5rem; display:flex; flex-direction:column; gap:0.3rem;">
                             ${componentItems.length === 0
                 ? '<div style="font-size:0.84rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.6rem; padding:0.6rem;">Bagli parca/bilesen yok.</div>'
                 : componentItems.map((item, idx) => `
-                                        <div style="display:grid; grid-template-columns:28px minmax(360px, 1fr) 210px 150px 150px; gap:0.42rem; align-items:center;">
+                                        <div class="svx-component-row">
                                             <div style="font-size:0.76rem; color:#64748b;">${idx + 1}</div>
-                                            <div style="border:1px solid #dbe2eb; border-radius:0.75rem; padding:0.45rem 0.6rem; background:#f8fafc;">
-                                                <button type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="font-size:0.9rem; font-weight:900; color:#1d4ed8; font-family:monospace; background:none; border:none; padding:0; cursor:pointer; text-align:left;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
-                                                <div style="font-size:0.8rem; color:#64748b; margin-top:0.12rem;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
+                                            <div class="svx-code-card">
+                                                <button type="button" class="svx-code-link" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
+                                                <div class="svx-code-name">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                             </div>
-                                            <div style="display:flex; align-items:center; gap:0.45rem;">
-                                                <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)" style="height:44px; width:92px; border-radius:0.75rem; font-size:1.55rem; font-weight:500;">
-                                                <span style="font-size:0.72rem; font-weight:800; color:#334155; letter-spacing:0.02em;">adet</span>
+                                            <div class="svx-qty-wrap">
+                                                <input ${readOnly ? 'readonly' : ''} class="svx-qty-input" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
+                                                <span class="svx-unit">adet</span>
                                             </div>
-                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">goruntule</button>
+                                            <button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')">goruntule</button>
                                             ${readOnly
-                    ? '<button class="btn-sm" type="button" disabled style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">duzenle</button>'
-                    : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:44px; border-radius:0.75rem; font-size:0.82rem; font-weight:800;">duzenle</button>`}
+                    ? '<button class="btn-sm svx-action-btn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">duzenle</button>'
+                    : `<button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>`}
                                         </div>
                                     `).join('')}
                         </div>

@@ -247,7 +247,7 @@
         if (normalized === 'component') ProductLibraryModule.state.componentLibraryKind = 'PART';
         if (normalized === 'semi') ProductLibraryModule.state.componentLibraryKind = 'SEMI';
         ProductLibraryModule.state.workspaceView = normalized === 'model'
-            ? 'models'
+            ? 'sales-products'
             : (normalized === 'semi' ? 'semi-components' : 'components');
         Router.navigate('products', { fromBack: true, preserveProductsState: true });
     },
@@ -333,10 +333,6 @@
                 </div>
 
                 <div class="apps-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1.35rem;">
-                    <a href="#" onclick="ProductLibraryModule.openWorkspace('models'); return false;" class="app-card" style="min-height:220px;">
-                        <div class="icon-box g-blue"><i data-lucide="file-plus-2" width="30" height="30"></i></div>
-                        <div class="app-name">Urun Modelleri Olusturma</div>
-                    </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('components'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-orange"><i data-lucide="component" width="30" height="30"></i></div>
                         <div class="app-name">Parca & Bilesen Olusturma</div>
@@ -355,7 +351,7 @@
                     </a>
                     <a href="#" onclick="ProductLibraryModule.openWorkspace('sales-products'); return false;" class="app-card" style="min-height:220px;">
                         <div class="icon-box g-purple"><i data-lucide="shopping-bag" width="30" height="30"></i></div>
-                        <div class="app-name">Satis Urun Kutuphanesi</div>
+                        <div class="app-name">Satılan Ürün Kütüphanesi</div>
                     </a>
                 </div>
             </div>
@@ -364,6 +360,10 @@
     },
 
     renderSalesProductBuilderPage: (container) => {
+        const isPlanningModelPicker = String(ProductLibraryModule.state.planningPickerSource || '') === 'model';
+        const isStockInventoryPicker = isPlanningModelPicker
+            && typeof StockModule !== 'undefined'
+            && !!StockModule?.state?.inventoryRegistrationPickerPending;
         const selectedProductId = String(ProductLibraryModule.state.salesProductDetailId || '').trim();
         if (selectedProductId) {
             const selectedProduct = ProductLibraryModule.getSalesCatalogProductById(selectedProductId);
@@ -375,16 +375,29 @@
         }
         if (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.renderProductsLayout === 'function') {
             SalesModule.ensureCatalogState();
-            container.innerHTML = SalesModule.renderProductsLayout({
+            const layoutHtml = SalesModule.renderProductsLayout({
                 host: 'product-library',
                 onSelectAction: 'ProductLibraryModule.openSalesProductVariationPage',
                 viewButtonLabel: 'varyasyonlar'
             });
+            container.innerHTML = isPlanningModelPicker
+                ? `
+                    <div style="max-width:1880px; margin:0 auto 0.85rem;">
+                        <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                            <div style="font-weight:700;">${isStockInventoryPicker
+                        ? 'Envantere elle kayit icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.'
+                        : 'Planlama icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.'}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
+                        </div>
+                    </div>
+                    ${layoutHtml}
+                `
+                : layoutHtml;
             return;
         }
         ProductLibraryModule.renderWorkspacePlaceholder(
             container,
-            'Satis Urun Kutuphanesi',
+            'Satılan Ürün Kütüphanesi',
             'Satis modulu yuklenmedigi icin bu ekran acilamadi.'
         );
     },

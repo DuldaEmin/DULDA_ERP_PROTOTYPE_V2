@@ -984,6 +984,11 @@ const PlanningModule = {
 
     getVariants: () => {
         PlanningModule.ensureData();
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.getPlanningModelVariants === 'function') {
+            return ProductLibraryModule.getPlanningModelVariants();
+        }
         return (DB.data.data.catalogProductVariants || []).slice().sort((a, b) => {
             const ga = String(a?.productGroup || '');
             const gb = String(b?.productGroup || '');

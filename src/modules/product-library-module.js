@@ -521,6 +521,217 @@
             });
     },
 
+    getPlanningModelIdFromSalesVariationId: (variationId) => {
+        const id = String(variationId || '').trim();
+        return id ? `salesvar_${id}` : '';
+    },
+
+    isSalesPlanningModelId: (id) => {
+        return String(id || '').trim().toLowerCase().startsWith('salesvar_');
+    },
+
+    getSalesVariationIdFromPlanningModelId: (id) => {
+        const raw = String(id || '').trim();
+        if (!raw) return '';
+        if (ProductLibraryModule.isSalesPlanningModelId(raw)) return raw.slice('salesvar_'.length).trim();
+        return raw;
+    },
+
+    getAllSalesProductVariationRows: () => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
+        const products = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        const all = [];
+        products.forEach((product) => {
+            const sourceId = String(product?.id || '').trim();
+            if (!sourceId) return;
+            all.push(...ProductLibraryModule.getSalesProductVariationRows(sourceId));
+        });
+        return all;
+    },
+
+    resolvePlanningModelMontageCard: (montageRaw = {}) => {
+        const options = ProductLibraryModule.getModelMontageCardOptions();
+        const rawId = String(montageRaw?.id || '').trim();
+        const rawCardCode = String(montageRaw?.cardCode || '').trim().toUpperCase();
+        const rawProductCode = String(montageRaw?.productCode || '').trim().toUpperCase();
+        const rawProductName = String(montageRaw?.productName || '').trim();
+
+        let hit = null;
+        if (rawId) hit = options.find((row) => String(row?.id || '').trim() === rawId) || null;
+        if (!hit && rawCardCode) {
+            hit = options.find((row) => String(row?.cardCode || '').trim().toUpperCase() === rawCardCode) || null;
+        }
+        if (!hit && rawProductCode) {
+            hit = options.find((row) => String(row?.productCode || '').trim().toUpperCase() === rawProductCode) || null;
+        }
+
+        if (hit) {
+            return {
+                id: String(hit?.id || '').trim(),
+                cardCode: String(hit?.cardCode || '').trim().toUpperCase(),
+                productCode: String(hit?.productCode || '').trim().toUpperCase(),
+                productName: String(hit?.productName || '').trim()
+            };
+        }
+        if (!rawId && !rawCardCode && !rawProductCode && !rawProductName) return null;
+        return {
+            id: rawId,
+            cardCode: rawCardCode,
+            productCode: rawProductCode,
+            productName: rawProductName
+        };
+    },
+
+    normalizePlanningModelColorFromSalesVariation: (block = {}) => {
+        const type = ProductLibraryModule.normalizeColorType(block?.category || block?.type || '');
+        const initialName = String(block?.color || block?.name || '').trim();
+        const initialCode = String(block?.code || '').trim().toUpperCase();
+        const strict = ProductLibraryModule.resolveStrictLibraryColorSelection({
+            colorType: type,
+            colorCode: initialCode,
+            colorName: initialName
+        });
+        if (strict?.found) {
+            return { type: strict.type, name: strict.name, code: strict.code };
+        }
+        if (type && initialName) {
+            const hit = ProductLibraryModule.getColorLibraryItemsByType(type).find((row) =>
+                String(row?.name || '').trim().toLocaleLowerCase('tr-TR') === initialName.toLocaleLowerCase('tr-TR')
+            ) || null;
+            if (hit) {
+                return {
+                    type,
+                    name: String(hit?.name || initialName).trim(),
+                    code: String(hit?.code || initialCode).trim().toUpperCase()
+                };
+            }
+        }
+        return { type, name: initialName, code: initialCode };
+    },
+
+    inferPlanningModelItemSource: (item = {}) => {
+        const rawSource = String(item?.source || '').trim().toLowerCase();
+        if (rawSource === 'master') return 'master';
+        if (['semi', 'yarimamul', 'semi-finished'].includes(rawSource)) return 'semi';
+        const refId = String(item?.refId || '').trim();
+        if (refId) {
+            const semiCards = Array.isArray(DB.data?.data?.semiFinishedCards) ? DB.data.data.semiFinishedCards : [];
+            if (semiCards.some((row) => String(row?.id || '').trim() === refId)) return 'semi';
+        }
+        const code = String(item?.code || '').trim().toUpperCase();
+        if (code.startsWith('YRM-')) return 'semi';
+        return 'component';
+    },
+
+    buildPlanningModelFromSalesVariation: (variationRow = {}) => {
+        const sourceVariationId = String(variationRow?.id || '').trim();
+        if (!sourceVariationId) return null;
+        const id = ProductLibraryModule.getPlanningModelIdFromSalesVariationId(sourceVariationId);
+        const sourceCatalogProductId = String(variationRow?.sourceCatalogProductId || '').trim();
+        const sourceProduct = ProductLibraryModule.getSalesCatalogProductById(sourceCatalogProductId);
+        const categoryId = String(sourceProduct?.categoryId || variationRow?.sourceCatalogCategoryId || '').trim();
+        const categoryPath = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.getCatalogCategoryPathText === 'function')
+            ? String(SalesModule.getCatalogCategoryPathText(categoryId) || '').trim()
+            : categoryId;
+        const montageCard = ProductLibraryModule.resolvePlanningModelMontageCard(variationRow?.montageCard || null);
+        const updatedAt = String(variationRow?.updatedAt || variationRow?.updated_at || variationRow?.createdAt || variationRow?.created_at || '').trim();
+        const createdAt = String(variationRow?.createdAt || variationRow?.created_at || updatedAt || new Date().toISOString()).trim();
+        const items = (Array.isArray(variationRow?.items) ? variationRow.items : [])
+            .map((item) => ({
+                id: String(item?.id || crypto.randomUUID()),
+                source: ProductLibraryModule.inferPlanningModelItemSource(item),
+                refId: String(item?.refId || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qty: Math.max(1, Number(item?.qty || item?.quantity || 1))
+            }))
+            .filter((item) => item.code);
+        const masterRefs = (Array.isArray(variationRow?.masterRefs) ? variationRow.masterRefs : [])
+            .map((item) => ({
+                rowId: String(item?.rowId || item?.id || crypto.randomUUID()),
+                id: String(item?.refId || item?.id || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                categoryName: String(item?.categoryName || '').trim(),
+                qty: Math.max(1, Number(item?.qty || 1))
+            }))
+            .filter((item) => item.code);
+        const variantCode = String(variationRow?.variantCode || '').trim().toUpperCase();
+        const productName = String(variationRow?.productName || sourceProduct?.name || variationRow?.sourceCatalogName || '').trim();
+        if (!variantCode || !productName) return null;
+
+        return {
+            id,
+            orderIndex: Number(variationRow?.orderIndex || 0),
+            familyId: sourceCatalogProductId || id,
+            familyCode: String(sourceProduct?.productCode || variationRow?.sourceCatalogProductCode || variationRow?.sourceCatalogIdCode || '').trim().toUpperCase(),
+            familyName: String(sourceProduct?.name || variationRow?.sourceCatalogName || productName).trim(),
+            variantCode,
+            productName,
+            productGroup: String(categoryPath || categoryId || 'Satilan Urunler').trim(),
+            masterRefs,
+            masterRef: masterRefs[0] || null,
+            items,
+            montageCard,
+            colors: {
+                plexi: ProductLibraryModule.normalizePlanningModelColorFromSalesVariation(variationRow?.colors?.plexi || {}),
+                accessory: ProductLibraryModule.normalizePlanningModelColorFromSalesVariation(variationRow?.colors?.accessory || {}),
+                tube: ProductLibraryModule.normalizePlanningModelColorFromSalesVariation(variationRow?.colors?.tube || {})
+            },
+            productFiles: [],
+            explodedFiles: (Array.isArray(variationRow?.explodedFiles) ? variationRow.explodedFiles : [])
+                .map((file) => ({
+                    name: String(file?.name || 'dosya').trim() || 'dosya',
+                    type: String(file?.type || '').trim(),
+                    size: Number(file?.size || 0),
+                    data: String(file?.data || '')
+                }))
+                .filter((file) => file.data),
+            note: String(variationRow?.note || '').trim(),
+            createdAt,
+            updatedAt,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            sourceType: 'SALES_VARIATION',
+            sourceVariationId,
+            sourceCatalogProductId
+        };
+    },
+
+    getPlanningModelVariants: () => {
+        const salesMapped = ProductLibraryModule.getAllSalesProductVariationRows()
+            .map((row) => ProductLibraryModule.buildPlanningModelFromSalesVariation(row))
+            .filter(Boolean);
+        const salesIds = new Set(salesMapped.map((row) => String(row?.id || '')));
+        const legacyRows = ProductLibraryModule.getCatalogProductVariants()
+            .filter((row) => !salesIds.has(String(row?.id || '')));
+        return [...salesMapped, ...legacyRows].sort((a, b) => {
+            const ga = String(a?.productGroup || '');
+            const gb = String(b?.productGroup || '');
+            if (ga !== gb) return ga.localeCompare(gb, 'tr');
+            const na = String(a?.productName || '');
+            const nb = String(b?.productName || '');
+            if (na !== nb) return na.localeCompare(nb, 'tr');
+            return String(a?.variantCode || '').localeCompare(String(b?.variantCode || ''), 'tr');
+        });
+    },
+
+    getPlanningModelById: (id) => {
+        const key = String(id || '').trim();
+        if (!key) return null;
+        if (ProductLibraryModule.isSalesPlanningModelId(key)) {
+            const salesVariationId = ProductLibraryModule.getSalesVariationIdFromPlanningModelId(key);
+            const salesRow = ProductLibraryModule.getAllSalesProductVariationRows()
+                .find((row) => String(row?.id || '').trim() === salesVariationId) || null;
+            return salesRow ? ProductLibraryModule.buildPlanningModelFromSalesVariation(salesRow) : null;
+        }
+        const legacy = ProductLibraryModule.getCatalogVariantById(key);
+        if (legacy) return legacy;
+        const directSalesRow = ProductLibraryModule.getAllSalesProductVariationRows()
+            .find((row) => String(row?.id || '').trim() === key) || null;
+        return directSalesRow ? ProductLibraryModule.buildPlanningModelFromSalesVariation(directSalesRow) : null;
+    },
+
     generateSalesVariantCode: (product, excludeId = '') => {
         const sourceProduct = product && typeof product === 'object' ? product : {};
         const sourceId = String(sourceProduct?.id || '').trim();
@@ -1257,10 +1468,22 @@
             : String(row?.categoryId || '').trim();
         const diameters = Array.isArray(row?.diameters) ? row.diameters.filter(Boolean) : [];
         const variantRows = ProductLibraryModule.getSalesProductVariationRows(row?.id);
+        const isPlanningModelPicker = String(ProductLibraryModule.state.planningPickerSource || '') === 'model';
+        const isStockInventoryPicker = isPlanningModelPicker
+            && typeof StockModule !== 'undefined'
+            && !!StockModule?.state?.inventoryRegistrationPickerPending;
         const editorPanelHtml = ProductLibraryModule.renderSalesVariationEditorPanel(row);
 
         container.innerHTML = `
             <div style="max-width:1500px; margin:0 auto;">
+                ${isPlanningModelPicker ? `
+                    <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.85rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                        <div style="font-weight:700;">${isStockInventoryPicker
+                ? 'Envantere elle kayit icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.'
+                : 'Planlama icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.'}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
+                    </div>
+                ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.85rem;">
                     <div>
                         <h2 class="page-title" style="margin:0;">Urun Detayi ve Varyasyonlar</h2>
@@ -1342,6 +1565,7 @@
                                                 <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
                                                     <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('view', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">goruntule</button>
                                                     <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>
+                                                    ${isPlanningModelPicker ? `<button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" onclick="ProductLibraryModule.selectPlanningModel('${ProductLibraryModule.escapeHtml(ProductLibraryModule.getPlanningModelIdFromSalesVariationId(item?.id || ''))}')">ekle</button>` : ''}
                                                 </div>
                                             </td>
                                         </tr>
@@ -5195,11 +5419,13 @@
         UI.renderCurrentPage();
     },
     selectPlanningModel: (id) => {
-        const row = ProductLibraryModule.getCatalogVariantById(id);
+        const row = ProductLibraryModule.getPlanningModelById(id) || ProductLibraryModule.getCatalogVariantById(id);
         if (!row) return;
+        const modelId = String(row?.id || id || '').trim();
+        if (!modelId) return;
         if (typeof StockModule !== 'undefined' && StockModule && StockModule.state?.inventoryRegistrationPickerPending) {
             const applied = typeof StockModule.selectInventoryRegistrationProductFromLibrary === 'function'
-                ? StockModule.selectInventoryRegistrationProductFromLibrary('model', id)
+                ? StockModule.selectInventoryRegistrationProductFromLibrary('model', modelId)
                 : false;
             if (!applied) return;
             ProductLibraryModule.resetLibraryAccordionState();
@@ -5216,7 +5442,7 @@
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'menu';
-        PlanningModule.applyPickedModel(id);
+        PlanningModule.applyPickedModel(modelId);
     },
     selectPlanningComponent: (id) => {
         const row = ProductLibraryModule.getComponentCardById(id);

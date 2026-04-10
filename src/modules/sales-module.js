@@ -2047,7 +2047,7 @@ const SalesModule = {
             : "SalesModule.openWorkspace('menu')";
         const titleText = isEmbeddedInProducts ? 'master urun kutuphanesi / satis urun kutuphanesi' : 'satis urun kutuphanesi';
         const subtitleText = isEmbeddedInProducts
-            ? 'bu ekran master tarafinda referans icin gorunur. yeni urun ekleme sadece satis modulu ekranindan yapilir.'
+            ? 'bu ekran master tarafinda referans icin gorunur. urun ekleme ve duzenleme bu ekrandan da yapilabilir.'
             : 'burada sadece satilan urunler eklenir.';
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
@@ -2065,9 +2065,6 @@ const SalesModule = {
         const filteredCount = filteredRows.length;
         const createButtonHtml = (() => {
             if (!(supportsCrud && activeGroup && activeLeaf)) return '';
-            if (isEmbeddedInProducts) {
-                return '';
-            }
             return '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>';
         })();
         return `

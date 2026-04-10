@@ -119,6 +119,21 @@ const MontageLibraryModule = {
             UI.renderCurrentPage();
             return;
         }
+        if (ctx?.source === 'sales-variation' && row) {
+            if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
+                if (!ProductLibraryModule.state.salesVariationDraft || typeof ProductLibraryModule.state.salesVariationDraft !== 'object') {
+                    ProductLibraryModule.state.salesVariationDraft = {};
+                }
+                ProductLibraryModule.state.salesVariationDraft.montageCardCode = String(row.cardCode || row.productCode || '').trim().toUpperCase();
+                ProductLibraryModule.state.workspaceView = 'sales-products';
+            }
+            MontageLibraryModule.state.pickerContext = null;
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            }
+            UI.renderCurrentPage();
+            return;
+        }
         UI.renderCurrentPage();
     },
 

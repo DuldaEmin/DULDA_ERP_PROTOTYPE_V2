@@ -568,7 +568,7 @@
                 plexi: { category: String(sourceColors?.plexi?.category || productColors?.plexi?.category || '').trim(), color: String(sourceColors?.plexi?.color || productColors?.plexi?.color || '').trim() }
             },
             montageCardCode: String(sourceRow?.montageCard?.cardCode || '').trim().toUpperCase(),
-            masterRefs: Array.isArray(sourceRow?.masterRefs) ? sourceRow.masterRefs.map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
+            masterRefs: Array.isArray(sourceRow?.masterRefs) ? sourceRow.masterRefs.map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
             componentItems: Array.isArray(sourceRow?.items) ? sourceRow.items.map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code) : [],
             explodedFiles: Array.isArray(sourceRow?.explodedFiles) ? sourceRow.explodedFiles.map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data) : [],
             note: String(sourceRow?.note || '').trim()
@@ -716,6 +716,7 @@
         }
         list.push({
             id: crypto.randomUUID(),
+            refId: String(record.id || '').trim(),
             code,
             name: String(record.name || '').trim(),
             qty: 1
@@ -743,6 +744,7 @@
         }
         list.push({
             id: crypto.randomUUID(),
+            refId: String(row.id || '').trim(),
             code,
             name: String(row.name || '').trim(),
             qty: 1
@@ -751,6 +753,63 @@
         ProductLibraryModule.state.componentPickerSource = '';
         ProductLibraryModule.state.workspaceView = 'sales-products';
         UI.renderCurrentPage();
+    },
+
+    openSalesVariationLinkedRecord: (kind, refId = '', code = '') => {
+        const type = String(kind || '').trim().toLowerCase();
+        const normalizedRefId = String(refId || '').trim();
+        const normalizedCode = String(code || '').trim().toUpperCase();
+
+        if (type === 'master') {
+            let target = normalizedRefId ? ProductLibraryModule.getMasterProductById(normalizedRefId) : null;
+            if (!target && normalizedCode) {
+                target = ProductLibraryModule.getMasterProducts().find((row) =>
+                    String(row?.code || '').trim().toUpperCase() === normalizedCode
+                ) || null;
+            }
+            if (!target) return alert('Bagli master urun kaydi bulunamadi.');
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'master';
+            ProductLibraryModule.state.masterSelectedId = String(target.id || '');
+            ProductLibraryModule.state.masterFormOpen = false;
+            ProductLibraryModule.state.masterEditingId = null;
+            UI.renderCurrentPage();
+            return;
+        }
+
+        if (type === 'component') {
+            let target = normalizedRefId ? ProductLibraryModule.getComponentCardById(normalizedRefId) : null;
+            if (!target && normalizedCode) {
+                target = ProductLibraryModule.getComponentCardsByLibraryKind('PART').find((row) =>
+                    String(row?.code || '').trim().toUpperCase() === normalizedCode
+                ) || null;
+            }
+            if (!target) return alert('Bagli parca/bilesen kaydi bulunamadi.');
+            ProductLibraryModule.state.masterPickerSource = '';
+            ProductLibraryModule.state.componentPickerSource = '';
+            ProductLibraryModule.state.componentLibraryKind = 'PART';
+            ProductLibraryModule.state.workspaceView = 'components';
+            ProductLibraryModule.state.componentViewingId = String(target.id || '');
+            ProductLibraryModule.state.componentFormOpen = false;
+            UI.renderCurrentPage();
+        }
+    },
+
+    openSalesVariationMontagePicker: () => {
+        const unitId = UnitModule?.state?.activeUnitId || 'u3';
+        if (typeof MontageLibraryModule !== 'undefined') {
+            MontageLibraryModule.state.pickerContext = { source: 'sales-variation' };
+        }
+        if (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.openMontageLibrary === 'function') {
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('units', { fromBack: true });
+            }
+            UnitModule.openMontageLibrary(unitId, { preserveState: true });
+            UI.renderCurrentPage();
+            return;
+        }
+        alert('Montaj kutuphanesi acilamadi.');
     },
 
     removeSalesVariationComponentItem: (id) => {
@@ -867,8 +926,8 @@
             montageCard: String(draft.montageCardCode || '').trim()
                 ? { cardCode: String(draft.montageCardCode || '').trim().toUpperCase(), productCode: '', productName: '' }
                 : null,
-            masterRefs: (Array.isArray(draft.masterRefs) ? draft.masterRefs : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
-            items: (Array.isArray(draft.componentItems) ? draft.componentItems : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
+            masterRefs: (Array.isArray(draft.masterRefs) ? draft.masterRefs : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
+            items: (Array.isArray(draft.componentItems) ? draft.componentItems : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
             explodedFiles: (Array.isArray(draft.explodedFiles) ? draft.explodedFiles : []).map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data),
             note: String(draft.note || '').trim(),
             created_at: String(prev?.created_at || now),
@@ -985,11 +1044,13 @@
                     .svx-input{width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.62rem; font-weight:700;}
                     .svx-input[readonly], .svx-input:disabled{background:#f8fafc; color:#64748b;}
                     .svx-chip{height:30px; border:1px solid #cbd5e1; border-radius:999px; padding:0 0.62rem; background:white; font-size:0.78rem; font-weight:800;}
-                    .svx-chip.is-active{border-color:#0f172a; background:#f1f5f9; color:#0f172a;}
+                    .svx-chip.is-active{border-color:#16a34a; background:#dcfce7; color:#166534;}
                     .svx-row{display:grid; gap:0.35rem; align-items:center;}
                     .svx-row.master{grid-template-columns:28px 1fr 68px 56px 56px;}
                     .svx-row.comp{grid-template-columns:28px 1fr 72px 56px 56px;}
-                    .svx-mini{height:30px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; background:white; font-size:0.75rem;}
+                    .svx-mini{height:30px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.3rem; background:white; font-size:0.75rem; text-align:center; font-weight:700; -moz-appearance:textfield; appearance:textfield;}
+                    .svx-mini::-webkit-outer-spin-button,
+                    .svx-mini::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
                     .svx-mini[readonly]{background:#f8fafc; color:#64748b;}
                     .svx-note{max-width:62%;}
                     @media (max-width: 1260px){
@@ -1061,8 +1122,8 @@
                                     </div>
                                 </div>
                                 <div class="svx-orange" style="margin-top:0.34rem;">
-                                    <label class="svx-label">Alt boru uzunlugu</label>
-                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" type="text" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || 'standart')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="standart veya ozel olcu">
+                                    <label class="svx-label">Alt boru uzunlugu (Standart / mm)</label>
+                                    <input ${readOnly ? 'readonly' : ''} class="svx-input" type="text" value="${ProductLibraryModule.escapeHtml(draft.lowerTubeLengthMm || 'standart')}" oninput="ProductLibraryModule.setSalesVariationLowerTubeMm(this.value)" placeholder="standart veya 220 mm">
                                 </div>
                             </div>
                         </div>
@@ -1071,7 +1132,7 @@
                             <label class="svx-label">Montaj Islem Karti</label>
                             <div style="display:grid; grid-template-columns:1fr 84px 58px; gap:0.35rem;">
                                 <input ${readOnly ? 'readonly' : ''} class="svx-input" value="${ProductLibraryModule.escapeHtml(draft.montageCardCode || '')}" oninput="ProductLibraryModule.setSalesVariationDraftField('montageCardCode', this.value.toUpperCase())" placeholder="montaj karti secilmedi">
-                                <button class="btn-sm" type="button" onclick="return false;">goruntule</button>
+                                <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationMontagePicker()" style="${String(draft.montageCardCode || '').trim() ? 'background:#ecfdf5; border-color:#86efac; color:#166534;' : ''}">goruntule</button>
                                 ${readOnly
                 ? '<button class="btn-sm" type="button" disabled>sil</button>'
                 : '<button class="btn-sm" type="button" onclick="ProductLibraryModule.setSalesVariationDraftField(\'montageCardCode\', \'\'); UI.renderCurrentPage();">sil</button>'}
@@ -1093,7 +1154,7 @@
                                                 <div style="font-size:0.74rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
                                                 <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                             </div>
-                                            <button class="btn-sm" type="button" onclick="return false;" style="height:30px;">goruntule</button>
+                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px;">goruntule</button>
                                             <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
                                             ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:30px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:30px;">sil</button>`}
                                         </div>
@@ -1122,7 +1183,7 @@
                                                 <div style="font-size:0.76rem; font-weight:800; color:#0f172a; font-family:monospace;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</div>
                                                 <div style="font-size:0.72rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                             </div>
-                                            <button class="btn-sm" type="button" onclick="return false;" style="height:31px;">goruntule</button>
+                                            <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:31px;">goruntule</button>
                                             <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationComponentQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
                                             ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:31px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:31px;">sil</button>`}
                                         </div>
@@ -1130,9 +1191,9 @@
                         </div>
                     </div>
 
-                    <div class="svx-soft" style="padding:0.68rem; min-height:208px;">
-                        <div style="font-size:1.02rem; font-weight:900; color:#0f172a;">urun fotografi / teknik resim</div>
-                        <div style="font-size:0.82rem; color:#64748b; margin-top:0.15rem;">resim/pdf dosya + ekle</div>
+                    <div class="svx-soft" style="padding:0.82rem; min-height:208px;">
+                        <div style="font-size:1.08rem; font-weight:900; color:#0f172a; text-align:center;">Urun Fotografi / Teknik Resim</div>
+                        <div style="font-size:0.86rem; color:#64748b; margin-top:0.2rem; text-align:center;">Resim/PDF dosya + ekle</div>
                         ${readOnly ? '' : '<input type="file" multiple accept=".pdf,.jpg,.jpeg,.png" onchange="ProductLibraryModule.handleSalesVariationExplodedFiles(this)" style="margin-top:0.4rem;">'}
                         <div style="margin-top:0.45rem; display:flex; flex-direction:column; gap:0.35rem; max-height:128px; overflow:auto;">
                             ${explodedFiles.length === 0

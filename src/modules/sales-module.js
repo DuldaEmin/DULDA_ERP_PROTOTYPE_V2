@@ -457,6 +457,34 @@ const SalesModule = {
         alert('Musteri guncellendi.');
     },
 
+    deleteCustomer: async (customerId) => {
+        SalesModule.ensureData();
+        const targetId = String(customerId || '').trim();
+        if (!targetId) return;
+        const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
+        if (idx === -1) return alert('Musteri kaydi bulunamadi.');
+        const row = rows[idx] || {};
+        const customerName = String(row?.name || row?.customerCode || targetId).trim() || targetId;
+
+        const linkedOrders = SalesModule.getCustomerOrderHistory(row);
+        if (linkedOrders.length > 0) {
+            return alert(`Bu musteriye bagli ${linkedOrders.length} siparis var. Veri butunlugu icin once siparis kayitlarini duzenleyin.`);
+        }
+
+        if (!confirm(`${customerName} musterisini silmek istediginizden emin misiniz?`)) return;
+
+        DB.data.data.customers = rows.filter((item) => String(item?.id || '').trim() !== targetId);
+        if (String(SalesModule.state.customerDetailId || '').trim() === targetId) {
+            SalesModule.state.customerDetailId = null;
+            SalesModule.state.customerDetailMode = 'view';
+            SalesModule.state.customerEditDraft = null;
+        }
+        await DB.save();
+        UI.renderCurrentPage();
+        alert('Musteri silindi.');
+    },
+
     getCatalogTree: () => ([
         {
             id: 'korkuluk',
@@ -2546,6 +2574,7 @@ const SalesModule = {
                                                         <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">
                                                             <button class="btn-sm" onclick="SalesModule.openCustomerDetail('${rowId}','view')">goruntule</button>
                                                             <button class="btn-sm" onclick="SalesModule.openCustomerDetail('${rowId}','edit')">duzenle</button>
+                                                            <button class="btn-sm" data-skip-delete-confirm="true" onclick="SalesModule.deleteCustomer('${rowId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>
                                                         </div>
                                                     </td>
                                                 </tr>

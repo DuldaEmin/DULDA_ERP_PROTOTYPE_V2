@@ -6824,7 +6824,7 @@
         const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
         const isStockInventoryRegistrationPicker = state.masterPickerSource === 'stock-inventory-registration';
         const isMasterPicker = isComponentPicker || isSalesVariationMasterPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
-        const showSelectColumn = isMasterPicker || showForm;
+        const showSelectColumn = isMasterPicker;
         const masterTableColspan = showSelectColumn ? 14 : 13;
         const masterPickerHint = isAssemblyMasterPicker
             ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'

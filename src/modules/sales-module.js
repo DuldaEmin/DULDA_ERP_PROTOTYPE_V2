@@ -3351,6 +3351,10 @@ const SalesModule = {
                     </button>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
+                    <button class="stock-hub-card" onclick="SalesModule.openWorkspace('sales')">
+                        <div class="stock-hub-icon" style="background:linear-gradient(135deg,#16a34a 0%, #15803d 100%);"><i data-lucide="shopping-cart" width="24" height="24"></i></div>
+                        <div class="stock-hub-label">Satis</div>
+                    </button>
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
                         <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="users" width="24" height="24"></i></div>
                         <div class="stock-hub-label">Musteriler</div>
@@ -3364,6 +3368,19 @@ const SalesModule = {
                         <div class="stock-hub-label">Satis Urun Kutuphanesi</div>
                     </button>
                 </div>
+            </div>
+        </section>
+    `,
+
+    renderSalesWorkspaceLayout: () => `
+        <section class="stock-shell">
+            <div class="stock-subpage-shell">
+                <div class="stock-subpage-head">
+                    <h2 class="stock-title">satis</h2>
+                    <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                </div>
+
+                <div class="card-table" style="padding:0; min-height:560px;"></div>
             </div>
         </section>
     `,
@@ -3801,6 +3818,7 @@ const SalesModule = {
 
     renderLayout: () => {
         const view = String(SalesModule.state.workspaceView || 'menu');
+        if (view === 'sales') return SalesModule.renderSalesWorkspaceLayout();
         if (view === 'customers') return SalesModule.renderCustomersLayout();
         if (view === 'personnel') return SalesModule.renderPersonnelLayout();
         if (view === 'products') return SalesModule.renderProductsLayout();

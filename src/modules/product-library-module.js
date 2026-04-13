@@ -428,6 +428,14 @@
         ProductLibraryModule.state.salesVariationEditorMode = '';
         ProductLibraryModule.state.salesVariationEditingId = '';
         ProductLibraryModule.state.salesVariationDraft = null;
+        if (source === 'sales-price-lists' && typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            if (typeof SalesModule !== 'undefined' && SalesModule?.state) {
+                SalesModule.state.workspaceView = 'settings-price-lists';
+            }
+            ProductLibraryModule.state.salesProductEntrySource = '';
+            Router.navigate('sales', { fromBack: true });
+            return;
+        }
         if (source === 'sales' && typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
             if (typeof SalesModule !== 'undefined' && SalesModule?.state) {
                 SalesModule.state.workspaceView = 'products';

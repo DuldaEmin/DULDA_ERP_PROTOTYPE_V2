@@ -1147,6 +1147,87 @@ const SalesModule = {
         `;
     },
 
+    renderSalesProductPriceModalHtml: (product = {}, line = {}, currency = 'USD', listName = '') => {
+        const pathText = SalesModule.getCatalogCategoryPathText(product?.categoryId || '');
+        const productImage = String(product?.images?.product || product?.images?.application || '').trim();
+        const technicalImage = String(product?.images?.technical || '').trim();
+        const currentPrice = SalesModule.formatPriceListInputValue(Number(line?.unitPrice || 0));
+        return `
+            <div class="sales-catalog-detail-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
+                <div class="sales-catalog-detail-grid">
+                    <div class="sales-catalog-detail-left">
+                        <div class="sales-catalog-preview-combo">
+                            <div class="sales-catalog-preview-panel is-dark">
+                                ${productImage
+                ? `<img src="${SalesModule.escapeHtml(productImage)}" alt="${SalesModule.escapeHtml(product?.name || 'Urun')}" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Urun gorseli yok</div>'}
+                            </div>
+                            <div class="sales-catalog-preview-panel is-light">
+                                ${technicalImage
+                ? `<img src="${SalesModule.escapeHtml(technicalImage)}" alt="Teknik cizim" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Teknik resim yok</div>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sales-catalog-detail-right">
+                        <div class="sales-catalog-detail-head">
+                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(String(product?.name || '-'))}</div>
+                            <div class="sales-catalog-detail-codes">
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(String(product?.productCode || '-'))}</span>
+                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(String(product?.idCode || '-'))}</span>
+                            </div>
+                        </div>
+
+                        <div style="border:1px solid #e2e8f0; border-radius:0.78rem; padding:0.7rem; background:#f8fafc;">
+                            <div style="font-size:0.78rem; color:#64748b;">Aktif liste</div>
+                            <div style="font-size:0.9rem; font-weight:800; color:#0f172a; margin-top:0.15rem;">${SalesModule.escapeHtml(String(listName || '-'))}</div>
+                            <div style="display:grid; grid-template-columns:1fr auto; gap:0.55rem; margin-top:0.55rem; align-items:end;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ana urun birim fiyat (${SalesModule.escapeHtml(currency)})</label>
+                                    <input id="sales_price_list_main_price_modal_input" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(currentPrice)}">
+                                </div>
+                                <button class="btn-primary" type="button" onclick="SalesModule.setPriceListMainProductPriceFromModal('${SalesModule.escapeHtml(String(product?.id || ''))}')">kaydet</button>
+                            </div>
+                            <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">Bu fiyat override olmayan varyasyonlara miras gider.</div>
+                        </div>
+
+                        <div style="margin-top:0.6rem;">
+                            <label class="sales-catalog-label">Not</label>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(String(product?.note || ''))}</textarea>
+                        </div>
+
+                        <div class="sales-catalog-modal-actions">
+                            <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    openSalesProductFromPriceList: (productId) => {
+        const productKey = String(productId || '').trim();
+        if (!productKey) return;
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === productKey);
+        if (!product) return alert('Urun bulunamadi.');
+        const line = SalesModule.getActivePriceListLineByProductId(productKey) || {};
+        const active = SalesModule.getActivePriceList();
+        const currency = String(active?.currency || 'USD').trim().toUpperCase() || 'USD';
+        const html = SalesModule.renderSalesProductPriceModalHtml(product, line, currency, String(active?.name || 'Genel Liste'));
+        Modal.open('Urun karti detay', html, { maxWidth: '1180px' });
+    },
+
+    setPriceListMainProductPriceFromModal: (productId) => {
+        const productKey = String(productId || '').trim();
+        if (!productKey) return;
+        const input = document.getElementById('sales_price_list_main_price_modal_input');
+        const value = input ? String(input.value || '') : '';
+        SalesModule.setPriceListMainProductPrice(productKey, value);
+        Modal.close();
+    },
+
     formatPriceListInputValue: (value) => {
         const num = Number(value || 0);
         if (!(num > 0)) return '';
@@ -4897,7 +4978,8 @@ const SalesModule = {
                         const productIdEsc = SalesModule.escapeHtml(productId);
                         const productName = SalesModule.escapeHtml(String(product?.name || '-'));
                         const productCode = SalesModule.escapeHtml(String(product?.productCode || '-'));
-                        const idCode = SalesModule.escapeHtml(String(product?.idCode || '-'));
+                        const idCodeRaw = String(product?.idCode || '-');
+                        const idCode = SalesModule.escapeHtml(idCodeRaw);
                         const badgeHtml = productBadges.length
                             ? productBadges.map((badge) => SalesModule.renderPriceListBadgeHtml(badge)).join(' ')
                             : '<span style="color:#94a3b8;">-</span>';
@@ -4911,7 +4993,9 @@ const SalesModule = {
                                     <div style="font-weight:800; color:#0f172a;">${productName}</div>
                                 </td>
                                 <td style="padding:0.5rem; font-family:Consolas,monospace; color:#334155;">${productCode}</td>
-                                <td style="padding:0.5rem; font-family:Consolas,monospace; color:#1d4ed8; font-weight:800;">${idCode}</td>
+                                <td style="padding:0.5rem; font-family:Consolas,monospace; color:#1d4ed8; font-weight:800;">
+                                    <button class="btn-sm" type="button" style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="SalesModule.openSalesProductFromPriceList('${productIdEsc}')">${idCode}</button>
+                                </td>
                                 <td style="padding:0.5rem; text-align:right;">
                                     <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)">
                                 </td>

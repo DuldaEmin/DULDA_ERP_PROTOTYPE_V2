@@ -252,7 +252,6 @@ const SalesModule = {
                 if (!(unitPrice > 0)) return;
                 candidates.push({
                     unitPrice: Number(unitPrice.toFixed(2)),
-                    currency: SalesModule.normalizeCatalogPriceCurrency(order?.currency || line?.currency || 'USD'),
                     orderDate,
                     orderNo: String(order?.orderNo || order?.code || order?.id || '-').trim()
                 });
@@ -270,28 +269,49 @@ const SalesModule = {
     getSalesPriceSuggestion: (customerId, productId, qty = 1, orderDate = '') => {
         const targetCustomerId = String(customerId || '').trim();
         const targetProductId = String(productId || '').trim();
+        const quantity = Math.max(1, Number(qty || 1));
         if (!targetProductId) return null;
-        const lastSales = targetCustomerId
-            ? SalesModule.getLastSalesPriceForCustomerProduct(targetCustomerId, targetProductId, { lookbackDays: 365 })
-            : null;
+        const priceLists = SalesModule.getPriceLists();
+        const activeLists = priceLists.filter((list) => SalesModule.isPriceListActiveOnDate(list, orderDate));
+
+        const customerLists = activeLists.filter((list) => list.scope === 'customer' && String(list.customerId || '') === targetCustomerId);
+        const customerLineCandidates = customerLists
+            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
+            .filter((item) => item.line);
+        customerLineCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
+        if (customerLineCandidates.length > 0) {
+            const winner = customerLineCandidates[0];
+            return {
+                source: 'customer-price-list',
+                unitPrice: Number(winner.line.unitPrice || 0),
+                currency: winner.list.currency || 'USD',
+                label: `Musteri fiyat listesi: ${winner.list.name}`
+            };
+        }
+
+        const lastSales = SalesModule.getLastSalesPriceForCustomerProduct(targetCustomerId, targetProductId, { lookbackDays: 365 });
         if (lastSales) {
             const dateText = lastSales.orderDate ? new Date(lastSales.orderDate).toLocaleDateString('tr-TR') : '-';
             return {
                 source: 'last-sale',
                 unitPrice: Number(lastSales.unitPrice || 0),
-                currency: SalesModule.normalizeCatalogPriceCurrency(lastSales.currency || 'USD'),
+                currency: 'USD',
                 label: `Son satis: ${dateText} / ${lastSales.orderNo || '-'}`
             };
         }
 
-        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '') === targetProductId);
-        const listPrice = Number(product?.listPrice || 0);
-        if (listPrice > 0) {
+        const globalLists = activeLists.filter((list) => list.scope !== 'customer');
+        const globalCandidates = globalLists
+            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
+            .filter((item) => item.line);
+        globalCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
+        if (globalCandidates.length > 0) {
+            const winner = globalCandidates[0];
             return {
-                source: 'catalog-list-price',
-                unitPrice: Number(listPrice.toFixed(2)),
-                currency: SalesModule.normalizeCatalogPriceCurrency(product?.listPriceCurrency || 'USD'),
-                label: 'Urun liste fiyati'
+                source: 'global-price-list',
+                unitPrice: Number(winner.line.unitPrice || 0),
+                currency: winner.list.currency || 'USD',
+                label: `Liste fiyati: ${winner.list.name}`
             };
         }
         return null;
@@ -1059,11 +1079,6 @@ const SalesModule = {
         const num = Number(String(value || '').replace(',', '.'));
         if (!Number.isFinite(num)) return 0;
         return Math.max(0, Number(num.toFixed(2)));
-    },
-
-    normalizeCatalogPriceCurrency: (value) => {
-        const normalized = String(value || '').trim().toUpperCase();
-        return ['USD', 'TL', 'EUR'].includes(normalized) ? normalized : 'USD';
     },
 
     parseDays: (value) => {
@@ -2262,8 +2277,6 @@ const SalesModule = {
                     name: String(item.name || '').trim(),
                     productCode: String(item.productCode || '').trim(),
                     idCode: String(item.idCode || '').trim(),
-                    listPrice: SalesModule.parseMoney(item.listPrice ?? item.price ?? 0),
-                    listPriceCurrency: SalesModule.normalizeCatalogPriceCurrency(item.listPriceCurrency || item.priceCurrency || 'USD'),
                     diameters,
                     selectedDiameter: diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || ''),
                     colors: {
@@ -2536,8 +2549,6 @@ const SalesModule = {
             name: String(row.name || '').trim(),
             productCode: String(row.productCode || `KRL-${String(now).padStart(4, '0')}`).trim(),
             idCode: String(row.idCode || SalesModule.generateCatalogPublicId({ rowId: String(row.id || '').trim() })).trim(),
-            listPrice: Number(row.listPrice ?? row.price ?? 0) > 0 ? String(Number(row.listPrice ?? row.price ?? 0).toFixed(2)) : '',
-            listPriceCurrency: SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || row.priceCurrency || 'USD'),
             diameters: draftDiameters,
             selectedDiameter: draftDiameters.includes(draftSelectedDiameter) ? draftSelectedDiameter : String(draftDiameters[0] || ''),
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
@@ -2579,8 +2590,6 @@ const SalesModule = {
             name: String(row.name || defaultName).trim(),
             productCode: String(row.productCode || '').trim(),
             idCode: String(row.idCode || SalesModule.generateCatalogPublicId()).trim(),
-            listPrice: Number(row.listPrice ?? row.price ?? 0) > 0 ? String(Number(row.listPrice ?? row.price ?? 0).toFixed(2)) : '',
-            listPriceCurrency: SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || row.priceCurrency || 'USD'),
             diameters: isOzel ? [] : (diameter ? [diameter] : []),
             selectedDiameter: isOzel ? '' : diameter,
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
@@ -2924,10 +2933,6 @@ const SalesModule = {
             const isBoru = SalesModule.isPipeCategory(row.categoryId);
             const isCubuk = SalesModule.isRodCategory(row.categoryId);
             const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
-            const listPrice = Number(row.listPrice || 0);
-            const listPriceText = listPrice > 0
-                ? `${listPrice.toFixed(2)} ${SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || 'USD')}`
-                : '';
             const selectAction = hasCustomSelectAction
                 ? `${requestedSelectAction}('${id}')`
                 : `SalesModule.openSalesCatalogVariationPage('${id}')`;
@@ -2941,7 +2946,6 @@ const SalesModule = {
                     <div class="sales-catalog-card-body">
                         <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
                         <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
-                        ${listPriceText ? `<div style="margin-top:0.28rem; font-size:0.8rem; font-weight:800; color:#0f172a;">Liste: ${SalesModule.escapeHtml(listPriceText)}</div>` : ''}
                         <div class="sales-catalog-card-meta-row">
                             ${isBoru ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
                                    <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
@@ -2997,7 +3001,6 @@ const SalesModule = {
                             ${isBoru ? '<th>Kalinlik</th>' : ''}
                             <th>Boy (mm)</th>
                             ${(isCubuk || isOzel) ? '<th>Kabarcik</th>' : ''}
-                            <th>Liste fiyat</th>
                             <th class="sales-catalog-table-actions-col">Islemler</th>
                         </tr>
                     </thead>
@@ -3017,9 +3020,6 @@ const SalesModule = {
                                     ${isBoru ? `<td>${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</td>` : ''}
                                     <td>${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}</td>
                                     ${(isCubuk || isOzel) ? `<td>${SalesModule.escapeHtml(bubbleText)}</td>` : ''}
-                                    <td>${Number(row?.listPrice || 0) > 0
-                ? `${SalesModule.escapeHtml(String(Number(row.listPrice || 0).toFixed(2)))} ${SalesModule.escapeHtml(SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || 'USD'))}`
-                : '-'}</td>
                                     <td class="sales-catalog-table-actions">
                                         <button type="button" class="sales-catalog-card-action-btn" onclick="${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
                                         <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openEditCatalogModal('${id}')">duzenle</button>
@@ -3201,19 +3201,6 @@ const SalesModule = {
                     </div>
                 </div>
 
-                <div class="sales-catalog-create-grid-top" style="grid-template-columns:minmax(0,1fr) 180px;">
-                    <div>
-                        <label class="sales-catalog-label">Liste fiyati</label>
-                        <input type="number" min="0" step="0.01" class="sales-catalog-input" value="${SalesModule.escapeHtml(String(draft.listPrice || ''))}" oninput="SalesModule.setCatalogDraftField('listPrice', this.value)" placeholder="or: 19.50">
-                    </div>
-                    <div>
-                        <label class="sales-catalog-label">Para birimi</label>
-                        <select class="sales-catalog-select" onchange="SalesModule.setCatalogDraftField('listPriceCurrency', this.value)">
-                            ${['USD', 'TL', 'EUR'].map((curr) => `<option value="${curr}" ${curr === SalesModule.normalizeCatalogPriceCurrency(draft.listPriceCurrency || 'USD') ? 'selected' : ''}>${curr}</option>`).join('')}
-                        </select>
-                    </div>
-                </div>
-
                 <div class="sales-catalog-create-grid-mid">
                     <div class="sales-catalog-field-block">
                         <div class="sales-catalog-label-row">
@@ -3323,19 +3310,6 @@ const SalesModule = {
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Urun ID</label>
                         <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
-                    </div>
-                </div>
-
-                <div class="sales-catalog-create-grid-top" style="grid-template-columns:minmax(0,1fr) 180px;">
-                    <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Liste fiyati</label>
-                        <input type="number" min="0" step="0.01" class="sales-catalog-input" value="${SalesModule.escapeHtml(String(draft.listPrice || ''))}" oninput="SalesModule.setCatalogDraftField('listPrice', this.value)" placeholder="or: 9.50">
-                    </div>
-                    <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Para birimi</label>
-                        <select class="sales-catalog-select" onchange="SalesModule.setCatalogDraftField('listPriceCurrency', this.value)">
-                            ${['USD', 'TL', 'EUR'].map((curr) => `<option value="${curr}" ${curr === SalesModule.normalizeCatalogPriceCurrency(draft.listPriceCurrency || 'USD') ? 'selected' : ''}>${curr}</option>`).join('')}
-                        </select>
                     </div>
                 </div>
 
@@ -3682,8 +3656,6 @@ const SalesModule = {
         const normalizedDiameter = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
         const normalizedThickness = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.thickness || '');
         const normalizedLength = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.lengthMm || '');
-        const listPrice = SalesModule.parseMoney(draft.listPrice || 0);
-        const listPriceCurrency = SalesModule.normalizeCatalogPriceCurrency(draft.listPriceCurrency || 'USD');
 
         if ((isBoru || isCubuk) && !normalizedDiameter) {
             return alert('Gecerli bir cap giriniz.');
@@ -3767,8 +3739,6 @@ const SalesModule = {
             name,
             productCode: String(draft.productCode || '').trim(),
             idCode: normalizedIdCode,
-            listPrice,
-            listPriceCurrency,
             diameters: isPipeFamily
                 ? ((isBoru || isCubuk) && normalizedDiameter ? [normalizedDiameter] : [])
                 : diameters,
@@ -3855,12 +3825,6 @@ const SalesModule = {
                         <div class="sales-catalog-field-block">
                             <label class="sales-catalog-label">Urun ID</label>
                             <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.idCode || '-')}" readonly>
-                        </div>
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Liste fiyati</label>
-                            <input class="sales-catalog-input" value="${Number(row?.listPrice || 0) > 0
-                ? SalesModule.escapeHtml(`${Number(row.listPrice || 0).toFixed(2)} ${SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || 'USD')}`)
-                : '-'}" readonly>
                         </div>
                         ${(isBoru || isCubuk) ? `
                         <div class="sales-catalog-field-block">
@@ -3954,12 +3918,6 @@ const SalesModule = {
                             <div class="sales-catalog-field-block">
                                 <label class="sales-catalog-label">Alt boru uzunlugu</label>
                                 <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.lowerTubeLength || 'standart')}" readonly>
-                            </div>
-                            <div class="sales-catalog-field-block">
-                                <label class="sales-catalog-label">Liste fiyati</label>
-                                <input class="sales-catalog-input" value="${Number(row?.listPrice || 0) > 0
-                ? SalesModule.escapeHtml(`${Number(row.listPrice || 0).toFixed(2)} ${SalesModule.normalizeCatalogPriceCurrency(row.listPriceCurrency || 'USD')}`)
-                : '-'}" readonly>
                             </div>
                         </div>
 
@@ -4074,7 +4032,7 @@ const SalesModule = {
                             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.65rem;">
                                 <div>
                                     <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Yeni Siparis</div>
-                                    <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Fiyat onceligi: son satis > urun liste fiyati.</div>
+                                    <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Fiyat onceligi: musteri liste fiyati > son satis > genel liste.</div>
                                 </div>
                                 <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
                                     <button class="btn-sm" type="button" onclick="SalesModule.resetSalesOrderDraft()">temizle</button>
@@ -4165,7 +4123,7 @@ const SalesModule = {
                     ? `<div style="font-size:0.79rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(suggestion.label || ''))}</div>
                                                            <div style="font-size:0.8rem; color:#1d4ed8; font-weight:800; margin-top:0.16rem;">${SalesModule.escapeHtml(String(suggestion.unitPrice.toFixed(2)))} ${SalesModule.escapeHtml(String(suggestion.currency || 'USD'))}</div>
                                                            ${canApplySuggested ? `<button class="btn-sm" style="margin-top:0.22rem; height:26px;" onclick="SalesModule.applyRecommendedPriceToLine('${SalesModule.escapeHtml(String(line?.id || ''))}')">oneriyi uygula</button>` : ''}`
-                    : '<div style="font-size:0.78rem; color:#94a3b8;">Oneri yok (urun kartinda liste fiyati yok ve son satis bulunamadi).</div>'}
+                    : '<div style="font-size:0.78rem; color:#94a3b8;">Oneri yok (fiyat listesi veya son satis bulunamadi).</div>'}
                                                 </td>
                                                 <td style="padding:0.5rem; text-align:right;">
                                                     <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right;" value="${currentPrice > 0 ? SalesModule.escapeHtml(String(currentPrice.toFixed(2))) : ''}" oninput="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(String(line?.id || ''))}', 'unitPrice', this.value)">
@@ -4236,7 +4194,7 @@ const SalesModule = {
 
                 <div class="card-table" style="padding:1rem 1.1rem;">
                     <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
-                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.25rem;">Proforma ve yeni eklenecek ayarlar bu ekrandan yonetilecek.</div>
+                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.25rem;">Proforma, fiyat listeleri ve yeni eklenecek ayarlar bu ekrandan yonetilecek.</div>
 
                     <div style="margin-top:0.9rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0.8rem;">
                         <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openProformaSettingsPage()">
@@ -4246,11 +4204,11 @@ const SalesModule = {
                             <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
                         </button>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
+                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openPriceListsSettingsPage()">
                             <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="list-todo" width="22" height="22"></i></div>
                             <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Fiyat Listeleri</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Liste fiyatlar urun kartlarindan girilecek. Bu ekran simdilik kapali.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Genel ve musteri bazli liste fiyatlarini yonet.</div>
+                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
                         </button>
 
                         <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>

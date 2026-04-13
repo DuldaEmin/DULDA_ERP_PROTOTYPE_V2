@@ -1897,6 +1897,17 @@ const SalesModule = {
         </datalist>
     `,
 
+    getCityOptions: () => ([
+        'Adana', 'Ankara', 'Antalya', 'Bursa', 'Diyarbakir', 'Eskisehir', 'Gaziantep', 'Istanbul',
+        'Izmir', 'Kayseri', 'Kocaeli', 'Konya', 'Mersin', 'Samsun', 'Tekirdag', 'Trabzon'
+    ]),
+
+    renderCityDatalistHtml: (id = 'sales_customer_city_options') => `
+        <datalist id="${SalesModule.escapeHtml(id)}">
+            ${SalesModule.getCityOptions().map((city) => `<option value="${SalesModule.escapeHtml(city)}"></option>`).join('')}
+        </datalist>
+    `,
+
     renderCustomerTypePickerHtml: (selected = [], options = {}) => {
         const chosen = SalesModule.normalizeCustomerTypeList(selected);
         const inputName = String(options?.inputName || 'sales_customer_types').trim() || 'sales_customer_types';
@@ -2015,36 +2026,32 @@ const SalesModule = {
         return list.map((row, index) => {
             const rowIndex = Number(index || 0);
             const phones = Array.isArray(row?.phones) && row.phones.length ? row.phones : [''];
+            const phoneValue = String(phones[0] || '').trim();
             return `
-                <tr data-contact-row-index="${rowIndex}" style="border-bottom:1px solid #e2e8f0; background:${rowIndex % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-                    <td style="padding:0.48rem;">
-                        <input data-contact-field="name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.name || ''))}" placeholder="or: Ahmet Yilmaz">
+                <tr data-contact-row-index="${rowIndex}" style="border-bottom:1px solid #f1f5f9; background:#ffffff;">
+                    <td style="padding:0.56rem 0.7rem;">
+                        <input data-contact-field="name" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0; font-weight:700; color:#0f172a;" value="${SalesModule.escapeHtml(String(row?.name || ''))}" placeholder="Ad Soyad">
                     </td>
-                    <td style="padding:0.48rem;">
-                        <input data-contact-field="position" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.position || ''))}" placeholder="or: Satin Alma">
+                    <td style="padding:0.56rem 0.7rem;">
+                        <input data-contact-field="position" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0; color:#4f46e5; font-weight:700;" value="${SalesModule.escapeHtml(String(row?.position || ''))}" placeholder="Gorevi">
                     </td>
-                    <td style="padding:0.48rem;">
-                        <div data-contact-phone-list style="display:flex; flex-direction:column; gap:0.3rem;">
-                            ${phones.map((phone, phoneIndex) => `
-                                <div style="display:flex; gap:0.28rem; align-items:center;">
-                                    <input data-contact-phone-input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(phone || ''))}" placeholder="or: 05xx xxx xx xx">
-                                    ${phones.length > 1 ? `<button type="button" class="btn-sm" style="height:30px; color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactPhone(${rowIndex}, ${Number(phoneIndex || 0)})">sil</button>` : ''}
-                                </div>
-                            `).join('')}
-                            <button type="button" class="btn-sm" style="height:26px; justify-content:flex-start; font-size:0.72rem; color:#1d4ed8; border:none; background:transparent; padding:0.1rem 0.15rem; font-weight:700;" onclick="SalesModule.addCustomerContactPhone(${rowIndex})">+ telefon ekle</button>
+                    <td style="padding:0.56rem 0.7rem;">
+                        <div style="display:flex; flex-direction:column; gap:0.24rem;">
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="font-size:0.74rem; color:#94a3b8;">tel</span>
+                                <input data-contact-phone-input class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0;" value="${SalesModule.escapeHtml(phoneValue)}" placeholder="Telefon">
+                            </div>
+                            <div style="display:flex; align-items:center; gap:0.35rem;">
+                                <span style="font-size:0.74rem; color:#94a3b8;">mail</span>
+                                <input data-contact-field="email" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0;" value="${SalesModule.escapeHtml(String(row?.email || ''))}" placeholder="E-posta">
+                            </div>
                         </div>
                     </td>
-                    <td style="padding:0.48rem;">
-                        <input data-contact-field="email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.email || ''))}" placeholder="or: satin-alma@firma.com">
+                    <td style="padding:0.56rem 0.7rem;">
+                        <textarea data-contact-field="note" class="stock-textarea" style="min-height:42px; border:none; background:transparent; box-shadow:none; padding:0.08rem 0; resize:vertical;" placeholder="Kisa not...">${SalesModule.escapeHtml(String(row?.note || ''))}</textarea>
                     </td>
-                    <td style="padding:0.48rem;">
-                        <input data-contact-field="note" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.note || ''))}" placeholder="not">
-                    </td>
-                    <td style="padding:0.48rem; text-align:center;">
-                        <div style="display:inline-flex; gap:0.3rem; flex-wrap:wrap;">
-                            <button type="button" class="btn-sm" onclick="SalesModule.focusCustomerContactRow(${rowIndex})">duzenle</button>
-                            <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactRow(${rowIndex})">sil</button>
-                        </div>
+                    <td style="padding:0.56rem 0.7rem; text-align:right;">
+                        <button type="button" class="btn-sm" style="height:30px; color:#dc2626; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactRow(${rowIndex})">sil</button>
                     </td>
                 </tr>
             `;
@@ -2057,9 +2064,8 @@ const SalesModule = {
         const rows = Array.from(tbody.querySelectorAll('tr[data-contact-row-index]'));
         return rows.map((tr) => {
             const readField = (field) => String(tr.querySelector(`[data-contact-field="${field}"]`)?.value || '').trim();
-            const phones = Array.from(tr.querySelectorAll('[data-contact-phone-input]'))
-                .map((input) => String(input?.value || '').trim())
-                .filter(Boolean);
+            const phone = String(tr.querySelector('[data-contact-phone-input]')?.value || '').trim();
+            const phones = phone ? [phone] : [];
             return {
                 id: crypto.randomUUID(),
                 name: readField('name'),
@@ -2075,6 +2081,17 @@ const SalesModule = {
         const tbody = document.getElementById('sales_customer_contacts_tbody');
         if (!tbody) return;
         tbody.innerHTML = SalesModule.renderCustomerContactRowsHtml(rows);
+        SalesModule.syncCustomerContactTableState();
+    },
+
+    syncCustomerContactTableState: () => {
+        const tbody = document.getElementById('sales_customer_contacts_tbody');
+        if (!tbody) return;
+        const tableWrap = document.getElementById('sales_customer_contacts_table_wrap');
+        const emptyWrap = document.getElementById('sales_customer_contacts_empty');
+        const hasRows = tbody.querySelectorAll('tr[data-contact-row-index]').length > 0;
+        if (tableWrap) tableWrap.style.display = hasRows ? 'block' : 'none';
+        if (emptyWrap) emptyWrap.style.display = hasRows ? 'none' : 'flex';
     },
 
     addCustomerContactRow: () => {
@@ -2107,9 +2124,9 @@ const SalesModule = {
         if (!Number.isFinite(idx) || idx < 0) return;
         const rows = SalesModule.getCustomerContactRowsFromDom();
         if (!rows[idx]) return;
-        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [];
+        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [''];
         list.push('');
-        rows[idx].phones = list;
+        rows[idx].phones = list.filter((item) => String(item || '').trim());
         SalesModule.setCustomerContactRowsToDom(rows);
         const tbody = document.getElementById('sales_customer_contacts_tbody');
         const row = tbody?.querySelector(`tr[data-contact-row-index="${idx}"]`);
@@ -2173,6 +2190,11 @@ const SalesModule = {
     validateCustomerDraft: (draft) => {
         if (!draft || typeof draft !== 'object') return { ok: false, message: 'Musteri taslagi bulunamadi.' };
         if (!String(draft.name || '').trim()) return { ok: false, message: 'Musteri adi zorunlu.' };
+        if (!Array.isArray(draft.customerTypes) || draft.customerTypes.length === 0) return { ok: false, message: 'En az bir urun grubu sec.' };
+        if (!String(draft.externalCode || '').trim()) return { ok: false, message: 'Cari kodu zorunlu.' };
+        if (!String(draft.country || '').trim()) return { ok: false, message: 'Ulke zorunlu.' };
+        if (!String(draft.city || '').trim()) return { ok: false, message: 'Sehir zorunlu.' };
+        if (!String(draft.address || '').trim()) return { ok: false, message: 'Acik adres zorunlu.' };
         return { ok: true };
     },
 
@@ -2201,7 +2223,7 @@ const SalesModule = {
     renderCustomerModalFormHtml: (draft, isEdit) => {
         const selectedTypes = SalesModule.normalizeCustomerTypeList(draft?.customerTypes || []);
         const customerContacts = SalesModule.normalizeCustomerContactList(draft?.customerContacts || [], {
-            allowEmptyRow: true,
+            allowEmptyRow: false,
             keepEmptyPhoneSlot: true
         });
         const isTypeMissing = selectedTypes.length === 0;
@@ -2214,78 +2236,110 @@ const SalesModule = {
             address: isMissing(draft?.address)
         };
         const fieldStyle = (flag) => flag ? 'border-color:#fda4af; background:#fff1f2;' : '';
-        const sectionTitle = (index, title) => `
-            <div style="display:flex; align-items:center; gap:0.45rem; font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:0.55rem; padding-bottom:0.45rem; border-bottom:1px solid #e2e8f0;">
-                <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:0.74rem; font-weight:800;">${SalesModule.escapeHtml(String(index))}</span>
+        const hasContacts = customerContacts.length > 0;
+        const sectionTitle = (index, title, color = 'blue') => {
+            const palette = {
+                blue: { bg: '#dbeafe', fg: '#1d4ed8', bd: '#bfdbfe' },
+                indigo: { bg: '#e0e7ff', fg: '#4338ca', bd: '#c7d2fe' },
+                emerald: { bg: '#d1fae5', fg: '#047857', bd: '#a7f3d0' },
+                gray: { bg: '#f1f5f9', fg: '#334155', bd: '#e2e8f0' }
+            };
+            const tone = palette[color] || palette.blue;
+            return `
+            <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:0.8rem; padding-bottom:0.5rem; border-bottom:1px solid #e2e8f0;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:${tone.bg}; color:${tone.fg}; font-size:0.74rem; font-weight:800; border:1px solid ${tone.bd};">${SalesModule.escapeHtml(String(index))}</span>
                 <span>${SalesModule.escapeHtml(String(title || ''))}</span>
             </div>
         `;
+        };
 
         return `
             ${SalesModule.renderCountryDatalistHtml('sales_customer_country_options')}
-            <div style="display:flex; flex-direction:column; gap:0.8rem;">
-                <div style="border:1px solid #dbe3ef; border-radius:0.9rem; padding:0.8rem; background:linear-gradient(180deg,#ffffff 0%, #fbfdff 100%);">
-                    ${sectionTitle(1, 'Kimlik ve Iletisim')}
-                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri unvani <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_name" class="stock-input stock-input-tall" style="${fieldStyle(missing.name)}" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum A.S.">
-                        </div>
-                        <div style="grid-column:span 2;">
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Urun grubu <span style="color:#e11d48;">*</span></label>
-                            <div id="sales_customer_group_wrap" style="display:flex; gap:0.45rem; flex-wrap:wrap; border:1px solid ${isTypeMissing ? '#fda4af' : '#93c5fd'}; border-radius:0.7rem; padding:0.5rem; background:${isTypeMissing ? '#fff1f2' : '#f8fbff'};">
-                                ${SalesModule.getCustomerTypeOptions().map((type) => {
-            const checked = selectedTypes.includes(type);
-            return `
-                                        <label data-customer-group-chip="1" style="display:inline-flex; align-items:center; border:1px solid ${checked ? '#2563eb' : '#cbd5e1'}; border-radius:999px; padding:0.34rem 0.74rem; font-size:0.79rem; font-weight:800; letter-spacing:0.01em; color:${checked ? '#fff' : '#334155'}; background:${checked ? '#2563eb' : '#fff'}; box-shadow:${checked ? '0 2px 8px rgba(37,99,235,0.22)' : 'none'}; cursor:pointer; user-select:none; transition:all 0.12s ease;">
-                                            <input type="checkbox" name="sales_customer_types" value="${SalesModule.escapeHtml(type)}" ${checked ? 'checked' : ''} onchange="SalesModule.toggleCustomerGroupChip(this)" style="position:absolute; opacity:0; pointer-events:none;">
-                                            ${SalesModule.escapeHtml(type)}
-                                        </label>
-                                    `;
-        }).join('')}
+            ${SalesModule.renderCityDatalistHtml('sales_customer_city_options')}
+            <div style="display:flex; flex-direction:column; gap:0.95rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
+                    ${sectionTitle(1, 'Musteri Kimlik Karti', 'blue')}
+                    <div style="display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:0.85rem;">
+                        <div style="display:flex; flex-direction:column; gap:0.72rem;">
+                            <div>
+                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.22rem;">Musteri unvani <span style="color:#e11d48;">*</span></label>
+                                <input id="sales_customer_name" class="stock-input stock-input-tall" style="${fieldStyle(missing.name)}" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum A.S.">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.22rem;">Urun grubu <span style="color:#e11d48;">*</span></label>
+                                <div id="sales_customer_group_wrap" style="display:flex; gap:0.45rem; flex-wrap:wrap; border:1px solid ${isTypeMissing ? '#fda4af' : '#dbe7ff'}; border-radius:0.7rem; padding:0.45rem; background:${isTypeMissing ? '#fff1f2' : '#f8fbff'};">
+                                    ${SalesModule.getCustomerTypeOptions().map((type) => {
+                const checked = selectedTypes.includes(type);
+                return `
+                                            <label data-customer-group-chip="1" style="display:inline-flex; align-items:center; border:1px solid ${checked ? '#2563eb' : '#cbd5e1'}; border-radius:999px; padding:0.34rem 0.74rem; font-size:0.79rem; font-weight:800; letter-spacing:0.01em; color:${checked ? '#fff' : '#334155'}; background:${checked ? '#2563eb' : '#fff'}; box-shadow:${checked ? '0 2px 8px rgba(37,99,235,0.22)' : 'none'}; cursor:pointer; user-select:none; transition:all 0.12s ease;">
+                                                <input type="checkbox" name="sales_customer_types" value="${SalesModule.escapeHtml(type)}" ${checked ? 'checked' : ''} onchange="SalesModule.toggleCustomerGroupChip(this)" style="position:absolute; opacity:0; pointer-events:none;">
+                                                ${SalesModule.escapeHtml(type)}
+                                            </label>
+                                        `;
+            }).join('')}
+                                </div>
                             </div>
                         </div>
-
-                        <div style="grid-column:span 3; border:1px solid #dbe3ef; border-radius:0.8rem; padding:0.65rem; background:#ffffff;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem; margin-bottom:0.45rem; flex-wrap:wrap;">
-                                <div style="font-size:0.84rem; font-weight:800; color:#334155;">Yetkili Kisiler</div>
-                                <button type="button" class="btn-primary" style="height:32px;" onclick="SalesModule.addCustomerContactRow()">yeni kisi ekle +</button>
-                            </div>
-                            <div style="overflow:auto;">
-                                <table style="width:100%; min-width:930px; border-collapse:separate; border-spacing:0;">
-                                    <thead>
-                                        <tr style="color:#64748b; font-size:0.71rem; text-transform:uppercase;">
-                                            <th style="padding:0.48rem; text-align:left; background:#f8fafc; border:1px solid #e2e8f0; border-right:none; border-top-left-radius:0.55rem;">Ad Soyad</th>
-                                            <th style="padding:0.48rem; text-align:left; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0;">Pozisyon / Gorevi</th>
-                                            <th style="padding:0.48rem; text-align:left; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0;">Telefon</th>
-                                            <th style="padding:0.48rem; text-align:left; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0;">E-posta</th>
-                                            <th style="padding:0.48rem; text-align:left; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0;">Not</th>
-                                            <th style="padding:0.48rem; text-align:center; width:130px; background:#f8fafc; border:1px solid #e2e8f0; border-left:none; border-top-right-radius:0.55rem;">Islem</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="sales_customer_contacts_tbody">
-                                        ${SalesModule.renderCustomerContactRowsHtml(customerContacts)}
-                                    </tbody>
-                                </table>
+                        <div style="border:1px solid #e2e8f0; border-radius:0.8rem; background:#f8fafc; padding:0.65rem;">
+                            <div style="font-size:0.66rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:800; color:#64748b; margin-bottom:0.45rem;">Cari ve vergi bilgileri</div>
+                            <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Cari kodu <span style="color:#e11d48;">*</span></label>
+                                    <input id="sales_customer_external_code" class="stock-input stock-input-tall" style="${fieldStyle(missing.customerCode)}" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
+                                </div>
+                                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.45rem;">
+                                    <div>
+                                        <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
+                                        <input id="sales_customer_tax_office" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}">
+                                    </div>
+                                    <div>
+                                        <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
+                                        <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.75rem;">
-                    ${sectionTitle(2, 'Adres ve Konum')}
+                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
+                    ${sectionTitle(2, 'Yetkili Kisiler (Temas Noktalari)', 'indigo')}
+                    <div style="display:flex; justify-content:flex-end; margin-bottom:0.5rem;">
+                        <button type="button" class="btn-sm" style="height:33px; color:#4338ca; border-color:#c7d2fe; background:#eef2ff; font-weight:700;" onclick="SalesModule.addCustomerContactRow()">yeni yetkili ekle</button>
+                    </div>
+                    <div id="sales_customer_contacts_empty" style="display:${hasContacts ? 'none' : 'flex'}; align-items:center; justify-content:center; border:2px dashed #dbe5f0; border-radius:0.8rem; min-height:86px; color:#94a3b8; font-size:0.84rem; background:#f8fafc;">Henuz bir yetkili kisi eklenmedi.</div>
+                    <div id="sales_customer_contacts_table_wrap" style="display:${hasContacts ? 'block' : 'none'}; border:1px solid #e2e8f0; border-radius:0.8rem; overflow:auto;">
+                        <table style="width:100%; min-width:860px; border-collapse:separate; border-spacing:0;">
+                            <thead style="background:#f8fafc;">
+                                <tr style="color:#64748b; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.03em;">
+                                    <th style="padding:0.56rem 0.7rem; text-align:left; border-bottom:1px solid #e2e8f0;">Ad Soyad</th>
+                                    <th style="padding:0.56rem 0.7rem; text-align:left; border-bottom:1px solid #e2e8f0;">Gorevi</th>
+                                    <th style="padding:0.56rem 0.7rem; text-align:left; border-bottom:1px solid #e2e8f0;">Iletisim</th>
+                                    <th style="padding:0.56rem 0.7rem; text-align:left; border-bottom:1px solid #e2e8f0;">Not</th>
+                                    <th style="padding:0.56rem 0.7rem; text-align:right; border-bottom:1px solid #e2e8f0; width:88px;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sales_customer_contacts_tbody">
+                                ${SalesModule.renderCustomerContactRowsHtml(customerContacts)}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
+                    ${sectionTitle(3, 'Adres ve Konum Bilgileri', 'emerald')}
                     <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
                         <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Ulke <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_country" list="sales_customer_country_options" class="stock-input stock-input-tall" style="${fieldStyle(missing.country)}" value="${SalesModule.escapeHtml(String(draft?.country || 'Turkiye'))}" placeholder="Turkiye">
-                        </div>
-                        <div>
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Sehir <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_city" class="stock-input stock-input-tall" style="${fieldStyle(missing.city)}" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Ankara">
+                            <input id="sales_customer_city" list="sales_customer_city_options" class="stock-input stock-input-tall" style="${fieldStyle(missing.city)}" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Ankara">
                         </div>
                         <div>
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Ilce</label>
                             <input id="sales_customer_district" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.district || ''))}" placeholder="or: Siteler">
+                        </div>
+                        <div>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Ulke <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_country" list="sales_customer_country_options" class="stock-input stock-input-tall" style="${fieldStyle(missing.country)}" value="${SalesModule.escapeHtml(String(draft?.country || 'Turkiye'))}" placeholder="Turkiye">
                         </div>
                         <div>
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Posta kodu</label>
@@ -2295,10 +2349,6 @@ const SalesModule = {
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Adres no</label>
                             <input id="sales_customer_address_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.addressNo || ''))}">
                         </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Cari kodu <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_external_code" class="stock-input stock-input-tall" style="${fieldStyle(missing.customerCode)}" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
-                        </div>
                         <div style="grid-column:span 3;">
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Acik adres <span style="color:#e11d48;">*</span></label>
                             <textarea id="sales_customer_address" class="stock-textarea" style="min-height:72px; ${fieldStyle(missing.address)}">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea>
@@ -2306,17 +2356,9 @@ const SalesModule = {
                     </div>
                 </div>
 
-                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.75rem;">
-                    ${sectionTitle(3, 'Ticari ve Resmi Bilgiler')}
+                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
+                    ${sectionTitle(4, 'Finansal ve Ozel Notlar', 'gray')}
                     <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
-                            <input id="sales_customer_tax_office" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}">
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
-                            <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
-                        </div>
                         <div>
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
                             <input id="sales_customer_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}">
@@ -2355,18 +2397,18 @@ const SalesModule = {
         );
         const firstContact = customerContacts[0] || {};
         const firstContactPhones = Array.isArray(firstContact?.phones) ? firstContact.phones : [];
-        const firstGsm = String(firstContactPhones[0] || '').trim();
-        const firstAltPhone = String(firstContactPhones[1] || '').trim();
+        const firstPhone = String(firstContactPhones[0] || '').trim();
+        const secondPhone = String(firstContactPhones[1] || '').trim();
         return {
             name: String(read('sales_customer_name')).trim(),
             city: String(read('sales_customer_city')).trim(),
             district: String(read('sales_customer_district')).trim(),
-            phone: String(read('sales_customer_phone')).trim() || firstAltPhone,
-            phoneCountryCode: String(read('sales_customer_phone_country_code')).trim() || '90',
-            phoneAreaCode: String(read('sales_customer_phone_area_code')).trim(),
-            phoneAlt: String(read('sales_customer_phone_alt')).trim() || firstGsm,
-            email: String(read('sales_customer_email')).trim() || String(firstContact?.email || '').trim(),
-            authorizedPerson: String(read('sales_customer_authorized')).trim() || String(firstContact?.name || '').trim(),
+            phone: secondPhone,
+            phoneCountryCode: '90',
+            phoneAreaCode: '',
+            phoneAlt: firstPhone,
+            email: String(firstContact?.email || '').trim(),
+            authorizedPerson: String(firstContact?.name || '').trim(),
             taxOffice: String(read('sales_customer_tax_office')).trim(),
             taxNo: String(read('sales_customer_tax_no')).trim(),
             address: String(read('sales_customer_address')).trim(),

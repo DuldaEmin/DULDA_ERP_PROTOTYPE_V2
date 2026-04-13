@@ -19,6 +19,15 @@ const SalesModule = {
         catalogSearchText: '',
         catalogEditingProductId: '',
         catalogDraft: null,
+        salesOrderDraft: null,
+        priceListDraft: null,
+        priceListLineDraft: {
+            productId: '',
+            unitPrice: '',
+            minQty: '1',
+            note: ''
+        },
+        priceListEditingId: '',
         proformaSettingsDraft: null,
         proformaBankDraft: {
             bankName: '',
@@ -108,6 +117,10 @@ const SalesModule = {
             ...defaults,
             ...normalized
         };
+        if (!Array.isArray(DB.data.data.salesSettings.priceLists)) DB.data.data.salesSettings.priceLists = [];
+        DB.data.data.salesSettings.priceLists = DB.data.data.salesSettings.priceLists
+            .map((row) => SalesModule.normalizePriceList(row))
+            .filter((row) => row.name);
     },
 
     getProformaSettings: () => {
@@ -123,6 +136,270 @@ const SalesModule = {
             bankAccounts: normalized.bankAccounts.map((row) => ({ ...row })),
             defaultNotes: normalized.defaultNotes
         };
+    },
+
+    buildDefaultPriceList: () => ({
+        id: '',
+        name: '',
+        scope: 'global', // global | customer
+        customerId: '',
+        currency: 'USD',
+        isActive: true,
+        startDate: '',
+        endDate: '',
+        lines: [],
+        createdAt: '',
+        updatedAt: ''
+    }),
+
+    normalizePriceListLine: (row = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        const unitPrice = Number(String(source.unitPrice ?? '').replace(',', '.'));
+        const minQtyRaw = Number(String(source.minQty ?? '1').replace(',', '.'));
+        return {
+            id: String(source.id || crypto.randomUUID()).trim(),
+            productId: String(source.productId || '').trim(),
+            unitPrice: Number.isFinite(unitPrice) ? Number(unitPrice.toFixed(2)) : 0,
+            minQty: Number.isFinite(minQtyRaw) ? Math.max(1, Math.floor(minQtyRaw)) : 1,
+            note: String(source.note || '').trim()
+        };
+    },
+
+    normalizePriceList: (row = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        const lines = (Array.isArray(source.lines) ? source.lines : [])
+            .map((line) => SalesModule.normalizePriceListLine(line))
+            .filter((line) => line.productId && line.unitPrice > 0);
+        return {
+            id: String(source.id || crypto.randomUUID()).trim(),
+            name: String(source.name || '').trim(),
+            scope: String(source.scope || 'global').trim() === 'customer' ? 'customer' : 'global',
+            customerId: String(source.customerId || '').trim(),
+            currency: ['USD', 'TL', 'EUR'].includes(String(source.currency || '').trim().toUpperCase())
+                ? String(source.currency || '').trim().toUpperCase()
+                : 'USD',
+            isActive: source.isActive !== false,
+            startDate: String(source.startDate || '').trim(),
+            endDate: String(source.endDate || '').trim(),
+            lines,
+            createdAt: String(source.createdAt || source.created_at || '').trim(),
+            updatedAt: String(source.updatedAt || source.updated_at || '').trim()
+        };
+    },
+
+    getPriceLists: () => {
+        SalesModule.ensureSettingsData();
+        const rows = Array.isArray(DB.data?.data?.salesSettings?.priceLists)
+            ? DB.data.data.salesSettings.priceLists
+            : [];
+        return rows
+            .map((row) => SalesModule.normalizePriceList(row))
+            .filter((row) => row.name);
+    },
+
+    isPriceListActiveOnDate: (list, dateIso = '') => {
+        if (!list || typeof list !== 'object') return false;
+        if (list.isActive === false) return false;
+        const target = String(dateIso || '').trim() || new Date().toISOString().slice(0, 10);
+        const targetMs = Date.parse(target);
+        const startMs = Date.parse(String(list.startDate || '').trim());
+        const endMs = Date.parse(String(list.endDate || '').trim());
+        if (Number.isFinite(startMs) && Number.isFinite(targetMs) && targetMs < startMs) return false;
+        if (Number.isFinite(endMs) && Number.isFinite(targetMs) && targetMs > endMs) return false;
+        return true;
+    },
+
+    findBestPriceListLine: (lines = [], productId = '', qty = 1) => {
+        const targetProductId = String(productId || '').trim();
+        if (!targetProductId) return null;
+        const filtered = (Array.isArray(lines) ? lines : [])
+            .map((line) => SalesModule.normalizePriceListLine(line))
+            .filter((line) => line.productId === targetProductId)
+            .filter((line) => Number(line.unitPrice || 0) > 0)
+            .filter((line) => Number(line.minQty || 1) <= Math.max(1, Number(qty || 1)));
+        if (!filtered.length) return null;
+        filtered.sort((a, b) => Number(b.minQty || 1) - Number(a.minQty || 1));
+        return filtered[0];
+    },
+
+    getLastSalesPriceForCustomerProduct: (customerId, productId, options = {}) => {
+        const targetCustomerId = String(customerId || '').trim();
+        const targetProductId = String(productId || '').trim();
+        if (!targetCustomerId || !targetProductId) return null;
+        const lookbackDays = Number(options.lookbackDays || 365);
+        const threshold = Date.now() - (lookbackDays * 24 * 60 * 60 * 1000);
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+
+        const normalizeStatus = (value) => SalesModule.normalize(String(value || ''));
+        const isCompletedStatus = (status) => {
+            const text = normalizeStatus(status);
+            return text.includes('tamam') || text.includes('teslim') || text.includes('sevk');
+        };
+
+        const candidates = [];
+        rows.forEach((order) => {
+            const orderCustomerId = String(order?.customerId || order?.customer?.id || '').trim();
+            if (orderCustomerId !== targetCustomerId) return;
+            if (!isCompletedStatus(order?.status)) return;
+            const orderDate = String(order?.orderDate || order?.created_at || '').trim();
+            const orderMs = Date.parse(orderDate);
+            if (Number.isFinite(orderMs) && orderMs < threshold) return;
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            lines.forEach((line) => {
+                const lineProductId = String(line?.productId || '').trim();
+                if (lineProductId !== targetProductId) return;
+                const unitPrice = Number(line?.unitPrice || 0);
+                if (!(unitPrice > 0)) return;
+                candidates.push({
+                    unitPrice: Number(unitPrice.toFixed(2)),
+                    orderDate,
+                    orderNo: String(order?.orderNo || order?.code || order?.id || '-').trim()
+                });
+            });
+        });
+        if (!candidates.length) return null;
+        candidates.sort((a, b) => {
+            const aMs = Date.parse(String(a.orderDate || ''));
+            const bMs = Date.parse(String(b.orderDate || ''));
+            return (Number.isFinite(bMs) ? bMs : 0) - (Number.isFinite(aMs) ? aMs : 0);
+        });
+        return candidates[0];
+    },
+
+    getSalesPriceSuggestion: (customerId, productId, qty = 1, orderDate = '') => {
+        const targetCustomerId = String(customerId || '').trim();
+        const targetProductId = String(productId || '').trim();
+        const quantity = Math.max(1, Number(qty || 1));
+        if (!targetProductId) return null;
+        const priceLists = SalesModule.getPriceLists();
+        const activeLists = priceLists.filter((list) => SalesModule.isPriceListActiveOnDate(list, orderDate));
+
+        const customerLists = activeLists.filter((list) => list.scope === 'customer' && String(list.customerId || '') === targetCustomerId);
+        const customerLineCandidates = customerLists
+            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
+            .filter((item) => item.line);
+        customerLineCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
+        if (customerLineCandidates.length > 0) {
+            const winner = customerLineCandidates[0];
+            return {
+                source: 'customer-price-list',
+                unitPrice: Number(winner.line.unitPrice || 0),
+                currency: winner.list.currency || 'USD',
+                label: `Musteri fiyat listesi: ${winner.list.name}`
+            };
+        }
+
+        const lastSales = SalesModule.getLastSalesPriceForCustomerProduct(targetCustomerId, targetProductId, { lookbackDays: 365 });
+        if (lastSales) {
+            const dateText = lastSales.orderDate ? new Date(lastSales.orderDate).toLocaleDateString('tr-TR') : '-';
+            return {
+                source: 'last-sale',
+                unitPrice: Number(lastSales.unitPrice || 0),
+                currency: 'USD',
+                label: `Son satis: ${dateText} / ${lastSales.orderNo || '-'}`
+            };
+        }
+
+        const globalLists = activeLists.filter((list) => list.scope !== 'customer');
+        const globalCandidates = globalLists
+            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
+            .filter((item) => item.line);
+        globalCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
+        if (globalCandidates.length > 0) {
+            const winner = globalCandidates[0];
+            return {
+                source: 'global-price-list',
+                unitPrice: Number(winner.line.unitPrice || 0),
+                currency: winner.list.currency || 'USD',
+                label: `Liste fiyati: ${winner.list.name}`
+            };
+        }
+        return null;
+    },
+
+    createSalesOrderLineDraft: (seed = {}) => ({
+        id: String(seed.id || crypto.randomUUID()).trim(),
+        productId: String(seed.productId || '').trim(),
+        qty: Math.max(1, Number(seed.qty || 1)),
+        unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
+        discountRate: Math.max(0, Math.min(100, Number(seed.discountRate || 0))),
+        isManualPrice: !!seed.isManualPrice
+    }),
+
+    buildSalesOrderDraft: (seed = {}) => {
+        const source = seed && typeof seed === 'object' ? seed : {};
+        const orderDate = String(source.orderDate || new Date().toISOString().slice(0, 10)).trim();
+        const lines = (Array.isArray(source.lines) ? source.lines : [SalesModule.createSalesOrderLineDraft()])
+            .map((line) => SalesModule.createSalesOrderLineDraft(line));
+        return {
+            orderDate,
+            customerId: String(source.customerId || '').trim(),
+            status: String(source.status || 'Taslak').trim() || 'Taslak',
+            currency: ['USD', 'TL', 'EUR'].includes(String(source.currency || '').trim().toUpperCase())
+                ? String(source.currency || '').trim().toUpperCase()
+                : 'USD',
+            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            deliveryMethod: String(source.deliveryMethod || '').trim(),
+            note: String(source.note || '').trim(),
+            lines
+        };
+    },
+
+    computeSalesOrderTotals: (draft = null) => {
+        const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
+        const lines = Array.isArray(source.lines) ? source.lines : [];
+        let subtotal = 0;
+        let discountTotal = 0;
+        let netTotal = 0;
+        const normalizedLines = lines.map((line) => {
+            const qty = Math.max(1, Number(line?.qty || 1));
+            const unitPrice = Math.max(0, Number(line?.unitPrice || 0));
+            const discountRate = Math.max(0, Math.min(100, Number(line?.discountRate || 0)));
+            const lineSubtotal = Number((qty * unitPrice).toFixed(2));
+            const lineDiscount = Number((lineSubtotal * (discountRate / 100)).toFixed(2));
+            const lineTotal = Number((lineSubtotal - lineDiscount).toFixed(2));
+            subtotal += lineSubtotal;
+            discountTotal += lineDiscount;
+            netTotal += lineTotal;
+            return {
+                ...line,
+                qty,
+                unitPrice: Number(unitPrice.toFixed(2)),
+                discountRate: Number(discountRate.toFixed(2)),
+                lineSubtotal,
+                lineDiscount,
+                lineTotal
+            };
+        });
+        return {
+            lines: normalizedLines,
+            subtotal: Number(subtotal.toFixed(2)),
+            discountTotal: Number(discountTotal.toFixed(2)),
+            netTotal: Number(netTotal.toFixed(2))
+        };
+    },
+
+    applyPriceSuggestionToOrderLine: (line, draft) => {
+        if (!line || typeof line !== 'object') return;
+        const suggestion = SalesModule.getSalesPriceSuggestion(
+            String(draft?.customerId || '').trim(),
+            String(line?.productId || '').trim(),
+            Number(line?.qty || 1),
+            String(draft?.orderDate || '').trim()
+        );
+        if (!suggestion) return;
+        if (line.isManualPrice && Number(line.unitPrice || 0) > 0) return;
+        line.unitPrice = Number(suggestion.unitPrice || 0);
+        line.isManualPrice = false;
+    },
+
+    ensureSalesOrderDraft: () => {
+        const current = SalesModule.state.salesOrderDraft;
+        if (!current || typeof current !== 'object') {
+            SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+            return;
+        }
+        SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft(current);
     },
 
     ensureCatalogPublicIds: () => {
@@ -146,10 +423,18 @@ const SalesModule = {
         if (SalesModule.state.workspaceView === 'products') {
             SalesModule.ensureCatalogState();
         }
+        if (SalesModule.state.workspaceView === 'sales') {
+            SalesModule.ensureSalesOrderDraft();
+        }
         if (SalesModule.state.workspaceView !== 'settings-proforma') {
             SalesModule.state.proformaSettingsDraft = null;
             SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
             SalesModule.state.proformaSettingsSnapshot = '';
+        }
+        if (SalesModule.state.workspaceView !== 'settings-price-lists') {
+            SalesModule.state.priceListDraft = null;
+            SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+            SalesModule.state.priceListEditingId = '';
         }
         UI.renderCurrentPage();
     },
@@ -166,6 +451,339 @@ const SalesModule = {
         SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
         SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(draft);
         SalesModule.state.workspaceView = 'settings-proforma';
+        UI.renderCurrentPage();
+    },
+
+    openPriceListsSettingsPage: () => {
+        SalesModule.ensureData();
+        SalesModule.state.workspaceView = 'settings-price-lists';
+        SalesModule.state.priceListDraft = null;
+        SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+        SalesModule.state.priceListEditingId = '';
+        UI.renderCurrentPage();
+    },
+
+    startNewPriceListDraft: () => {
+        const now = new Date().toISOString();
+        SalesModule.state.priceListEditingId = '';
+        SalesModule.state.priceListDraft = SalesModule.normalizePriceList({
+            id: crypto.randomUUID(),
+            name: '',
+            scope: 'global',
+            customerId: '',
+            currency: 'USD',
+            isActive: true,
+            startDate: new Date().toISOString().slice(0, 10),
+            endDate: '',
+            lines: [],
+            createdAt: now,
+            updatedAt: now
+        });
+        SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+        UI.renderCurrentPage();
+    },
+
+    editPriceListDraft: (id) => {
+        SalesModule.ensureData();
+        const targetId = String(id || '').trim();
+        if (!targetId) return;
+        const rows = SalesModule.getPriceLists();
+        const selected = rows.find((row) => String(row?.id || '') === targetId);
+        if (!selected) return alert('Fiyat listesi bulunamadi.');
+        SalesModule.state.priceListEditingId = targetId;
+        SalesModule.state.priceListDraft = SalesModule.normalizePriceList(selected);
+        SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+        UI.renderCurrentPage();
+    },
+
+    cancelPriceListDraft: () => {
+        SalesModule.state.priceListDraft = null;
+        SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+        SalesModule.state.priceListEditingId = '';
+        UI.renderCurrentPage();
+    },
+
+    setPriceListDraftField: (field, value) => {
+        const draft = SalesModule.state.priceListDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const key = String(field || '').trim();
+        if (!key) return;
+        if (key === 'scope') {
+            draft.scope = String(value || '').trim() === 'customer' ? 'customer' : 'global';
+            if (draft.scope !== 'customer') draft.customerId = '';
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'isActive') {
+            draft.isActive = value === true || String(value || '').trim() === 'true';
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'currency') {
+            const normalized = String(value || '').trim().toUpperCase();
+            draft.currency = ['USD', 'TL', 'EUR'].includes(normalized) ? normalized : 'USD';
+            UI.renderCurrentPage();
+            return;
+        }
+        draft[key] = String(value || '').trim();
+    },
+
+    setPriceListLineDraftField: (field, value) => {
+        const key = String(field || '').trim();
+        if (!key) return;
+        const draft = SalesModule.state.priceListLineDraft && typeof SalesModule.state.priceListLineDraft === 'object'
+            ? SalesModule.state.priceListLineDraft
+            : { productId: '', unitPrice: '', minQty: '1', note: '' };
+        draft[key] = String(value || '');
+        SalesModule.state.priceListLineDraft = draft;
+        if (key === 'productId' && String(draft.unitPrice || '').trim() === '') {
+            const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '') === String(draft.productId || ''));
+            if (product) {
+                const suggestion = SalesModule.getSalesPriceSuggestion('', String(product.id || ''), 1, new Date().toISOString().slice(0, 10));
+                if (suggestion && Number(suggestion.unitPrice || 0) > 0) {
+                    draft.unitPrice = String(Number(suggestion.unitPrice || 0).toFixed(2));
+                }
+            }
+        }
+        UI.renderCurrentPage();
+    },
+
+    addPriceListLineToDraft: () => {
+        const listDraft = SalesModule.state.priceListDraft;
+        const lineDraft = SalesModule.state.priceListLineDraft;
+        if (!listDraft || typeof listDraft !== 'object') return;
+        if (!lineDraft || typeof lineDraft !== 'object') return;
+        const normalized = SalesModule.normalizePriceListLine({
+            id: crypto.randomUUID(),
+            productId: String(lineDraft.productId || '').trim(),
+            unitPrice: String(lineDraft.unitPrice || '').trim(),
+            minQty: String(lineDraft.minQty || '1').trim(),
+            note: String(lineDraft.note || '').trim()
+        });
+        if (!normalized.productId) return alert('Urun secmelisin.');
+        if (!(Number(normalized.unitPrice || 0) > 0)) return alert('Birim fiyat sifirdan buyuk olmali.');
+        const rows = Array.isArray(listDraft.lines) ? listDraft.lines : [];
+        const sameIdx = rows.findIndex((row) => String(row?.productId || '') === normalized.productId && Number(row?.minQty || 1) === Number(normalized.minQty || 1));
+        if (sameIdx >= 0) {
+            rows[sameIdx] = normalized;
+        } else {
+            rows.push(normalized);
+        }
+        listDraft.lines = rows;
+        SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
+        UI.renderCurrentPage();
+    },
+
+    removePriceListLineFromDraft: (lineId) => {
+        const targetId = String(lineId || '').trim();
+        if (!targetId) return;
+        const draft = SalesModule.state.priceListDraft;
+        if (!draft || typeof draft !== 'object') return;
+        draft.lines = (Array.isArray(draft.lines) ? draft.lines : [])
+            .filter((line) => String(line?.id || '').trim() !== targetId);
+        UI.renderCurrentPage();
+    },
+
+    savePriceListDraft: async () => {
+        SalesModule.ensureSettingsData();
+        const draft = SalesModule.state.priceListDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const normalized = SalesModule.normalizePriceList(draft);
+        if (!normalized.name) return alert('Fiyat listesi adi zorunlu.');
+        if (normalized.scope === 'customer' && !normalized.customerId) return alert('Musteri ozel liste icin musteri secmelisin.');
+        if (!Array.isArray(normalized.lines) || normalized.lines.length === 0) return alert('En az bir urun satiri eklemelisin.');
+
+        const now = new Date().toISOString();
+        normalized.updatedAt = now;
+        if (!normalized.createdAt) normalized.createdAt = now;
+
+        const store = Array.isArray(DB.data?.data?.salesSettings?.priceLists) ? DB.data.data.salesSettings.priceLists : [];
+        const idx = store.findIndex((row) => String(row?.id || '').trim() === String(normalized.id || '').trim());
+        if (idx >= 0) store[idx] = normalized;
+        else store.push(normalized);
+        DB.data.data.salesSettings.priceLists = store;
+        await DB.save();
+        alert(idx >= 0 ? 'Fiyat listesi guncellendi.' : 'Fiyat listesi kaydedildi.');
+        SalesModule.cancelPriceListDraft();
+    },
+
+    deletePriceList: async (id) => {
+        SalesModule.ensureSettingsData();
+        const targetId = String(id || '').trim();
+        if (!targetId) return;
+        if (!confirm('Fiyat listesi silinsin mi?')) return;
+        const store = Array.isArray(DB.data?.data?.salesSettings?.priceLists) ? DB.data.data.salesSettings.priceLists : [];
+        DB.data.data.salesSettings.priceLists = store.filter((row) => String(row?.id || '').trim() !== targetId);
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    setSalesOrderDraftField: (field, value) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const key = String(field || '').trim();
+        if (!draft || !key) return;
+        draft[key] = String(value || '');
+        if (key === 'customerId') {
+            const customer = SalesModule.getCustomerById(draft.customerId);
+            draft.deliveryAddress = customer ? String(customer.address || '').trim() : '';
+            (Array.isArray(draft.lines) ? draft.lines : []).forEach((line) => {
+                if (line && typeof line === 'object') {
+                    line.isManualPrice = false;
+                    SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+                }
+            });
+        }
+        if (key === 'orderDate') {
+            (Array.isArray(draft.lines) ? draft.lines : []).forEach((line) => {
+                if (line && typeof line === 'object') SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+            });
+        }
+        UI.renderCurrentPage();
+    },
+
+    addSalesOrderLine: () => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const rows = Array.isArray(draft.lines) ? draft.lines : [];
+        rows.push(SalesModule.createSalesOrderLineDraft());
+        draft.lines = rows;
+        UI.renderCurrentPage();
+    },
+
+    removeSalesOrderLine: (lineId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetId = String(lineId || '').trim();
+        if (!draft || !targetId) return;
+        draft.lines = (Array.isArray(draft.lines) ? draft.lines : [])
+            .filter((line) => String(line?.id || '').trim() !== targetId);
+        if (!draft.lines.length) draft.lines = [SalesModule.createSalesOrderLineDraft()];
+        UI.renderCurrentPage();
+    },
+
+    setSalesOrderLineField: (lineId, field, value) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const targetId = String(lineId || '').trim();
+        const key = String(field || '').trim();
+        if (!targetId || !key) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((item) => String(item?.id || '') === targetId);
+        if (!line) return;
+
+        if (key === 'qty') {
+            const qty = Number(String(value || '').replace(',', '.'));
+            line.qty = Number.isFinite(qty) ? Math.max(1, Math.floor(qty)) : 1;
+            if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'discountRate') {
+            line.discountRate = SalesModule.parsePercent(value);
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'unitPrice') {
+            const unitPrice = Number(String(value || '').replace(',', '.'));
+            line.unitPrice = Number.isFinite(unitPrice) ? Math.max(0, Number(unitPrice.toFixed(2))) : 0;
+            line.isManualPrice = true;
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'productId') {
+            line.productId = String(value || '').trim();
+            line.isManualPrice = false;
+            SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+            UI.renderCurrentPage();
+            return;
+        }
+    },
+
+    applyRecommendedPriceToLine: (lineId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetId = String(lineId || '').trim();
+        if (!draft || !targetId) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((item) => String(item?.id || '') === targetId);
+        if (!line) return;
+        line.isManualPrice = false;
+        SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+        UI.renderCurrentPage();
+    },
+
+    resetSalesOrderDraft: () => {
+        SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+        UI.renderCurrentPage();
+    },
+
+    generateSalesOrderNo: () => {
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        let maxSeq = 0;
+        rows.forEach((row) => {
+            const code = String(row?.orderNo || row?.orderCode || '').trim().toUpperCase();
+            const match = code.match(/^SOR-(\d{6})$/);
+            if (!match) return;
+            const seq = Number(match[1] || 0);
+            if (seq > maxSeq) maxSeq = seq;
+        });
+        return `SOR-${String(maxSeq + 1).padStart(6, '0')}`;
+    },
+
+    saveSalesOrderDraft: async () => {
+        SalesModule.ensureData();
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const customer = SalesModule.getCustomerById(draft.customerId);
+        if (!customer) return alert('Siparis icin musteri secmelisin.');
+        const totals = SalesModule.computeSalesOrderTotals(draft);
+        const validLines = totals.lines.filter((line) => String(line?.productId || '').trim() && Number(line?.unitPrice || 0) > 0);
+        if (!validLines.length) return alert('En az bir urun satiri eklemelisin.');
+        const productMap = new Map(SalesModule.getCatalogProducts().map((row) => [String(row.id || ''), row]));
+        const now = new Date().toISOString();
+        const order = {
+            id: crypto.randomUUID(),
+            orderNo: SalesModule.generateSalesOrderNo(),
+            orderDate: String(draft.orderDate || '').trim() || new Date().toISOString().slice(0, 10),
+            customerId: String(customer.id || '').trim(),
+            customerName: String(customer.name || '').trim(),
+            status: String(draft.status || 'Taslak').trim() || 'Taslak',
+            currency: String(draft.currency || 'USD').trim().toUpperCase(),
+            deliveryAddress: String(draft.deliveryAddress || '').trim(),
+            deliveryMethod: String(draft.deliveryMethod || '').trim(),
+            note: String(draft.note || '').trim(),
+            lines: validLines.map((line) => {
+                const product = productMap.get(String(line.productId || '')) || {};
+                return {
+                    id: String(line.id || crypto.randomUUID()),
+                    productId: String(line.productId || '').trim(),
+                    productName: String(product?.name || '-').trim(),
+                    productCode: String(product?.productCode || product?.idCode || '-').trim(),
+                    qty: Math.max(1, Number(line.qty || 1)),
+                    unitPrice: Number(Number(line.unitPrice || 0).toFixed(2)),
+                    discountRate: Number(Number(line.discountRate || 0).toFixed(2)),
+                    lineSubtotal: Number(Number(line.lineSubtotal || 0).toFixed(2)),
+                    lineDiscount: Number(Number(line.lineDiscount || 0).toFixed(2)),
+                    lineTotal: Number(Number(line.lineTotal || 0).toFixed(2))
+                };
+            }),
+            subtotal: totals.subtotal,
+            discountTotal: totals.discountTotal,
+            totalAmount: totals.netTotal,
+            created_at: now,
+            updated_at: now
+        };
+        DB.data.data.orders.push(order);
+        await DB.save();
+        alert(`Siparis kaydedildi: ${order.orderNo}`);
+        SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
+            customerId: String(customer.id || '').trim(),
+            deliveryAddress: String(draft.deliveryAddress || '').trim(),
+            deliveryMethod: String(draft.deliveryMethod || '').trim(),
+            currency: String(draft.currency || 'USD').trim().toUpperCase()
+        });
         UI.renderCurrentPage();
     },
 
@@ -3372,18 +3990,199 @@ const SalesModule = {
         </section>
     `,
 
-    renderSalesWorkspaceLayout: () => `
-        <section class="stock-shell">
-            <div class="stock-subpage-shell">
-                <div class="stock-subpage-head">
-                    <h2 class="stock-title">satis</h2>
-                    <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
-                </div>
+    renderSalesWorkspaceLayout: () => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft || SalesModule.buildSalesOrderDraft();
+        const customers = SalesModule.getCustomers();
+        const products = SalesModule.getCatalogProducts()
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const productMap = new Map(products.map((row) => [String(row.id || ''), row]));
+        const computed = SalesModule.computeSalesOrderTotals(draft);
+        const computedMap = new Map(computed.lines.map((row) => [String(row.id || ''), row]));
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const recentOrders = rows
+            .map((row) => ({
+                id: String(row?.id || '').trim(),
+                orderNo: String(row?.orderNo || row?.orderCode || row?.code || '-').trim(),
+                customerName: String(row?.customerName || row?.customer?.name || '-').trim(),
+                orderDate: String(row?.orderDate || row?.created_at || '').trim(),
+                status: String(row?.status || 'Taslak').trim(),
+                currency: String(row?.currency || 'USD').trim().toUpperCase(),
+                total: Number(row?.totalAmount ?? row?.total ?? row?.grandTotal ?? 0)
+            }))
+            .sort((a, b) => {
+                const aMs = Date.parse(String(a.orderDate || ''));
+                const bMs = Date.parse(String(b.orderDate || ''));
+                return (Number.isFinite(bMs) ? bMs : 0) - (Number.isFinite(aMs) ? aMs : 0);
+            })
+            .slice(0, 12);
+        const currencySymbol = draft.currency === 'TL' ? 'TL' : (draft.currency === 'EUR' ? 'EUR' : 'USD');
 
-                <div class="card-table" style="padding:0; min-height:560px;"></div>
-            </div>
-        </section>
-    `,
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">satis / siparis olusturma</h2>
+                        <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div style="display:grid; grid-template-columns:minmax(0,1.7fr) minmax(320px,1fr); gap:0.8rem;">
+                        <div class="card-table" style="padding:1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.65rem;">
+                                <div>
+                                    <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Yeni Siparis</div>
+                                    <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Fiyat onceligi: musteri liste fiyati > son satis > genel liste.</div>
+                                </div>
+                                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                                    <button class="btn-sm" type="button" onclick="SalesModule.resetSalesOrderDraft()">temizle</button>
+                                    <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">siparisi kaydet</button>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem; margin-bottom:0.65rem;">
+                                <div style="grid-column:span 2;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri *</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)">
+                                        <option value="">musteri sec</option>
+                                        ${customers.map((row) => `
+                                            <option value="${SalesModule.escapeHtml(String(row?.id || ''))}" ${String(row?.id || '') === String(draft.customerId || '') ? 'selected' : ''}>
+                                                ${SalesModule.escapeHtml(String(row?.name || '-'))}
+                                            </option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Siparis Tarihi</label>
+                                    <input type="date" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.orderDate || ''))}" onchange="SalesModule.setSalesOrderDraftField('orderDate', this.value)">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Durum</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('status', this.value)">
+                                        ${['Taslak', 'Onaylandi', 'Tamamlandi'].map((status) => `<option value="${SalesModule.escapeHtml(status)}" ${status === String(draft.status || '') ? 'selected' : ''}>${SalesModule.escapeHtml(status)}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)">
+                                        ${['USD', 'TL', 'EUR'].map((item) => `<option value="${item}" ${item === String(draft.currency || '').toUpperCase() ? 'selected' : ''}>${item}</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Teslimat Yontemi</label>
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.deliveryMethod || ''))}" oninput="SalesModule.setSalesOrderDraftField('deliveryMethod', this.value)" placeholder="or: Depo teslim">
+                                </div>
+                                <div style="grid-column:span 4;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Teslimat Adresi</label>
+                                    <textarea class="stock-textarea" style="min-height:72px;" oninput="SalesModule.setSalesOrderDraftField('deliveryAddress', this.value)">${SalesModule.escapeHtml(String(draft.deliveryAddress || ''))}</textarea>
+                                </div>
+                            </div>
+
+                            <div style="border:1px solid #e2e8f0; border-radius:0.78rem; overflow:auto;">
+                                <table style="width:100%; min-width:1050px; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                            <th style="padding:0.52rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.52rem; text-align:center; width:82px;">Adet</th>
+                                            <th style="padding:0.52rem; text-align:left;">Onerilen Fiyat</th>
+                                            <th style="padding:0.52rem; text-align:right; width:130px;">Birim Fiyat</th>
+                                            <th style="padding:0.52rem; text-align:center; width:92px;">Iskonto %</th>
+                                            <th style="padding:0.52rem; text-align:right; width:130px;">Satir Toplam</th>
+                                            <th style="padding:0.52rem; text-align:center; width:110px;">Islem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${(Array.isArray(draft.lines) ? draft.lines : []).map((line) => {
+            const row = computedMap.get(String(line?.id || '')) || line || {};
+            const suggestion = SalesModule.getSalesPriceSuggestion(
+                String(draft.customerId || ''),
+                String(line?.productId || ''),
+                Number(row?.qty || 1),
+                String(draft.orderDate || '')
+            );
+            const hasSuggestion = suggestion && Number(suggestion.unitPrice || 0) > 0;
+            const currentPrice = Number(row?.unitPrice || 0);
+            const canApplySuggested = hasSuggestion && (currentPrice <= 0 || Math.abs(currentPrice - Number(suggestion.unitPrice || 0)) > 0.0001 || line?.isManualPrice);
+            return `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.5rem;">
+                                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(String(line?.id || ''))}', 'productId', this.value)">
+                                                        <option value="">urun sec</option>
+                                                        ${products.map((product) => `
+                                                            <option value="${SalesModule.escapeHtml(String(product?.id || ''))}" ${String(product?.id || '') === String(line?.productId || '') ? 'selected' : ''}>
+                                                                ${SalesModule.escapeHtml(String(product?.name || '-'))} (${SalesModule.escapeHtml(String(product?.idCode || product?.productCode || '-'))})
+                                                            </option>
+                                                        `).join('')}
+                                                    </select>
+                                                </td>
+                                                <td style="padding:0.5rem; text-align:center;">
+                                                    <input type="number" min="1" class="stock-input stock-input-tall" style="text-align:center;" value="${SalesModule.escapeHtml(String(Math.max(1, Number(row?.qty || 1))))}" oninput="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(String(line?.id || ''))}', 'qty', this.value)">
+                                                </td>
+                                                <td style="padding:0.5rem;">
+                                                    ${hasSuggestion
+                    ? `<div style="font-size:0.79rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(suggestion.label || ''))}</div>
+                                                           <div style="font-size:0.8rem; color:#1d4ed8; font-weight:800; margin-top:0.16rem;">${SalesModule.escapeHtml(String(suggestion.unitPrice.toFixed(2)))} ${SalesModule.escapeHtml(String(suggestion.currency || 'USD'))}</div>
+                                                           ${canApplySuggested ? `<button class="btn-sm" style="margin-top:0.22rem; height:26px;" onclick="SalesModule.applyRecommendedPriceToLine('${SalesModule.escapeHtml(String(line?.id || ''))}')">oneriyi uygula</button>` : ''}`
+                    : '<div style="font-size:0.78rem; color:#94a3b8;">Oneri yok (fiyat listesi veya son satis bulunamadi).</div>'}
+                                                </td>
+                                                <td style="padding:0.5rem; text-align:right;">
+                                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right;" value="${currentPrice > 0 ? SalesModule.escapeHtml(String(currentPrice.toFixed(2))) : ''}" oninput="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(String(line?.id || ''))}', 'unitPrice', this.value)">
+                                                </td>
+                                                <td style="padding:0.5rem; text-align:center;">
+                                                    <input type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" style="text-align:center;" value="${SalesModule.escapeHtml(String(Number(row?.discountRate || 0).toFixed(2)))}" oninput="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(String(line?.id || ''))}', 'discountRate', this.value)">
+                                                </td>
+                                                <td style="padding:0.5rem; text-align:right; font-weight:800; color:#0f172a;">${SalesModule.escapeHtml(String(Number(row?.lineTotal || 0).toFixed(2)))} ${SalesModule.escapeHtml(currencySymbol)}</td>
+                                                <td style="padding:0.5rem; text-align:center;">
+                                                    <button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(String(line?.id || ''))}')">sil</button>
+                                                </td>
+                                            </tr>
+                                        `;
+        }).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.7rem; margin-top:0.55rem; flex-wrap:wrap;">
+                                <button class="btn-sm" type="button" onclick="SalesModule.addSalesOrderLine()">satir ekle +</button>
+                                <div style="min-width:280px; margin-left:auto;">
+                                    <div style="display:flex; justify-content:space-between; font-size:0.88rem; color:#334155;"><span>Ara Toplam</span><strong>${SalesModule.escapeHtml(String(computed.subtotal.toFixed(2)))} ${SalesModule.escapeHtml(currencySymbol)}</strong></div>
+                                    <div style="display:flex; justify-content:space-between; font-size:0.88rem; color:#334155; margin-top:0.2rem;"><span>Iskonto Toplami</span><strong>${SalesModule.escapeHtml(String(computed.discountTotal.toFixed(2)))} ${SalesModule.escapeHtml(currencySymbol)}</strong></div>
+                                    <div style="display:flex; justify-content:space-between; font-size:1.02rem; color:#0f172a; margin-top:0.24rem;"><span><strong>Genel Toplam</strong></span><strong>${SalesModule.escapeHtml(String(computed.netTotal.toFixed(2)))} ${SalesModule.escapeHtml(currencySymbol)}</strong></div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:0.58rem;">
+                                <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Siparis Notu</label>
+                                <textarea class="stock-textarea" style="min-height:70px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea>
+                            </div>
+                        </div>
+
+                        <div class="card-table" style="padding:1rem;">
+                            <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Son Siparisler</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.18rem;">En son 12 kayit gosterilir.</div>
+                            <div style="margin-top:0.55rem; display:flex; flex-direction:column; gap:0.45rem; max-height:720px; overflow:auto;">
+                                ${recentOrders.length === 0
+                ? '<div style="border:1px dashed #cbd5e1; border-radius:0.7rem; padding:0.75rem; color:#94a3b8; font-size:0.85rem;">Kayitli siparis yok.</div>'
+                : recentOrders.map((order) => `
+                                            <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem 0.62rem;">
+                                                <div style="display:flex; justify-content:space-between; gap:0.45rem;">
+                                                    <div style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(order.orderNo || '-')}</div>
+                                                    <div style="font-size:0.74rem; color:#64748b;">${SalesModule.escapeHtml(order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-')}</div>
+                                                </div>
+                                                <div style="font-size:0.86rem; font-weight:700; color:#334155; margin-top:0.12rem;">${SalesModule.escapeHtml(order.customerName || '-')}</div>
+                                                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.4rem; margin-top:0.24rem;">
+                                                    <span style="display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:700;">${SalesModule.escapeHtml(order.status || 'Taslak')}</span>
+                                                    <strong style="font-size:0.88rem; color:#0f172a;">${SalesModule.escapeHtml(String(Number(order.total || 0).toFixed(2)))} ${SalesModule.escapeHtml(order.currency || 'USD')}</strong>
+                                                </div>
+                                            </div>
+                                        `).join('')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
 
     renderSettingsLayout: () => `
         <section class="stock-shell">
@@ -3405,11 +4204,11 @@ const SalesModule = {
                             <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
                         </button>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
+                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openPriceListsSettingsPage()">
                             <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="list-todo" width="22" height="22"></i></div>
                             <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Fiyat Listeleri</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Musteri/urun bazli fiyat listeleri bu bolume eklenecek.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Genel ve musteri bazli liste fiyatlarini yonet.</div>
+                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
                         </button>
 
                         <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
@@ -3423,6 +4222,189 @@ const SalesModule = {
             </div>
         </section>
     `,
+
+    renderPriceListsSettingsLayout: () => {
+        SalesModule.ensureData();
+        const lists = SalesModule.getPriceLists()
+            .slice()
+            .sort((a, b) => String(b?.updatedAt || '').localeCompare(String(a?.updatedAt || ''), 'tr'));
+        const customers = SalesModule.getCustomers();
+        const customerMap = new Map(customers.map((row) => [String(row?.id || ''), row]));
+        const products = SalesModule.getCatalogProducts()
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const productMap = new Map(products.map((row) => [String(row?.id || ''), row]));
+        const draft = SalesModule.state.priceListDraft;
+        const lineDraft = SalesModule.state.priceListLineDraft && typeof SalesModule.state.priceListLineDraft === 'object'
+            ? SalesModule.state.priceListLineDraft
+            : { productId: '', unitPrice: '', minQty: '1', note: '' };
+
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">satis & pazarlama / fiyat listeleri</h2>
+                        <button class="btn-sm" onclick="SalesModule.openWorkspace('settings')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.1rem; margin-bottom:0.8rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.7rem; flex-wrap:wrap;">
+                            <div>
+                                <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Fiyat Listesi Yonetimi</div>
+                                <div style="font-size:0.84rem; color:#64748b; margin-top:0.22rem;">Sipariste onerilen fiyatlar bu listelerden otomatik cekilir.</div>
+                            </div>
+                            <button class="btn-primary" type="button" onclick="SalesModule.startNewPriceListDraft()">yeni fiyat listesi +</button>
+                        </div>
+
+                        <div style="margin-top:0.7rem; overflow:auto;">
+                            <table style="width:100%; min-width:930px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                        <th style="padding:0.5rem; text-align:left;">Liste adi</th>
+                                        <th style="padding:0.5rem; text-align:left;">Kapsam</th>
+                                        <th style="padding:0.5rem; text-align:left;">Para birimi</th>
+                                        <th style="padding:0.5rem; text-align:left;">Tarih araligi</th>
+                                        <th style="padding:0.5rem; text-align:center;">Satir</th>
+                                        <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.5rem; text-align:center;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${lists.length === 0
+                ? '<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Henuz fiyat listesi tanimlanmadi.</td></tr>'
+                : lists.map((list) => {
+                    const customer = customerMap.get(String(list.customerId || ''));
+                    const scopeText = list.scope === 'customer'
+                        ? `Musteri ozel${customer ? `: ${String(customer.name || '-')}` : ''}`
+                        : 'Genel';
+                    const dateText = `${list.startDate || '-'} / ${list.endDate || '-'}`;
+                    return `
+                                                <tr style="border-bottom:1px solid #f1f5f9;">
+                                                    <td style="padding:0.5rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(list.name || '-'))}</td>
+                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(scopeText)}</td>
+                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(String(list.currency || 'USD'))}</td>
+                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(dateText)}</td>
+                                                    <td style="padding:0.5rem; text-align:center; color:#334155;">${SalesModule.escapeHtml(String((Array.isArray(list.lines) ? list.lines.length : 0)))}</td>
+                                                    <td style="padding:0.5rem;">
+                                                        <span style="display:inline-flex; align-items:center; padding:0.16rem 0.55rem; border:1px solid ${list.isActive ? '#86efac' : '#cbd5e1'}; border-radius:999px; background:${list.isActive ? '#f0fdf4' : '#f8fafc'}; color:${list.isActive ? '#166534' : '#475569'}; font-size:0.72rem; font-weight:700;">
+                                                            ${list.isActive ? 'Aktif' : 'Pasif'}
+                                                        </span>
+                                                    </td>
+                                                    <td style="padding:0.5rem; text-align:center;">
+                                                        <div style="display:inline-flex; gap:0.35rem;">
+                                                            <button class="btn-sm" onclick="SalesModule.editPriceListDraft('${SalesModule.escapeHtml(String(list.id || ''))}')">duzenle</button>
+                                                            <button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deletePriceList('${SalesModule.escapeHtml(String(list.id || ''))}')">sil</button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            `;
+                }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    ${draft && typeof draft === 'object' ? `
+                        <div class="card-table" style="padding:1rem 1.1rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.6rem;">
+                                <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">${SalesModule.state.priceListEditingId ? 'Fiyat Listesini Duzenle' : 'Yeni Fiyat Listesi'}</div>
+                                <div style="display:flex; gap:0.4rem;">
+                                    <button class="btn-sm" onclick="SalesModule.cancelPriceListDraft()">vazgec</button>
+                                    <button class="btn-primary" onclick="SalesModule.savePriceListDraft()">kaydet</button>
+                                </div>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                                <div style="grid-column:span 2;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Liste adi *</label>
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.name || ''))}" oninput="SalesModule.setPriceListDraftField('name', this.value)" placeholder="or: Korkuluk Genel Liste">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kapsam</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('scope', this.value)">
+                                        <option value="global" ${String(draft.scope || '') === 'global' ? 'selected' : ''}>Genel</option>
+                                        <option value="customer" ${String(draft.scope || '') === 'customer' ? 'selected' : ''}>Musteri ozel</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Para birimi</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('currency', this.value)">
+                                        ${['USD', 'TL', 'EUR'].map((curr) => `<option value="${curr}" ${curr === String(draft.currency || 'USD') ? 'selected' : ''}>${curr}</option>`).join('')}
+                                    </select>
+                                </div>
+                                ${String(draft.scope || '') === 'customer' ? `
+                                <div style="grid-column:span 2;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri *</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('customerId', this.value)">
+                                        <option value="">musteri sec</option>
+                                        ${customers.map((row) => `<option value="${SalesModule.escapeHtml(String(row.id || ''))}" ${String(row.id || '') === String(draft.customerId || '') ? 'selected' : ''}>${SalesModule.escapeHtml(String(row.name || '-'))}</option>`).join('')}
+                                    </select>
+                                </div>` : '<div style="grid-column:span 2;"></div>'}
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Baslangic</label>
+                                    <input type="date" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.startDate || ''))}" onchange="SalesModule.setPriceListDraftField('startDate', this.value)">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Bitis</label>
+                                    <input type="date" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.endDate || ''))}" onchange="SalesModule.setPriceListDraftField('endDate', this.value)">
+                                </div>
+                                <div style="display:flex; align-items:flex-end;">
+                                    <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.86rem; color:#334155; font-weight:700;">
+                                        <input type="checkbox" ${draft.isActive ? 'checked' : ''} onchange="SalesModule.setPriceListDraftField('isActive', this.checked)">
+                                        aktif liste
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div style="margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.7rem;">
+                                <div style="font-size:0.92rem; font-weight:800; color:#0f172a;">Liste Satirlari</div>
+                                <div style="display:grid; grid-template-columns:2fr 0.8fr 0.8fr 1.6fr auto; gap:0.45rem; margin-top:0.45rem;">
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListLineDraftField('productId', this.value)">
+                                        <option value="">urun sec</option>
+                                        ${products.map((product) => `<option value="${SalesModule.escapeHtml(String(product.id || ''))}" ${String(product.id || '') === String(lineDraft.productId || '') ? 'selected' : ''}>${SalesModule.escapeHtml(String(product.name || '-'))} (${SalesModule.escapeHtml(String(product.idCode || product.productCode || '-'))})</option>`).join('')}
+                                    </select>
+                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.unitPrice || ''))}" oninput="SalesModule.setPriceListLineDraftField('unitPrice', this.value)" placeholder="fiyat">
+                                    <input type="number" min="1" step="1" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.minQty || '1'))}" oninput="SalesModule.setPriceListLineDraftField('minQty', this.value)" placeholder="min adet">
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.note || ''))}" oninput="SalesModule.setPriceListLineDraftField('note', this.value)" placeholder="not (opsiyonel)">
+                                    <button class="btn-primary" onclick="SalesModule.addPriceListLineToDraft()">satir ekle</button>
+                                </div>
+
+                                <div style="margin-top:0.55rem; border:1px solid #e2e8f0; border-radius:0.72rem; overflow:auto;">
+                                    <table style="width:100%; min-width:860px; border-collapse:collapse;">
+                                        <thead>
+                                            <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                                <th style="padding:0.45rem; text-align:left;">Urun</th>
+                                                <th style="padding:0.45rem; text-align:right;">Birim fiyat</th>
+                                                <th style="padding:0.45rem; text-align:center;">Min adet</th>
+                                                <th style="padding:0.45rem; text-align:left;">Not</th>
+                                                <th style="padding:0.45rem; text-align:center;">Islem</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${(Array.isArray(draft.lines) ? draft.lines : []).length === 0
+                ? '<tr><td colspan="5" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir eklenmedi.</td></tr>'
+                : (Array.isArray(draft.lines) ? draft.lines : []).map((line) => {
+                    const product = productMap.get(String(line.productId || ''));
+                    return `
+                                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                                            <td style="padding:0.45rem;">${SalesModule.escapeHtml(String(product?.name || '-'))}</td>
+                                                            <td style="padding:0.45rem; text-align:right; font-weight:700;">${SalesModule.escapeHtml(String(Number(line.unitPrice || 0).toFixed(2)))} ${SalesModule.escapeHtml(String(draft.currency || 'USD'))}</td>
+                                                            <td style="padding:0.45rem; text-align:center;">${SalesModule.escapeHtml(String(line.minQty || 1))}</td>
+                                                            <td style="padding:0.45rem;">${SalesModule.escapeHtml(String(line.note || '-'))}</td>
+                                                            <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removePriceListLineFromDraft('${SalesModule.escapeHtml(String(line.id || ''))}')">sil</button></td>
+                                                        </tr>
+                                                    `;
+                }).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </section>
+        `;
+    },
 
     renderProformaSettingsLayout: () => {
         const settings = SalesModule.getProformaSettings();
@@ -3823,6 +4805,7 @@ const SalesModule = {
         if (view === 'personnel') return SalesModule.renderPersonnelLayout();
         if (view === 'products') return SalesModule.renderProductsLayout();
         if (view === 'settings') return SalesModule.renderSettingsLayout();
+        if (view === 'settings-price-lists') return SalesModule.renderPriceListsSettingsLayout();
         if (view === 'settings-proforma') return SalesModule.renderProformaSettingsLayout();
         return SalesModule.renderMenuLayout();
     }

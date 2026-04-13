@@ -1033,6 +1033,120 @@ const SalesModule = {
         return `<span style="display:inline-flex; align-items:center; padding:0.13rem 0.48rem; border:1px solid ${meta.border}; border-radius:999px; background:${meta.bg}; color:${meta.color}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(String(badge?.text || '-'))}</span>`;
     },
 
+    getSalesVariationRowById: (productId, variationId) => {
+        const productKey = String(productId || '').trim();
+        const variationKey = String(variationId || '').trim();
+        if (!productKey || !variationKey) return null;
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.getSalesProductVariationRows === 'function') {
+            const rows = ProductLibraryModule.getSalesProductVariationRows(productKey);
+            return rows.find((row) => String(row?.id || '').trim() === variationKey) || null;
+        }
+        const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        const hit = rows.find((row) =>
+            String(row?.sourceCatalogProductId || '').trim() === productKey
+            && String(row?.id || '').trim() === variationKey
+        );
+        if (!hit) return null;
+        return {
+            id: String(hit?.id || '').trim(),
+            variantCode: String(hit?.variantCode || '').trim().toUpperCase(),
+            productName: String(hit?.productName || '').trim(),
+            bubble: String(hit?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            selectedDiameter: String(hit?.selectedDiameter || '').trim(),
+            lowerTubeLengthMm: String(hit?.lowerTubeLengthMm || '').trim(),
+            colors: hit?.colors && typeof hit.colors === 'object' ? hit.colors : {},
+            note: String(hit?.note || '').trim()
+        };
+    },
+
+    renderSalesVariationDetailModalHtml: (product = {}, variation = {}) => {
+        const pathText = SalesModule.getCatalogCategoryPathText(product?.categoryId || '');
+        const productImage = String(product?.images?.product || product?.images?.application || '').trim();
+        const technicalImage = String(product?.images?.technical || '').trim();
+        const accessory = variation?.colors?.accessory && typeof variation.colors.accessory === 'object'
+            ? variation.colors.accessory
+            : (product?.colors?.accessory || {});
+        const tube = variation?.colors?.tube && typeof variation.colors.tube === 'object'
+            ? variation.colors.tube
+            : (product?.colors?.tube || {});
+        const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object'
+            ? variation.colors.plexi
+            : (product?.colors?.plexi || {});
+        const selectedDiameter = String(variation?.selectedDiameter || product?.selectedDiameter || '').trim();
+        const diameters = Array.isArray(product?.diameters) ? product.diameters : [];
+        const lowerTubeLength = String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart').trim() || 'standart';
+        const bubble = String(variation?.bubble || product?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
+        return `
+            <div class="sales-catalog-detail-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
+                <div class="sales-catalog-detail-grid">
+                    <div class="sales-catalog-detail-left">
+                        <div class="sales-catalog-preview-combo">
+                            <div class="sales-catalog-preview-panel is-dark">
+                                ${productImage
+                ? `<img src="${SalesModule.escapeHtml(productImage)}" alt="${SalesModule.escapeHtml(product?.name || 'Urun')}" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Urun gorseli yok</div>'}
+                            </div>
+                            <div class="sales-catalog-preview-panel is-light">
+                                ${technicalImage
+                ? `<img src="${SalesModule.escapeHtml(technicalImage)}" alt="Teknik cizim" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Teknik resim yok</div>'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="sales-catalog-detail-right">
+                        <div class="sales-catalog-detail-head">
+                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(String(variation?.productName || product?.name || '-'))}</div>
+                            <div class="sales-catalog-detail-codes">
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(String(variation?.variantCode || '-'))}</span>
+                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(String(product?.idCode || '-'))}</span>
+                            </div>
+                        </div>
+
+                        <div class="sales-catalog-detail-fields">
+                            ${SalesModule.renderCatalogDetailColorField('Aksesuar rengi', 'accessory', accessory)}
+                            ${SalesModule.renderCatalogDetailColorField('Boru rengi', 'tube', tube)}
+                            ${SalesModule.renderCatalogDetailColorField('Pleksi rengi', 'plexi', plexi)}
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Varyasyon ID</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(String(variation?.id || '-'))}" readonly>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Kabarcik</label>
+                                <div class="sales-catalog-toggle is-disabled">
+                                    <button type="button" class="sales-catalog-toggle-btn ${bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
+                                    <button type="button" class="sales-catalog-toggle-btn ${bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
+                                </div>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Cap</label>
+                                <div class="sales-catalog-chip-row">
+                                    ${SalesModule.renderCatalogDiameterButtonsHtml(diameters, selectedDiameter, 'SalesModule.noop')}
+                                </div>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Alt boru uzunlugu</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(lowerTubeLength)}" readonly>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="sales-catalog-label">Not</label>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(String(variation?.note || ''))}</textarea>
+                        </div>
+
+                        <div class="sales-catalog-modal-actions">
+                            <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
     formatPriceListInputValue: (value) => {
         const num = Number(value || 0);
         if (!(num > 0)) return '';
@@ -1053,24 +1167,12 @@ const SalesModule = {
         const productKey = String(productId || '').trim();
         const variationKey = String(variationId || '').trim();
         if (!productKey) return;
-        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
-            ProductLibraryModule.state.workspaceView = 'sales-products';
-            ProductLibraryModule.state.salesProductEntrySource = 'sales-price-lists';
-            ProductLibraryModule.state.salesProductDetailId = productKey;
-            ProductLibraryModule.state.salesVariationEditorMode = '';
-            ProductLibraryModule.state.salesVariationEditingId = '';
-            ProductLibraryModule.state.salesVariationDraft = null;
-            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
-                Router.navigate('products', { preserveProductsState: true });
-                if (variationKey && typeof ProductLibraryModule.openSalesVariationEditor === 'function') {
-                    setTimeout(() => {
-                        ProductLibraryModule.openSalesVariationEditor('view', variationKey);
-                    }, 120);
-                }
-                return;
-            }
-        }
-        SalesModule.openSalesCatalogVariationPage(productKey);
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === productKey);
+        if (!product) return alert('Urun bulunamadi.');
+        const variation = variationKey ? SalesModule.getSalesVariationRowById(productKey, variationKey) : null;
+        if (!variation) return alert('Varyasyon kaydi bulunamadi.');
+        const html = SalesModule.renderSalesVariationDetailModalHtml(product, variation);
+        Modal.open('Urun karti detay', html, { maxWidth: '1180px' });
     },
 
     setSalesOrderDraftField: (field, value) => {

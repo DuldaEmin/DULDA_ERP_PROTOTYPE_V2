@@ -1780,6 +1780,23 @@ tr:hover {
     gap: 0.45rem;
 }
 
+.sales-catalog-tree-group.is-open {
+    border: 1px solid #0f172a;
+    border-radius: 0.85rem;
+    background: #ffffff;
+    padding: 0.38rem;
+}
+
+.sales-catalog-tree-group.is-open>.sales-catalog-tree-leaf-list {
+    margin-top: 0.12rem;
+}
+
+.sales-catalog-tree-group-list>.sales-catalog-tree-group.is-open+.sales-catalog-tree-group {
+    margin-top: 0.8rem;
+    padding-top: 0.58rem;
+    border-top: 1px dashed #cbd5e1;
+}
+
 .sales-catalog-tree-leaf-list {
     padding-left: 0.7rem;
     border-left: 2px solid #e6edf7;

@@ -5,6 +5,8 @@ const SalesModule = {
             name: '',
             city: ''
         },
+        customerContactRowsDraft: [],
+        customerContactModal: null,
         customerDetailId: null,
         customerDetailMode: 'view',
         customerEditDraft: null,
@@ -2022,36 +2024,42 @@ const SalesModule = {
     },
 
     renderCustomerContactRowsHtml: (rows = []) => {
-        const list = SalesModule.normalizeCustomerContactList(rows, { allowEmptyRow: true, keepEmptyPhoneSlot: true });
+        const list = SalesModule.normalizeCustomerContactList(rows, { allowEmptyRow: false, keepEmptyPhoneSlot: false });
         return list.map((row, index) => {
             const rowIndex = Number(index || 0);
             const phones = Array.isArray(row?.phones) && row.phones.length ? row.phones : [''];
             const phoneValue = String(phones[0] || '').trim();
+            const phoneText = phoneValue || '-';
+            const emailText = String(row?.email || '').trim() || '-';
+            const noteText = String(row?.note || '').trim() || '-';
             return `
                 <tr data-contact-row-index="${rowIndex}" style="border-bottom:1px solid #f1f5f9; background:#ffffff;">
                     <td style="padding:0.56rem 0.7rem;">
-                        <input data-contact-field="name" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0; font-weight:700; color:#0f172a;" value="${SalesModule.escapeHtml(String(row?.name || ''))}" placeholder="Ad Soyad">
+                        <div style="font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(row?.name || '-'))}</div>
                     </td>
                     <td style="padding:0.56rem 0.7rem;">
-                        <input data-contact-field="position" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0; color:#4f46e5; font-weight:700;" value="${SalesModule.escapeHtml(String(row?.position || ''))}" placeholder="Gorevi">
+                        <div style="color:#4f46e5; font-weight:700;">${SalesModule.escapeHtml(String(row?.position || '-'))}</div>
                     </td>
                     <td style="padding:0.56rem 0.7rem;">
                         <div style="display:flex; flex-direction:column; gap:0.24rem;">
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="font-size:0.74rem; color:#94a3b8;">tel</span>
-                                <input data-contact-phone-input class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0;" value="${SalesModule.escapeHtml(phoneValue)}" placeholder="Telefon">
+                                <span style="font-size:0.82rem; color:#334155; font-weight:600;">${SalesModule.escapeHtml(phoneText)}</span>
                             </div>
                             <div style="display:flex; align-items:center; gap:0.35rem;">
                                 <span style="font-size:0.74rem; color:#94a3b8;">mail</span>
-                                <input data-contact-field="email" class="stock-input stock-input-tall" style="border:none; background:transparent; box-shadow:none; padding:0.08rem 0;" value="${SalesModule.escapeHtml(String(row?.email || ''))}" placeholder="E-posta">
+                                <span style="font-size:0.82rem; color:#334155; font-weight:600;">${SalesModule.escapeHtml(emailText)}</span>
                             </div>
                         </div>
                     </td>
                     <td style="padding:0.56rem 0.7rem;">
-                        <textarea data-contact-field="note" class="stock-textarea" style="min-height:42px; border:none; background:transparent; box-shadow:none; padding:0.08rem 0; resize:vertical;" placeholder="Kisa not...">${SalesModule.escapeHtml(String(row?.note || ''))}</textarea>
+                        <div style="font-size:0.82rem; color:#475569;">${SalesModule.escapeHtml(noteText)}</div>
                     </td>
                     <td style="padding:0.56rem 0.7rem; text-align:right;">
-                        <button type="button" class="btn-sm" style="height:30px; color:#dc2626; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactRow(${rowIndex})">sil</button>
+                        <div style="display:flex; gap:0.35rem; justify-content:flex-end;">
+                            <button type="button" class="btn-sm" style="height:30px;" onclick="SalesModule.openCustomerContactModal(${rowIndex})">duzenle</button>
+                            <button type="button" class="btn-sm" style="height:30px; color:#dc2626; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactRow(${rowIndex})">sil</button>
+                        </div>
                     </td>
                 </tr>
             `;
@@ -2059,28 +2067,17 @@ const SalesModule = {
     },
 
     getCustomerContactRowsFromDom: () => {
-        const tbody = document.getElementById('sales_customer_contacts_tbody');
-        if (!tbody) return [];
-        const rows = Array.from(tbody.querySelectorAll('tr[data-contact-row-index]'));
-        return rows.map((tr) => {
-            const readField = (field) => String(tr.querySelector(`[data-contact-field="${field}"]`)?.value || '').trim();
-            const phone = String(tr.querySelector('[data-contact-phone-input]')?.value || '').trim();
-            const phones = phone ? [phone] : [];
-            return {
-                id: crypto.randomUUID(),
-                name: readField('name'),
-                position: readField('position'),
-                phones,
-                email: readField('email'),
-                note: readField('note')
-            };
-        });
+        const rows = Array.isArray(SalesModule.state.customerContactRowsDraft)
+            ? SalesModule.state.customerContactRowsDraft
+            : [];
+        return SalesModule.normalizeCustomerContactList(rows, { allowEmptyRow: false, keepEmptyPhoneSlot: false });
     },
 
     setCustomerContactRowsToDom: (rows = []) => {
+        SalesModule.state.customerContactRowsDraft = SalesModule.normalizeCustomerContactList(rows, { allowEmptyRow: false, keepEmptyPhoneSlot: false });
         const tbody = document.getElementById('sales_customer_contacts_tbody');
         if (!tbody) return;
-        tbody.innerHTML = SalesModule.renderCustomerContactRowsHtml(rows);
+        tbody.innerHTML = SalesModule.renderCustomerContactRowsHtml(SalesModule.state.customerContactRowsDraft);
         SalesModule.syncCustomerContactTableState();
     },
 
@@ -2095,10 +2092,7 @@ const SalesModule = {
     },
 
     addCustomerContactRow: () => {
-        const rows = SalesModule.getCustomerContactRowsFromDom();
-        rows.push(SalesModule.normalizeCustomerContactRow({}, { keepEmptyPhoneSlot: true }));
-        SalesModule.setCustomerContactRowsToDom(rows);
-        SalesModule.focusCustomerContactRow(rows.length - 1);
+        SalesModule.openCustomerContactModal(-1);
     },
 
     removeCustomerContactRow: (rowIndex) => {
@@ -2109,43 +2103,75 @@ const SalesModule = {
         SalesModule.setCustomerContactRowsToDom(next);
     },
 
-    focusCustomerContactRow: (rowIndex) => {
+    openCustomerContactModal: (rowIndex = -1) => {
         const idx = Number(rowIndex);
-        if (!Number.isFinite(idx) || idx < 0) return;
-        const tbody = document.getElementById('sales_customer_contacts_tbody');
-        if (!tbody) return;
-        const row = tbody.querySelector(`tr[data-contact-row-index="${idx}"]`);
-        const input = row?.querySelector('[data-contact-field="name"]');
-        if (input) input.focus();
+        const rows = SalesModule.getCustomerContactRowsFromDom();
+        const editing = Number.isFinite(idx) && idx >= 0 && !!rows[idx];
+        const draft = editing
+            ? { ...rows[idx] }
+            : SalesModule.normalizeCustomerContactRow({}, { keepEmptyPhoneSlot: true });
+        const firstPhone = Array.isArray(draft.phones) && draft.phones.length ? String(draft.phones[0] || '').trim() : '';
+        SalesModule.state.customerContactModal = {
+            editIndex: editing ? idx : -1
+        };
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.6rem;">
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; font-weight:700; margin-bottom:0.2rem;">Ad Soyad <span style="color:#e11d48;">*</span></label>
+                        <input id="sales_contact_modal_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.name || ''))}" placeholder="or: Ahmet Yilmaz">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; font-weight:700; margin-bottom:0.2rem;">Pozisyon / Gorevi</label>
+                        <input id="sales_contact_modal_position" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.position || ''))}" placeholder="or: Satin Alma">
+                    </div>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.6rem;">
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; font-weight:700; margin-bottom:0.2rem;">Telefon</label>
+                        <input id="sales_contact_modal_phone" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(firstPhone)}" placeholder="05xx xxx xx xx">
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; font-weight:700; margin-bottom:0.2rem;">E-posta</label>
+                        <input id="sales_contact_modal_email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.email || ''))}" placeholder="or: satin-alma@firma.com">
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.72rem; color:#64748b; font-weight:700; margin-bottom:0.2rem;">Not</label>
+                    <textarea id="sales_contact_modal_note" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
+                    <button class="btn-sm" onclick="SalesModule.closeCustomerContactModal()">vazgec</button>
+                    <button class="btn-primary" onclick="SalesModule.saveCustomerContactModal()">${editing ? 'guncelle' : 'ekle'}</button>
+                </div>
+            </div>
+        `;
+        Modal.open(editing ? 'Yetkili Kisiyi Duzenle' : 'Yeni Yetkili Kisi', html, { maxWidth: '620px', closeExisting: false });
     },
 
-    addCustomerContactPhone: (rowIndex) => {
-        const idx = Number(rowIndex);
-        if (!Number.isFinite(idx) || idx < 0) return;
-        const rows = SalesModule.getCustomerContactRowsFromDom();
-        if (!rows[idx]) return;
-        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [''];
-        list.push('');
-        rows[idx].phones = list.filter((item) => String(item || '').trim());
-        SalesModule.setCustomerContactRowsToDom(rows);
-        const tbody = document.getElementById('sales_customer_contacts_tbody');
-        const row = tbody?.querySelector(`tr[data-contact-row-index="${idx}"]`);
-        const inputs = row ? Array.from(row.querySelectorAll('[data-contact-phone-input]')) : [];
-        const last = inputs.length ? inputs[inputs.length - 1] : null;
-        if (last) last.focus();
+    closeCustomerContactModal: () => {
+        SalesModule.state.customerContactModal = null;
+        Modal.close();
     },
 
-    removeCustomerContactPhone: (rowIndex, phoneIndex) => {
-        const idx = Number(rowIndex);
-        const pIdx = Number(phoneIndex);
-        if (!Number.isFinite(idx) || idx < 0) return;
-        if (!Number.isFinite(pIdx) || pIdx < 0) return;
+    saveCustomerContactModal: () => {
+        const read = (id) => String(document.getElementById(id)?.value || '').trim();
+        const row = SalesModule.normalizeCustomerContactRow({
+            id: crypto.randomUUID(),
+            name: read('sales_contact_modal_name'),
+            position: read('sales_contact_modal_position'),
+            phones: [read('sales_contact_modal_phone')],
+            email: read('sales_contact_modal_email'),
+            note: read('sales_contact_modal_note')
+        }, { keepEmptyPhoneSlot: false });
+        if (!row.name) return alert('Ad Soyad zorunlu.');
+        const ctx = SalesModule.state.customerContactModal || { editIndex: -1 };
+        const idx = Number(ctx.editIndex);
         const rows = SalesModule.getCustomerContactRowsFromDom();
-        if (!rows[idx]) return;
-        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [];
-        const nextPhones = list.filter((_, i) => i !== pIdx);
-        rows[idx].phones = nextPhones.length ? nextPhones : [''];
+        if (Number.isFinite(idx) && idx >= 0 && rows[idx]) rows[idx] = row;
+        else rows.push(row);
         SalesModule.setCustomerContactRowsToDom(rows);
+        SalesModule.closeCustomerContactModal();
     },
 
     buildCustomerDraft: (source = null) => {
@@ -2201,6 +2227,11 @@ const SalesModule = {
     openCreateCustomerModal: () => {
         SalesModule.state.customerModalEditId = '';
         const draft = SalesModule.buildCustomerDraft();
+        SalesModule.state.customerContactRowsDraft = SalesModule.normalizeCustomerContactList(draft?.customerContacts || [], {
+            allowEmptyRow: false,
+            keepEmptyPhoneSlot: false
+        });
+        SalesModule.state.customerContactModal = null;
         const html = SalesModule.renderCustomerModalFormHtml(draft, false);
         Modal.open('Yeni Musteri Ekle', html, { maxWidth: '940px' });
     },
@@ -2211,12 +2242,19 @@ const SalesModule = {
         if (!row) return alert('Musteri kaydi bulunamadi.');
         SalesModule.state.customerModalEditId = String(row.id || '').trim();
         const draft = SalesModule.buildCustomerDraft(row);
+        SalesModule.state.customerContactRowsDraft = SalesModule.normalizeCustomerContactList(draft?.customerContacts || [], {
+            allowEmptyRow: false,
+            keepEmptyPhoneSlot: false
+        });
+        SalesModule.state.customerContactModal = null;
         const html = SalesModule.renderCustomerModalFormHtml(draft, true);
         Modal.open('Musteriyi Duzenle', html, { maxWidth: '940px' });
     },
 
     closeCustomerFormModal: () => {
         SalesModule.state.customerModalEditId = '';
+        SalesModule.state.customerContactRowsDraft = [];
+        SalesModule.state.customerContactModal = null;
         Modal.close();
     },
 
@@ -2470,6 +2508,9 @@ const SalesModule = {
         };
         DB.data.data.customers.push(row);
         await DB.save();
+        SalesModule.state.customerModalEditId = '';
+        SalesModule.state.customerContactRowsDraft = [];
+        SalesModule.state.customerContactModal = null;
         Modal.close();
         UI.renderCurrentPage();
         alert(`${row.customerCode} olusturuldu.`);
@@ -2521,6 +2562,8 @@ const SalesModule = {
         };
         await DB.save();
         SalesModule.state.customerModalEditId = '';
+        SalesModule.state.customerContactRowsDraft = [];
+        SalesModule.state.customerContactModal = null;
         Modal.close();
         UI.renderCurrentPage();
         alert('Musteri guncellendi.');

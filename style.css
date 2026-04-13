@@ -2298,12 +2298,33 @@ tr:hover {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
+}
+
+.sales-catalog-upload-preview {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.38rem;
+    padding: 0.2rem;
+}
+
+.sales-catalog-upload-image-wrap {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0.62rem;
+    overflow: hidden;
+    background: #ffffff;
+}
+
+.sales-catalog-upload-actions {
+    display: flex;
+    justify-content: flex-end;
 }
 
 .sales-catalog-upload-clear {
-    position: absolute;
-    top: 0.48rem;
-    right: 0.48rem;
+    position: static;
     border: 1px solid #fca5a5;
     background: #fef2f2;
     color: #b91c1c;

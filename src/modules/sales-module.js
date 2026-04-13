@@ -2815,8 +2815,14 @@ const SalesModule = {
         const label = labelMap[String(kind || '')] || 'Dosya';
         if (!hasImage) return `<div class="sales-catalog-upload-empty">${SalesModule.escapeHtml(label)} ekle +</div>`;
         return `
-            <img src="${SalesModule.escapeHtml(String(imageData || ''))}" alt="${SalesModule.escapeHtml(label)}" class="sales-catalog-upload-image">
-            <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearCatalogImage('${SalesModule.escapeHtml(String(kind || ''))}')">kaldir</button>
+            <div class="sales-catalog-upload-preview">
+                <div class="sales-catalog-upload-image-wrap">
+                    <img src="${SalesModule.escapeHtml(String(imageData || ''))}" alt="${SalesModule.escapeHtml(label)}" class="sales-catalog-upload-image">
+                </div>
+                <div class="sales-catalog-upload-actions">
+                    <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearCatalogImage('${SalesModule.escapeHtml(String(kind || ''))}')">kaldir</button>
+                </div>
+            </div>
         `;
     },
 

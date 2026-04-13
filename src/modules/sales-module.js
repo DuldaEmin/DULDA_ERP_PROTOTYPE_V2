@@ -4224,21 +4224,6 @@ const SalesModule = {
     `,
 
     renderPriceListsSettingsLayout: () => {
-        SalesModule.ensureData();
-        const lists = SalesModule.getPriceLists()
-            .slice()
-            .sort((a, b) => String(b?.updatedAt || '').localeCompare(String(a?.updatedAt || ''), 'tr'));
-        const customers = SalesModule.getCustomers();
-        const customerMap = new Map(customers.map((row) => [String(row?.id || ''), row]));
-        const products = SalesModule.getCatalogProducts()
-            .slice()
-            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
-        const productMap = new Map(products.map((row) => [String(row?.id || ''), row]));
-        const draft = SalesModule.state.priceListDraft;
-        const lineDraft = SalesModule.state.priceListLineDraft && typeof SalesModule.state.priceListLineDraft === 'object'
-            ? SalesModule.state.priceListLineDraft
-            : { productId: '', unitPrice: '', minQty: '1', note: '' };
-
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -4247,160 +4232,12 @@ const SalesModule = {
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('settings')">geri</button>
                     </div>
 
-                    <div class="card-table" style="padding:1rem 1.1rem; margin-bottom:0.8rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.7rem; flex-wrap:wrap;">
-                            <div>
-                                <div style="font-size:1.05rem; font-weight:800; color:#0f172a;">Fiyat Listesi Yonetimi</div>
-                                <div style="font-size:0.84rem; color:#64748b; margin-top:0.22rem;">Sipariste onerilen fiyatlar bu listelerden otomatik cekilir.</div>
-                            </div>
-                            <button class="btn-primary" type="button" onclick="SalesModule.startNewPriceListDraft()">yeni fiyat listesi +</button>
-                        </div>
-
-                        <div style="margin-top:0.7rem; overflow:auto;">
-                            <table style="width:100%; min-width:930px; border-collapse:collapse;">
-                                <thead>
-                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                        <th style="padding:0.5rem; text-align:left;">Liste adi</th>
-                                        <th style="padding:0.5rem; text-align:left;">Kapsam</th>
-                                        <th style="padding:0.5rem; text-align:left;">Para birimi</th>
-                                        <th style="padding:0.5rem; text-align:left;">Tarih araligi</th>
-                                        <th style="padding:0.5rem; text-align:center;">Satir</th>
-                                        <th style="padding:0.5rem; text-align:left;">Durum</th>
-                                        <th style="padding:0.5rem; text-align:center;">Islem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${lists.length === 0
-                ? '<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Henuz fiyat listesi tanimlanmadi.</td></tr>'
-                : lists.map((list) => {
-                    const customer = customerMap.get(String(list.customerId || ''));
-                    const scopeText = list.scope === 'customer'
-                        ? `Musteri ozel${customer ? `: ${String(customer.name || '-')}` : ''}`
-                        : 'Genel';
-                    const dateText = `${list.startDate || '-'} / ${list.endDate || '-'}`;
-                    return `
-                                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                                    <td style="padding:0.5rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(list.name || '-'))}</td>
-                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(scopeText)}</td>
-                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(String(list.currency || 'USD'))}</td>
-                                                    <td style="padding:0.5rem; color:#334155;">${SalesModule.escapeHtml(dateText)}</td>
-                                                    <td style="padding:0.5rem; text-align:center; color:#334155;">${SalesModule.escapeHtml(String((Array.isArray(list.lines) ? list.lines.length : 0)))}</td>
-                                                    <td style="padding:0.5rem;">
-                                                        <span style="display:inline-flex; align-items:center; padding:0.16rem 0.55rem; border:1px solid ${list.isActive ? '#86efac' : '#cbd5e1'}; border-radius:999px; background:${list.isActive ? '#f0fdf4' : '#f8fafc'}; color:${list.isActive ? '#166534' : '#475569'}; font-size:0.72rem; font-weight:700;">
-                                                            ${list.isActive ? 'Aktif' : 'Pasif'}
-                                                        </span>
-                                                    </td>
-                                                    <td style="padding:0.5rem; text-align:center;">
-                                                        <div style="display:inline-flex; gap:0.35rem;">
-                                                            <button class="btn-sm" onclick="SalesModule.editPriceListDraft('${SalesModule.escapeHtml(String(list.id || ''))}')">duzenle</button>
-                                                            <button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deletePriceList('${SalesModule.escapeHtml(String(list.id || ''))}')">sil</button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            `;
-                }).join('')}
-                                </tbody>
-                            </table>
+                    <div class="card-table" style="padding:1.4rem;">
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.9rem; padding:1.1rem;">
+                            <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Fiyat Listeleri (Hazirlaniyor)</div>
+                            <div style="font-size:0.86rem; color:#64748b; margin-top:0.28rem;">Bu bolumu senin tarifine gore bir sonraki adimda birlikte dolduracagiz.</div>
                         </div>
                     </div>
-
-                    ${draft && typeof draft === 'object' ? `
-                        <div class="card-table" style="padding:1rem 1.1rem;">
-                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.6rem;">
-                                <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">${SalesModule.state.priceListEditingId ? 'Fiyat Listesini Duzenle' : 'Yeni Fiyat Listesi'}</div>
-                                <div style="display:flex; gap:0.4rem;">
-                                    <button class="btn-sm" onclick="SalesModule.cancelPriceListDraft()">vazgec</button>
-                                    <button class="btn-primary" onclick="SalesModule.savePriceListDraft()">kaydet</button>
-                                </div>
-                            </div>
-
-                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
-                                <div style="grid-column:span 2;">
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Liste adi *</label>
-                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.name || ''))}" oninput="SalesModule.setPriceListDraftField('name', this.value)" placeholder="or: Korkuluk Genel Liste">
-                                </div>
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Kapsam</label>
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('scope', this.value)">
-                                        <option value="global" ${String(draft.scope || '') === 'global' ? 'selected' : ''}>Genel</option>
-                                        <option value="customer" ${String(draft.scope || '') === 'customer' ? 'selected' : ''}>Musteri ozel</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Para birimi</label>
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('currency', this.value)">
-                                        ${['USD', 'TL', 'EUR'].map((curr) => `<option value="${curr}" ${curr === String(draft.currency || 'USD') ? 'selected' : ''}>${curr}</option>`).join('')}
-                                    </select>
-                                </div>
-                                ${String(draft.scope || '') === 'customer' ? `
-                                <div style="grid-column:span 2;">
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri *</label>
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListDraftField('customerId', this.value)">
-                                        <option value="">musteri sec</option>
-                                        ${customers.map((row) => `<option value="${SalesModule.escapeHtml(String(row.id || ''))}" ${String(row.id || '') === String(draft.customerId || '') ? 'selected' : ''}>${SalesModule.escapeHtml(String(row.name || '-'))}</option>`).join('')}
-                                    </select>
-                                </div>` : '<div style="grid-column:span 2;"></div>'}
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Baslangic</label>
-                                    <input type="date" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.startDate || ''))}" onchange="SalesModule.setPriceListDraftField('startDate', this.value)">
-                                </div>
-                                <div>
-                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Bitis</label>
-                                    <input type="date" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.endDate || ''))}" onchange="SalesModule.setPriceListDraftField('endDate', this.value)">
-                                </div>
-                                <div style="display:flex; align-items:flex-end;">
-                                    <label style="display:inline-flex; align-items:center; gap:0.4rem; font-size:0.86rem; color:#334155; font-weight:700;">
-                                        <input type="checkbox" ${draft.isActive ? 'checked' : ''} onchange="SalesModule.setPriceListDraftField('isActive', this.checked)">
-                                        aktif liste
-                                    </label>
-                                </div>
-                            </div>
-
-                            <div style="margin-top:0.75rem; border-top:1px solid #e2e8f0; padding-top:0.7rem;">
-                                <div style="font-size:0.92rem; font-weight:800; color:#0f172a;">Liste Satirlari</div>
-                                <div style="display:grid; grid-template-columns:2fr 0.8fr 0.8fr 1.6fr auto; gap:0.45rem; margin-top:0.45rem;">
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setPriceListLineDraftField('productId', this.value)">
-                                        <option value="">urun sec</option>
-                                        ${products.map((product) => `<option value="${SalesModule.escapeHtml(String(product.id || ''))}" ${String(product.id || '') === String(lineDraft.productId || '') ? 'selected' : ''}>${SalesModule.escapeHtml(String(product.name || '-'))} (${SalesModule.escapeHtml(String(product.idCode || product.productCode || '-'))})</option>`).join('')}
-                                    </select>
-                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.unitPrice || ''))}" oninput="SalesModule.setPriceListLineDraftField('unitPrice', this.value)" placeholder="fiyat">
-                                    <input type="number" min="1" step="1" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.minQty || '1'))}" oninput="SalesModule.setPriceListLineDraftField('minQty', this.value)" placeholder="min adet">
-                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(lineDraft.note || ''))}" oninput="SalesModule.setPriceListLineDraftField('note', this.value)" placeholder="not (opsiyonel)">
-                                    <button class="btn-primary" onclick="SalesModule.addPriceListLineToDraft()">satir ekle</button>
-                                </div>
-
-                                <div style="margin-top:0.55rem; border:1px solid #e2e8f0; border-radius:0.72rem; overflow:auto;">
-                                    <table style="width:100%; min-width:860px; border-collapse:collapse;">
-                                        <thead>
-                                            <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                                <th style="padding:0.45rem; text-align:left;">Urun</th>
-                                                <th style="padding:0.45rem; text-align:right;">Birim fiyat</th>
-                                                <th style="padding:0.45rem; text-align:center;">Min adet</th>
-                                                <th style="padding:0.45rem; text-align:left;">Not</th>
-                                                <th style="padding:0.45rem; text-align:center;">Islem</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            ${(Array.isArray(draft.lines) ? draft.lines : []).length === 0
-                ? '<tr><td colspan="5" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir eklenmedi.</td></tr>'
-                : (Array.isArray(draft.lines) ? draft.lines : []).map((line) => {
-                    const product = productMap.get(String(line.productId || ''));
-                    return `
-                                                        <tr style="border-bottom:1px solid #f1f5f9;">
-                                                            <td style="padding:0.45rem;">${SalesModule.escapeHtml(String(product?.name || '-'))}</td>
-                                                            <td style="padding:0.45rem; text-align:right; font-weight:700;">${SalesModule.escapeHtml(String(Number(line.unitPrice || 0).toFixed(2)))} ${SalesModule.escapeHtml(String(draft.currency || 'USD'))}</td>
-                                                            <td style="padding:0.45rem; text-align:center;">${SalesModule.escapeHtml(String(line.minQty || 1))}</td>
-                                                            <td style="padding:0.45rem;">${SalesModule.escapeHtml(String(line.note || '-'))}</td>
-                                                            <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removePriceListLineFromDraft('${SalesModule.escapeHtml(String(line.id || ''))}')">sil</button></td>
-                                                        </tr>
-                                                    `;
-                }).join('')}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    ` : ''}
                 </div>
             </section>
         `;
@@ -4810,5 +4647,6 @@ const SalesModule = {
         return SalesModule.renderMenuLayout();
     }
 };
+
 
 

@@ -285,6 +285,145 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
+    buildProformaPreviewDocumentHtml: (draft = {}) => {
+        const settings = SalesModule.normalizeProformaSettings(draft || {});
+        const logoDataUrl = String(settings.logoDataUrl || '').trim();
+        const bankAccounts = Array.isArray(settings.bankAccounts) ? settings.bankAccounts : [];
+        const unitPrice = 9.5;
+        const qty = 5;
+        const discountRate = 0.30;
+        const vatRate = 0.20;
+        const usdTryRate = 45.0;
+
+        const subtotal = Number((unitPrice * qty).toFixed(2));
+        const discount = Number((subtotal * discountRate).toFixed(2));
+        const taxBase = Number((subtotal - discount).toFixed(2));
+        const vat = Number((taxBase * vatRate).toFixed(2));
+        const grandTotal = Number((taxBase + vat).toFixed(2));
+        const grandTotalTry = Number((grandTotal * usdTryRate).toFixed(2));
+
+        const fmtUsd = (value) => `$${Number(value || 0).toFixed(2)}`;
+        const fmtTl = (value) => `${Number(value || 0).toFixed(2)} TL`;
+        const notesHtml = SalesModule.escapeHtml(String(settings.defaultNotes || 'Satis kosullari buraya eklenecek.'))
+            .replace(/\n/g, '<br>');
+
+        const logoHtml = logoDataUrl
+            ? `<img src="${SalesModule.escapeHtml(logoDataUrl)}" alt="logo" style="max-height:72px; max-width:220px; object-fit:contain;">`
+            : '<div style="font-size:2.8rem; font-style:italic; font-weight:700; color:#334155; letter-spacing:0.01em;">dulda</div>';
+
+        const bankRowsHtml = bankAccounts.length === 0
+            ? `<tr>
+                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#94a3b8;" colspan="4">Banka hesabi eklenmedi.</td>
+               </tr>`
+            : bankAccounts.map((row) => `
+                    <tr>
+                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.bankName || '-'))}</td>
+                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.branchCode || '-'))}</td>
+                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.accountNo || '-'))}</td>
+                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.iban || '-'))}</td>
+                    </tr>
+                `).join('');
+
+        return `
+            <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:1rem; overflow:auto;">
+                <div style="width:100%; min-width:760px; max-width:920px; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:1.1rem 1.2rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1.4fr; gap:0.8rem; align-items:start;">
+                        <div>${logoHtml}</div>
+                        <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.35;">
+                            <div style="font-weight:800;">DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.</div>
+                            <div>S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.</div>
+                            <div>29.SOK. 3.CADDE NO:10 KOSELER MAH. DILOVASI / KOCAELI</div>
+                            <div>Tel: +90 262 502 22 11 / Fax: +90 262 502 22 11</div>
+                            <div>www.dulda.com - sales@dulda.com</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:0.65rem; border-top:3px solid #334155;"></div>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-top:0.9rem;">
+                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.6rem 0.72rem;">
+                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a; margin-bottom:0.35rem;">TEKLIF ALAN</div>
+                            <div style="font-weight:700; color:#0f172a;">KOCLAR PLEKSI - DOGAN KOC</div>
+                            <div style="color:#334155; margin-top:0.2rem;">Ikitelli</div>
+                        </div>
+                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.6rem 0.72rem;">
+                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a; margin-bottom:0.35rem;">TEKLIF DETAYLARI</div>
+                            <div>Teklif No: DLD-024</div>
+                            <div>Tarih: 09.04.2026</div>
+                            <div>Dolar Kuru: ${Number(usdTryRate).toFixed(4)}</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:0.9rem; border:1px solid #cbd5e1;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                            <thead>
+                                <tr style="background:#334155; color:white; text-align:left;">
+                                    <th style="padding:0.4rem;">Aciklama</th>
+                                    <th style="padding:0.4rem; width:85px;">Adet</th>
+                                    <th style="padding:0.4rem; width:85px;">Birim</th>
+                                    <th style="padding:0.4rem; width:120px;">Birim Fiyat</th>
+                                    <th style="padding:0.4rem; width:120px;">Toplam Fiyat</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">BORU PLEKSI SEFFAF O50 X2 X2000MM</td>
+                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${qty}</td>
+                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">Adet</td>
+                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${fmtUsd(unitPrice)}</td>
+                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${fmtUsd(subtotal)}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="display:flex; justify-content:flex-end; margin-top:0.75rem;">
+                        <div style="min-width:320px; font-size:0.92rem;">
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>Ara Toplam:</span><strong>${fmtUsd(subtotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; color:#dc2626;"><span>Iskonto (%30):</span><strong>-${fmtUsd(discount).slice(1)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>KDV Matrahi:</span><strong>${fmtUsd(taxBase)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>KDV (%20):</span><strong>${fmtUsd(vat)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.08rem;"><span><strong>Genel Toplam:</strong></span><strong>${fmtUsd(grandTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.08rem;"><span><strong>Genel Toplam (TL):</strong></span><strong>${fmtTl(grandTotalTry)}</strong></div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:0.85rem; font-size:0.9rem; color:#0f172a;">
+                        <div style="display:grid; grid-template-columns:145px 1fr; gap:0.3rem; padding:0.2rem 0;"><strong>ODEME SEKLI:</strong><span>Pesin</span></div>
+                        <div style="display:grid; grid-template-columns:145px 1fr; gap:0.3rem; padding:0.2rem 0;"><strong>TESLIM KOSULLARI:</strong><span>Depo Teslim</span></div>
+                    </div>
+
+                    <div style="margin-top:0.7rem;">
+                        <div style="font-weight:800; color:#0f172a; margin-bottom:0.35rem;">BANKA BILGILERI:</div>
+                        <table style="width:100%; border-collapse:collapse; font-size:0.82rem; border:1px solid #e2e8f0;">
+                            <thead>
+                                <tr style="background:#f1f5f9; text-align:left;">
+                                    <th style="padding:0.35rem;">Banka Adi</th>
+                                    <th style="padding:0.35rem;">Sube Kodu</th>
+                                    <th style="padding:0.35rem;">Hesap No</th>
+                                    <th style="padding:0.35rem;">IBAN</th>
+                                </tr>
+                            </thead>
+                            <tbody>${bankRowsHtml}</tbody>
+                        </table>
+                    </div>
+
+                    <div style="margin-top:0.72rem; font-size:0.82rem; color:#334155;">
+                        <div style="font-weight:800; color:#0f172a; margin-bottom:0.2rem;">VARSAYILAN NOTLAR:</div>
+                        <div style="white-space:normal;">${notesHtml}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    renderProformaSettingsPreview: () => {
+        const container = document.getElementById('sales_proforma_preview_container');
+        if (!container) return;
+        const draft = SalesModule.state.proformaSettingsDraft || SalesModule.getProformaSettings();
+        container.innerHTML = SalesModule.buildProformaPreviewDocumentHtml(draft);
+    },
+
     openSalesCatalogVariationPage: (productId) => {
         const id = String(productId || '').trim();
         if (!id) return;
@@ -3202,8 +3341,14 @@ const SalesModule = {
         <section class="stock-shell">
             <div class="stock-hub">
                 <div class="stock-hub-head" style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                    <h2 class="stock-title">satis & pazarlama</h2>
-                    <button class="btn-sm" onclick="SalesModule.openSettingsPage()">ayarlar</button>
+                    <div>
+                        <h2 class="stock-title" style="margin:0;">satis & pazarlama</h2>
+                        <div style="font-size:0.84rem; color:#64748b; margin-top:0.22rem;">Proforma ve diger genel ayarlar icin Ayarlar ekranini kullan.</div>
+                    </div>
+                    <button class="btn-primary" onclick="SalesModule.openSettingsPage()" style="display:inline-flex; align-items:center; gap:0.45rem;">
+                        <i data-lucide="settings" width="15" height="15"></i>
+                        Ayarlar
+                    </button>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
@@ -3346,7 +3491,20 @@ const SalesModule = {
 
                         <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
                             <div style="font-size:1rem; font-weight:800; color:#1e293b;">Varsayilan Notlar</div>
-                            <textarea class="stock-textarea" style="margin-top:0.5rem; min-height:150px;" oninput="SalesModule.setProformaSettingsDraftField('defaultNotes', this.value)" placeholder="Satis kosullari gibi proforma altina eklenecek standart notlari buraya girin.">${SalesModule.escapeHtml(String(draft.defaultNotes || ''))}</textarea>
+                            <textarea class="stock-textarea" style="margin-top:0.5rem; min-height:150px;" oninput="SalesModule.setProformaSettingsDraftField('defaultNotes', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="Satis kosullari gibi proforma altina eklenecek standart notlari buraya girin.">${SalesModule.escapeHtml(String(draft.defaultNotes || ''))}</textarea>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                                <div>
+                                    <div style="font-size:1rem; font-weight:800; color:#1e293b;">Proforma Onizleme</div>
+                                    <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Ayarlarin ornek proforma gorunumu asagida yer alir.</div>
+                                </div>
+                                <button class="btn-sm" type="button" onclick="SalesModule.renderProformaSettingsPreview()">onizlemeyi yenile</button>
+                            </div>
+                            <div id="sales_proforma_preview_container" style="margin-top:0.6rem;">
+                                ${SalesModule.buildProformaPreviewDocumentHtml(draft)}
+                            </div>
                         </div>
 
                         <div style="display:flex; justify-content:flex-end; gap:0.45rem; margin-top:1rem;">

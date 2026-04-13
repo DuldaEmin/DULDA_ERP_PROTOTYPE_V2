@@ -1983,105 +1983,142 @@ const SalesModule = {
     },
 
     renderCustomerModalFormHtml: (draft, isEdit) => {
+        const selectedTypes = SalesModule.normalizeCustomerTypeList(draft?.customerTypes || []);
+        const isTypeMissing = selectedTypes.length === 0;
+        const isMissing = (value) => !String(value ?? '').trim();
+        const missing = {
+            name: isMissing(draft?.name),
+            authorized: isMissing(draft?.authorizedPerson),
+            gsm: isMissing(draft?.phoneAlt),
+            country: isMissing(draft?.country),
+            city: isMissing(draft?.city),
+            customerCode: isMissing(draft?.externalCode),
+            address: isMissing(draft?.address)
+        };
+        const fieldStyle = (flag) => flag ? 'border-color:#fda4af; background:#fff1f2;' : '';
+        const sectionTitle = (index, title) => `
+            <div style="display:flex; align-items:center; gap:0.45rem; font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:0.55rem; padding-bottom:0.45rem; border-bottom:1px solid #e2e8f0;">
+                <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:0.74rem; font-weight:800;">${SalesModule.escapeHtml(String(index))}</span>
+                <span>${SalesModule.escapeHtml(String(title || ''))}</span>
+            </div>
+        `;
+
         return `
             ${SalesModule.renderCountryDatalistHtml('sales_customer_country_options')}
-            <div style="display:flex; flex-direction:column; gap:0.7rem;">
-                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
-                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Kimlik ve Iletisim</div>
-                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.75rem;">
+                    ${sectionTitle(1, 'Kimlik ve Iletisim')}
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Musteri adi *</label>
-                            <input id="sales_customer_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri unvani <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_name" class="stock-input stock-input-tall" style="${fieldStyle(missing.name)}" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum A.S.">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Yetkili kisi</label>
-                            <input id="sales_customer_authorized" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.authorizedPerson || ''))}" placeholder="or: Ahmet Yilmaz">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Yetkili kisi <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_authorized" class="stock-input stock-input-tall" style="${fieldStyle(missing.authorized)}" value="${SalesModule.escapeHtml(String(draft?.authorizedPerson || ''))}" placeholder="or: Ahmet Yilmaz">
+                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ yetkili kisi ekle</button>
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">E-posta</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">E-posta</label>
                             <input id="sales_customer_email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.email || ''))}" placeholder="or: satis@firma.com">
+                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ e-posta ekle</button>
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sabit tel</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Sabit tel</label>
                             <input id="sales_customer_phone" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phone || ''))}" placeholder="or: 312 349 06 10">
+                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ sabit tel ekle</button>
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">GSM tel</label>
-                            <input id="sales_customer_phone_alt" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAlt || ''))}" placeholder="or: 5xx xxx xx xx">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">GSM tel <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_phone_alt" class="stock-input stock-input-tall" style="${fieldStyle(missing.gsm)}" value="${SalesModule.escapeHtml(String(draft?.phoneAlt || ''))}" placeholder="or: 5xx xxx xx xx">
+                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ gsm tel ekle</button>
                         </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Tel ulke / bolge kodu</label>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.35rem;">
-                                <input id="sales_customer_phone_country_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneCountryCode || ''))}" placeholder="ulke: 90">
-                                <input id="sales_customer_phone_area_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAreaCode || ''))}" placeholder="bolge: 312">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.38rem;">
+                            <div>
+                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Ulke kodu</label>
+                                <input id="sales_customer_phone_country_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneCountryCode || '90'))}" placeholder="90">
+                            </div>
+                            <div>
+                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Bolge kodu</label>
+                                <input id="sales_customer_phone_area_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAreaCode || ''))}" placeholder="312">
                             </div>
                         </div>
                         <div style="grid-column:span 3;">
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri tipi</label>
-                            ${SalesModule.renderCustomerTypePickerHtml(draft?.customerTypes || [], { inputName: 'sales_customer_types' })}
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri tipi <span style="color:#e11d48;">*</span></label>
+                            <div style="display:flex; gap:0.45rem; flex-wrap:wrap; border:1px solid ${isTypeMissing ? '#fda4af' : '#cbd5e1'}; border-radius:0.6rem; padding:0.42rem; background:${isTypeMissing ? '#fff1f2' : '#fff'};">
+                                ${SalesModule.getCustomerTypeOptions().map((type) => {
+            const checked = selectedTypes.includes(type);
+            return `
+                                        <label style="display:inline-flex; align-items:center; border:1px solid ${checked ? '#93c5fd' : '#cbd5e1'}; border-radius:999px; padding:0.25rem 0.62rem; font-size:0.78rem; font-weight:700; color:${checked ? '#1d4ed8' : '#334155'}; background:${checked ? '#eff6ff' : '#fff'}; cursor:pointer;">
+                                            <input type="checkbox" name="sales_customer_types" value="${SalesModule.escapeHtml(type)}" ${checked ? 'checked' : ''} style="display:none;">
+                                            ${SalesModule.escapeHtml(type)}
+                                        </label>
+                                    `;
+        }).join('')}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
-                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Adres ve Konum</div>
-                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.75rem;">
+                    ${sectionTitle(2, 'Adres ve Konum')}
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ulke</label>
-                            <input id="sales_customer_country" list="sales_customer_country_options" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.country || ''))}" placeholder="yazmaya basla: Moldova">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Ulke <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_country" list="sales_customer_country_options" class="stock-input stock-input-tall" style="${fieldStyle(missing.country)}" value="${SalesModule.escapeHtml(String(draft?.country || 'Turkiye'))}" placeholder="Turkiye">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Sehir</label>
-                            <input id="sales_customer_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Ankara">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Sehir <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_city" class="stock-input stock-input-tall" style="${fieldStyle(missing.city)}" value="${SalesModule.escapeHtml(String(draft?.city || ''))}" placeholder="or: Ankara">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ilce</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Ilce</label>
                             <input id="sales_customer_district" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.district || ''))}" placeholder="or: Siteler">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Posta kodu</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Posta kodu</label>
                             <input id="sales_customer_postal_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.postalCode || ''))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Adres no</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Adres no</label>
                             <input id="sales_customer_address_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.addressNo || ''))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.18rem;">Cari kodu</label>
-                            <input id="sales_customer_external_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Cari kodu <span style="color:#e11d48;">*</span></label>
+                            <input id="sales_customer_external_code" class="stock-input stock-input-tall" style="${fieldStyle(missing.customerCode)}" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
                         </div>
                         <div style="grid-column:span 3;">
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Adres</label>
-                            <textarea id="sales_customer_address" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Acik adres <span style="color:#e11d48;">*</span></label>
+                            <textarea id="sales_customer_address" class="stock-textarea" style="min-height:72px; ${fieldStyle(missing.address)}">${SalesModule.escapeHtml(String(draft?.address || ''))}</textarea>
                         </div>
                     </div>
                 </div>
 
-                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.6rem;">
-                    <div style="font-size:0.78rem; font-weight:800; color:#334155; margin-bottom:0.45rem;">Ticari ve Resmi Bilgiler</div>
-                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.6rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.75rem;">
+                    ${sectionTitle(3, 'Ticari ve Resmi Bilgiler')}
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
                             <input id="sales_customer_tax_office" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxOffice || ''))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi no</label>
                             <input id="sales_customer_tax_no" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.taxNo || ''))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
                             <input id="sales_customer_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.discountRate || 0))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label>
                             <input id="sales_customer_term_days" type="number" min="0" step="1" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.paymentTermDays || 0))}">
                         </div>
                         <div>
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label>
                             <input id="sales_customer_risk_limit" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.riskLimit || 0))}">
                         </div>
                         <div style="grid-column:span 3;">
-                            <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Not</label>
+                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Not</label>
                             <textarea id="sales_customer_note" class="stock-textarea" style="min-height:72px;">${SalesModule.escapeHtml(String(draft?.note || ''))}</textarea>
                         </div>
                     </div>

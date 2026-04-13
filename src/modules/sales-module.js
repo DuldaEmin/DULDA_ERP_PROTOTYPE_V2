@@ -28,6 +28,8 @@ const SalesModule = {
             note: ''
         },
         priceListEditingId: '',
+        priceListActiveId: '',
+        priceListExpandedProducts: {},
         proformaSettingsDraft: null,
         proformaBankDraft: {
             bankName: '',
@@ -152,16 +154,36 @@ const SalesModule = {
         updatedAt: ''
     }),
 
+    normalizePriceListVariantPrice: (row = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        const unitPrice = Number(String(source.unitPrice ?? '').replace(',', '.'));
+        return {
+            id: String(source.id || crypto.randomUUID()).trim(),
+            variationId: String(source.variationId || source.variantId || '').trim(),
+            variantCode: String(source.variantCode || source.code || '').trim().toUpperCase(),
+            unitPrice: Number.isFinite(unitPrice) ? Math.max(0, Number(unitPrice.toFixed(2))) : 0,
+            isOverride: source.isOverride === true,
+            needsUpdate: source.needsUpdate === true,
+            updatedAt: String(source.updatedAt || source.updated_at || '').trim()
+        };
+    },
+
     normalizePriceListLine: (row = {}) => {
         const source = row && typeof row === 'object' ? row : {};
         const unitPrice = Number(String(source.unitPrice ?? '').replace(',', '.'));
         const minQtyRaw = Number(String(source.minQty ?? '1').replace(',', '.'));
+        const variantPrices = (Array.isArray(source.variantPrices) ? source.variantPrices : [])
+            .map((item) => SalesModule.normalizePriceListVariantPrice(item))
+            .filter((item) => item.variationId || item.variantCode);
         return {
             id: String(source.id || crypto.randomUUID()).trim(),
             productId: String(source.productId || '').trim(),
-            unitPrice: Number.isFinite(unitPrice) ? Number(unitPrice.toFixed(2)) : 0,
+            categoryId: String(source.categoryId || '').trim(),
+            unitPrice: Number.isFinite(unitPrice) ? Math.max(0, Number(unitPrice.toFixed(2))) : 0,
             minQty: Number.isFinite(minQtyRaw) ? Math.max(1, Math.floor(minQtyRaw)) : 1,
-            note: String(source.note || '').trim()
+            note: String(source.note || '').trim(),
+            variantPrices,
+            updatedAt: String(source.updatedAt || source.updated_at || '').trim()
         };
     },
 
@@ -169,7 +191,7 @@ const SalesModule = {
         const source = row && typeof row === 'object' ? row : {};
         const lines = (Array.isArray(source.lines) ? source.lines : [])
             .map((line) => SalesModule.normalizePriceListLine(line))
-            .filter((line) => line.productId && line.unitPrice > 0);
+            .filter((line) => line.productId);
         return {
             id: String(source.id || crypto.randomUUID()).trim(),
             name: String(source.name || '').trim(),
@@ -195,6 +217,126 @@ const SalesModule = {
         return rows
             .map((row) => SalesModule.normalizePriceList(row))
             .filter((row) => row.name);
+    },
+
+    getMutablePriceListStore: () => {
+        SalesModule.ensureSettingsData();
+        if (!Array.isArray(DB.data?.data?.salesSettings?.priceLists)) DB.data.data.salesSettings.priceLists = [];
+        DB.data.data.salesSettings.priceLists = DB.data.data.salesSettings.priceLists
+            .map((row) => SalesModule.normalizePriceList(row))
+            .filter((row) => row.name);
+        return DB.data.data.salesSettings.priceLists;
+    },
+
+    ensurePriceListActiveSelection: () => {
+        const store = SalesModule.getMutablePriceListStore();
+        let changed = false;
+        if (!store.length) {
+            const now = new Date().toISOString();
+            store.push(SalesModule.normalizePriceList({
+                id: crypto.randomUUID(),
+                name: 'Genel Liste',
+                scope: 'global',
+                customerId: '',
+                currency: 'USD',
+                isActive: true,
+                startDate: new Date().toISOString().slice(0, 10),
+                endDate: '',
+                lines: [],
+                createdAt: now,
+                updatedAt: now
+            }));
+            changed = true;
+        }
+
+        const preferredId = String(SalesModule.state.priceListActiveId || '').trim();
+        const preferred = preferredId
+            ? store.find((row) => String(row?.id || '') === preferredId)
+            : null;
+        const currentlyActive = store.find((row) => row.isActive !== false) || null;
+        const target = preferred || currentlyActive || store[0];
+        const targetId = String(target?.id || '').trim();
+
+        store.forEach((row) => {
+            const nextActive = String(row?.id || '').trim() === targetId;
+            if (!!row.isActive !== nextActive) {
+                row.isActive = nextActive;
+                changed = true;
+            }
+        });
+        if (String(SalesModule.state.priceListActiveId || '').trim() !== targetId) {
+            SalesModule.state.priceListActiveId = targetId;
+        }
+        if (changed && typeof DB.markDirty === 'function') DB.markDirty();
+        return targetId;
+    },
+
+    getActivePriceList: () => {
+        const activeId = SalesModule.ensurePriceListActiveSelection();
+        const store = SalesModule.getMutablePriceListStore();
+        return store.find((row) => String(row?.id || '') === String(activeId || '')) || null;
+    },
+
+    setActivePriceList: (id) => {
+        const targetId = String(id || '').trim();
+        if (!targetId) return;
+        const store = SalesModule.getMutablePriceListStore();
+        let found = false;
+        store.forEach((row) => {
+            const nextActive = String(row?.id || '').trim() === targetId;
+            if (nextActive) found = true;
+            row.isActive = nextActive;
+        });
+        if (!found) return;
+        SalesModule.state.priceListActiveId = targetId;
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        UI.renderCurrentPage();
+    },
+
+    createQuickPriceList: () => {
+        SalesModule.ensureSettingsData();
+        const raw = prompt('Yeni fiyat listesi adi');
+        const name = String(raw || '').trim();
+        if (!name) return;
+        const store = SalesModule.getMutablePriceListStore();
+        if (store.some((row) => SalesModule.normalize(String(row?.name || '')) === SalesModule.normalize(name))) {
+            alert('Bu isimde fiyat listesi zaten var.');
+            return;
+        }
+        const now = new Date().toISOString();
+        const row = SalesModule.normalizePriceList({
+            id: crypto.randomUUID(),
+            name,
+            scope: 'global',
+            customerId: '',
+            currency: 'USD',
+            isActive: true,
+            startDate: new Date().toISOString().slice(0, 10),
+            endDate: '',
+            lines: [],
+            createdAt: now,
+            updatedAt: now
+        });
+        store.forEach((item) => { item.isActive = false; });
+        row.isActive = true;
+        store.push(row);
+        SalesModule.state.priceListActiveId = String(row.id || '').trim();
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        UI.renderCurrentPage();
+    },
+
+    deleteActivePriceList: async () => {
+        SalesModule.ensureSettingsData();
+        const active = SalesModule.getActivePriceList();
+        if (!active) return;
+        if (!confirm(`"${active.name}" listesi silinsin mi?`)) return;
+        const targetId = String(active.id || '').trim();
+        DB.data.data.salesSettings.priceLists = SalesModule.getMutablePriceListStore()
+            .filter((row) => String(row?.id || '').trim() !== targetId);
+        SalesModule.state.priceListActiveId = '';
+        SalesModule.ensurePriceListActiveSelection();
+        await DB.save();
+        UI.renderCurrentPage();
     },
 
     isPriceListActiveOnDate: (list, dateIso = '') => {
@@ -456,10 +598,13 @@ const SalesModule = {
 
     openPriceListsSettingsPage: () => {
         SalesModule.ensureData();
+        SalesModule.ensureCatalogState();
+        SalesModule.ensurePriceListActiveSelection();
         SalesModule.state.workspaceView = 'settings-price-lists';
         SalesModule.state.priceListDraft = null;
         SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
         SalesModule.state.priceListEditingId = '';
+        SalesModule.syncActivePriceListCategoryRows();
         UI.renderCurrentPage();
     },
 
@@ -616,6 +761,316 @@ const SalesModule = {
         DB.data.data.salesSettings.priceLists = store.filter((row) => String(row?.id || '').trim() !== targetId);
         await DB.save();
         UI.renderCurrentPage();
+    },
+
+    getSalesVariationsForCatalogProduct: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return [];
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.getSalesProductVariationRows === 'function') {
+            return ProductLibraryModule.getSalesProductVariationRows(id)
+                .map((row) => ({
+                    id: String(row?.id || '').trim(),
+                    variantCode: String(row?.variantCode || '').trim().toUpperCase(),
+                    productName: String(row?.productName || '').trim(),
+                    updatedAt: String(row?.updatedAt || row?.updated_at || row?.createdAt || '').trim()
+                }))
+                .filter((row) => row.id && row.variantCode);
+        }
+        const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        return rows
+            .filter((row) => String(row?.sourceCatalogProductId || '').trim() === id)
+            .map((row) => ({
+                id: String(row?.id || '').trim(),
+                variantCode: String(row?.variantCode || '').trim().toUpperCase(),
+                productName: String(row?.productName || '').trim(),
+                updatedAt: String(row?.updated_at || row?.created_at || '').trim()
+            }))
+            .filter((row) => row.id && row.variantCode);
+    },
+
+    syncPriceListLineVariants: (line, baseUnitPrice = 0) => {
+        const target = line && typeof line === 'object' ? line : null;
+        if (!target) return false;
+        const before = JSON.stringify(target);
+        const variations = SalesModule.getSalesVariationsForCatalogProduct(target.productId);
+        const existingMap = new Map(
+            (Array.isArray(target.variantPrices) ? target.variantPrices : [])
+                .map((row) => SalesModule.normalizePriceListVariantPrice(row))
+                .map((row) => [String(row.variationId || '').trim(), row])
+                .filter(([id]) => id)
+        );
+        const normalizedBase = Math.max(0, Number(baseUnitPrice || 0));
+        const next = variations.map((variation) => {
+            const key = String(variation.id || '').trim();
+            const prev = existingMap.get(key);
+            if (!prev) {
+                return SalesModule.normalizePriceListVariantPrice({
+                    id: crypto.randomUUID(),
+                    variationId: key,
+                    variantCode: variation.variantCode,
+                    unitPrice: normalizedBase,
+                    isOverride: false,
+                    needsUpdate: true,
+                    updatedAt: new Date().toISOString()
+                });
+            }
+            const merged = SalesModule.normalizePriceListVariantPrice({
+                ...prev,
+                variationId: key,
+                variantCode: variation.variantCode
+            });
+            if (!merged.isOverride) merged.unitPrice = Number(normalizedBase.toFixed(2));
+            return merged;
+        });
+        target.variantPrices = next;
+        const after = JSON.stringify(target);
+        return before !== after;
+    },
+
+    syncActivePriceListCategoryRows: (options = {}) => {
+        SalesModule.ensureSettingsData();
+        const categoryId = String(options?.categoryId || SalesModule.state.catalogActiveCategoryId || '').trim();
+        const active = SalesModule.getActivePriceList();
+        if (!active || !categoryId) return { changed: false, addedProductIds: [] };
+        const products = SalesModule.getCatalogProductsByCategory(categoryId)
+            .filter((row) => String(row?.id || '').trim());
+        if (!products.length) return { changed: false, addedProductIds: [] };
+
+        const now = new Date().toISOString();
+        let changed = false;
+        const addedProductIds = [];
+        if (!Array.isArray(active.lines)) active.lines = [];
+        const lineByProduct = new Map(
+            active.lines
+                .map((line) => SalesModule.normalizePriceListLine(line))
+                .map((line) => [String(line.productId || '').trim(), line])
+                .filter(([id]) => id)
+        );
+
+        products.forEach((product) => {
+            const productId = String(product.id || '').trim();
+            const categoryValue = String(product.categoryId || categoryId).trim();
+            let line = lineByProduct.get(productId);
+            if (!line) {
+                line = SalesModule.normalizePriceListLine({
+                    id: crypto.randomUUID(),
+                    productId,
+                    categoryId: categoryValue,
+                    unitPrice: 0,
+                    minQty: 1,
+                    note: '',
+                    variantPrices: [],
+                    updatedAt: now
+                });
+                lineByProduct.set(productId, line);
+                active.lines.push(line);
+                addedProductIds.push(productId);
+                changed = true;
+            } else if (String(line.categoryId || '').trim() !== categoryValue) {
+                line.categoryId = categoryValue;
+                changed = true;
+            }
+            const lineBefore = JSON.stringify(line);
+            const didVariantSync = SalesModule.syncPriceListLineVariants(line, Number(line.unitPrice || 0));
+            if (didVariantSync) changed = true;
+            const lineAfter = JSON.stringify(line);
+            if (lineBefore !== lineAfter) line.updatedAt = now;
+        });
+
+        if (changed) {
+            active.lines = Array.from(lineByProduct.values()).map((row) => SalesModule.normalizePriceListLine(row));
+            active.updatedAt = now;
+            const store = SalesModule.getMutablePriceListStore();
+            const idx = store.findIndex((row) => String(row?.id || '').trim() === String(active.id || '').trim());
+            if (idx >= 0) store[idx] = SalesModule.normalizePriceList(active);
+            if (typeof DB.markDirty === 'function') DB.markDirty();
+        }
+
+        if (addedProductIds.length > 0) {
+            if (!SalesModule.state.priceListExpandedProducts || typeof SalesModule.state.priceListExpandedProducts !== 'object') {
+                SalesModule.state.priceListExpandedProducts = {};
+            }
+            addedProductIds.forEach((productId) => {
+                SalesModule.state.priceListExpandedProducts[String(productId || '').trim()] = true;
+            });
+        }
+        return { changed, addedProductIds };
+    },
+
+    setPriceListMainProductPrice: (productId, value) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        const active = SalesModule.getActivePriceList();
+        if (!active) return;
+        const price = SalesModule.parseMoney(value);
+        const line = (Array.isArray(active.lines) ? active.lines : [])
+            .map((row) => SalesModule.normalizePriceListLine(row))
+            .find((row) => String(row.productId || '').trim() === id);
+        if (!line) return;
+        line.unitPrice = price;
+        line.updatedAt = new Date().toISOString();
+        (Array.isArray(line.variantPrices) ? line.variantPrices : []).forEach((row) => {
+            const item = SalesModule.normalizePriceListVariantPrice(row);
+            if (!item.isOverride) item.unitPrice = Number(price.toFixed(2));
+        });
+        SalesModule.syncPriceListLineVariants(line, price);
+        const nextLines = (Array.isArray(active.lines) ? active.lines : [])
+            .map((row) => {
+                const normalized = SalesModule.normalizePriceListLine(row);
+                if (String(normalized.productId || '').trim() !== id) return normalized;
+                return SalesModule.normalizePriceListLine(line);
+            });
+        active.lines = nextLines;
+        active.updatedAt = new Date().toISOString();
+        const store = SalesModule.getMutablePriceListStore();
+        const idx = store.findIndex((row) => String(row?.id || '').trim() === String(active.id || '').trim());
+        if (idx >= 0) store[idx] = SalesModule.normalizePriceList(active);
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        UI.renderCurrentPage();
+    },
+
+    setPriceListVariantPrice: (productId, variationId, value) => {
+        const productKey = String(productId || '').trim();
+        const variationKey = String(variationId || '').trim();
+        if (!productKey || !variationKey) return;
+        const active = SalesModule.getActivePriceList();
+        if (!active) return;
+        const price = SalesModule.parseMoney(value);
+        const lines = Array.isArray(active.lines) ? active.lines : [];
+        const lineIdx = lines.findIndex((row) => String(row?.productId || '').trim() === productKey);
+        if (lineIdx < 0) return;
+        const line = SalesModule.normalizePriceListLine(lines[lineIdx]);
+        const list = Array.isArray(line.variantPrices) ? line.variantPrices.map((row) => SalesModule.normalizePriceListVariantPrice(row)) : [];
+        const idx = list.findIndex((row) => String(row?.variationId || '').trim() === variationKey);
+        if (idx < 0) return;
+        const row = list[idx];
+        row.unitPrice = price;
+        row.isOverride = Math.abs(Number(price || 0) - Number(line.unitPrice || 0)) > 0.0001;
+        row.needsUpdate = false;
+        row.updatedAt = new Date().toISOString();
+        list[idx] = row;
+        line.variantPrices = list;
+        line.updatedAt = new Date().toISOString();
+        lines[lineIdx] = SalesModule.normalizePriceListLine(line);
+        active.lines = lines;
+        active.updatedAt = new Date().toISOString();
+        const store = SalesModule.getMutablePriceListStore();
+        const storeIdx = store.findIndex((item) => String(item?.id || '').trim() === String(active.id || '').trim());
+        if (storeIdx >= 0) store[storeIdx] = SalesModule.normalizePriceList(active);
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        UI.renderCurrentPage();
+    },
+
+    resetPriceListVariantToInherited: (productId, variationId) => {
+        const productKey = String(productId || '').trim();
+        const variationKey = String(variationId || '').trim();
+        if (!productKey || !variationKey) return;
+        const active = SalesModule.getActivePriceList();
+        if (!active) return;
+        const lines = Array.isArray(active.lines) ? active.lines : [];
+        const lineIdx = lines.findIndex((row) => String(row?.productId || '').trim() === productKey);
+        if (lineIdx < 0) return;
+        const line = SalesModule.normalizePriceListLine(lines[lineIdx]);
+        const idx = (Array.isArray(line.variantPrices) ? line.variantPrices : [])
+            .findIndex((row) => String(row?.variationId || '').trim() === variationKey);
+        if (idx < 0) return;
+        const list = (Array.isArray(line.variantPrices) ? line.variantPrices : [])
+            .map((row) => SalesModule.normalizePriceListVariantPrice(row));
+        list[idx] = SalesModule.normalizePriceListVariantPrice({
+            ...list[idx],
+            unitPrice: Number(line.unitPrice || 0),
+            isOverride: false,
+            needsUpdate: false,
+            updatedAt: new Date().toISOString()
+        });
+        line.variantPrices = list;
+        line.updatedAt = new Date().toISOString();
+        lines[lineIdx] = SalesModule.normalizePriceListLine(line);
+        active.lines = lines;
+        active.updatedAt = new Date().toISOString();
+        const store = SalesModule.getMutablePriceListStore();
+        const storeIdx = store.findIndex((item) => String(item?.id || '').trim() === String(active.id || '').trim());
+        if (storeIdx >= 0) store[storeIdx] = SalesModule.normalizePriceList(active);
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        UI.renderCurrentPage();
+    },
+
+    togglePriceListProductRow: (productId) => {
+        const key = String(productId || '').trim();
+        if (!key) return;
+        if (!SalesModule.state.priceListExpandedProducts || typeof SalesModule.state.priceListExpandedProducts !== 'object') {
+            SalesModule.state.priceListExpandedProducts = {};
+        }
+        const current = !!SalesModule.state.priceListExpandedProducts[key];
+        SalesModule.state.priceListExpandedProducts[key] = !current;
+        UI.renderCurrentPage();
+    },
+
+    getPriceListLineStatusBadges: (line = {}) => {
+        const unitPrice = Number(line?.unitPrice || 0);
+        const variants = Array.isArray(line?.variantPrices) ? line.variantPrices : [];
+        const hasOverride = variants.some((row) => !!row?.isOverride);
+        const hasNeedsUpdate = variants.some((row) => !!row?.needsUpdate);
+        const badges = [];
+        if (!(unitPrice > 0)) badges.push({ text: 'fiyat belirtilmedi', tone: 'danger' });
+        else badges.push({ text: 'miras fiyat', tone: 'ok' });
+        if (hasOverride) badges.push({ text: 'ozel fiyat var', tone: 'info' });
+        if (hasNeedsUpdate) badges.push({ text: 'fiyat guncellenmedi', tone: 'warn' });
+        return badges;
+    },
+
+    renderPriceListBadgeHtml: (badge = {}) => {
+        const tone = String(badge?.tone || '').trim();
+        const map = {
+            ok: { border: '#86efac', bg: '#f0fdf4', color: '#166534' },
+            warn: { border: '#fcd34d', bg: '#fffbeb', color: '#92400e' },
+            danger: { border: '#fecaca', bg: '#fff1f2', color: '#b91c1c' },
+            info: { border: '#bfdbfe', bg: '#eff6ff', color: '#1d4ed8' }
+        };
+        const meta = map[tone] || map.info;
+        return `<span style="display:inline-flex; align-items:center; padding:0.13rem 0.48rem; border:1px solid ${meta.border}; border-radius:999px; background:${meta.bg}; color:${meta.color}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(String(badge?.text || '-'))}</span>`;
+    },
+
+    formatPriceListInputValue: (value) => {
+        const num = Number(value || 0);
+        if (!(num > 0)) return '';
+        return Number(num.toFixed(2)).toString();
+    },
+
+    getActivePriceListLineByProductId: (productId) => {
+        const key = String(productId || '').trim();
+        if (!key) return null;
+        const active = SalesModule.getActivePriceList();
+        if (!active) return null;
+        const lines = Array.isArray(active.lines) ? active.lines : [];
+        const row = lines.find((item) => String(item?.productId || '').trim() === key);
+        return row ? SalesModule.normalizePriceListLine(row) : null;
+    },
+
+    openSalesVariationFromPriceList: (productId, variationId = '') => {
+        const productKey = String(productId || '').trim();
+        const variationKey = String(variationId || '').trim();
+        if (!productKey) return;
+        if (typeof ProductLibraryModule !== 'undefined' && ProductLibraryModule) {
+            ProductLibraryModule.state.workspaceView = 'sales-products';
+            ProductLibraryModule.state.salesProductEntrySource = 'sales';
+            ProductLibraryModule.state.salesProductDetailId = productKey;
+            ProductLibraryModule.state.salesVariationEditorMode = '';
+            ProductLibraryModule.state.salesVariationEditingId = '';
+            ProductLibraryModule.state.salesVariationDraft = null;
+            if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+                Router.navigate('products', { preserveProductsState: true });
+                if (variationKey && typeof ProductLibraryModule.openSalesVariationEditor === 'function') {
+                    setTimeout(() => {
+                        ProductLibraryModule.openSalesVariationEditor('view', variationKey);
+                    }, 120);
+                }
+                return;
+            }
+        }
+        SalesModule.openSalesCatalogVariationPage(productKey);
     },
 
     setSalesOrderDraftField: (field, value) => {
@@ -4230,6 +4685,30 @@ const SalesModule = {
     `,
 
     renderPriceListsSettingsLayout: () => {
+        SalesModule.ensureCatalogState();
+        SalesModule.ensurePriceListActiveSelection();
+        SalesModule.syncActivePriceListCategoryRows();
+
+        const activeList = SalesModule.getActivePriceList();
+        const priceLists = SalesModule.getPriceLists()
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
+        const activeLeaf = SalesModule.getCatalogLeafById(activeCategoryId);
+        const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
+        const products = activeCategoryId ? SalesModule.getCatalogProductsByCategory(activeCategoryId) : [];
+        const lineMap = new Map(
+            (Array.isArray(activeList?.lines) ? activeList.lines : [])
+                .map((row) => SalesModule.normalizePriceListLine(row))
+                .map((row) => [String(row.productId || ''), row])
+                .filter(([id]) => id)
+        );
+        const currency = String(activeList?.currency || 'USD').trim().toUpperCase() || 'USD';
+        const activeListId = String(activeList?.id || '').trim();
+        const expanded = SalesModule.state.priceListExpandedProducts && typeof SalesModule.state.priceListExpandedProducts === 'object'
+            ? SalesModule.state.priceListExpandedProducts
+            : {};
+
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -4238,11 +4717,146 @@ const SalesModule = {
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('settings')">geri</button>
                     </div>
 
-                    <div class="card-table" style="padding:1.4rem;">
-                        <div style="border:1px dashed #cbd5e1; border-radius:0.9rem; padding:1.1rem;">
-                            <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Fiyat Listeleri (Hazirlaniyor)</div>
-                            <div style="font-size:0.86rem; color:#64748b; margin-top:0.28rem;">Bu bolumu senin tarifine gore bir sonraki adimda birlikte dolduracagiz.</div>
-                        </div>
+                    <div class="sales-catalog-shell">
+                        <aside class="sales-catalog-left">
+                            <div class="sales-catalog-root">Urun gruplari</div>
+                            <div class="sales-catalog-root-note">Fiyat girmek istedigin urun grubunu soldan sec.</div>
+                            ${SalesModule.renderCatalogTreeHtml()}
+                        </aside>
+
+                        <section class="sales-catalog-right">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
+                                <div>
+                                    <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
+                                    <div class="sales-catalog-sub">${activeLeaf
+                ? `${SalesModule.escapeHtml(String(products.length))} ana urun satiri`
+                : 'Soldan bir alt kategori secerek fiyat satirlarini ac.'}</div>
+                                </div>
+                                <span style="display:inline-flex; align-items:center; padding:0.18rem 0.62rem; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:0.74rem; font-weight:800;">
+                                    sadece aktif listeye eklenir
+                                </span>
+                            </div>
+
+                            <div style="display:grid; grid-template-columns:minmax(220px,1fr) 130px 130px; gap:0.55rem; align-items:end;">
+                                <div>
+                                    <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Aktif fiyat listesi</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setActivePriceList(this.value)">
+                                        ${priceLists.map((row) => {
+                    const id = String(row?.id || '').trim();
+                    const selected = id === activeListId ? 'selected' : '';
+                    return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))}</option>`;
+                }).join('')}
+                                    </select>
+                                </div>
+                                <button class="btn-sm" type="button" onclick="SalesModule.createQuickPriceList()">yeni liste +</button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.deleteActivePriceList()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">listeyi sil</button>
+                            </div>
+
+                            <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem 0.65rem; background:#f8fafc;">
+                                <div style="font-size:0.82rem; color:#334155;">
+                                    <strong>${SalesModule.escapeHtml(String(activeList?.name || 'Genel Liste'))}</strong> listesi icin fiyat giriyorsun.
+                                </div>
+                                <div style="font-size:0.8rem; color:#64748b;">Para birimi: <strong>${SalesModule.escapeHtml(currency)}</strong></div>
+                            </div>
+
+                            <div style="border:1px solid #dbe2ec; border-radius:0.9rem; overflow:auto; background:#fff;">
+                                <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                            <th style="padding:0.52rem; text-align:center; width:74px;">Detay</th>
+                                            <th style="padding:0.52rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.52rem; text-align:left; width:170px;">Urun kodu</th>
+                                            <th style="padding:0.52rem; text-align:left; width:180px;">ID kodu</th>
+                                            <th style="padding:0.52rem; text-align:right; width:180px;">Birim fiyat (${SalesModule.escapeHtml(currency)})</th>
+                                            <th style="padding:0.52rem; text-align:left; width:260px;">Durum</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${!activeLeaf
+                ? '<tr><td colspan="6" style="padding:1.2rem; text-align:center; color:#94a3b8;">Soldan once bir alt urun grubu sec.</td></tr>'
+                : (!products.length
+                    ? '<tr><td colspan="6" style="padding:1.2rem; text-align:center; color:#94a3b8;">Bu kategoride ana urun yok.</td></tr>'
+                    : products.map((product) => {
+                        const productId = String(product?.id || '').trim();
+                        const line = lineMap.get(productId) || SalesModule.normalizePriceListLine({
+                            id: crypto.randomUUID(),
+                            productId,
+                            categoryId: activeCategoryId,
+                            unitPrice: 0,
+                            minQty: 1,
+                            note: '',
+                            variantPrices: []
+                        });
+                        const variants = (Array.isArray(line.variantPrices) ? line.variantPrices : [])
+                            .map((row) => SalesModule.normalizePriceListVariantPrice(row))
+                            .sort((a, b) => String(a?.variantCode || '').localeCompare(String(b?.variantCode || ''), 'tr'));
+                        const productBadges = SalesModule.getPriceListLineStatusBadges(line);
+                        const isOpen = !!expanded[productId];
+                        const productIdEsc = SalesModule.escapeHtml(productId);
+                        const productName = SalesModule.escapeHtml(String(product?.name || '-'));
+                        const productCode = SalesModule.escapeHtml(String(product?.productCode || '-'));
+                        const idCode = SalesModule.escapeHtml(String(product?.idCode || '-'));
+                        const badgeHtml = productBadges.length
+                            ? productBadges.map((badge) => SalesModule.renderPriceListBadgeHtml(badge)).join(' ')
+                            : '<span style="color:#94a3b8;">-</span>';
+                        const toggleButton = variants.length > 0
+                            ? `<button class="btn-sm" type="button" onclick="SalesModule.togglePriceListProductRow('${productIdEsc}')">${isOpen ? 'kapat' : `varyasyon (${variants.length})`}</button>`
+                            : '<span style="font-size:0.78rem; color:#94a3b8;">varyasyon yok</span>';
+                        const rowHtml = `
+                            <tr style="border-bottom:1px solid #eef2f7;">
+                                <td style="padding:0.5rem; text-align:center;">${toggleButton}</td>
+                                <td style="padding:0.5rem;">
+                                    <div style="font-weight:800; color:#0f172a;">${productName}</div>
+                                </td>
+                                <td style="padding:0.5rem; font-family:Consolas,monospace; color:#334155;">${productCode}</td>
+                                <td style="padding:0.5rem; font-family:Consolas,monospace; color:#1d4ed8; font-weight:800;">${idCode}</td>
+                                <td style="padding:0.5rem; text-align:right;">
+                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)">
+                                </td>
+                                <td style="padding:0.5rem;">
+                                    <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${badgeHtml}</div>
+                                </td>
+                            </tr>
+                        `;
+                        if (!isOpen || variants.length === 0) return rowHtml;
+
+                        const variationRows = variants.map((variant) => {
+                            const variationId = SalesModule.escapeHtml(String(variant?.variationId || ''));
+                            const variantCode = SalesModule.escapeHtml(String(variant?.variantCode || '-'));
+                            const isOverride = !!variant?.isOverride;
+                            const badges = [];
+                            if (isOverride) badges.push({ text: 'ozel fiyat', tone: 'info' });
+                            else badges.push({ text: 'ana urunden miras', tone: 'ok' });
+                            if (variant?.needsUpdate) badges.push({ text: 'fiyat guncellenmedi', tone: 'warn' });
+                            const variationBadgeHtml = badges.map((badge) => SalesModule.renderPriceListBadgeHtml(badge)).join(' ');
+                            return `
+                                <tr style="border-bottom:1px solid #f1f5f9; background:#f8fafc;">
+                                    <td style="padding:0.45rem; text-align:center; color:#94a3b8;">-</td>
+                                    <td style="padding:0.45rem;">
+                                        <button class="btn-sm" type="button" style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="SalesModule.openSalesVariationFromPriceList('${productIdEsc}', '${variationId}')">${variantCode}</button>
+                                    </td>
+                                    <td style="padding:0.45rem; color:#64748b;">varyasyon</td>
+                                    <td style="padding:0.45rem; color:#64748b;">ana urun: ${idCode}</td>
+                                    <td style="padding:0.45rem; text-align:right;">
+                                        <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(variant?.unitPrice || 0))}" onchange="SalesModule.setPriceListVariantPrice('${productIdEsc}', '${variationId}', this.value)">
+                                    </td>
+                                    <td style="padding:0.45rem;">
+                                        <div style="display:flex; gap:0.32rem; flex-wrap:wrap; align-items:center;">
+                                            ${variationBadgeHtml}
+                                            ${isOverride
+                    ? `<button class="btn-sm" type="button" onclick="SalesModule.resetPriceListVariantToInherited('${productIdEsc}', '${variationId}')">mirasa don</button>`
+                    : ''}
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('');
+                        return `${rowHtml}${variationRows}`;
+                    }).join(''))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
                     </div>
                 </div>
             </section>

@@ -532,6 +532,8 @@
                         })).filter((file) => file.data)
                         : [],
                     note: String(row?.note || '').trim(),
+                    productionPlanCompleted: !!row?.productionPlanCompleted,
+                    productionPlanCompletedAt: String(row?.productionPlanCompletedAt || ''),
                     productionReady: !!row?.productionReady,
                     createdAt: String(row?.created_at || ''),
                     updatedAt: String(row?.updated_at || '')
@@ -559,7 +561,8 @@
             ? ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId)
             : '';
         const demands = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
-        const hasProductionPlan = !!planningModelId && demands.some((demand) => {
+        const hasManualCompletion = !!row?.productionPlanCompleted;
+        const hasDemandLinkedPlan = !!planningModelId && demands.some((demand) => {
             const demandVariantId = String(demand?.variantId || '').trim();
             if (demandVariantId === planningModelId || demandVariantId === variationId) return true;
             const items = Array.isArray(demand?.items) ? demand.items : [];
@@ -570,6 +573,7 @@
                 return itemVariantId === planningModelId || itemVariantId === variationId;
             });
         });
+        const hasProductionPlan = hasManualCompletion || hasDemandLinkedPlan;
         const montageCode = String(row?.montageCard?.cardCode || row?.montageCardCode || '').trim();
         const hasMasterRefs = Array.isArray(row?.masterRefs) && row.masterRefs.some((item) =>
             String(item?.code || item?.refId || '').trim()
@@ -600,6 +604,19 @@
         if (!raw) return '';
         if (ProductLibraryModule.isSalesPlanningModelId(raw)) return raw.slice('salesvar_'.length).trim();
         return raw;
+    },
+
+    getSalesVariationIdentitySignature: (row = {}) => {
+        const normalize = (value) => String(value ?? '').trim().toLocaleLowerCase('tr-TR');
+        const normalizeColor = (key) => normalize(row?.colors?.[key]?.color || '');
+        return [
+            normalizeColor('accessory'),
+            normalizeColor('tube'),
+            normalizeColor('plexi'),
+            normalize(row?.bubble || 'yok'),
+            normalize(row?.selectedDiameter || ''),
+            normalize(row?.lowerTubeLengthMm || 'standart')
+        ].join('|');
     },
 
     getAllSalesProductVariationRows: () => {
@@ -872,7 +889,9 @@
             componentItems,
             componentItemsBaseline: componentItems.map((item) => ({ ...item })),
             explodedFiles: Array.isArray(sourceRow?.explodedFiles) ? sourceRow.explodedFiles.map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data) : [],
-            note: String(sourceRow?.note || '').trim()
+            note: String(sourceRow?.note || '').trim(),
+            productionPlanCompleted: !!sourceRow?.productionPlanCompleted,
+            productionPlanCompletedAt: String(sourceRow?.productionPlanCompletedAt || '')
         };
     },
 
@@ -910,25 +929,98 @@
         UI.renderCurrentPage();
     },
 
-    completeSalesVariationProductionPlan: () => {
+    completeSalesVariationProductionPlan: async () => {
+        ProductLibraryModule.ensureSalesVariationDefaults();
         const draft = ProductLibraryModule.state.salesVariationDraft;
         const variationId = String(ProductLibraryModule.state.salesVariationEditingId || draft?.id || '').trim();
         if (!variationId) {
             alert('Planlamaya yonlenmek icin once varyasyonu kaydetmelisiniz.');
             return;
         }
-        const proceed = confirm('Bu varyasyon icin uretim planini tamamlamaya gecilsin mi?');
+        const masterRefs = Array.isArray(draft?.masterRefs) ? draft.masterRefs : [];
+        const componentItems = Array.isArray(draft?.componentItems) ? draft.componentItems : [];
+        const montageCardCode = String(draft?.montageCardCode || '').trim();
+        const missing = [];
+        if (!montageCardCode) missing.push('montaj karti');
+        if (!masterRefs.some((item) => String(item?.code || item?.refId || '').trim())) missing.push('master urun bagi');
+        if (!componentItems.some((item) => String(item?.code || item?.refId || '').trim())) missing.push('parca/bilesen bagi');
+        if (missing.length) {
+            alert(`Uretim planini tamamlamak icin once su alanlari doldurun: ${missing.join(', ')}`);
+            return;
+        }
+        const proceed = confirm('Bu varyasyon "normal varyasyon" durumuna gecirilsin mi?');
         if (!proceed) return;
-        const planningModelId = ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId);
-        if (!planningModelId) {
-            alert('Planlama modeli olusturulamadi.');
+        const store = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        const idx = store.findIndex((row) => String(row?.id || '').trim() === variationId);
+        if (idx < 0) {
+            alert('Varyasyon kaydi bulunamadi.');
             return;
         }
-        if (typeof ProductLibraryModule.selectPlanningModel === 'function') {
-            ProductLibraryModule.selectPlanningModel(planningModelId);
+        const now = new Date().toISOString();
+        const normalizeColorBlock = (block) => {
+            const raw = block && typeof block === 'object' ? block : {};
+            const category = (typeof SalesModule !== 'undefined' && SalesModule && typeof SalesModule.normalizeCatalogColorType === 'function')
+                ? SalesModule.normalizeCatalogColorType(raw?.category || '')
+                : ProductLibraryModule.normalizeColorType(raw?.category || '');
+            const color = String(raw?.color || '').trim();
+            return { category, color };
+        };
+        const prev = store[idx] && typeof store[idx] === 'object' ? store[idx] : {};
+        const patched = {
+            ...prev,
+            variantCode: String(draft?.variantCode || prev?.variantCode || '').trim().toUpperCase(),
+            productName: String(draft?.productName || prev?.productName || '').trim(),
+            bubble: String(draft?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            selectedDiameter: String(draft?.selectedDiameter || '').trim(),
+            lowerTubeLengthMm: String(draft?.lowerTubeLengthMm ?? '').trim() || 'standart',
+            colors: {
+                accessory: normalizeColorBlock(draft?.colors?.accessory),
+                tube: normalizeColorBlock(draft?.colors?.tube),
+                plexi: normalizeColorBlock(draft?.colors?.plexi)
+            },
+            montageCard: montageCardCode
+                ? { cardCode: montageCardCode.toUpperCase(), productCode: '', productName: '' }
+                : null,
+            masterRefs: masterRefs.map((item) => ({
+                id: String(item?.id || crypto.randomUUID()),
+                refId: String(item?.refId || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qty: Math.max(1, Number(item?.qty || 1))
+            })).filter((item) => item.code),
+            items: componentItems.map((item) => ({
+                id: String(item?.id || crypto.randomUUID()),
+                refId: String(item?.refId || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qty: Math.max(1, Number(item?.qty || 1))
+            })).filter((item) => item.code),
+            explodedFiles: (Array.isArray(draft?.explodedFiles) ? draft.explodedFiles : []).map((file) => ({
+                name: String(file?.name || 'dosya').trim() || 'dosya',
+                type: String(file?.type || '').trim(),
+                size: Number(file?.size || 0),
+                data: String(file?.data || '')
+            })).filter((file) => file.data),
+            note: String(draft?.note || '').trim(),
+            productionPlanCompleted: true,
+            productionPlanCompletedAt: now,
+            updated_at: now
+        };
+        const status = ProductLibraryModule.getSalesVariationProductionStatus(patched);
+        if (!status.ready) {
+            alert(`Varyasyon normal duruma gecemedi. ${status.reason || 'Eksik bilgiler var.'}`);
             return;
         }
-        alert('Planlama ekrani acilamadi.');
+        patched.productionReady = true;
+        patched.productionStatusReason = '';
+        store[idx] = patched;
+        await DB.save();
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
+        ProductLibraryModule.state.salesVariationComponentPickerRowId = '';
+        UI.renderCurrentPage();
+        alert('Uretim plani tamamlandi. Varyasyon normal duruma alindi.');
     },
 
     setSalesVariationDraftField: (key, value) => {
@@ -1356,6 +1448,7 @@
         const id = isCreate ? crypto.randomUUID() : editingId;
         const idx = isCreate ? -1 : store.findIndex((row) => String(row?.id || '').trim() === editingId);
         const prev = idx >= 0 ? store[idx] : null;
+        const isManuallyCompleted = !isCreate && !!(draft?.productionPlanCompleted || prev?.productionPlanCompleted);
         const savedRow = {
             id,
             scope: 'sales-library',
@@ -1381,11 +1474,25 @@
             items: (Array.isArray(draft.componentItems) ? draft.componentItems : []).map((item) => ({ id: String(item?.id || crypto.randomUUID()), refId: String(item?.refId || '').trim(), code: String(item?.code || '').trim().toUpperCase(), name: String(item?.name || '').trim(), qty: Math.max(1, Number(item?.qty || 1)) })).filter((item) => item.code),
             explodedFiles: (Array.isArray(draft.explodedFiles) ? draft.explodedFiles : []).map((file) => ({ name: String(file?.name || 'dosya').trim() || 'dosya', type: String(file?.type || '').trim(), size: Number(file?.size || 0), data: String(file?.data || '') })).filter((file) => file.data),
             note: String(draft.note || '').trim(),
+            productionPlanCompleted: isManuallyCompleted,
+            productionPlanCompletedAt: isManuallyCompleted
+                ? String(draft?.productionPlanCompletedAt || prev?.productionPlanCompletedAt || now)
+                : '',
             created_at: String(prev?.created_at || now),
             updated_at: now
         };
+        if (!isCreate && !asCopy && prev) {
+            const prevStatus = ProductLibraryModule.getSalesVariationProductionStatus(prev);
+            const prevSignature = ProductLibraryModule.getSalesVariationIdentitySignature(prev);
+            const nextSignature = ProductLibraryModule.getSalesVariationIdentitySignature(savedRow);
+            if (prevStatus.ready && prevSignature && nextSignature && prevSignature !== nextSignature) {
+                alert('Bu alanlardaki degisiklik yeni varyasyon olusturur. Lutfen "Farkli Kaydet" kullanin.');
+                return;
+            }
+        }
         const productionStatus = ProductLibraryModule.getSalesVariationProductionStatus(savedRow);
         savedRow.productionReady = productionStatus.ready;
+        savedRow.productionStatusReason = productionStatus.reason;
 
         if (idx >= 0 && !isCreate) store[idx] = savedRow;
         else store.push(savedRow);
@@ -1493,7 +1600,8 @@
             id: editingVariationId,
             montageCardCode: String(draft?.montageCardCode || '').trim(),
             masterRefs,
-            componentItems
+            componentItems,
+            productionPlanCompleted: !!draft?.productionPlanCompleted
         });
         const reasonText = String(draftProductionStatus?.reason || '').toLocaleLowerCase('tr-TR');
         const hasProductionPlanGap = reasonText.includes('uretim plani');
@@ -1811,6 +1919,7 @@
                         </div>
                         <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon olustur</button>
                     </div>
+                    ${editorPanelHtml}
 
                     <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:auto;">
                         <table style="width:100%; min-width:1280px; border-collapse:collapse;">
@@ -1874,7 +1983,6 @@
                         </table>
                     </div>
                 </div>
-                ${editorPanelHtml}
             </div>
         `;
     },

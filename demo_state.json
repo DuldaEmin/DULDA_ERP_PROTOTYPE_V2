@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-10T16:45:10.238Z",
+    "updated_at": "2026-04-10T17:55:57.270Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 791
+    "revision": 792
   },
   "data": {
     "products": [
@@ -5526,9 +5526,9 @@
           },
           {
             "id": "3cbbe42f-977d-4293-9b47-a70ee0b6b195",
-            "refId": "686626c8-df80-4cf2-bd38-7455ed9ddaf2",
-            "code": "PRC-000011",
-            "name": "aluminyum dikme alt borusu 150 mm sarı",
+            "refId": "3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
+            "code": "PRC-000009",
+            "name": "aluminyum dikme alt borusu 200 mm sarı",
             "qty": 1
           },
           {
@@ -5549,8 +5549,11 @@
         ],
         "note": "",
         "created_at": "2026-04-10T16:45:10.238Z",
-        "updated_at": "2026-04-10T16:45:10.238Z",
-        "productionReady": false
+        "updated_at": "2026-04-10T17:55:57.269Z",
+        "productionReady": true,
+        "productionPlanCompleted": true,
+        "productionPlanCompletedAt": "2026-04-10T17:55:57.269Z",
+        "productionStatusReason": ""
       }
     ]
   }

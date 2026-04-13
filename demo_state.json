@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-10T17:55:57.270Z",
+    "updated_at": "2026-04-13T10:34:26.837Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 792
+    "revision": 793
   },
   "data": {
     "products": [
@@ -5555,6 +5555,14 @@
         "productionPlanCompletedAt": "2026-04-10T17:55:57.269Z",
         "productionStatusReason": ""
       }
-    ]
+    ],
+    "salesSettings": {
+      "proforma": {
+        "logoDataUrl": "",
+        "logoFileName": "",
+        "bankAccounts": [],
+        "defaultNotes": ""
+      }
+    }
   }
 }

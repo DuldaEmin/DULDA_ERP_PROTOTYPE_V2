@@ -18,7 +18,15 @@ const SalesModule = {
         catalogHighlightKey: 'group:rail-aluminum',
         catalogSearchText: '',
         catalogEditingProductId: '',
-        catalogDraft: null
+        catalogDraft: null,
+        proformaSettingsDraft: null,
+        proformaBankDraft: {
+            bankName: '',
+            branchCode: '',
+            accountNo: '',
+            iban: ''
+        },
+        proformaSettingsSnapshot: ''
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -38,6 +46,83 @@ const SalesModule = {
         if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
         if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
         SalesModule.ensureCatalogPublicIds();
+        SalesModule.ensureSettingsData();
+    },
+
+    buildDefaultProformaSettings: () => ({
+        logoDataUrl: '',
+        logoFileName: '',
+        bankAccounts: [],
+        defaultNotes: ''
+    }),
+
+    normalizeProformaBankAccount: (row = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        return {
+            id: String(source.id || crypto.randomUUID()).trim(),
+            bankName: String(source.bankName || source.name || '').trim(),
+            branchCode: String(source.branchCode || source.branch || '').trim(),
+            accountNo: String(source.accountNo || source.account || '').trim(),
+            iban: String(source.iban || '').replace(/\s+/g, ' ').trim()
+        };
+    },
+
+    normalizeProformaSettings: (value = {}) => {
+        const source = value && typeof value === 'object' ? value : {};
+        const bankAccounts = (Array.isArray(source.bankAccounts) ? source.bankAccounts : [])
+            .map((row) => SalesModule.normalizeProformaBankAccount(row))
+            .filter((row) => row.bankName || row.branchCode || row.accountNo || row.iban);
+        return {
+            logoDataUrl: String(source.logoDataUrl || '').trim(),
+            logoFileName: String(source.logoFileName || '').trim(),
+            bankAccounts,
+            defaultNotes: String(source.defaultNotes || '').trim()
+        };
+    },
+
+    serializeProformaSettings: (value = {}) => {
+        const normalized = SalesModule.normalizeProformaSettings(value);
+        const serializable = {
+            logoDataUrl: normalized.logoDataUrl,
+            logoFileName: normalized.logoFileName,
+            defaultNotes: normalized.defaultNotes,
+            bankAccounts: normalized.bankAccounts.map((row) => ({
+                bankName: row.bankName,
+                branchCode: row.branchCode,
+                accountNo: row.accountNo,
+                iban: row.iban
+            }))
+        };
+        return JSON.stringify(serializable);
+    },
+
+    ensureSettingsData: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!DB.data.data.salesSettings || typeof DB.data.data.salesSettings !== 'object' || Array.isArray(DB.data.data.salesSettings)) {
+            DB.data.data.salesSettings = {};
+        }
+        const defaults = SalesModule.buildDefaultProformaSettings();
+        const normalized = SalesModule.normalizeProformaSettings(DB.data.data.salesSettings.proforma || {});
+        DB.data.data.salesSettings.proforma = {
+            ...defaults,
+            ...normalized
+        };
+    },
+
+    getProformaSettings: () => {
+        SalesModule.ensureSettingsData();
+        return SalesModule.normalizeProformaSettings(DB.data?.data?.salesSettings?.proforma || {});
+    },
+
+    buildProformaSettingsDraft: (value = {}) => {
+        const normalized = SalesModule.normalizeProformaSettings(value);
+        return {
+            logoDataUrl: normalized.logoDataUrl,
+            logoFileName: normalized.logoFileName,
+            bankAccounts: normalized.bankAccounts.map((row) => ({ ...row })),
+            defaultNotes: normalized.defaultNotes
+        };
     },
 
     ensureCatalogPublicIds: () => {
@@ -61,6 +146,142 @@ const SalesModule = {
         if (SalesModule.state.workspaceView === 'products') {
             SalesModule.ensureCatalogState();
         }
+        if (SalesModule.state.workspaceView !== 'settings-proforma') {
+            SalesModule.state.proformaSettingsDraft = null;
+            SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
+            SalesModule.state.proformaSettingsSnapshot = '';
+        }
+        UI.renderCurrentPage();
+    },
+
+    openSettingsPage: () => {
+        SalesModule.openWorkspace('settings');
+    },
+
+    openProformaSettingsPage: () => {
+        SalesModule.ensureData();
+        const settings = SalesModule.getProformaSettings();
+        const draft = SalesModule.buildProformaSettingsDraft(settings);
+        SalesModule.state.proformaSettingsDraft = draft;
+        SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
+        SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(draft);
+        SalesModule.state.workspaceView = 'settings-proforma';
+        UI.renderCurrentPage();
+    },
+
+    hasProformaSettingsChanges: () => {
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft) return false;
+        const baseline = String(SalesModule.state.proformaSettingsSnapshot || '');
+        if (!baseline) return false;
+        return SalesModule.serializeProformaSettings(draft) !== baseline;
+    },
+
+    setProformaSettingsDraftField: (field, value) => {
+        if (!SalesModule.state.proformaSettingsDraft || typeof SalesModule.state.proformaSettingsDraft !== 'object') return;
+        const key = String(field || '').trim();
+        if (!key) return;
+        SalesModule.state.proformaSettingsDraft[key] = String(value || '');
+    },
+
+    setProformaBankDraftField: (field, value) => {
+        const key = String(field || '').trim();
+        if (!key) return;
+        const next = (SalesModule.state.proformaBankDraft && typeof SalesModule.state.proformaBankDraft === 'object')
+            ? SalesModule.state.proformaBankDraft
+            : { bankName: '', branchCode: '', accountNo: '', iban: '' };
+        next[key] = String(value || '');
+        SalesModule.state.proformaBankDraft = next;
+    },
+
+    addProformaBankAccount: () => {
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const nextBank = SalesModule.normalizeProformaBankAccount({
+            id: crypto.randomUUID(),
+            bankName: SalesModule.state.proformaBankDraft?.bankName,
+            branchCode: SalesModule.state.proformaBankDraft?.branchCode,
+            accountNo: SalesModule.state.proformaBankDraft?.accountNo,
+            iban: SalesModule.state.proformaBankDraft?.iban
+        });
+        if (!nextBank.bankName) {
+            alert('Banka adi zorunlu.');
+            return;
+        }
+        if (!nextBank.iban) {
+            alert('IBAN zorunlu.');
+            return;
+        }
+        const list = Array.isArray(draft.bankAccounts) ? draft.bankAccounts : [];
+        list.push(nextBank);
+        draft.bankAccounts = list;
+        SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
+        UI.renderCurrentPage();
+    },
+
+    removeProformaBankAccount: (id) => {
+        const targetId = String(id || '').trim();
+        if (!targetId) return;
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft || typeof draft !== 'object') return;
+        if (!confirm('Banka hesabi silinsin mi?')) return;
+        draft.bankAccounts = (Array.isArray(draft.bankAccounts) ? draft.bankAccounts : [])
+            .filter((row) => String(row?.id || '').trim() !== targetId);
+        UI.renderCurrentPage();
+    },
+
+    handleProformaLogoInput: (input) => {
+        const file = input?.files?.[0];
+        if (!file) return;
+        const type = String(file.type || '').toLowerCase();
+        if (!(type.includes('png') || type.includes('jpeg') || type.includes('jpg'))) {
+            alert('Logo icin PNG veya JPG dosyasi secin.');
+            if (input) input.value = '';
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const draft = SalesModule.state.proformaSettingsDraft;
+            if (!draft || typeof draft !== 'object') return;
+            draft.logoDataUrl = String(reader.result || '');
+            draft.logoFileName = String(file.name || '').trim();
+            UI.renderCurrentPage();
+        };
+        reader.readAsDataURL(file);
+        if (input) input.value = '';
+    },
+
+    clearProformaLogo: () => {
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft || typeof draft !== 'object') return;
+        draft.logoDataUrl = '';
+        draft.logoFileName = '';
+        UI.renderCurrentPage();
+    },
+
+    cancelProformaSettings: () => {
+        if (SalesModule.hasProformaSettingsChanges()) {
+            const proceed = confirm('Kaydedilmemis degisiklikler var. Ayarlar sayfasina donulsun mu?');
+            if (!proceed) return;
+        }
+        SalesModule.openWorkspace('settings');
+    },
+
+    saveProformaSettings: async () => {
+        SalesModule.ensureSettingsData();
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const normalized = SalesModule.normalizeProformaSettings(draft);
+        const invalidRow = normalized.bankAccounts.find((row) => !row.bankName || !row.iban);
+        if (invalidRow) {
+            alert('Banka hesaplarinda banka adi ve IBAN zorunludur.');
+            return;
+        }
+        DB.data.data.salesSettings.proforma = normalized;
+        await DB.save();
+        SalesModule.state.proformaSettingsDraft = SalesModule.buildProformaSettingsDraft(normalized);
+        SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(normalized);
+        alert('Proforma ayarlari kaydedildi.');
         UI.renderCurrentPage();
     },
 
@@ -2980,8 +3201,9 @@ const SalesModule = {
     renderMenuLayout: () => `
         <section class="stock-shell">
             <div class="stock-hub">
-                <div class="stock-hub-head">
+                <div class="stock-hub-head" style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
                     <h2 class="stock-title">satis & pazarlama</h2>
+                    <button class="btn-sm" onclick="SalesModule.openSettingsPage()">ayarlar</button>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
@@ -3000,6 +3222,145 @@ const SalesModule = {
             </div>
         </section>
     `,
+
+    renderSettingsLayout: () => `
+        <section class="stock-shell">
+            <div class="stock-subpage-shell">
+                <div class="stock-subpage-head">
+                    <h2 class="stock-title">satis & pazarlama / ayarlar</h2>
+                    <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
+                </div>
+
+                <div class="card-table" style="padding:1rem 1.1rem;">
+                    <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
+                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.25rem;">Proforma, fiyat listeleri ve yeni eklenecek ayarlar bu ekrandan yonetilecek.</div>
+
+                    <div style="margin-top:0.9rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0.8rem;">
+                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openProformaSettingsPage()">
+                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#1d4ed8 0%, #1e40af 100%);"><i data-lucide="file-text" width="22" height="22"></i></div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Proforma Ayarlari</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Logo, banka hesaplari ve varsayilan notlari yonet.</div>
+                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
+                        </button>
+
+                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
+                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="list-todo" width="22" height="22"></i></div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Fiyat Listeleri</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Musteri/urun bazli fiyat listeleri bu bolume eklenecek.</div>
+                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
+                        </button>
+
+                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
+                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#7c3aed 0%, #4338ca 100%);"><i data-lucide="sliders-horizontal" width="22" height="22"></i></div>
+                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Diger Ayarlar</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Ihtiyaca gore yeni ayar bolumleri bu alana eklenecek.</div>
+                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    `,
+
+    renderProformaSettingsLayout: () => {
+        const settings = SalesModule.getProformaSettings();
+        if (!SalesModule.state.proformaSettingsDraft || typeof SalesModule.state.proformaSettingsDraft !== 'object') {
+            SalesModule.state.proformaSettingsDraft = SalesModule.buildProformaSettingsDraft(settings);
+            SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(SalesModule.state.proformaSettingsDraft);
+        }
+        const draft = SalesModule.state.proformaSettingsDraft;
+        const bankDraft = (SalesModule.state.proformaBankDraft && typeof SalesModule.state.proformaBankDraft === 'object')
+            ? SalesModule.state.proformaBankDraft
+            : { bankName: '', branchCode: '', accountNo: '', iban: '' };
+        const bankAccounts = Array.isArray(draft.bankAccounts) ? draft.bankAccounts : [];
+        const hasChanges = SalesModule.hasProformaSettingsChanges();
+
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">satis & pazarlama / proforma ayarlari</h2>
+                        <button class="btn-sm" onclick="SalesModule.cancelProformaSettings()">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1.15rem 1.2rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.8rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+                            <div>
+                                <div style="font-size:1.32rem; font-weight:800; color:#1e293b;">Proforma Ayarlari</div>
+                                <div style="font-size:0.9rem; color:#64748b; margin-top:0.2rem;">PDF ciktilarinda kullanilacak logo, banka hesaplari ve varsayilan notlari buradan duzenleyebilirsin.</div>
+                            </div>
+                            <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border:1px solid ${hasChanges ? '#fcd34d' : '#86efac'}; border-radius:999px; background:${hasChanges ? '#fffbeb' : '#f0fdf4'}; color:${hasChanges ? '#92400e' : '#166534'}; font-size:0.74rem; font-weight:800;">
+                                ${hasChanges ? 'kaydedilmemis degisiklik var' : 'tum degisiklikler kayitli'}
+                            </span>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; padding-top:0.9rem;">
+                            <div style="font-size:1rem; font-weight:800; color:#1e293b;">Logo</div>
+                            <div style="margin-top:0.55rem; display:flex; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                                <input id="sales_proforma_logo_input" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" style="display:none;" onchange="SalesModule.handleProformaLogoInput(this)">
+                                <button class="btn-sm" type="button" onclick="document.getElementById('sales_proforma_logo_input')?.click()">
+                                    <i data-lucide="upload" width="14" height="14"></i>
+                                    Logo Degistir
+                                </button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.clearProformaLogo()" ${draft.logoDataUrl ? '' : 'disabled'}>Logo Temizle</button>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.72rem; min-height:70px; min-width:170px; padding:0.35rem; display:flex; align-items:center; justify-content:center; background:#f8fafc;">
+                                    ${draft.logoDataUrl
+                ? `<img src="${SalesModule.escapeHtml(draft.logoDataUrl)}" alt="logo" style="max-height:62px; max-width:160px; object-fit:contain;">`
+                : '<div style="font-size:0.8rem; color:#94a3b8; font-weight:700;">Logo secilmedi</div>'}
+                                </div>
+                            </div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.35rem;">En iyi sonuc icin PNG veya JPG formatinda bir logo yukleyin.</div>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
+                            <div style="font-size:1rem; font-weight:800; color:#1e293b; margin-bottom:0.55rem;">Banka Hesaplari</div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.85rem;">
+                                <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                                    ${bankAccounts.length === 0
+                ? '<div style="padding:0.7rem; border:1px dashed #cbd5e1; border-radius:0.62rem; color:#94a3b8; font-size:0.86rem;">Kayitli banka hesabi yok.</div>'
+                : bankAccounts.map((row) => `
+                                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; border:1px solid #e2e8f0; border-radius:0.62rem; background:#f8fafc; padding:0.55rem 0.62rem;">
+                                                <div style="min-width:0;">
+                                                    <div style="font-size:1.02rem; font-weight:800; color:#1e3a8a;">${SalesModule.escapeHtml(row?.bankName || '-')}</div>
+                                                    <div style="font-size:0.84rem; color:#64748b; margin-top:0.15rem;">${SalesModule.escapeHtml(row?.iban || '-')}</div>
+                                                </div>
+                                                <button class="btn-sm" type="button" onclick="SalesModule.removeProformaBankAccount('${SalesModule.escapeHtml(String(row?.id || ''))}')" style="color:#dc2626; border-color:#fecaca; background:#fff1f2;">
+                                                    <i data-lucide="trash-2" width="14" height="14"></i>
+                                                </button>
+                                            </div>
+                                        `).join('')}
+                                </div>
+
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.75rem;">
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(bankDraft.bankName || ''))}" placeholder="Banka Adi" oninput="SalesModule.setProformaBankDraftField('bankName', this.value)">
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(bankDraft.branchCode || ''))}" placeholder="Sube Kodu" oninput="SalesModule.setProformaBankDraftField('branchCode', this.value)">
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(bankDraft.accountNo || ''))}" placeholder="Hesap No" oninput="SalesModule.setProformaBankDraftField('accountNo', this.value)">
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(bankDraft.iban || ''))}" placeholder="IBAN" oninput="SalesModule.setProformaBankDraftField('iban', this.value)">
+                                </div>
+                                <button class="btn-primary" type="button" onclick="SalesModule.addProformaBankAccount()" style="width:100%; margin-top:0.65rem;">
+                                    <i data-lucide="plus-circle" width="14" height="14"></i>
+                                    Hesap Ekle
+                                </button>
+                            </div>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
+                            <div style="font-size:1rem; font-weight:800; color:#1e293b;">Varsayilan Notlar</div>
+                            <textarea class="stock-textarea" style="margin-top:0.5rem; min-height:150px;" oninput="SalesModule.setProformaSettingsDraftField('defaultNotes', this.value)" placeholder="Satis kosullari gibi proforma altina eklenecek standart notlari buraya girin.">${SalesModule.escapeHtml(String(draft.defaultNotes || ''))}</textarea>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; gap:0.45rem; margin-top:1rem;">
+                            <button class="btn-sm" type="button" onclick="SalesModule.cancelProformaSettings()">iptal</button>
+                            <button class="btn-primary" type="button" onclick="SalesModule.saveProformaSettings()">
+                                <i data-lucide="save" width="14" height="14"></i>
+                                Ayarlari Kaydet
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
 
     renderCustomerInlineEditFormHtml: (draft = {}) => `
         ${SalesModule.renderCountryDatalistHtml('sales_customer_country_options_detail')}
@@ -3285,6 +3646,8 @@ const SalesModule = {
         if (view === 'customers') return SalesModule.renderCustomersLayout();
         if (view === 'personnel') return SalesModule.renderPersonnelLayout();
         if (view === 'products') return SalesModule.renderProductsLayout();
+        if (view === 'settings') return SalesModule.renderSettingsLayout();
+        if (view === 'settings-proforma') return SalesModule.renderProformaSettingsLayout();
         return SalesModule.renderMenuLayout();
     }
 };

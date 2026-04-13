@@ -1766,39 +1766,47 @@ const SalesModule = {
     getCustomers: () => {
         const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
         return rows
-            .map((row) => ({
-                id: String(row?.id || '').trim(),
-                customerCode: String(row?.customerCode || '').trim().toUpperCase(),
-                name: String(row?.name || '').trim(),
-                city: String(row?.city || '').trim(),
-                district: String(row?.district || '').trim(),
-                phone: String(row?.phone || '').trim(),
-                phoneCountryCode: String(row?.phoneCountryCode || '').trim(),
-                phoneAreaCode: String(row?.phoneAreaCode || '').trim(),
-                phoneAlt: String(row?.phoneAlt || '').trim(),
-                email: String(row?.email || '').trim(),
-                taxOffice: String(row?.taxOffice || '').trim(),
-                taxNo: String(row?.taxNo || '').trim(),
-                address: String(row?.address || '').trim(),
-                addressNo: String(row?.addressNo || '').trim(),
-                postalCode: String(row?.postalCode || '').trim(),
-                country: String(row?.country || '').trim(),
-                externalCode: String(row?.externalCode || '').trim(),
-                faxNo: String(row?.faxNo || '').trim(),
-                modemNo: String(row?.modemNo || '').trim(),
-                authorizedPerson: String(row?.authorizedPerson || '').trim(),
-                discountRate: SalesModule.parsePercent(row?.discountRate || 0),
-                paymentTermDays: SalesModule.parseDays(row?.paymentTermDays || 0),
-                riskLimit: SalesModule.parseMoney(row?.riskLimit || 0),
-                customerTypes: SalesModule.normalizeCustomerTypeList(
-                    Array.isArray(row?.customerTypes) ? row.customerTypes : (Array.isArray(row?.tags) ? row.tags : [])
-                ),
-                tags: Array.isArray(row?.tags) ? row.tags.map((item) => String(item || '').trim()).filter(Boolean) : [],
-                note: String(row?.note || '').trim(),
-                isActive: row?.isActive !== false,
-                created_at: String(row?.created_at || ''),
-                updated_at: String(row?.updated_at || '')
-            }))
+            .map((row) => {
+                const customerContacts = SalesModule.buildCustomerContactsFromRow(row);
+                const firstContact = customerContacts[0] || {};
+                const firstPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
+                    ? String(firstContact.phones[0] || '').trim()
+                    : '';
+                return {
+                    id: String(row?.id || '').trim(),
+                    customerCode: String(row?.customerCode || '').trim().toUpperCase(),
+                    name: String(row?.name || '').trim(),
+                    city: String(row?.city || '').trim(),
+                    district: String(row?.district || '').trim(),
+                    phone: String(row?.phone || '').trim(),
+                    phoneCountryCode: String(row?.phoneCountryCode || '').trim(),
+                    phoneAreaCode: String(row?.phoneAreaCode || '').trim(),
+                    phoneAlt: String(row?.phoneAlt || firstPhone).trim(),
+                    email: String(row?.email || firstContact?.email || '').trim(),
+                    taxOffice: String(row?.taxOffice || '').trim(),
+                    taxNo: String(row?.taxNo || '').trim(),
+                    address: String(row?.address || '').trim(),
+                    addressNo: String(row?.addressNo || '').trim(),
+                    postalCode: String(row?.postalCode || '').trim(),
+                    country: String(row?.country || '').trim(),
+                    externalCode: String(row?.externalCode || '').trim(),
+                    faxNo: String(row?.faxNo || '').trim(),
+                    modemNo: String(row?.modemNo || '').trim(),
+                    authorizedPerson: String(row?.authorizedPerson || firstContact?.name || '').trim(),
+                    discountRate: SalesModule.parsePercent(row?.discountRate || 0),
+                    paymentTermDays: SalesModule.parseDays(row?.paymentTermDays || 0),
+                    riskLimit: SalesModule.parseMoney(row?.riskLimit || 0),
+                    customerTypes: SalesModule.normalizeCustomerTypeList(
+                        Array.isArray(row?.customerTypes) ? row.customerTypes : (Array.isArray(row?.tags) ? row.tags : [])
+                    ),
+                    customerContacts,
+                    tags: Array.isArray(row?.tags) ? row.tags.map((item) => String(item || '').trim()).filter(Boolean) : [],
+                    note: String(row?.note || '').trim(),
+                    isActive: row?.isActive !== false,
+                    created_at: String(row?.created_at || ''),
+                    updated_at: String(row?.updated_at || '')
+                };
+            })
             .filter((row) => row.id && row.name)
             .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
     },
@@ -1921,11 +1929,218 @@ const SalesModule = {
         draft.customerTypes = Array.from(set);
     },
 
+    applyCustomerGroupChipVisualState: (chipEl, isSelected) => {
+        if (!chipEl) return;
+        chipEl.style.borderColor = isSelected ? '#2563eb' : '#cbd5e1';
+        chipEl.style.background = isSelected ? '#2563eb' : '#ffffff';
+        chipEl.style.color = isSelected ? '#ffffff' : '#334155';
+        chipEl.style.boxShadow = isSelected ? '0 2px 8px rgba(37,99,235,0.22)' : 'none';
+    },
+
+    refreshCustomerGroupWrapState: () => {
+        const wrap = document.getElementById('sales_customer_group_wrap');
+        if (!wrap) return;
+        const anyChecked = !!wrap.querySelector('input[name="sales_customer_types"]:checked');
+        wrap.style.borderColor = anyChecked ? '#93c5fd' : '#fda4af';
+        wrap.style.background = anyChecked ? '#f8fbff' : '#fff1f2';
+    },
+
+    toggleCustomerGroupChip: (inputEl) => {
+        const input = inputEl;
+        if (!input) return;
+        const chip = input.closest('[data-customer-group-chip="1"]');
+        SalesModule.applyCustomerGroupChipVisualState(chip, !!input.checked);
+        SalesModule.refreshCustomerGroupWrapState();
+    },
+
+    normalizeCustomerContactRow: (row = {}, options = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        const keepEmptyPhoneSlot = options?.keepEmptyPhoneSlot === true;
+        const rawPhones = Array.isArray(source?.phones)
+            ? source.phones
+            : (String(source?.phone || '').split(','));
+        const phones = rawPhones
+            .map((item) => String(item || '').trim())
+            .filter(Boolean);
+        if (keepEmptyPhoneSlot && phones.length === 0) phones.push('');
+        return {
+            id: String(source?.id || crypto.randomUUID()).trim(),
+            name: String(source?.name || source?.fullName || '').trim(),
+            position: String(source?.position || source?.title || '').trim(),
+            phones,
+            email: String(source?.email || '').trim(),
+            note: String(source?.note || '').trim()
+        };
+    },
+
+    normalizeCustomerContactList: (rows = [], options = {}) => {
+        const list = Array.isArray(rows) ? rows : [];
+        const keepEmptyPhoneSlot = options?.keepEmptyPhoneSlot === true;
+        const allowEmptyRow = options?.allowEmptyRow === true;
+        const normalized = list
+            .map((row) => SalesModule.normalizeCustomerContactRow(row, { keepEmptyPhoneSlot }))
+            .filter((row) => {
+                if (allowEmptyRow) return true;
+                if (row.phones.some((phone) => String(phone || '').trim())) return true;
+                return !!(row.name || row.position || row.email || row.note);
+            });
+        if (allowEmptyRow && normalized.length === 0) {
+            normalized.push(SalesModule.normalizeCustomerContactRow({}, { keepEmptyPhoneSlot: true }));
+        }
+        return normalized;
+    },
+
+    buildCustomerContactsFromRow: (row = {}) => {
+        const source = row && typeof row === 'object' ? row : {};
+        const direct = Array.isArray(source?.customerContacts)
+            ? source.customerContacts
+            : (Array.isArray(source?.contacts) ? source.contacts : []);
+        if (direct.length > 0) {
+            return SalesModule.normalizeCustomerContactList(direct, { allowEmptyRow: true, keepEmptyPhoneSlot: true });
+        }
+        const phones = [String(source?.phoneAlt || '').trim(), String(source?.phone || '').trim()]
+            .filter(Boolean);
+        return SalesModule.normalizeCustomerContactList([{
+            id: crypto.randomUUID(),
+            name: String(source?.authorizedPerson || '').trim(),
+            position: '',
+            phones,
+            email: String(source?.email || '').trim(),
+            note: ''
+        }], { allowEmptyRow: true, keepEmptyPhoneSlot: true });
+    },
+
+    renderCustomerContactRowsHtml: (rows = []) => {
+        const list = SalesModule.normalizeCustomerContactList(rows, { allowEmptyRow: true, keepEmptyPhoneSlot: true });
+        return list.map((row, index) => {
+            const rowIndex = Number(index || 0);
+            const phones = Array.isArray(row?.phones) && row.phones.length ? row.phones : [''];
+            return `
+                <tr data-contact-row-index="${rowIndex}" style="border-bottom:1px solid #e2e8f0; background:${rowIndex % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+                    <td style="padding:0.48rem;">
+                        <input data-contact-field="name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.name || ''))}" placeholder="or: Ahmet Yilmaz">
+                    </td>
+                    <td style="padding:0.48rem;">
+                        <input data-contact-field="position" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.position || ''))}" placeholder="or: Satin Alma">
+                    </td>
+                    <td style="padding:0.48rem;">
+                        <div data-contact-phone-list style="display:flex; flex-direction:column; gap:0.3rem;">
+                            ${phones.map((phone, phoneIndex) => `
+                                <div style="display:flex; gap:0.28rem; align-items:center;">
+                                    <input data-contact-phone-input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(phone || ''))}" placeholder="or: 05xx xxx xx xx">
+                                    ${phones.length > 1 ? `<button type="button" class="btn-sm" style="height:30px; color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactPhone(${rowIndex}, ${Number(phoneIndex || 0)})">sil</button>` : ''}
+                                </div>
+                            `).join('')}
+                            <button type="button" class="btn-sm" style="height:26px; justify-content:flex-start; font-size:0.72rem; color:#1d4ed8; border:none; background:transparent; padding:0.1rem 0.15rem; font-weight:700;" onclick="SalesModule.addCustomerContactPhone(${rowIndex})">+ telefon ekle</button>
+                        </div>
+                    </td>
+                    <td style="padding:0.48rem;">
+                        <input data-contact-field="email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.email || ''))}" placeholder="or: satin-alma@firma.com">
+                    </td>
+                    <td style="padding:0.48rem;">
+                        <input data-contact-field="note" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(row?.note || ''))}" placeholder="not">
+                    </td>
+                    <td style="padding:0.48rem; text-align:center;">
+                        <div style="display:inline-flex; gap:0.3rem; flex-wrap:wrap;">
+                            <button type="button" class="btn-sm" onclick="SalesModule.focusCustomerContactRow(${rowIndex})">duzenle</button>
+                            <button type="button" class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.removeCustomerContactRow(${rowIndex})">sil</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    getCustomerContactRowsFromDom: () => {
+        const tbody = document.getElementById('sales_customer_contacts_tbody');
+        if (!tbody) return [];
+        const rows = Array.from(tbody.querySelectorAll('tr[data-contact-row-index]'));
+        return rows.map((tr) => {
+            const readField = (field) => String(tr.querySelector(`[data-contact-field="${field}"]`)?.value || '').trim();
+            const phones = Array.from(tr.querySelectorAll('[data-contact-phone-input]'))
+                .map((input) => String(input?.value || '').trim())
+                .filter(Boolean);
+            return {
+                id: crypto.randomUUID(),
+                name: readField('name'),
+                position: readField('position'),
+                phones,
+                email: readField('email'),
+                note: readField('note')
+            };
+        });
+    },
+
+    setCustomerContactRowsToDom: (rows = []) => {
+        const tbody = document.getElementById('sales_customer_contacts_tbody');
+        if (!tbody) return;
+        tbody.innerHTML = SalesModule.renderCustomerContactRowsHtml(rows);
+    },
+
+    addCustomerContactRow: () => {
+        const rows = SalesModule.getCustomerContactRowsFromDom();
+        rows.push(SalesModule.normalizeCustomerContactRow({}, { keepEmptyPhoneSlot: true }));
+        SalesModule.setCustomerContactRowsToDom(rows);
+        SalesModule.focusCustomerContactRow(rows.length - 1);
+    },
+
+    removeCustomerContactRow: (rowIndex) => {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        const rows = SalesModule.getCustomerContactRowsFromDom();
+        const next = rows.filter((_, i) => i !== idx);
+        SalesModule.setCustomerContactRowsToDom(next);
+    },
+
+    focusCustomerContactRow: (rowIndex) => {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        const tbody = document.getElementById('sales_customer_contacts_tbody');
+        if (!tbody) return;
+        const row = tbody.querySelector(`tr[data-contact-row-index="${idx}"]`);
+        const input = row?.querySelector('[data-contact-field="name"]');
+        if (input) input.focus();
+    },
+
+    addCustomerContactPhone: (rowIndex) => {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        const rows = SalesModule.getCustomerContactRowsFromDom();
+        if (!rows[idx]) return;
+        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [];
+        list.push('');
+        rows[idx].phones = list;
+        SalesModule.setCustomerContactRowsToDom(rows);
+        const tbody = document.getElementById('sales_customer_contacts_tbody');
+        const row = tbody?.querySelector(`tr[data-contact-row-index="${idx}"]`);
+        const inputs = row ? Array.from(row.querySelectorAll('[data-contact-phone-input]')) : [];
+        const last = inputs.length ? inputs[inputs.length - 1] : null;
+        if (last) last.focus();
+    },
+
+    removeCustomerContactPhone: (rowIndex, phoneIndex) => {
+        const idx = Number(rowIndex);
+        const pIdx = Number(phoneIndex);
+        if (!Number.isFinite(idx) || idx < 0) return;
+        if (!Number.isFinite(pIdx) || pIdx < 0) return;
+        const rows = SalesModule.getCustomerContactRowsFromDom();
+        if (!rows[idx]) return;
+        const list = Array.isArray(rows[idx].phones) ? rows[idx].phones.slice() : [];
+        const nextPhones = list.filter((_, i) => i !== pIdx);
+        rows[idx].phones = nextPhones.length ? nextPhones : [''];
+        SalesModule.setCustomerContactRowsToDom(rows);
+    },
+
     buildCustomerDraft: (source = null) => {
         const row = source && typeof source === 'object' ? source : {};
         const tags = Array.isArray(row?.tags) ? row.tags : [];
         const rowTypes = Array.isArray(row?.customerTypes) ? row.customerTypes : [];
         const fallbackTypes = SalesModule.normalizeCustomerTypeList(tags);
+        const customerContacts = SalesModule.buildCustomerContactsFromRow(row);
+        const firstContact = customerContacts[0] || {};
+        const firstContactPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
+            ? String(firstContact.phones[0] || '').trim()
+            : '';
         return {
             name: String(row?.name || '').trim(),
             city: String(row?.city || '').trim(),
@@ -1933,8 +2148,8 @@ const SalesModule = {
             phone: String(row?.phone || '').trim(),
             phoneCountryCode: String(row?.phoneCountryCode || '').trim(),
             phoneAreaCode: String(row?.phoneAreaCode || '').trim(),
-            phoneAlt: String(row?.phoneAlt || '').trim(),
-            email: String(row?.email || '').trim(),
+            phoneAlt: String(row?.phoneAlt || firstContactPhone).trim(),
+            email: String(row?.email || firstContact?.email || '').trim(),
             taxOffice: String(row?.taxOffice || '').trim(),
             taxNo: String(row?.taxNo || '').trim(),
             address: String(row?.address || '').trim(),
@@ -1944,11 +2159,12 @@ const SalesModule = {
             externalCode: String(row?.externalCode || '').trim(),
             faxNo: String(row?.faxNo || '').trim(),
             modemNo: String(row?.modemNo || '').trim(),
-            authorizedPerson: String(row?.authorizedPerson || '').trim(),
+            authorizedPerson: String(row?.authorizedPerson || firstContact?.name || '').trim(),
             discountRate: SalesModule.parsePercent(row?.discountRate || 0),
             paymentTermDays: SalesModule.parseDays(row?.paymentTermDays || 0),
             riskLimit: SalesModule.parseMoney(row?.riskLimit || 0),
             customerTypes: SalesModule.normalizeCustomerTypeList(rowTypes.length ? rowTypes : fallbackTypes),
+            customerContacts,
             note: String(row?.note || '').trim(),
             isActive: row?.isActive !== false
         };
@@ -1984,12 +2200,14 @@ const SalesModule = {
 
     renderCustomerModalFormHtml: (draft, isEdit) => {
         const selectedTypes = SalesModule.normalizeCustomerTypeList(draft?.customerTypes || []);
+        const customerContacts = SalesModule.normalizeCustomerContactList(draft?.customerContacts || [], {
+            allowEmptyRow: true,
+            keepEmptyPhoneSlot: true
+        });
         const isTypeMissing = selectedTypes.length === 0;
         const isMissing = (value) => !String(value ?? '').trim();
         const missing = {
             name: isMissing(draft?.name),
-            authorized: isMissing(draft?.authorizedPerson),
-            gsm: isMissing(draft?.phoneAlt),
             country: isMissing(draft?.country),
             city: isMissing(draft?.city),
             customerCode: isMissing(draft?.externalCode),
@@ -2013,37 +2231,7 @@ const SalesModule = {
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri unvani <span style="color:#e11d48;">*</span></label>
                             <input id="sales_customer_name" class="stock-input stock-input-tall" style="${fieldStyle(missing.name)}" value="${SalesModule.escapeHtml(String(draft?.name || ''))}" placeholder="or: Akpa Aluminyum A.S.">
                         </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Yetkili kisi <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_authorized" class="stock-input stock-input-tall" style="${fieldStyle(missing.authorized)}" value="${SalesModule.escapeHtml(String(draft?.authorizedPerson || ''))}" placeholder="or: Ahmet Yilmaz">
-                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ yetkili kisi ekle</button>
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">E-posta</label>
-                            <input id="sales_customer_email" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.email || ''))}" placeholder="or: satis@firma.com">
-                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ e-posta ekle</button>
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Sabit tel</label>
-                            <input id="sales_customer_phone" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phone || ''))}" placeholder="or: 312 349 06 10">
-                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ sabit tel ekle</button>
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">GSM tel <span style="color:#e11d48;">*</span></label>
-                            <input id="sales_customer_phone_alt" class="stock-input stock-input-tall" style="${fieldStyle(missing.gsm)}" value="${SalesModule.escapeHtml(String(draft?.phoneAlt || ''))}" placeholder="or: 5xx xxx xx xx">
-                            <button type="button" class="btn-sm" style="margin-top:0.22rem; height:24px; font-size:0.68rem; color:#1d4ed8; border:none; background:transparent; padding:0;">+ gsm tel ekle</button>
-                        </div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.38rem;">
-                            <div>
-                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Ulke kodu</label>
-                                <input id="sales_customer_phone_country_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneCountryCode || '90'))}" placeholder="90">
-                            </div>
-                            <div>
-                                <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.18rem;">Bolge kodu</label>
-                                <input id="sales_customer_phone_area_code" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft?.phoneAreaCode || ''))}" placeholder="312">
-                            </div>
-                        </div>
-                        <div style="grid-column:span 3;">
+                        <div style="grid-column:span 2;">
                             <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri tipi <span style="color:#e11d48;">*</span></label>
                             <div style="display:flex; gap:0.45rem; flex-wrap:wrap; border:1px solid ${isTypeMissing ? '#fda4af' : '#cbd5e1'}; border-radius:0.6rem; padding:0.42rem; background:${isTypeMissing ? '#fff1f2' : '#fff'};">
                                 ${SalesModule.getCustomerTypeOptions().map((type) => {
@@ -2055,6 +2243,30 @@ const SalesModule = {
                                         </label>
                                     `;
         }).join('')}
+                            </div>
+                        </div>
+
+                        <div style="grid-column:span 3; border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.55rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.45rem; margin-bottom:0.45rem; flex-wrap:wrap;">
+                                <div style="font-size:0.8rem; font-weight:800; color:#334155;">Yetkili Kisiler</div>
+                                <button type="button" class="btn-sm" onclick="SalesModule.addCustomerContactRow()">yeni kisi ekle +</button>
+                            </div>
+                            <div style="overflow:auto;">
+                                <table style="width:100%; min-width:930px; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                            <th style="padding:0.45rem; text-align:left;">Ad Soyad</th>
+                                            <th style="padding:0.45rem; text-align:left;">Pozisyon / Gorevi</th>
+                                            <th style="padding:0.45rem; text-align:left;">Telefon</th>
+                                            <th style="padding:0.45rem; text-align:left;">E-posta</th>
+                                            <th style="padding:0.45rem; text-align:left;">Not</th>
+                                            <th style="padding:0.45rem; text-align:center; width:130px;">Islem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="sales_customer_contacts_tbody">
+                                        ${SalesModule.renderCustomerContactRowsHtml(customerContacts)}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -2137,16 +2349,24 @@ const SalesModule = {
         const customerTypes = Array.from(document.querySelectorAll('input[name="sales_customer_types"]:checked'))
             .map((item) => String(item?.value || '').trim())
             .filter(Boolean);
+        const customerContacts = SalesModule.normalizeCustomerContactList(
+            SalesModule.getCustomerContactRowsFromDom(),
+            { allowEmptyRow: false, keepEmptyPhoneSlot: false }
+        );
+        const firstContact = customerContacts[0] || {};
+        const firstContactPhones = Array.isArray(firstContact?.phones) ? firstContact.phones : [];
+        const firstGsm = String(firstContactPhones[0] || '').trim();
+        const firstAltPhone = String(firstContactPhones[1] || '').trim();
         return {
             name: String(read('sales_customer_name')).trim(),
             city: String(read('sales_customer_city')).trim(),
             district: String(read('sales_customer_district')).trim(),
-            phone: String(read('sales_customer_phone')).trim(),
-            phoneCountryCode: String(read('sales_customer_phone_country_code')).trim(),
+            phone: String(read('sales_customer_phone')).trim() || firstAltPhone,
+            phoneCountryCode: String(read('sales_customer_phone_country_code')).trim() || '90',
             phoneAreaCode: String(read('sales_customer_phone_area_code')).trim(),
-            phoneAlt: String(read('sales_customer_phone_alt')).trim(),
-            email: String(read('sales_customer_email')).trim(),
-            authorizedPerson: String(read('sales_customer_authorized')).trim(),
+            phoneAlt: String(read('sales_customer_phone_alt')).trim() || firstGsm,
+            email: String(read('sales_customer_email')).trim() || String(firstContact?.email || '').trim(),
+            authorizedPerson: String(read('sales_customer_authorized')).trim() || String(firstContact?.name || '').trim(),
             taxOffice: String(read('sales_customer_tax_office')).trim(),
             taxNo: String(read('sales_customer_tax_no')).trim(),
             address: String(read('sales_customer_address')).trim(),
@@ -2159,6 +2379,7 @@ const SalesModule = {
             paymentTermDays: SalesModule.parseDays(read('sales_customer_term_days')),
             riskLimit: SalesModule.parseMoney(read('sales_customer_risk_limit')),
             customerTypes: SalesModule.normalizeCustomerTypeList(customerTypes),
+            customerContacts,
             isActive: true
         };
     },
@@ -2168,6 +2389,12 @@ const SalesModule = {
         const draft = SalesModule.readCustomerDraftFromDom();
         const validation = SalesModule.validateCustomerDraft(draft);
         if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const customerContacts = SalesModule.normalizeCustomerContactList(draft.customerContacts || [], {
+            allowEmptyRow: false,
+            keepEmptyPhoneSlot: false
+        });
+        const firstContact = customerContacts[0] || {};
+        const firstPhones = Array.isArray(firstContact?.phones) ? firstContact.phones : [];
         const now = new Date().toISOString();
         const row = {
             id: crypto.randomUUID(),
@@ -2175,11 +2402,11 @@ const SalesModule = {
             name: draft.name,
             city: draft.city,
             district: draft.district,
-            phone: draft.phone,
+            phone: String(draft.phone || firstPhones[1] || '').trim(),
             phoneCountryCode: draft.phoneCountryCode,
             phoneAreaCode: draft.phoneAreaCode,
-            phoneAlt: draft.phoneAlt,
-            email: draft.email,
+            phoneAlt: String(draft.phoneAlt || firstPhones[0] || '').trim(),
+            email: String(draft.email || firstContact?.email || '').trim(),
             taxOffice: draft.taxOffice,
             taxNo: draft.taxNo,
             address: draft.address,
@@ -2187,11 +2414,12 @@ const SalesModule = {
             postalCode: draft.postalCode,
             country: draft.country,
             externalCode: draft.externalCode,
-            authorizedPerson: draft.authorizedPerson,
+            authorizedPerson: String(draft.authorizedPerson || firstContact?.name || '').trim(),
             discountRate: draft.discountRate,
             paymentTermDays: draft.paymentTermDays,
             riskLimit: draft.riskLimit,
             customerTypes: SalesModule.normalizeCustomerTypeList(draft.customerTypes || []),
+            customerContacts,
             tags: [],
             note: draft.note,
             isActive: true,
@@ -2212,6 +2440,12 @@ const SalesModule = {
         const draft = SalesModule.readCustomerDraftFromDom();
         const validation = SalesModule.validateCustomerDraft(draft);
         if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const customerContacts = SalesModule.normalizeCustomerContactList(draft.customerContacts || [], {
+            allowEmptyRow: false,
+            keepEmptyPhoneSlot: false
+        });
+        const firstContact = customerContacts[0] || {};
+        const firstPhones = Array.isArray(firstContact?.phones) ? firstContact.phones : [];
         const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
         const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
         if (idx === -1) return alert('Musteri kaydi bulunamadi.');
@@ -2221,11 +2455,11 @@ const SalesModule = {
             name: String(draft.name || '').trim(),
             city: String(draft.city || '').trim(),
             district: String(draft.district || '').trim(),
-            phone: String(draft.phone || '').trim(),
+            phone: String(draft.phone || firstPhones[1] || '').trim(),
             phoneCountryCode: String(draft.phoneCountryCode || '').trim(),
             phoneAreaCode: String(draft.phoneAreaCode || '').trim(),
-            phoneAlt: String(draft.phoneAlt || '').trim(),
-            email: String(draft.email || '').trim(),
+            phoneAlt: String(draft.phoneAlt || firstPhones[0] || '').trim(),
+            email: String(draft.email || firstContact?.email || '').trim(),
             taxOffice: String(draft.taxOffice || '').trim(),
             taxNo: String(draft.taxNo || '').trim(),
             address: String(draft.address || '').trim(),
@@ -2233,11 +2467,12 @@ const SalesModule = {
             postalCode: String(draft.postalCode || '').trim(),
             country: String(draft.country || '').trim(),
             externalCode: String(draft.externalCode || '').trim(),
-            authorizedPerson: String(draft.authorizedPerson || '').trim(),
+            authorizedPerson: String(draft.authorizedPerson || firstContact?.name || '').trim(),
             discountRate: SalesModule.parsePercent(draft.discountRate || 0),
             paymentTermDays: SalesModule.parseDays(draft.paymentTermDays || 0),
             riskLimit: SalesModule.parseMoney(draft.riskLimit || 0),
             customerTypes: SalesModule.normalizeCustomerTypeList(draft.customerTypes || []),
+            customerContacts,
             tags: Array.isArray(prev?.tags) ? prev.tags : [],
             note: String(draft.note || '').trim(),
             updated_at: new Date().toISOString()

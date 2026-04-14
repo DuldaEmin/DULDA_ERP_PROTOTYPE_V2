@@ -188,9 +188,9 @@ const CncLibraryModule = {
 
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem; margin-top:0.7rem;">
                             <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.65rem;">
-                                <strong style="font-size:0.9rem;">Teknik resim (PDF)</strong>
-                                <input id="cnc_drawing" type="file" accept="application/pdf,.pdf" onchange="CncLibraryModule.handleDraftDrawingFile(this)" style="display:block; width:100%; margin:0.45rem 0;">
-                                ${drawing ? `<div style="font-size:0.8rem; margin-bottom:0.35rem;">${CncLibraryModule.escape(drawing.name || 'teknik-resim.pdf')}</div><button onclick="CncLibraryModule.previewDraftDrawing()" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Goruntule</button> <button onclick="CncLibraryModule.downloadDraftDrawing()" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Indir</button> <button onclick="CncLibraryModule.clearDraftDrawing()" style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Kaldir</button>` : `<div style="font-size:0.8rem; color:#94a3b8;">PDF yuklenmedi.</div>`}
+                                <strong style="font-size:0.9rem;">Teknik resim (PDF/JPG/PNG)</strong>
+                                <input id="cnc_drawing" type="file" accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png" onchange="CncLibraryModule.handleDraftDrawingFile(this)" style="display:block; width:100%; margin:0.45rem 0;">
+                                ${drawing ? `<div style="font-size:0.8rem; margin-bottom:0.35rem;">${CncLibraryModule.escape(drawing.name || 'teknik-resim')}</div><button onclick="CncLibraryModule.previewDraftDrawing()" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Goruntule</button> <button onclick="CncLibraryModule.downloadDraftDrawing()" style="border:1px solid #cbd5e1; background:white; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Indir</button> <button onclick="CncLibraryModule.clearDraftDrawing()" style="border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.3rem; padding:0.1rem 0.35rem; cursor:pointer;">Kaldir</button>` : `<div style="font-size:0.8rem; color:#94a3b8;">Dosya yuklenmedi.</div>`}
                             </div>
                             <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.65rem;">
                                 <strong style="font-size:0.9rem;">Notlar</strong>
@@ -287,18 +287,24 @@ const CncLibraryModule = {
 
                 <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.55rem; margin-top:0.2rem;">
                     <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.4rem;">
-                        <div style="font-size:0.82rem; color:#64748b; font-weight:700;">Teknik resim (PDF) onizleme</div>
+                        <div style="font-size:0.82rem; color:#64748b; font-weight:700;">Teknik resim (PDF/JPG/PNG) onizleme</div>
                         <div style="display:flex; gap:0.35rem;">
                             ${card.technicalDrawing?.dataUrl
-                                ? `<button onclick="CncLibraryModule.previewSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">Yeni sekmede goruntuleuntule</button>
-                                   <button onclick="CncLibraryModule.downloadSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">PDF indir</button>`
+                                ? `<button onclick="CncLibraryModule.previewSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">Yeni sekmede goruntule</button>
+                                   <button onclick="CncLibraryModule.downloadSavedDrawing('${card.id}')" style="border:1px solid #cbd5e1; background:white; border-radius:0.35rem; padding:0.2rem 0.45rem; cursor:pointer;">Dosyayi indir</button>`
                                 : ''
                             }
                         </div>
                     </div>
 
                     ${card.technicalDrawing?.dataUrl
-                        ? `<iframe src="${card.technicalDrawing.dataUrl}" title="Teknik resim onizleme" style="width:100%; height:340px; border:1px solid #cbd5e1; border-radius:0.45rem; background:white;"></iframe>`
+                        ? (() => {
+                            const kind = CncLibraryModule.getDrawingKind(card.technicalDrawing);
+                            if (kind === 'image') {
+                                return `<div style="display:flex; align-items:center; justify-content:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:0.45rem; min-height:260px; padding:0.6rem;"><img src="${card.technicalDrawing.dataUrl}" alt="Teknik resim" style="max-width:100%; max-height:340px; object-fit:contain;"></div>`;
+                            }
+                            return `<iframe src="${card.technicalDrawing.dataUrl}" title="Teknik resim onizleme" style="width:100%; height:340px; border:1px solid #cbd5e1; border-radius:0.45rem; background:white;"></iframe>`;
+                        })()
                         : `<div style="font-size:0.8rem; color:#94a3b8;">Teknik resim yok.</div>`
                     }
                 </div>
@@ -370,9 +376,16 @@ const CncLibraryModule = {
 
         let drawing = CncLibraryModule.state.draftDrawing ? { ...CncLibraryModule.state.draftDrawing } : null;
         if (drawingFile) {
-            const isPdf = String(drawingFile.name || '').toLowerCase().endsWith('.pdf') || String(drawingFile.type || '').toLowerCase().includes('pdf');
-            if (!isPdf) return alert('Teknik resim sadece PDF olabilir.');
-            drawing = { name: drawingFile.name, dataUrl: await CncLibraryModule.readAsDataUrl(drawingFile), uploadedAt: new Date().toISOString() };
+            if (!CncLibraryModule.isAllowedDrawingFile(drawingFile)) {
+                return alert('Teknik resim dosyasi PDF, JPG veya PNG olmalidir.');
+            }
+            drawing = {
+                name: drawingFile.name,
+                mime: String(drawingFile.type || '').trim(),
+                kind: CncLibraryModule.getDrawingKind({ name: drawingFile.name, mime: drawingFile.type }),
+                dataUrl: await CncLibraryModule.readAsDataUrl(drawingFile),
+                uploadedAt: new Date().toISOString()
+            };
         }
 
         const idx = all.findIndex(c => c.id === CncLibraryModule.state.editingId);
@@ -534,8 +547,8 @@ const CncLibraryModule = {
                 <input id="op_duration" type="number" min="1" placeholder="Operasyon suresi sn *" value="${Number(op?.durationSec || 0) || ''}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <input id="op_note" placeholder="Operasyon notu" value="${CncLibraryModule.escape(op?.note || '')}" style="height:38px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.6rem;">
                 <textarea id="op_gcode_text" rows="6" placeholder="G kodu (opsiyonel)" style="border:1px solid #cbd5e1; border-radius:0.5rem; padding:0.55rem; font-family:monospace; resize:vertical;">${CncLibraryModule.escape(op?.gcodeText || '')}</textarea>
-                <input id="op_gcode_file" type="file" accept=".txt,text/plain">
-                <div style="font-size:0.75rem; color:#64748b;">${CncLibraryModule.escape(op?.gcodeFileName || 'Yuklu dosya yok')}</div>
+                <input id="op_gcode_file" type="file" accept=".txt,.tab,.tap,text/plain">
+                <div style="font-size:0.75rem; color:#64748b;">${CncLibraryModule.escape(op?.gcodeFileName || 'Yuklu dosya yok')} (izinli: TXT/TAB/TAP)</div>
                 <button onclick="CncLibraryModule.saveOperation('${operationId}')" class="btn-primary" ${canSave ? '' : 'disabled'} style="${canSave ? '' : 'opacity:0.6; cursor:not-allowed;'}">Kaydet</button>
             </div>
         `, { maxWidth: '620px' });
@@ -564,8 +577,7 @@ const CncLibraryModule = {
         let fileDataUrl = '';
         let fileName = existing?.gcodeFileName || '';
         if (gFile) {
-            const okTxt = String(gFile.name || '').toLowerCase().endsWith('.txt') || String(gFile.type || '').toLowerCase().includes('text');
-            if (!okTxt) return alert('G kodu dosyasi TXT olmali.');
+            if (!CncLibraryModule.isAllowedGCodeFile(gFile)) return alert('G kodu dosyasi TXT, TAB veya TAP olmali.');
             fileText = await CncLibraryModule.readAsText(gFile);
             fileDataUrl = await CncLibraryModule.readAsDataUrl(gFile);
             fileName = gFile.name;
@@ -667,16 +679,16 @@ const CncLibraryModule = {
     handleDraftDrawingFile: async (inputEl) => {
         const file = inputEl?.files?.[0];
         if (!file) return;
-        const isPdf = String(file.name || '').toLowerCase().endsWith('.pdf') ||
-            String(file.type || '').toLowerCase().includes('pdf');
-        if (!isPdf) {
-            alert('Teknik resim sadece PDF olabilir.');
+        if (!CncLibraryModule.isAllowedDrawingFile(file)) {
+            alert('Teknik resim dosyasi PDF, JPG veya PNG olmalidir.');
             inputEl.value = '';
             return;
         }
 
         CncLibraryModule.state.draftDrawing = {
             name: file.name,
+            mime: String(file.type || '').trim(),
+            kind: CncLibraryModule.getDrawingKind({ name: file.name, mime: file.type }),
             dataUrl: await CncLibraryModule.readAsDataUrl(file),
             uploadedAt: new Date().toISOString()
         };
@@ -685,7 +697,7 @@ const CncLibraryModule = {
 
     previewDraftDrawing: async () => {
         if (!CncLibraryModule.state.draftDrawing?.dataUrl) return;
-        await CncLibraryModule.openPdfPreview(CncLibraryModule.state.draftDrawing.dataUrl);
+        await CncLibraryModule.openDrawingPreview(CncLibraryModule.state.draftDrawing.dataUrl);
     },
 
     downloadDraftDrawing: () => {
@@ -701,7 +713,7 @@ const CncLibraryModule = {
     previewSavedDrawing: async (cardId) => {
         const card = (DB.data.data.cncCards || []).find(c => c.id === cardId);
         if (!card?.technicalDrawing?.dataUrl) return;
-        await CncLibraryModule.openPdfPreview(card.technicalDrawing.dataUrl);
+        await CncLibraryModule.openDrawingPreview(card.technicalDrawing.dataUrl);
     },
 
     downloadSavedDrawing: (cardId) => {
@@ -715,7 +727,7 @@ const CncLibraryModule = {
         a.remove();
     },
 
-    openPdfPreview: async (dataUrl) => {
+    openDrawingPreview: async (dataUrl) => {
         if (!dataUrl) return;
 
         const previewWin = window.open('about:blank', '_blank');

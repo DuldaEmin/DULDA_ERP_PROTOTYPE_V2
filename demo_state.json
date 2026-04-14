@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-13T14:59:21.372Z",
+    "updated_at": "2026-04-14T10:19:24.334Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 798
+    "revision": 800
   },
   "data": {
     "products": [
@@ -3407,6 +3407,433 @@
         "sourceItemQty": 5,
         "created_at": "2026-04-10T10:34:35.129Z",
         "updated_at": "2026-04-10T10:34:35.129Z"
+      },
+      {
+        "id": "20b6fb2b-54ac-41d3-b4d1-152b3d75cd96",
+        "workOrderCode": "WO-000008",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000007",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "lotQty": 22,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "68f61e3b-f785-4505-938a-d76fbc0e8a42",
+            "lineCode": "WO-000008-01",
+            "componentCode": "PRC-000007",
+            "componentName": "2008 bombeli 40 lık dikme pleksi",
+            "multiplier": 1,
+            "targetQty": 22,
+            "routes": [
+              {
+                "id": "6304b4f2-eae6-450c-aafe-7066200dc4ff",
+                "seq": 1,
+                "stationId": "u2",
+                "stationName": "EKSTRUDER ATOLYESI",
+                "processId": "EKS-000001"
+              },
+              {
+                "id": "b0a3c442-182d-4651-8426-2498212e1fed",
+                "seq": 2,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000001"
+              },
+              {
+                "id": "5d762fb1-fc75-449a-8bcd-3a29015a34d0",
+                "seq": 3,
+                "stationId": "u5",
+                "stationName": "PLEKSI POLISAJ ATOLYESI",
+                "processId": "PLSJ-000001"
+              },
+              {
+                "id": "96b3a9c4-d99a-4dd4-a57d-dffe1da1918c",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.333Z",
+        "updated_at": "2026-04-14T10:19:24.333Z"
+      },
+      {
+        "id": "d8935851-aa3c-44d5-b746-62f8938c307f",
+        "workOrderCode": "WO-000009",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000008",
+        "productName": "40 lık aluminyum dikme flanşı",
+        "lotQty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "3291f2fb-7337-4903-bbf9-8d79e950012a",
+            "lineCode": "WO-000009-01",
+            "componentCode": "PRC-000008",
+            "componentName": "40 lık aluminyum dikme flanşı",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "58953e0b-1350-4ff5-baf6-5b07ccd54de4",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "f5d6a76a-d1e1-410f-814a-8f3280041650",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "6233cbd9-89c1-4509-9374-76ddc8b92b54",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "ac39cea4-b3af-4dbf-8db5-87f442bfd4c4",
+                "seq": 4,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "3554a4bc-cafb-47b4-9a02-5a8962618beb",
+                "seq": 5,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.333Z",
+        "updated_at": "2026-04-14T10:19:24.333Z"
+      },
+      {
+        "id": "62150599-17be-4667-99db-303b34f6ae19",
+        "workOrderCode": "WO-000010",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000003",
+        "productName": "40 lık aluminyum dikme yarıklı tapa",
+        "lotQty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "8a3d30d5-6ac8-4243-91d5-d903b3ad412a",
+            "lineCode": "WO-000010-01",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "188506a6-b501-4c10-87e1-bd387684232f",
+                "seq": 1,
+                "stationId": "u1",
+                "stationName": "CNC ATOLYESI",
+                "processId": "CNC-000002"
+              },
+              {
+                "id": "cace8669-8f36-48fc-860a-53cf7d7abd9a",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "1b47382f-54a8-4b9a-afe8-9b12e6b469d3",
+                "seq": 3,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "b709adbe-14e2-4834-bb1a-143322408947",
+                "seq": 4,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000002"
+              },
+              {
+                "id": "b1af2c82-f535-4bf2-99a1-b5a11731bf03",
+                "seq": 5,
+                "stationId": "u11",
+                "stationName": "TEKIN ELOKSAL",
+                "processId": "ELX-000001"
+              },
+              {
+                "id": "a5b70198-2bb0-4428-9923-edcbef8b563d",
+                "seq": 6,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.334Z",
+        "updated_at": "2026-04-14T10:19:24.334Z"
+      },
+      {
+        "id": "32ba894f-895f-4007-b39b-dad6a0bbd1c1",
+        "workOrderCode": "WO-000011",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000009",
+        "productName": "aluminyum dikme alt borusu 200 mm sarı",
+        "lotQty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "bdf86292-d059-4159-a811-6888444e9690",
+            "lineCode": "WO-000011-01",
+            "componentCode": "PRC-000009",
+            "componentName": "aluminyum dikme alt borusu 200 mm sarı",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "23f00b75-8b57-43c0-8ee8-12bfa6ec772f",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000002"
+              },
+              {
+                "id": "33c34b30-bc60-4883-8281-817477f932f7",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.334Z",
+        "updated_at": "2026-04-14T10:19:24.334Z"
+      },
+      {
+        "id": "3364fd1f-0cd2-45fa-9108-8a22c50779d9",
+        "workOrderCode": "WO-000012",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000005",
+        "productName": "aluminyum dikme ay bağlantısı",
+        "lotQty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "72eaaad5-38ad-4576-a5e5-91cea2be0e62",
+            "lineCode": "WO-000012-01",
+            "componentCode": "PRC-000005",
+            "componentName": "aluminyum dikme ay bağlantısı",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "532cde36-a2ad-42b1-9244-40dd702ceff0",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "4973f8bc-a2d0-41e0-a588-504a11fe1d2a",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "55227be7-d544-4cf9-9b7b-3fd5987a74ae",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.334Z",
+        "updated_at": "2026-04-14T10:19:24.334Z"
+      },
+      {
+        "id": "c71ba21e-ad5e-4adf-80a9-eb7948c0d5c7",
+        "workOrderCode": "WO-000013",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000001",
+        "productName": "aluminyum dikme üst boru 70 mm",
+        "lotQty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "cc40b2db-99c6-43fc-a5b3-c95010f913ca",
+            "lineCode": "WO-000013-01",
+            "componentCode": "PRC-000001",
+            "componentName": "aluminyum dikme üst boru 70 mm",
+            "multiplier": 1,
+            "targetQty": 20,
+            "routes": [
+              {
+                "id": "5d99abed-506d-4ac2-8112-5ac5ea4826f7",
+                "seq": 1,
+                "stationId": "u7",
+                "stationName": "TESTERE ATOLYESI",
+                "processId": "TST-000001"
+              },
+              {
+                "id": "44fa7f96-b4de-46d5-a8bb-e6d1692eea03",
+                "seq": 2,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.334Z",
+        "updated_at": "2026-04-14T10:19:24.334Z"
+      },
+      {
+        "id": "6bc70f2d-9309-482d-8779-816bdaf2f1bd",
+        "workOrderCode": "WO-000014",
+        "montageCardId": "",
+        "montageCardCode": "",
+        "productCode": "PRC-000006",
+        "productName": "aluminyum dikme yüzüğü",
+        "lotQty": 40,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "OPEN",
+        "lines": [
+          {
+            "id": "0fa453cd-ed71-4117-b21c-e330287ef208",
+            "lineCode": "WO-000014-01",
+            "componentCode": "PRC-000006",
+            "componentName": "aluminyum dikme yüzüğü",
+            "multiplier": 1,
+            "targetQty": 40,
+            "routes": [
+              {
+                "id": "2c3b8303-9381-47f2-809b-a710fd021287",
+                "seq": 1,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000001"
+              },
+              {
+                "id": "35323808-a84d-41c0-b2d4-4c011a33f18a",
+                "seq": 2,
+                "stationId": "u10",
+                "stationName": "IBRAHIM POLISAJ",
+                "processId": "IPS-000001"
+              },
+              {
+                "id": "53ff3824-8ada-4044-a790-fc03dca82636",
+                "seq": 3,
+                "stationId": "u_dtm",
+                "stationName": "DEPO TRANSFER",
+                "processId": "DTR-000004"
+              }
+            ],
+            "plans": {}
+          }
+        ],
+        "createdByUnitId": "",
+        "sourceType": "PLAN_POOL_COMPONENT",
+        "sourceId": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "sourceCode": "PLN-000002",
+        "sourceItemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+        "sourceItemName": "Dekorlu 2015",
+        "sourceItemCode": "2015-002",
+        "sourceItemQty": 20,
+        "created_at": "2026-04-14T10:19:24.334Z",
+        "updated_at": "2026-04-14T10:19:24.334Z"
       }
     ],
     "workOrderTransactions": [],
@@ -4947,6 +5374,190 @@
           "converted_at": "2026-04-10T10:34:35.129Z"
         },
         "released_at": "2026-04-10T10:34:35.129Z"
+      },
+      {
+        "id": "6f08ee25-5ecf-4285-a56c-ce5565d2195c",
+        "demandCode": "PLN-000002",
+        "sourceType": "STOCK",
+        "sourceLabel": "Stok Uretimi",
+        "created_at": "2026-04-14T10:18:33.979Z",
+        "items": [
+          {
+            "id": "761dd455-1015-4d18-a21a-cb52185b0b11",
+            "itemType": "MODEL",
+            "qty": 20,
+            "variantId": "salesvar_073e8728-99c9-482b-8748-0e927119c0a0",
+            "componentId": "",
+            "semiFinishedId": "",
+            "familyId": "SCP-FCA68185",
+            "variantCode": "2015-002",
+            "componentCode": "",
+            "semiFinishedCode": "",
+            "productGroup": "Korkuluk / Aluminyum korkuluk / Aluminyum korkuluk dikmeleri",
+            "productName": "Dekorlu 2015",
+            "productCode": "DIKMELER",
+            "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+            "montageCardCode": "MON-000001"
+          }
+        ],
+        "itemType": "MODEL",
+        "variantId": "salesvar_073e8728-99c9-482b-8748-0e927119c0a0",
+        "componentId": "",
+        "semiFinishedId": "",
+        "familyId": "SCP-FCA68185",
+        "variantCode": "2015-002",
+        "componentCode": "",
+        "semiFinishedCode": "",
+        "productGroup": "Korkuluk / Aluminyum korkuluk / Aluminyum korkuluk dikmeleri",
+        "productName": "Dekorlu 2015",
+        "productCode": "DIKMELER",
+        "montageCardId": "cbb716fc-1a83-479b-8dd1-da68383d22fd",
+        "montageCardCode": "MON-000001",
+        "qty": 20,
+        "dueDate": "2026-04-17",
+        "priority": "NORMAL",
+        "note": "",
+        "status": "RELEASED",
+        "workOrderId": "20b6fb2b-54ac-41d3-b4d1-152b3d75cd96",
+        "workOrderCode": "WO-000008 +6",
+        "workOrderIds": [
+          "20b6fb2b-54ac-41d3-b4d1-152b3d75cd96",
+          "d8935851-aa3c-44d5-b746-62f8938c307f",
+          "62150599-17be-4667-99db-303b34f6ae19",
+          "32ba894f-895f-4007-b39b-dad6a0bbd1c1",
+          "3364fd1f-0cd2-45fa-9108-8a22c50779d9",
+          "c71ba21e-ad5e-4adf-80a9-eb7948c0d5c7",
+          "6bc70f2d-9309-482d-8779-816bdaf2f1bd"
+        ],
+        "workOrderCodes": [
+          "WO-000008",
+          "WO-000009",
+          "WO-000010",
+          "WO-000011",
+          "WO-000012",
+          "WO-000013",
+          "WO-000014"
+        ],
+        "updated_at": "2026-04-14T10:19:24.334Z",
+        "releasedQty": 20,
+        "poolAnalysis": {
+          "rows": [
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000007",
+              "name": "2008 bombeli 40 lık dikme pleksi",
+              "componentLibrary": "PART",
+              "componentId": "45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 22
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000008",
+              "name": "40 lık aluminyum dikme flanşı",
+              "componentLibrary": "PART",
+              "componentId": "b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000003",
+              "name": "40 lık aluminyum dikme yarıklı tapa",
+              "componentLibrary": "PART",
+              "componentId": "2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000009",
+              "name": "aluminyum dikme alt borusu 200 mm sarı",
+              "componentLibrary": "PART",
+              "componentId": "3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000005",
+              "name": "aluminyum dikme ay bağlantısı",
+              "componentLibrary": "PART",
+              "componentId": "d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000001",
+              "name": "aluminyum dikme üst boru 70 mm",
+              "componentLibrary": "PART",
+              "componentId": "0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "requiredQty": 20,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 20
+            },
+            {
+              "key": "761dd455-1015-4d18-a21a-cb52185b0b11::PART:3f3c7192-6721-4c58-af07-785b8edf3013",
+              "itemKey": "761dd455-1015-4d18-a21a-cb52185b0b11",
+              "itemName": "Dekorlu 2015",
+              "itemCode": "2015-002",
+              "itemQty": 20,
+              "code": "PRC-000006",
+              "name": "aluminyum dikme yüzüğü",
+              "componentLibrary": "PART",
+              "componentId": "3f3c7192-6721-4c58-af07-785b8edf3013",
+              "requiredQty": 40,
+              "useEnabled": false,
+              "useStockQty": 0,
+              "useSemiQty": 0,
+              "netQty": 40
+            }
+          ],
+          "converted_at": "2026-04-14T10:19:24.334Z"
+        },
+        "released_at": "2026-04-14T10:19:24.334Z"
       }
     ],
     "semiFinishedCards": [

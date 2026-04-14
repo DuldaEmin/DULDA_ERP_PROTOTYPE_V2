@@ -5819,7 +5819,7 @@ const SalesModule = {
                                 <div style="font-size:0.76rem; color:#15803d; font-weight:700;">Tamamlanan</div>
                                 <div style="font-size:1.5rem; font-weight:900; color:#166534;">${completedCount}</div>
                             </div>
-                            <div style="width:34px; height:34px; border-radius:999px; background:#f0fdf4; color:#15803d; display:flex; align-items:center; justify-content:center; font-weight:900;">✓</div>
+                            <div style="width:34px; height:34px; border-radius:999px; background:#f0fdf4; color:#15803d; display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:900;">OK</div>
                         </div>
                         <div style="background:#fff; border:1px solid #fecdd3; border-radius:0.95rem; padding:0.8rem 0.9rem; display:flex; justify-content:space-between; align-items:center;">
                             <div>
@@ -5858,10 +5858,8 @@ const SalesModule = {
                                     </select>
                                 </div>
                             </div>
-                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                            <div style="display:grid; grid-template-columns:1fr; gap:0.55rem;">
                                 <input id="sales_customer_filter_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.city || ''))}" oninput="SalesModule.setCustomerFilter('city', this.value)" placeholder="sehre gore ara (opsiyonel)">
-                                <input id="sales_customer_excel_import_input" type="file" accept=".xls,.xlsx" style="display:none;" onchange="SalesModule.handleCustomerExcelImportInput(this)">
-                                <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.editor || 'ALL'))}" readonly style="opacity:0; pointer-events:none;">
                             </div>
                         </div>
                         <div style="overflow:auto;">

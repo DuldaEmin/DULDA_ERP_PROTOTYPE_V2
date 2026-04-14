@@ -3,7 +3,9 @@ const SalesModule = {
         workspaceView: 'menu',
         customerFilters: {
             name: '',
-            city: ''
+            city: '',
+            status: 'ALL',
+            editor: 'ALL'
         },
         customerContactRowsDraft: [],
         customerContactModal: null,
@@ -1755,6 +1757,53 @@ const SalesModule = {
         return warnings;
     },
 
+    getCurrentEditorName: () => {
+        const meta = DB.data?.meta || {};
+        const candidates = [
+            meta.activeUserName,
+            meta.activeUsername,
+            meta.currentUserName,
+            meta.currentUser,
+            meta.loggedUserName,
+            meta.loggedUser,
+            meta.operatorName
+        ];
+        const found = candidates.find((item) => String(item || '').trim());
+        return String(found || 'Yerel Kullanici').trim();
+    },
+
+    getCustomerMissingFields: (row = {}) => {
+        const contacts = Array.isArray(row?.customerContacts) ? row.customerContacts : [];
+        const selectedTypes = SalesModule.normalizeCustomerTypeList(row?.customerTypes || []);
+        const fields = [
+            { key: 'name', label: 'Musteri Unvani', ok: !!String(row?.name || '').trim() },
+            { key: 'contacts', label: 'Yetkili', ok: contacts.length > 0 },
+            { key: 'customerTypes', label: 'Tip', ok: selectedTypes.length > 0 },
+            { key: 'country', label: 'Ulke', ok: !!String(row?.country || '').trim() },
+            { key: 'city', label: 'Sehir', ok: !!String(row?.city || '').trim() },
+            { key: 'customerCode', label: 'Cari Kod', ok: !!String(row?.externalCode || '').trim() },
+            { key: 'address', label: 'Adres', ok: !!String(row?.address || '').trim() }
+        ];
+        return fields.filter((item) => !item.ok);
+    },
+
+    getCustomerCompletionStatus: (row = {}) => (
+        SalesModule.getCustomerMissingFields(row).length === 0 ? 'COMPLETED' : 'INCOMPLETE'
+    ),
+
+    getCustomerEditorStats: (rows = []) => {
+        const list = Array.isArray(rows) ? rows : [];
+        const bag = new Map();
+        list.forEach((row) => {
+            const key = String(row?.lastEditor || '').trim();
+            if (!key) return;
+            bag.set(key, (bag.get(key) || 0) + 1);
+        });
+        return Array.from(bag.entries())
+            .map(([lastEditor, count]) => ({ lastEditor, count }))
+            .sort((a, b) => String(a.lastEditor || '').localeCompare(String(b.lastEditor || ''), 'tr'));
+    },
+
     getSalesPersonnelRows: () => {
         if (typeof PersonnelModule !== 'undefined' && PersonnelModule && typeof PersonnelModule.ensureData === 'function') {
             PersonnelModule.ensureData();
@@ -1802,13 +1851,22 @@ const SalesModule = {
                         Array.isArray(row?.customerTypes) ? row.customerTypes : (Array.isArray(row?.tags) ? row.tags : [])
                     ),
                     customerContacts,
+                    contacts: customerContacts,
                     tags: Array.isArray(row?.tags) ? row.tags.map((item) => String(item || '').trim()).filter(Boolean) : [],
                     note: String(row?.note || '').trim(),
                     isActive: row?.isActive !== false,
+                    lastEditor: String(row?.lastEditor || row?.updatedBy || '').trim(),
+                    status: 'INCOMPLETE',
                     created_at: String(row?.created_at || ''),
-                    updated_at: String(row?.updated_at || '')
+                    updated_at: String(row?.updated_at || ''),
+                    updatedAt: String(row?.updated_at || row?.updatedAt || row?.created_at || '')
                 };
             })
+            .map((row) => ({
+                ...row,
+                status: SalesModule.getCustomerCompletionStatus(row),
+                missingFields: SalesModule.getCustomerMissingFields(row)
+            }))
             .filter((row) => row.id && row.name)
             .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
     },
@@ -1820,12 +1878,16 @@ const SalesModule = {
     },
 
     getFilteredCustomers: () => {
-        const filters = SalesModule.state.customerFilters || { name: '', city: '' };
+        const filters = SalesModule.state.customerFilters || { name: '', city: '', status: 'ALL', editor: 'ALL' };
         const qName = SalesModule.normalize(filters.name || '');
         const qCity = SalesModule.normalize(filters.city || '');
+        const qStatus = String(filters.status || 'ALL').trim().toUpperCase();
+        const qEditor = String(filters.editor || 'ALL').trim();
         return SalesModule.getCustomers().filter((row) => {
-            if (qName && !SalesModule.normalize(`${row.name} ${row.customerCode}`).includes(qName)) return false;
+            if (qName && !SalesModule.normalize(`${row.name} ${row.customerCode} ${row.externalCode} ${row.taxNo}`).includes(qName)) return false;
             if (qCity && !SalesModule.normalize(`${row.city} ${row.district}`).includes(qCity)) return false;
+            if (qStatus !== 'ALL' && String(row?.status || '').toUpperCase() !== qStatus) return false;
+            if (qEditor !== 'ALL' && String(row?.lastEditor || '').trim() !== qEditor) return false;
             return true;
         });
     },
@@ -1841,7 +1903,7 @@ const SalesModule = {
 
         const current = (SalesModule.state.customerFilters && typeof SalesModule.state.customerFilters === 'object')
             ? SalesModule.state.customerFilters
-            : { name: '', city: '' };
+            : { name: '', city: '', status: 'ALL', editor: 'ALL' };
         current[key] = String(value || '');
         SalesModule.state.customerFilters = current;
         UI.renderCurrentPage();
@@ -2469,6 +2531,7 @@ const SalesModule = {
         const draft = SalesModule.readCustomerDraftFromDom();
         const validation = SalesModule.validateCustomerDraft(draft);
         if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const editorName = SalesModule.getCurrentEditorName();
         const customerContacts = SalesModule.normalizeCustomerContactList(draft.customerContacts || [], {
             allowEmptyRow: false,
             keepEmptyPhoneSlot: false
@@ -2503,6 +2566,7 @@ const SalesModule = {
             tags: [],
             note: draft.note,
             isActive: true,
+            lastEditor: editorName,
             created_at: now,
             updated_at: now
         };
@@ -2523,6 +2587,7 @@ const SalesModule = {
         const draft = SalesModule.readCustomerDraftFromDom();
         const validation = SalesModule.validateCustomerDraft(draft);
         if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const editorName = SalesModule.getCurrentEditorName();
         const customerContacts = SalesModule.normalizeCustomerContactList(draft.customerContacts || [], {
             allowEmptyRow: false,
             keepEmptyPhoneSlot: false
@@ -2558,6 +2623,7 @@ const SalesModule = {
             customerContacts,
             tags: Array.isArray(prev?.tags) ? prev.tags : [],
             note: String(draft.note || '').trim(),
+            lastEditor: editorName,
             updated_at: new Date().toISOString()
         };
         await DB.save();
@@ -2646,6 +2712,7 @@ const SalesModule = {
         const draft = SalesModule.state.customerEditDraft || {};
         const validation = SalesModule.validateCustomerDraft(draft);
         if (!validation.ok) return alert(validation.message || 'Kayit yapilamadi.');
+        const editorName = SalesModule.getCurrentEditorName();
         const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
         const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
         if (idx === -1) return alert('Musteri kaydi bulunamadi.');
@@ -2674,6 +2741,7 @@ const SalesModule = {
             customerTypes: SalesModule.normalizeCustomerTypeList(draft.customerTypes || []),
             tags: Array.isArray(prev?.tags) ? prev.tags : [],
             note: String(draft.note || '').trim(),
+            lastEditor: editorName,
             updated_at: new Date().toISOString()
         };
         await DB.save();
@@ -5714,8 +5782,13 @@ const SalesModule = {
     },
 
     renderCustomersLayout: () => {
+        const allRows = SalesModule.getCustomers();
         const rows = SalesModule.getFilteredCustomers();
-        const filters = SalesModule.state.customerFilters || { name: '', city: '' };
+        const filters = SalesModule.state.customerFilters || { name: '', city: '', status: 'ALL', editor: 'ALL' };
+        const editorStats = SalesModule.getCustomerEditorStats(allRows);
+        const completedCount = rows.filter((row) => String(row?.status || '') === 'COMPLETED').length;
+        const incompleteCount = rows.filter((row) => String(row?.status || '') === 'INCOMPLETE').length;
+        const activeStatus = String(filters.status || 'ALL').trim().toUpperCase();
         const detailId = String(SalesModule.state.customerDetailId || '').trim();
         if (detailId) {
             const row = SalesModule.getCustomerById(detailId);
@@ -5733,54 +5806,124 @@ const SalesModule = {
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                     </div>
 
+                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem; margin-bottom:0.85rem;">
+                        <div style="background:#fff; border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.8rem 0.9rem; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-size:0.76rem; color:#64748b; font-weight:700;">Toplam Liste</div>
+                                <div style="font-size:1.5rem; font-weight:900; color:#0f172a;">${rows.length}</div>
+                            </div>
+                            <div style="width:34px; height:34px; border-radius:999px; background:#eff6ff; color:#1d4ed8; display:flex; align-items:center; justify-content:center; font-weight:900;">#</div>
+                        </div>
+                        <div style="background:#fff; border:1px solid #bbf7d0; border-radius:0.95rem; padding:0.8rem 0.9rem; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-size:0.76rem; color:#15803d; font-weight:700;">Tamamlanan</div>
+                                <div style="font-size:1.5rem; font-weight:900; color:#166534;">${completedCount}</div>
+                            </div>
+                            <div style="width:34px; height:34px; border-radius:999px; background:#f0fdf4; color:#15803d; display:flex; align-items:center; justify-content:center; font-weight:900;">✓</div>
+                        </div>
+                        <div style="background:#fff; border:1px solid #fecdd3; border-radius:0.95rem; padding:0.8rem 0.9rem; display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <div style="font-size:0.76rem; color:#be123c; font-weight:700;">Eksik (Tamamlanacak)</div>
+                                <div style="font-size:1.5rem; font-weight:900; color:#be123c;">${incompleteCount}</div>
+                            </div>
+                            <div style="width:34px; height:34px; border-radius:999px; background:#fff1f2; color:#be123c; display:flex; align-items:center; justify-content:center; font-weight:900;">!</div>
+                        </div>
+                    </div>
+
                     <div class="card-table" style="padding:1rem 1.1rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap; margin-bottom:0.7rem;">
-                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli musteriler</div>
-                            <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap;">
+                        <div style="display:flex; flex-direction:column; gap:0.7rem; margin-bottom:0.7rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
+                                <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Kayitli musteriler</div>
+                                <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap;">
+                                    <input id="sales_customer_excel_import_input" type="file" accept=".xls,.xlsx" style="display:none;" onchange="SalesModule.handleCustomerExcelImportInput(this)">
+                                    <button class="btn-sm" onclick="SalesModule.openCustomerExcelImportPicker()">excelden ice aktar</button>
+                                    <button class="btn-primary" onclick="SalesModule.openCreateCustomerModal()">yeni musteri ekle +</button>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap;">
+                                <div style="position:relative; flex:1; min-width:280px;">
+                                    <input id="sales_customer_filter_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.name || ''))}" oninput="SalesModule.setCustomerFilter('name', this.value)" placeholder="Musteri unvani, cari kod veya vergi no ile ara..." style="padding-right:84px;">
+                                    <button class="btn-sm" type="button" onclick="UI.renderCurrentPage()" style="position:absolute; right:6px; top:6px; height:30px;">ara</button>
+                                </div>
+                                <div style="display:flex; gap:0.35rem; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.2rem;">
+                                    <button class="btn-sm" type="button" onclick="SalesModule.setCustomerFilter('status','ALL')" style="${activeStatus === 'ALL' ? 'background:#fff; border-color:#cbd5e1; font-weight:800;' : 'background:transparent; border-color:transparent;'}">Hepsi</button>
+                                    <button class="btn-sm" type="button" onclick="SalesModule.setCustomerFilter('status','COMPLETED')" style="${activeStatus === 'COMPLETED' ? 'background:#fff; border-color:#86efac; color:#166534; font-weight:800;' : 'background:transparent; border-color:transparent;'}">Tamamlananlar</button>
+                                    <button class="btn-sm" type="button" onclick="SalesModule.setCustomerFilter('status','INCOMPLETE')" style="${activeStatus === 'INCOMPLETE' ? 'background:#fff; border-color:#fda4af; color:#be123c; font-weight:800;' : 'background:transparent; border-color:transparent;'}">Eksikler</button>
+                                </div>
+                                <div style="display:flex; align-items:center; gap:0.35rem; padding:0.2rem 0.45rem; border:1px solid #e2e8f0; border-radius:0.65rem; background:#f8fafc;">
+                                    <span style="font-size:0.65rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">Duzenleyen</span>
+                                    <select class="stock-input stock-input-tall" style="min-width:180px; height:30px; padding:0 0.45rem; font-size:0.8rem;" onchange="SalesModule.setCustomerFilter('editor', this.value)">
+                                        <option value="ALL" ${String(filters.editor || 'ALL') === 'ALL' ? 'selected' : ''}>Hepsi (${allRows.length})</option>
+                                        ${editorStats.map((stat) => `<option value="${SalesModule.escapeHtml(String(stat.lastEditor || ''))}" ${String(filters.editor || '') === String(stat.lastEditor || '') ? 'selected' : ''}>${SalesModule.escapeHtml(String(stat.lastEditor || ''))} (${SalesModule.escapeHtml(String(stat.count || 0))})</option>`).join('')}
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.55rem;">
+                                <input id="sales_customer_filter_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.city || ''))}" oninput="SalesModule.setCustomerFilter('city', this.value)" placeholder="sehre gore ara (opsiyonel)">
                                 <input id="sales_customer_excel_import_input" type="file" accept=".xls,.xlsx" style="display:none;" onchange="SalesModule.handleCustomerExcelImportInput(this)">
-                                <button class="btn-sm" onclick="SalesModule.openCustomerExcelImportPicker()">excelden ice aktar</button>
-                                <button class="btn-primary" onclick="SalesModule.openCreateCustomerModal()">yeni musteri ekle +</button>
+                                <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.editor || 'ALL'))}" readonly style="opacity:0; pointer-events:none;">
                             </div>
                         </div>
-                        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:0.55rem; margin-bottom:0.75rem;">
-                            <input id="sales_customer_filter_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.name || ''))}" oninput="SalesModule.setCustomerFilter('name', this.value)" placeholder="isme gore ara (ad veya kod)">
-                            <input id="sales_customer_filter_city" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.city || ''))}" oninput="SalesModule.setCustomerFilter('city', this.value)" placeholder="sehre gore ara">
-                        </div>
                         <div style="overflow:auto;">
-                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                            <table style="width:100%; min-width:1180px; border-collapse:collapse;">
                                 <thead>
                                     <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
-                                        <th style="padding:0.55rem; text-align:left;">Kod</th>
-                                        <th style="padding:0.55rem; text-align:left;">Cari kodu</th>
-                                        <th style="padding:0.55rem; text-align:left;">Musteri</th>
+                                        <th style="padding:0.55rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.55rem; text-align:left;">Musteri unvani</th>
+                                        <th style="padding:0.55rem; text-align:left;">Yetkili kisi</th>
+                                        <th style="padding:0.55rem; text-align:left;">GSM</th>
                                         <th style="padding:0.55rem; text-align:left;">Sehir</th>
-                                        <th style="padding:0.55rem; text-align:left;">Telefon</th>
-                                        <th style="padding:0.55rem; text-align:left;">Bilgi durumu</th>
-                                        <th style="padding:0.55rem; text-align:center;">Islem</th>
+                                        <th style="padding:0.55rem; text-align:left;">Cari kodu</th>
+                                        <th style="padding:0.55rem; text-align:left;">Vergi no</th>
+                                        <th style="padding:0.55rem; text-align:left;">Duzenleyen</th>
+                                        <th style="padding:0.55rem; text-align:right;">Islem</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${rows.length === 0
-                ? '<tr><td colspan="7" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>'
+                ? '<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>'
                 : rows.map((row) => {
-                    const warnings = SalesModule.getCustomerMissingInfoWarnings(row);
-                    const warningText = warnings.length ? warnings.join(', ') : 'Tam';
-                    const warningStyle = warnings.length
-                        ? 'display:inline-flex; align-items:center; padding:0.22rem 0.62rem; border:1px solid #fcd34d; border-radius:999px; font-size:0.74rem; font-weight:700; background:#fffbeb; color:#92400e;'
-                        : 'display:inline-flex; align-items:center; padding:0.22rem 0.62rem; border:1px solid #86efac; border-radius:999px; font-size:0.74rem; font-weight:700; background:#f0fdf4; color:#166534;';
+                    const isCompleted = String(row?.status || '') === 'COMPLETED';
+                    const missing = Array.isArray(row?.missingFields) ? row.missingFields : [];
+                    const firstContact = Array.isArray(row?.customerContacts) && row.customerContacts.length ? row.customerContacts[0] : null;
+                    const primaryName = String(firstContact?.name || row?.authorizedPerson || '').trim();
+                    const primaryPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
+                        ? String(firstContact.phones[0] || '').trim()
+                        : String(row?.phoneAlt || '').trim();
+                    const editorName = String(row?.lastEditor || '-').trim() || '-';
+                    const updatedAtText = row?.updatedAt
+                        ? new Date(row.updatedAt).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '-';
                     const rowId = SalesModule.escapeHtml(String(row?.id || ''));
                     return `
-                                                <tr style="border-bottom:1px solid #f1f5f9;">
-                                                    <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.customerCode || '-'))}</td>
-                                                    <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:700;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</td>
-                                                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.name || '-'))}</td>
-                                                    <td style="padding:0.55rem;">${SalesModule.escapeHtml([row?.city, row?.district].filter(Boolean).join(' / ') || '-')}</td>
-                                                    <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(row?.phone || '-'))}</td>
+                                                <tr style="border-bottom:1px solid #f1f5f9; background:${isCompleted ? '#ffffff' : '#fff7f8'};">
                                                     <td style="padding:0.55rem;">
-                                                        <span style="${warningStyle}">${SalesModule.escapeHtml(warningText)}</span>
+                                                        <span style="display:inline-flex; align-items:center; padding:0.2rem 0.58rem; border:1px solid ${isCompleted ? '#86efac' : '#fecdd3'}; border-radius:999px; font-size:0.72rem; font-weight:800; background:${isCompleted ? '#f0fdf4' : '#fff1f2'}; color:${isCompleted ? '#166534' : '#be123c'};">
+                                                            ${isCompleted ? 'Tamamlandi' : 'Eksik'}
+                                                        </span>
                                                     </td>
-                                                    <td style="padding:0.55rem; text-align:center;">
-                                                        <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:center;">
+                                                    <td style="padding:0.55rem;">
+                                                        <div style="font-weight:800; color:#334155;">${SalesModule.escapeHtml(String(row?.name || '-'))}</div>
+                                                        ${!isCompleted && missing.length > 0
+                        ? `<div style="display:flex; flex-wrap:wrap; gap:0.22rem; margin-top:0.28rem;">
+                                                                ${missing.slice(0, 3).map((item) => `<span style="font-size:0.62rem; border:1px solid #fecdd3; background:#fff1f2; color:#be123c; border-radius:999px; padding:0.08rem 0.32rem;">${SalesModule.escapeHtml(String(item?.label || 'Eksik'))} eksik</span>`).join('')}
+                                                                ${missing.length > 3 ? `<span style="font-size:0.62rem; border:1px solid #fecdd3; background:#fff1f2; color:#be123c; border-radius:999px; padding:0.08rem 0.32rem;">+${SalesModule.escapeHtml(String(missing.length - 3))} daha</span>` : ''}
+                                                           </div>`
+                        : ''}
+                                                    </td>
+                                                    <td style="padding:0.55rem; color:#334155; font-weight:700;">${SalesModule.escapeHtml(primaryName || '-')}</td>
+                                                    <td style="padding:0.55rem; color:#334155;">${SalesModule.escapeHtml(primaryPhone || '-')}</td>
+                                                    <td style="padding:0.55rem;">${SalesModule.escapeHtml([row?.city, row?.district].filter(Boolean).join(' / ') || '-')}</td>
+                                                    <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</td>
+                                                    <td style="padding:0.55rem;">${SalesModule.escapeHtml(String(row?.taxNo || '-'))}</td>
+                                                    <td style="padding:0.55rem;">
+                                                        <div style="display:flex; flex-direction:column; gap:0.15rem;">
+                                                            <span style="display:inline-flex; align-items:center; width:max-content; padding:0.1rem 0.45rem; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:0.7rem; font-weight:800;">${SalesModule.escapeHtml(editorName)}</span>
+                                                            <span style="font-size:0.66rem; color:#94a3b8;">${SalesModule.escapeHtml(updatedAtText)}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td style="padding:0.55rem; text-align:right;">
+                                                        <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                             <button class="btn-sm" onclick="SalesModule.openCustomerDetail('${rowId}','view')">goruntule</button>
                                                             <button class="btn-sm" onclick="SalesModule.openCustomerDetail('${rowId}','edit')">duzenle</button>
                                                             <button class="btn-sm" data-skip-delete-confirm="true" onclick="SalesModule.deleteCustomer('${rowId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>

@@ -1,0 +1,31 @@
+﻿CNC DONUS NOTU - 2026-04-14
+
+KONU
+- CNC modul iki ayri klasor olarak kullaniciya verildi.
+- Yarinda kullanici geri getirince bu dosyalardan kartlar ana programa alinacak.
+
+KAYNAK KLASORLER
+- C:\Users\Ar-ge\Desktop\duldaErp\MODULLER\CNCİSLEM_ONUR
+- C:\Users\Ar-ge\Desktop\duldaErp\MODULLER\CNCİSLEM_ALIRIZA
+
+CALISTIRMA
+- Her klasorde RUN_DEMO.bat ile acilir.
+- Acilista direkt CNC Islem Kutuphanesi gelir.
+
+VERI DOSYASI
+- Her klasorde ana veri dosyasi: demo_state.json
+- CNC kayitlari burada: data.cncCards
+- Kategori kayitlari burada: data.cncCategories
+
+YARIN YAPILACAK
+1) ONUR ve ALIRIZA klasorlerinden demo_state.json oku.
+2) cncCards ve cncCategories alanlarini ana proje verisine birlestir.
+3) Ana proje: C:\Users\Ar-ge\Desktop\duldaErp\DULDA_ERP_PROTOTYPE_V2\demo_state.json
+4) Mukerrer ve cakisma kontrolu yap:
+   - id (UUID) cakismasi
+   - cncId cakismasi (CNC-xxxxxx)
+5) Gerekirse cakisan cncId degerlerini yeni kodla degistir ve esleme notu tut.
+
+NOT
+- Kullaniciya giden iki klasor birbirinden bagimsizdir.
+- Bu not, yarin "bu nedir" karisikligini onlemek icin birakildi.

@@ -704,7 +704,7 @@ const CncLibraryModule = {
         if (!CncLibraryModule.state.draftDrawing?.dataUrl) return;
         const a = document.createElement('a');
         a.href = CncLibraryModule.state.draftDrawing.dataUrl;
-        a.download = CncLibraryModule.state.draftDrawing.name || 'teknik-resim.pdf';
+        a.download = CncLibraryModule.state.draftDrawing.name || 'teknik-resim';
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -721,7 +721,7 @@ const CncLibraryModule = {
         if (!card?.technicalDrawing?.dataUrl) return;
         const a = document.createElement('a');
         a.href = card.technicalDrawing.dataUrl;
-        a.download = card.technicalDrawing.name || 'teknik-resim.pdf';
+        a.download = card.technicalDrawing.name || 'teknik-resim';
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -862,6 +862,39 @@ const CncLibraryModule = {
     renumber: (ops) => [...(ops || [])]
         .sort((a, b) => Number(a.order || 0) - Number(b.order || 0))
         .map((op, i) => ({ ...op, order: i + 1 })),
+
+    getFileExtension: (fileName) => {
+        const name = String(fileName || '').trim().toLowerCase();
+        const dot = name.lastIndexOf('.');
+        if (dot < 0 || dot === name.length - 1) return '';
+        return name.slice(dot + 1);
+    },
+
+    getDrawingKind: (drawing) => {
+        const name = String(drawing?.name || '').trim().toLowerCase();
+        const mime = String(drawing?.mime || '').trim().toLowerCase();
+        const ext = CncLibraryModule.getFileExtension(name);
+        if (ext === 'pdf' || mime.includes('pdf')) return 'pdf';
+        if (ext === 'jpg' || ext === 'jpeg' || ext === 'png') return 'image';
+        if (mime.includes('image/')) return 'image';
+        return '';
+    },
+
+    isAllowedDrawingFile: (file) => {
+        const ext = CncLibraryModule.getFileExtension(file?.name || '');
+        if (['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) return true;
+        const mime = String(file?.type || '').toLowerCase();
+        if (!ext && (mime.includes('pdf') || mime.includes('image/jpeg') || mime.includes('image/png'))) return true;
+        return false;
+    },
+
+    isAllowedGCodeFile: (file) => {
+        const ext = CncLibraryModule.getFileExtension(file?.name || '');
+        if (['txt', 'tab', 'tap'].includes(ext)) return true;
+        const mime = String(file?.type || '').toLowerCase();
+        if (!ext && (mime.includes('text/plain') || mime === 'text/x-gcode')) return true;
+        return false;
+    },
 
     readAsDataUrl: (file) => new Promise((resolve, reject) => {
         const r = new FileReader();

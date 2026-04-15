@@ -24,6 +24,11 @@ const SalesModule = {
         catalogEditingProductId: '',
         catalogDraft: null,
         salesOrderDraft: null,
+        salesOrderHistoryFilters: {
+            query: '',
+            status: 'ALL',
+            period: 'ALL'
+        },
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -491,6 +496,115 @@ const SalesModule = {
         };
     },
 
+    buildSalesOrderHistoryFilters: (seed = {}) => ({
+        query: String(seed?.query || '').trim(),
+        status: ['ALL', 'DRAFT', 'APPROVED', 'COMPLETED', 'CANCELLED'].includes(String(seed?.status || '').trim().toUpperCase())
+            ? String(seed?.status || '').trim().toUpperCase()
+            : 'ALL',
+        period: ['ALL', 'TODAY', 'THIS_WEEK', 'THIS_MONTH'].includes(String(seed?.period || '').trim().toUpperCase())
+            ? String(seed?.period || '').trim().toUpperCase()
+            : 'ALL'
+    }),
+
+    ensureSalesOrderHistoryFilters: () => {
+        const current = SalesModule.state.salesOrderHistoryFilters;
+        SalesModule.state.salesOrderHistoryFilters = SalesModule.buildSalesOrderHistoryFilters(current || {});
+    },
+
+    normalizeSalesOrderStatusGroup: (status) => {
+        const text = SalesModule.normalize(String(status || ''));
+        if (!text) return 'DRAFT';
+        if (text.includes('iptal') || text.includes('cancel')) return 'CANCELLED';
+        if (text.includes('tamam') || text.includes('teslim') || text.includes('sevk')) return 'COMPLETED';
+        if (text.includes('onay')) return 'APPROVED';
+        return 'DRAFT';
+    },
+
+    getSalesOrderStatusMeta: (status) => {
+        const group = SalesModule.normalizeSalesOrderStatusGroup(status);
+        const rawLabel = String(status || '').trim();
+        if (group === 'COMPLETED') {
+            return { group, text: rawLabel || 'Tamamlandi', border: '#86efac', bg: '#f0fdf4', color: '#166534' };
+        }
+        if (group === 'APPROVED') {
+            return { group, text: rawLabel || 'Onaylandi', border: '#bfdbfe', bg: '#eff6ff', color: '#1d4ed8' };
+        }
+        if (group === 'CANCELLED') {
+            return { group, text: rawLabel || 'Iptal', border: '#fecaca', bg: '#fff1f2', color: '#be123c' };
+        }
+        return { group, text: rawLabel || 'Taslak', border: '#e2e8f0', bg: '#f8fafc', color: '#475569' };
+    },
+
+    getSalesOrderHistoryRows: () => {
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        return rows
+            .map((row) => {
+                const dateRaw = String(row?.orderDate || row?.created_at || '').trim();
+                const dateMs = Date.parse(dateRaw);
+                const lines = Array.isArray(row?.lines) ? row.lines : [];
+                return {
+                    id: String(row?.id || '').trim(),
+                    orderNo: String(row?.orderNo || row?.orderCode || row?.code || '-').trim(),
+                    customerId: String(row?.customerId || row?.customer?.id || '').trim(),
+                    customerName: String(row?.customerName || row?.customer?.name || '-').trim(),
+                    orderDate: dateRaw,
+                    orderDateMs: Number.isFinite(dateMs) ? dateMs : 0,
+                    status: String(row?.status || 'Taslak').trim(),
+                    statusGroup: SalesModule.normalizeSalesOrderStatusGroup(row?.status),
+                    currency: String(row?.currency || 'USD').trim().toUpperCase() || 'USD',
+                    lineCount: lines.length,
+                    total: Number(row?.totalAmount ?? row?.total ?? row?.grandTotal ?? 0),
+                    source: row
+                };
+            })
+            .sort((a, b) => Number(b.orderDateMs || 0) - Number(a.orderDateMs || 0));
+    },
+
+    isSalesOrderInSelectedPeriod: (orderDate, period) => {
+        const targetPeriod = String(period || 'ALL').trim().toUpperCase();
+        if (!targetPeriod || targetPeriod === 'ALL') return true;
+        const orderMs = Date.parse(String(orderDate || '').trim());
+        if (!Number.isFinite(orderMs)) return false;
+
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        if (targetPeriod === 'TODAY') {
+            const tomorrowStart = todayStart + (24 * 60 * 60 * 1000);
+            return orderMs >= todayStart && orderMs < tomorrowStart;
+        }
+        if (targetPeriod === 'THIS_WEEK') {
+            const dayIndex = (new Date(todayStart).getDay() + 6) % 7; // Monday = 0
+            const weekStart = todayStart - (dayIndex * 24 * 60 * 60 * 1000);
+            return orderMs >= weekStart;
+        }
+        if (targetPeriod === 'THIS_MONTH') {
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+            return orderMs >= monthStart;
+        }
+        return true;
+    },
+
+    getFilteredSalesOrderHistoryRows: (rows = []) => {
+        SalesModule.ensureSalesOrderHistoryFilters();
+        const filters = SalesModule.state.salesOrderHistoryFilters || SalesModule.buildSalesOrderHistoryFilters();
+        const query = SalesModule.normalize(filters.query || '');
+        const status = String(filters.status || 'ALL').trim().toUpperCase();
+        const period = String(filters.period || 'ALL').trim().toUpperCase();
+
+        return (Array.isArray(rows) ? rows : []).filter((row) => {
+            if (status !== 'ALL' && String(row?.statusGroup || '').trim().toUpperCase() !== status) return false;
+            if (!SalesModule.isSalesOrderInSelectedPeriod(row?.orderDate, period)) return false;
+            if (!query) return true;
+            const haystack = [
+                String(row?.orderNo || ''),
+                String(row?.customerName || ''),
+                String(row?.status || ''),
+                String(row?.currency || '')
+            ];
+            return haystack.some((item) => SalesModule.normalize(item).includes(query));
+        });
+    },
+
     computeSalesOrderTotals: (draft = null) => {
         const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
         const lines = Array.isArray(source.lines) ? source.lines : [];
@@ -571,6 +685,7 @@ const SalesModule = {
         }
         if (SalesModule.state.workspaceView === 'sales') {
             SalesModule.ensureSalesOrderDraft();
+            SalesModule.ensureSalesOrderHistoryFilters();
         }
         if (SalesModule.state.workspaceView !== 'settings-proforma') {
             SalesModule.state.proformaSettingsDraft = null;

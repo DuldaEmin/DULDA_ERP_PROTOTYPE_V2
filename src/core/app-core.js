@@ -7,6 +7,162 @@ const CONFLICT_DRAFT_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT";
 const BROWSER_MIRROR_IDB_KEY = "DULDA_ERP_STATE_IDB_MIRROR";
 const CONFLICT_DRAFT_IDB_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT_IDB";
 
+const TextStylePolicy = {
+    targetSelector: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'button', 'label', 'th',
+        '.nav-btn', '.page-breadcrumb', '.app-name', '.stock-title', '.stock-hub-label'
+    ].join(','),
+    titleCaseSelector: [
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'button', 'label', 'th',
+        '.nav-btn', '.page-breadcrumb', '.app-name', '.stock-title', '.stock-hub-label'
+    ].join(','),
+    attrNames: ['placeholder', 'title', 'aria-label'],
+    wordRegex: /[A-Za-zÇĞİIÖŞÜçğıöşü]+/g,
+    stopWords: new Set(['ve', 'veya', 'ile', 'için', 'de', 'da']),
+    acronyms: new Set(['erp', 'cnc', 'pvd', 'wip', 'api', 'id', 'json', 'pdf', 'tl', 'usd', 'eur']),
+    exactPhraseMap: new Map([
+        ['ana sayfa', 'Ana Sayfa'],
+        ['geri', 'Geri'],
+        ['değişiklikleri kaydet', 'Değişiklikleri Kaydet'],
+        ['degisiklikleri kaydet', 'Değişiklikleri Kaydet'],
+        ['dosyaya otomatik kayıt', 'Dosyaya Otomatik Kayıt'],
+        ['dosyaya otomatik kayit', 'Dosyaya Otomatik Kayıt'],
+        ['otomatik kayıt', 'Otomatik Kayıt'],
+        ['otomatik kayit', 'Otomatik Kayıt'],
+        ['kaydediliyor...', 'Kaydediliyor...'],
+        ['satış & pazarlama', 'Satış & Pazarlama'],
+        ['satis & pazarlama', 'Satış & Pazarlama'],
+        ['satış / sipariş oluşturma', 'Satış / Sipariş Oluşturma'],
+        ['satis / siparis olusturma', 'Satış / Sipariş Oluşturma'],
+        ['yeni sipariş', 'Yeni Sipariş'],
+        ['yeni siparis', 'Yeni Sipariş'],
+        ['siparişi kaydet', 'Siparişi Kaydet'],
+        ['siparisi kaydet', 'Siparişi Kaydet'],
+        ['müşteri seç', 'Müşteri Seç'],
+        ['musteri sec', 'Müşteri Seç'],
+        ['ürün seç', 'Ürün Seç'],
+        ['urun sec', 'Ürün Seç'],
+        ['satır ekle +', 'Satır Ekle +'],
+        ['satir ekle +', 'Satır Ekle +'],
+        ['kayıtlı sipariş yok.', 'Kayıtlı Sipariş Yok.'],
+        ['kayitli siparis yok.', 'Kayıtlı Sipariş Yok.']
+    ]),
+    wordMap: new Map([
+        ['satis', 'satış'],
+        ['satış', 'satış'],
+        ['siparis', 'sipariş'],
+        ['sipariş', 'sipariş'],
+        ['musteri', 'müşteri'],
+        ['müşteri', 'müşteri'],
+        ['urun', 'ürün'],
+        ['ürün', 'ürün'],
+        ['satir', 'satır'],
+        ['satır', 'satır'],
+        ['kayit', 'kayıt'],
+        ['kayıt', 'kayıt'],
+        ['kayitli', 'kayıtlı'],
+        ['kayıtlı', 'kayıtlı'],
+        ['degisiklikleri', 'değişiklikleri'],
+        ['değişiklikleri', 'değişiklikleri'],
+        ['olusturma', 'oluşturma'],
+        ['oluşturma', 'oluşturma'],
+        ['yonetim', 'yönetim'],
+        ['yönetim', 'yönetim'],
+        ['yonetimi', 'yönetimi'],
+        ['yönetimi', 'yönetimi'],
+        ['atolye', 'atölye'],
+        ['atölye', 'atölye'],
+        ['kutuphanesi', 'kütüphanesi'],
+        ['kütüphanesi', 'kütüphanesi'],
+        ['guncel', 'güncel'],
+        ['güncel', 'güncel'],
+        ['guncelle', 'güncelle'],
+        ['güncelle', 'güncelle']
+    ]),
+
+    normalizeSpaces: (text) => String(text ?? '').replace(/\s+/g, ' ').trim(),
+
+    isProcessableElement: (el) => {
+        if (!el || typeof el.matches !== 'function') return false;
+        if (el.closest?.('[data-skip-text-policy="true"]')) return false;
+        return el.matches(TextStylePolicy.targetSelector);
+    },
+
+    shouldTitleCaseElement: (el) => {
+        if (!el || typeof el.matches !== 'function') return false;
+        return el.matches(TextStylePolicy.titleCaseSelector);
+    },
+
+    capitalizeTr: (word) => {
+        const text = String(word || '').trim();
+        if (!text) return '';
+        const chars = Array.from(text);
+        const first = chars.shift() || '';
+        return first.toLocaleUpperCase('tr-TR') + chars.join('').toLocaleLowerCase('tr-TR');
+    },
+
+    applyOriginalCase: (rawWord, normalizedWord) => {
+        const raw = String(rawWord || '');
+        const next = String(normalizedWord || '');
+        if (!raw) return next;
+        if (raw === raw.toLocaleUpperCase('tr-TR')) return next.toLocaleUpperCase('tr-TR');
+        const rawLower = raw.toLocaleLowerCase('tr-TR');
+        const firstUpper = raw[0] === raw[0].toLocaleUpperCase('tr-TR');
+        const restLower = raw.slice(1) === raw.slice(1).toLocaleLowerCase('tr-TR');
+        if (firstUpper && restLower && raw !== rawLower) return TextStylePolicy.capitalizeTr(next);
+        return next.toLocaleLowerCase('tr-TR');
+    },
+
+    replaceKnownWords: (text) => {
+        return String(text ?? '').replace(TextStylePolicy.wordRegex, (word) => {
+            const lower = String(word || '').toLocaleLowerCase('tr-TR');
+            const mapped = TextStylePolicy.wordMap.get(lower);
+            if (!mapped) return word;
+            return TextStylePolicy.applyOriginalCase(word, mapped);
+        });
+    },
+
+    toTitleCaseTr: (text) => {
+        let wordIndex = 0;
+        return String(text ?? '').replace(TextStylePolicy.wordRegex, (word) => {
+            const lower = String(word || '').toLocaleLowerCase('tr-TR');
+            const isFirst = wordIndex === 0;
+            wordIndex += 1;
+            if (TextStylePolicy.acronyms.has(lower)) return lower.toLocaleUpperCase('tr-TR');
+            if (!isFirst && TextStylePolicy.stopWords.has(lower)) return lower;
+            return TextStylePolicy.capitalizeTr(lower);
+        });
+    },
+
+    normalizeUiText: (rawText, el = null) => {
+        const base = TextStylePolicy.normalizeSpaces(rawText);
+        if (!base) return String(rawText ?? '');
+
+        const lookup = base.toLocaleLowerCase('tr-TR');
+        let out = TextStylePolicy.exactPhraseMap.get(lookup) || base;
+        out = TextStylePolicy.replaceKnownWords(out);
+
+        if (el && TextStylePolicy.shouldTitleCaseElement(el)) {
+            out = TextStylePolicy.toTitleCaseTr(out);
+        }
+        return out;
+    },
+
+    normalizeTextNodeValue: (rawText, node) => {
+        const parent = node?.parentElement || null;
+        if (!TextStylePolicy.isProcessableElement(parent)) return String(rawText ?? '');
+        return TextStylePolicy.normalizeUiText(rawText, parent);
+    },
+
+    normalizeAttributeValue: (rawText, el, attr) => {
+        if (!TextStylePolicy.attrNames.includes(String(attr || '').toLowerCase())) return String(rawText ?? '');
+        return TextStylePolicy.normalizeUiText(rawText, el);
+    }
+};
+window.TextStylePolicy = TextStylePolicy;
+
 const MojibakeFix = {
     markerRegex: /[ÃÂâÄÅÆƒ‚�]/,
     attrs: ['placeholder', 'title', 'aria-label', 'value'],
@@ -83,8 +239,9 @@ const MojibakeFix = {
 
     sanitizeTextNode: (node) => {
         const raw = node?.nodeValue;
-        if (!MojibakeFix.needsFix(raw)) return;
-        const fixed = MojibakeFix.normalize(raw);
+        if (typeof raw !== 'string') return;
+        let fixed = MojibakeFix.needsFix(raw) ? MojibakeFix.normalize(raw) : raw;
+        fixed = TextStylePolicy.normalizeTextNodeValue(fixed, node);
         if (fixed !== raw) node.nodeValue = fixed;
     },
 
@@ -92,8 +249,11 @@ const MojibakeFix = {
         if (!el || !el.getAttribute) return;
         MojibakeFix.attrs.forEach((attr) => {
             const raw = el.getAttribute(attr);
-            if (!MojibakeFix.needsFix(raw)) return;
-            const fixed = MojibakeFix.normalize(raw);
+            if (raw == null) return;
+            let fixed = MojibakeFix.needsFix(raw) ? MojibakeFix.normalize(raw) : String(raw);
+            if (String(attr || '').toLowerCase() !== 'value') {
+                fixed = TextStylePolicy.normalizeAttributeValue(fixed, el, attr);
+            }
             if (fixed !== raw) el.setAttribute(attr, fixed);
             if (attr === 'value' && 'value' in el && typeof el.value === 'string' && MojibakeFix.needsFix(el.value)) {
                 el.value = MojibakeFix.normalize(el.value);

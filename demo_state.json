@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T12:43:24.549Z",
+    "updated_at": "2026-04-15T13:26:36.364Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 838
+    "revision": 839
   },
   "data": {
     "products": [
@@ -2674,6 +2674,37 @@
         "totalAmount": 9,
         "created_at": "2026-04-15T12:43:24.548Z",
         "updated_at": "2026-04-15T12:43:24.548Z"
+      },
+      {
+        "id": "795ec3d2-8562-484f-ae02-2819db2c2102",
+        "orderNo": "SOR-000002",
+        "orderDate": "2026-04-15",
+        "customerId": "4ab85e0c-1c21-4930-ad30-edc669df2736",
+        "customerName": "ADAB ALÜMİNYUN KORKULUK SİSTEMLERİ",
+        "status": "Taslak",
+        "currency": "USD",
+        "deliveryAddress": "FATİH BULVARI KALE CAD. NO:11/C SULTANBEYLİ",
+        "deliveryMethod": "",
+        "note": "",
+        "lines": [
+          {
+            "id": "7a706570-3a36-4973-b4e8-834747931977",
+            "productId": "SCP-2E556979",
+            "productName": "Cubuk Ø 50",
+            "productCode": "ID-00006",
+            "qty": 1,
+            "unitPrice": 1,
+            "discountRate": 0,
+            "lineSubtotal": 1,
+            "lineDiscount": 0,
+            "lineTotal": 1
+          }
+        ],
+        "subtotal": 1,
+        "discountTotal": 0,
+        "totalAmount": 1,
+        "created_at": "2026-04-15T13:26:36.364Z",
+        "updated_at": "2026-04-15T13:26:36.364Z"
       }
     ],
     "units": [

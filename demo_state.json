@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T11:51:07.142Z",
+    "updated_at": "2026-04-15T12:04:48.771Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 811
+    "revision": 825
   },
   "data": {
     "products": [
@@ -2599,6 +2599,24 @@
         "note": "Depoya al / is emri WO-000016",
         "created_at": "2026-04-09T10:35:07.716Z",
         "updated_at": "2026-04-09T10:35:07.716Z"
+      },
+      {
+        "id": "e1efa1e3-e1e1-4861-8882-2bda0652221d",
+        "movementType": "STORE",
+        "type": "STORE",
+        "productCode": "PRC-000007",
+        "code": "PRC-000007",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "quantity": 6,
+        "qty": 6,
+        "unit": "ADET",
+        "depotId": "main",
+        "depotName": "ANA DEPO",
+        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
+        "locationCode": "R01-A1",
+        "note": "Depoya al / is emri WO-000001",
+        "created_at": "2026-04-15T12:03:24.557Z",
+        "updated_at": "2026-04-15T12:03:24.557Z"
       }
     ],
     "orders": [],
@@ -3043,7 +3061,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:51:07.142Z"
+        "updated_at": "2026-04-15T12:03:24.557Z"
       },
       {
         "id": "214d0672-80d9-40ac-b9a5-826e6651d945",
@@ -3114,7 +3132,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "updated_at": "2026-04-15T12:04:36.437Z"
       },
       {
         "id": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
@@ -3192,7 +3210,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "updated_at": "2026-04-15T12:04:44.229Z"
       },
       {
         "id": "adc90f66-90e6-4e2f-8931-2f9ca3c22a3d",
@@ -3299,7 +3317,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "updated_at": "2026-04-15T12:04:48.771Z"
       },
       {
         "id": "0bc545d8-6677-4542-aec6-8cc6f85f529c",
@@ -3423,6 +3441,216 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-04-15T11:51:07.142Z"
+      },
+      {
+        "id": "b1c11233-de03-4005-ae92-688d4446d7fd",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u1",
+        "routeId": "a66efda3-ef54-4d5a-801d-bbb5840cad55",
+        "routeSeq": 1,
+        "processId": "CNC-000002",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T11:52:57.488Z"
+      },
+      {
+        "id": "667fcb5a-bd32-45df-b9f7-c93e5900caf2",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u2",
+        "routeId": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
+        "routeSeq": 1,
+        "processId": "EKS-000001",
+        "type": "COMPLETE",
+        "qty": 3,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T11:53:17.664Z"
+      },
+      {
+        "id": "c889554b-b82e-4aec-ae81-813527065fe3",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u1",
+        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
+        "routeSeq": 2,
+        "processId": "CNC-000001",
+        "type": "TAKE",
+        "qty": 3,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T11:53:49.468Z"
+      },
+      {
+        "id": "9b484d9d-134f-4110-b93a-68f75cca1935",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u2",
+        "routeId": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
+        "routeSeq": 1,
+        "processId": "EKS-000001",
+        "type": "COMPLETE",
+        "qty": 3,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T11:54:44.862Z"
+      },
+      {
+        "id": "33313cad-1361-49dd-86f7-06c28d3a074b",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u1",
+        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
+        "routeSeq": 2,
+        "processId": "CNC-000001",
+        "type": "TAKE",
+        "qty": 3,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T11:55:19.311Z"
+      },
+      {
+        "id": "eec9bb6a-b816-490c-9052-05431022a852",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u1",
+        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
+        "routeSeq": 2,
+        "processId": "CNC-000001",
+        "type": "COMPLETE",
+        "qty": 6,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:01:52.769Z"
+      },
+      {
+        "id": "a180ea21-6bff-44ea-b06a-13671b5a5de1",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u5",
+        "routeId": "b27153c5-14ce-4cc7-bb43-71862a393b36",
+        "routeSeq": 3,
+        "processId": "PLSJ-000001",
+        "type": "TAKE",
+        "qty": 6,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:02:03.319Z"
+      },
+      {
+        "id": "41fafb54-81c0-4bfc-8142-a36338de081b",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u5",
+        "routeId": "b27153c5-14ce-4cc7-bb43-71862a393b36",
+        "routeSeq": 3,
+        "processId": "PLSJ-000001",
+        "type": "COMPLETE",
+        "qty": 6,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:02:08.481Z"
+      },
+      {
+        "id": "aec051c6-9ef9-4c42-a5eb-77e29968f433",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u_dtm",
+        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
+        "routeSeq": 4,
+        "processId": "DTR-000004",
+        "type": "TAKE",
+        "qty": 6,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:02:29.013Z"
+      },
+      {
+        "id": "75e58137-b416-4d0d-b2ba-efd55e3f2b66",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u_dtm",
+        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
+        "routeSeq": 4,
+        "processId": "DTR-000004",
+        "type": "COMPLETE",
+        "qty": 6,
+        "note": "Istasyon tamamlandi (depoya al)",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:03:24.557Z"
+      },
+      {
+        "id": "d9dce631-1a5f-4db1-b6bd-d358a5710ab9",
+        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "stationId": "u_dtm",
+        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
+        "routeSeq": 4,
+        "processId": "DTR-000004",
+        "type": "STORE",
+        "qty": 6,
+        "note": "Depoya alindi: ANA DEPO / R01-A1 (LOC-000003)",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:03:24.557Z"
+      },
+      {
+        "id": "3eadbbd7-c2f9-4119-9404-52882659217e",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u1",
+        "routeId": "a66efda3-ef54-4d5a-801d-bbb5840cad55",
+        "routeSeq": 1,
+        "processId": "CNC-000002",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:04:19.291Z"
+      },
+      {
+        "id": "9a0a0c33-26c2-4b42-bd5c-722b4fde1f9f",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u_dtm",
+        "routeId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
+        "routeSeq": 1,
+        "processId": "DTR-000001",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:04:36.437Z"
+      },
+      {
+        "id": "41ee2cd9-f3b1-4608-9ef9-7ff1973352cf",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u_dtm",
+        "routeId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
+        "routeSeq": 2,
+        "processId": "DTR-000001",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:04:44.229Z"
+      },
+      {
+        "id": "c657d63e-e9ee-4e05-a78c-b44745ec07ad",
+        "workOrderId": "f42aff7e-4536-440d-87e2-544980d53dd7",
+        "lineId": "e999f99f-6cc8-47b4-a03a-3c212930596c",
+        "stationId": "u_dtm",
+        "routeId": "018f522f-cb9b-4141-8581-aa64a6e3335b",
+        "routeSeq": 1,
+        "processId": "DTR-000001",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:04:48.771Z"
       }
     ],
     "outsourceTransfers": [
@@ -3936,6 +4164,26 @@
         "locationCode": "R07-ÜST",
         "created_at": "2026-04-07T12:44:28.967Z",
         "updated_at": "2026-04-07T12:44:28.967Z"
+      },
+      {
+        "id": "e0fb973c-40f9-4032-a867-20cb5fe6e926",
+        "productCode": "PRC-000007",
+        "code": "PRC-000007",
+        "productName": "2008 bombeli 40 lık dikme pleksi",
+        "name": "2008 bombeli 40 lık dikme pleksi",
+        "quantity": 6,
+        "qty": 6,
+        "amount": 6,
+        "unit": "ADET",
+        "stockClass": "KULLANILABILIR",
+        "status": "KULLANILABILIR",
+        "locationId": "d35069fb-6753-4e83-963e-14704dfb8516",
+        "locationCode": "R01-A1",
+        "note": "Depoya alindi: ANA DEPO / R01-A1 (LOC-000003)",
+        "created_at": "2026-04-15T12:03:24.558Z",
+        "updated_at": "2026-04-15T12:03:24.558Z",
+        "depotId": "main",
+        "nodeKey": "managed:main"
       }
     ],
     "freeExternalVendorJobs": [],

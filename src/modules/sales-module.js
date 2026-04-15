@@ -58,6 +58,66 @@ const SalesModule = {
 
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
 
+    normalizeSearchText: (value) => {
+        const lowered = String(value || '').toLocaleLowerCase('tr-TR');
+        const folded = lowered
+            .replace(/ı/g, 'i')
+            .replace(/ş/g, 's')
+            .replace(/ğ/g, 'g')
+            .replace(/ü/g, 'u')
+            .replace(/ö/g, 'o')
+            .replace(/ç/g, 'c');
+        return folded
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+
+    buildCustomerSearchIndex: (row = {}) => {
+        const contacts = Array.isArray(row?.customerContacts)
+            ? row.customerContacts
+            : (Array.isArray(row?.contacts) ? row.contacts : []);
+        const contactText = contacts
+            .map((contact) => {
+                const phones = Array.isArray(contact?.phones)
+                    ? contact.phones.join(' ')
+                    : `${contact?.phone || ''} ${contact?.mobile || ''}`;
+                return [
+                    contact?.name,
+                    contact?.position,
+                    phones,
+                    contact?.email,
+                    contact?.note
+                ].filter(Boolean).join(' ');
+            })
+            .join(' ');
+        const typeText = Array.isArray(row?.customerTypes) ? row.customerTypes.join(' ') : '';
+        const tagText = Array.isArray(row?.tags) ? row.tags.join(' ') : '';
+        const bag = [
+            row?.name,
+            row?.customerCode,
+            row?.externalCode,
+            row?.taxNo,
+            row?.taxOffice,
+            row?.country,
+            row?.city,
+            row?.district,
+            row?.address,
+            row?.postalCode,
+            row?.addressNo,
+            row?.authorizedPerson,
+            row?.phone,
+            row?.phoneAlt,
+            row?.email,
+            row?.note,
+            typeText,
+            tagText,
+            contactText
+        ].filter(Boolean).join(' ');
+        return SalesModule.normalizeSearchText(bag);
+    },
+
     ensureData: () => {
         if (!DB.data || typeof DB.data !== 'object') DB.data = {};
         if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
@@ -1994,13 +2054,13 @@ const SalesModule = {
 
     getFilteredCustomers: () => {
         const filters = SalesModule.state.customerFilters || { name: '', city: '', status: 'ALL', editor: 'ALL' };
-        const qName = SalesModule.normalize(filters.name || '');
-        const qCity = SalesModule.normalize(filters.city || '');
+        const qName = SalesModule.normalizeSearchText(filters.name || '');
+        const qCity = SalesModule.normalizeSearchText(filters.city || '');
         const qStatus = String(filters.status || 'ALL').trim().toUpperCase();
         const qEditor = String(filters.editor || 'ALL').trim();
         return SalesModule.getCustomers().filter((row) => {
-            if (qName && !SalesModule.normalize(`${row.name} ${row.customerCode} ${row.externalCode} ${row.taxNo}`).includes(qName)) return false;
-            if (qCity && !SalesModule.normalize(`${row.city} ${row.district}`).includes(qCity)) return false;
+            if (qName && !SalesModule.buildCustomerSearchIndex(row).includes(qName)) return false;
+            if (qCity && !SalesModule.normalizeSearchText(`${row.city} ${row.district} ${row.country}`).includes(qCity)) return false;
             if (qStatus !== 'ALL' && String(row?.status || '').toUpperCase() !== qStatus) return false;
             if (qEditor !== 'ALL' && String(row?.lastEditor || '').trim() !== qEditor) return false;
             return true;

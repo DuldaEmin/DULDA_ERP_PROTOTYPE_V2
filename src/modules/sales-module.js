@@ -3024,6 +3024,82 @@ const SalesModule = {
 
     toImportRowValue: (row, idx) => String(Array.isArray(row) ? (row[idx] ?? '') : '').trim(),
 
+    parseCustomerTypesFromImport: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return [];
+        const parts = raw
+            .split(/[;,]+/)
+            .map((item) => String(item || '').trim())
+            .filter(Boolean);
+        const source = parts.length ? parts : [raw];
+        return SalesModule.normalizeCustomerTypeList(source);
+    },
+
+    buildImportContactEntry: (name, position, phone, email, note) => {
+        const normalizedName = String(name || '').trim();
+        const normalizedPosition = String(position || '').trim();
+        const normalizedEmail = String(email || '').trim();
+        const normalizedNote = String(note || '').trim();
+        const phones = String(phone || '')
+            .split(/[,;]+/)
+            .map((item) => String(item || '').trim())
+            .filter(Boolean);
+        if (!normalizedName && !normalizedPosition && !normalizedEmail && !normalizedNote && phones.length === 0) return null;
+        return {
+            id: crypto.randomUUID(),
+            name: normalizedName,
+            position: normalizedPosition,
+            phones,
+            email: normalizedEmail,
+            note: normalizedNote
+        };
+    },
+
+    buildImportContactsFromRow: (row = [], headerMap = {}) => {
+        const contacts = [];
+        const idxPrimaryName = SalesModule.findImportColumnIndex(headerMap, ['yetkili kisi', 'yetkili', 'yetkili ad']);
+        const idxPrimaryRole = SalesModule.findImportColumnIndex(headerMap, ['yetkili gorevi', 'gorevi', 'gorev']);
+        const idxPrimaryPhone = SalesModule.findImportColumnIndex(headerMap, ['telefon', 'gsm tel', 'sabit tel', 'tel no1', 'tel no', 'cep telefonu']);
+        const idxPrimaryEmail = SalesModule.findImportColumnIndex(headerMap, ['eposta', 'e posta', 'mail']);
+        const primary = SalesModule.buildImportContactEntry(
+            SalesModule.toImportRowValue(row, idxPrimaryName),
+            SalesModule.toImportRowValue(row, idxPrimaryRole),
+            SalesModule.toImportRowValue(row, idxPrimaryPhone),
+            SalesModule.toImportRowValue(row, idxPrimaryEmail),
+            ''
+        );
+        if (primary) contacts.push(primary);
+
+        for (let n = 1; n <= 10; n += 1) {
+            const idxName = SalesModule.findImportColumnIndex(headerMap, [`yetkili ${n} ad`, `yetkili${n} ad`]);
+            const idxRole = SalesModule.findImportColumnIndex(headerMap, [`yetkili ${n} gorev`, `yetkili${n} gorev`]);
+            const idxPhone = SalesModule.findImportColumnIndex(headerMap, [`yetkili ${n} telefon`, `yetkili${n} telefon`]);
+            const idxEmail = SalesModule.findImportColumnIndex(headerMap, [`yetkili ${n} e posta`, `yetkili${n} e posta`, `yetkili ${n} eposta`, `yetkili${n} eposta`]);
+            const idxNote = SalesModule.findImportColumnIndex(headerMap, [`yetkili ${n} not`, `yetkili${n} not`]);
+            const contact = SalesModule.buildImportContactEntry(
+                SalesModule.toImportRowValue(row, idxName),
+                SalesModule.toImportRowValue(row, idxRole),
+                SalesModule.toImportRowValue(row, idxPhone),
+                SalesModule.toImportRowValue(row, idxEmail),
+                SalesModule.toImportRowValue(row, idxNote)
+            );
+            if (contact) contacts.push(contact);
+        }
+
+        const unique = new Map();
+        contacts.forEach((contact) => {
+            const key = [
+                String(contact?.name || '').trim().toLocaleUpperCase('tr-TR'),
+                String(contact?.position || '').trim().toLocaleUpperCase('tr-TR'),
+                String(Array.isArray(contact?.phones) ? contact.phones.join(',') : '').replace(/\D+/g, ''),
+                String(contact?.email || '').trim().toLocaleLowerCase('tr-TR')
+            ].join('|');
+            if (!unique.has(key)) unique.set(key, contact);
+        });
+
+        return SalesModule.normalizeCustomerContactList(Array.from(unique.values()), { allowEmptyRow: false, keepEmptyPhoneSlot: false });
+    },
+
     normalizeImportToken: (value) => {
         const raw = String(value || '').trim().toLocaleLowerCase('tr-TR');
         if (!raw) return '';
@@ -3100,9 +3176,10 @@ const SalesModule = {
         const idxModem = SalesModule.findImportColumnIndex(headerMap, ['modem no', 'modem']);
         const idxTaxNo = SalesModule.findImportColumnIndex(headerMap, ['vergi no', 'vkn', 'tc kimlik no', 'tc']);
         const idxTaxOffice = SalesModule.findImportColumnIndex(headerMap, ['vergi dairesi']);
-        const idxNote = SalesModule.findImportColumnIndex(headerMap, ['ozel not', 'not']);
+        const idxNote = SalesModule.findImportColumnIndex(headerMap, ['musteri notu', 'ozel not', 'not']);
         const idxEmail = SalesModule.findImportColumnIndex(headerMap, ['eposta', 'e posta', 'mail']);
         const idxAuthorized = SalesModule.findImportColumnIndex(headerMap, ['yetkili', 'yetkili kisi', 'yetkili ad']);
+        const idxCustomerTypes = SalesModule.findImportColumnIndex(headerMap, ['musteri tipi', 'musteri turu', 'urun grubu']);
         const idxDiscount = SalesModule.findImportColumnIndex(headerMap, ['genel iskonto', 'iskonto']);
         const idxPaymentTermDays = SalesModule.findImportColumnIndex(headerMap, ['odeme vadesi gun', 'vade gun', 'odeme vadesi']);
         const idxRiskLimit = SalesModule.findImportColumnIndex(headerMap, ['risk limiti']);
@@ -3125,11 +3202,20 @@ const SalesModule = {
             const phoneAreaCode = SalesModule.toImportRowValue(row, idxTelArea);
             const phoneRaw = SalesModule.toImportRowValue(row, idxTel1);
             const phoneAlt = SalesModule.toImportRowValue(row, idxTel2);
-            const phone = String(phoneRaw || [phoneCountryCode, phoneAreaCode].filter(Boolean).join(' ')).trim();
+            const customerContacts = SalesModule.buildImportContactsFromRow(row, headerMap);
+            const firstContact = customerContacts[0] || {};
+            const firstContactPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
+                ? String(firstContact.phones[0] || '').trim()
+                : '';
+            const phone = String(phoneRaw || firstContactPhone || [phoneCountryCode, phoneAreaCode].filter(Boolean).join(' ')).trim();
 
             const addressParts = (addressColumnIndexes.length ? addressColumnIndexes : [])
                 .map((colIdx) => SalesModule.toImportRowValue(row, colIdx));
             const address = SalesModule.buildImportAddress(...addressParts);
+            const customerTypes = SalesModule.parseCustomerTypesFromImport(
+                SalesModule.toImportRowValue(row, idxCustomerTypes)
+            );
+            const authorizedPerson = SalesModule.toImportRowValue(row, idxAuthorized) || String(firstContact?.name || '').trim();
 
             parsedRows.push({
                 sourceRow: i + 1,
@@ -3150,11 +3236,15 @@ const SalesModule = {
                 taxNo: SalesModule.toImportRowValue(row, idxTaxNo),
                 taxOffice: SalesModule.toImportRowValue(row, idxTaxOffice),
                 email: SalesModule.toImportRowValue(row, idxEmail),
-                authorizedPerson: SalesModule.toImportRowValue(row, idxAuthorized),
+                authorizedPerson,
                 discountRate: SalesModule.toImportRowValue(row, idxDiscount),
                 paymentTermDays: SalesModule.toImportRowValue(row, idxPaymentTermDays),
                 riskLimit: SalesModule.toImportRowValue(row, idxRiskLimit),
                 note: SalesModule.toImportRowValue(row, idxNote),
+                customerTypes,
+                tags: customerTypes,
+                customerContacts,
+                contacts: customerContacts,
                 isActive: true
             });
         }
@@ -3194,7 +3284,10 @@ const SalesModule = {
 
             const warnings = [];
             const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
-            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || '');
+            const firstContactPhone = (Array.isArray(row?.customerContacts) && row.customerContacts[0] && Array.isArray(row.customerContacts[0].phones))
+                ? String(row.customerContacts[0].phones[0] || '').trim()
+                : '';
+            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || firstContactPhone || '');
             const matchedCustomerId = matchKey ? String(existingByMatchKey.get(matchKey) || '').trim() : '';
             let status = 'ready';
             let reason = '';
@@ -3381,6 +3474,20 @@ const SalesModule = {
         importableRows.forEach((item) => {
             const name = String(item?.name || '').trim();
             if (!name) return;
+            const incomingTypes = SalesModule.normalizeCustomerTypeList(
+                Array.isArray(item?.customerTypes) ? item.customerTypes : []
+            );
+            const incomingContacts = SalesModule.normalizeCustomerContactList(
+                Array.isArray(item?.customerContacts) ? item.customerContacts : [],
+                { allowEmptyRow: false, keepEmptyPhoneSlot: false }
+            );
+            const firstContact = incomingContacts[0] || {};
+            const firstContactPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
+                ? String(firstContact.phones[0] || '').trim()
+                : '';
+            const firstContactName = String(firstContact?.name || '').trim();
+            const firstContactEmail = String(firstContact?.email || '').trim();
+
             const matchedCustomerId = String(item?.matchedCustomerId || '').trim();
             const targetIndex = matchedCustomerId ? customerIndexById.get(matchedCustomerId) : -1;
 
@@ -3398,11 +3505,11 @@ const SalesModule = {
                     name,
                     city: pickText(item?.city, prev?.city),
                     district: pickText(item?.district, prev?.district),
-                    phone: pickText(item?.phone, prev?.phone),
+                    phone: pickText(item?.phone || firstContactPhone, prev?.phone),
                     phoneCountryCode: pickText(item?.phoneCountryCode, prev?.phoneCountryCode),
                     phoneAreaCode: pickText(item?.phoneAreaCode, prev?.phoneAreaCode),
-                    phoneAlt: pickText(item?.phoneAlt, prev?.phoneAlt),
-                    email: pickText(item?.email, prev?.email),
+                    phoneAlt: pickText(item?.phoneAlt || firstContactPhone, prev?.phoneAlt),
+                    email: pickText(item?.email || firstContactEmail, prev?.email),
                     taxOffice: pickText(item?.taxOffice, prev?.taxOffice),
                     taxNo: pickText(item?.taxNo, prev?.taxNo),
                     address: pickText(item?.address, prev?.address),
@@ -3412,12 +3519,18 @@ const SalesModule = {
                     externalCode: pickText(item?.externalCode, prev?.externalCode),
                     faxNo: pickText(item?.faxNo, prev?.faxNo),
                     modemNo: pickText(item?.modemNo, prev?.modemNo),
-                    authorizedPerson: pickText(item?.authorizedPerson, prev?.authorizedPerson),
+                    authorizedPerson: pickText(item?.authorizedPerson || firstContactName, prev?.authorizedPerson),
                     discountRate: pickNumber(item?.discountRate, prev?.discountRate, SalesModule.parsePercent),
                     paymentTermDays: pickNumber(item?.paymentTermDays, prev?.paymentTermDays, SalesModule.parseDays),
                     riskLimit: pickNumber(item?.riskLimit, prev?.riskLimit, SalesModule.parseMoney),
-                    customerTypes: Array.isArray(prev?.customerTypes) ? prev.customerTypes : [],
-                    tags: Array.isArray(prev?.tags) ? prev.tags : [],
+                    customerTypes: incomingTypes.length ? incomingTypes : SalesModule.normalizeCustomerTypeList(prev?.customerTypes || []),
+                    tags: incomingTypes.length ? incomingTypes : SalesModule.normalizeCustomerTypeList(prev?.tags || []),
+                    customerContacts: incomingContacts.length
+                        ? incomingContacts
+                        : SalesModule.normalizeCustomerContactList(prev?.customerContacts || prev?.contacts || [], { allowEmptyRow: false, keepEmptyPhoneSlot: false }),
+                    contacts: incomingContacts.length
+                        ? incomingContacts
+                        : SalesModule.normalizeCustomerContactList(prev?.customerContacts || prev?.contacts || [], { allowEmptyRow: false, keepEmptyPhoneSlot: false }),
                     note: pickText(item?.note, prev?.note),
                     isActive: true,
                     created_at: String(prev?.created_at || now),
@@ -3433,11 +3546,11 @@ const SalesModule = {
                 name,
                 city: String(item?.city || '').trim(),
                 district: String(item?.district || '').trim(),
-                phone: String(item?.phone || '').trim(),
+                phone: String(item?.phone || firstContactPhone || '').trim(),
                 phoneCountryCode: String(item?.phoneCountryCode || '').trim(),
                 phoneAreaCode: String(item?.phoneAreaCode || '').trim(),
-                phoneAlt: String(item?.phoneAlt || '').trim(),
-                email: String(item?.email || '').trim(),
+                phoneAlt: String(item?.phoneAlt || firstContactPhone || '').trim(),
+                email: String(item?.email || firstContactEmail || '').trim(),
                 taxOffice: String(item?.taxOffice || '').trim(),
                 taxNo: String(item?.taxNo || '').trim(),
                 address: String(item?.address || '').trim(),
@@ -3447,12 +3560,14 @@ const SalesModule = {
                 externalCode: String(item?.externalCode || '').trim(),
                 faxNo: String(item?.faxNo || '').trim(),
                 modemNo: String(item?.modemNo || '').trim(),
-                authorizedPerson: String(item?.authorizedPerson || '').trim(),
+                authorizedPerson: String(item?.authorizedPerson || firstContactName || '').trim(),
                 discountRate: SalesModule.parsePercent(item?.discountRate || 0),
                 paymentTermDays: SalesModule.parseDays(item?.paymentTermDays || 0),
                 riskLimit: SalesModule.parseMoney(item?.riskLimit || 0),
-                customerTypes: [],
-                tags: [],
+                customerTypes: incomingTypes,
+                tags: incomingTypes,
+                customerContacts: incomingContacts,
+                contacts: incomingContacts,
                 note: String(item?.note || '').trim(),
                 isActive: true,
                 created_at: now,

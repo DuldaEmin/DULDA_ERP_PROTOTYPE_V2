@@ -2964,6 +2964,53 @@ const SalesModule = {
 
     toImportRowValue: (row, idx) => String(Array.isArray(row) ? (row[idx] ?? '') : '').trim(),
 
+    normalizeImportToken: (value) => {
+        const raw = String(value || '').trim().toLocaleLowerCase('tr-TR');
+        if (!raw) return '';
+        return raw
+            .replace(/ı|İ/g, 'i')
+            .replace(/ş|Ş/g, 's')
+            .replace(/ğ|Ğ/g, 'g')
+            .replace(/ü|Ü/g, 'u')
+            .replace(/ö|Ö/g, 'o')
+            .replace(/ç|Ç/g, 'c')
+            .replace(/Ä±|Ä°/g, 'i')
+            .replace(/ÅŸ|Å/g, 's')
+            .replace(/ÄŸ|Ä/g, 'g')
+            .replace(/Ã¼|Ãœ/g, 'u')
+            .replace(/Ã¶|Ã–/g, 'o')
+            .replace(/Ã§|Ã‡/g, 'c')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '');
+    },
+
+    normalizeExternalCodeKey: (value) => String(value || '')
+        .trim()
+        .toLocaleUpperCase('tr-TR')
+        .replace(/\s+/g, ''),
+
+    buildCustomerImportIdentity: (row = {}) => {
+        const externalCodeKey = SalesModule.normalizeExternalCodeKey(row?.externalCode || '');
+        const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
+        const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
+        const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || '');
+        const namePhoneKey = (nameKey && phoneKey) ? `${nameKey}|${phoneKey}` : '';
+        return { externalCodeKey, taxKey, namePhoneKey };
+    },
+
+    getCustomerImportMatchKey: (row = {}) => {
+        const identity = SalesModule.buildCustomerImportIdentity(row);
+        if (identity.externalCodeKey) return `external:${identity.externalCodeKey}`;
+        if (identity.taxKey) return `tax:${identity.taxKey}`;
+        if (identity.namePhoneKey) return `namePhone:${identity.namePhoneKey}`;
+        return '';
+    },
+
+    isValidCustomerCode: (value) => /^MUS-\d{6}$/i.test(String(value || '').trim()),
+
+    isValidUuid: (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim()),
+
     parseCustomersFromWorksheetRows: (sheetRows = []) => {
         if (!Array.isArray(sheetRows) || !sheetRows.length) {
             return { parsedRows: [], skippedRows: [], fileRowCount: 0 };
@@ -2978,17 +3025,17 @@ const SalesModule = {
             if (!Object.prototype.hasOwnProperty.call(headerMap, key)) headerMap[key] = index;
         });
 
-        const idxCariCode = SalesModule.findImportColumnIndex(headerMap, ['cari kodu', 'cari kod', 'cari kodu']);
-        const idxName = SalesModule.findImportColumnIndex(headerMap, ['cari adi', 'cari adi', 'musteri adi', 'unvan']);
+        const idxCariCode = SalesModule.findImportColumnIndex(headerMap, ['cari kodu', 'cari kod']);
+        const idxName = SalesModule.findImportColumnIndex(headerMap, ['musteri unvani', 'musteri adi', 'cari adi', 'unvan']);
         const idxAddressNo = SalesModule.findImportColumnIndex(headerMap, ['adres no', 'adresno']);
         const idxPostal = SalesModule.findImportColumnIndex(headerMap, ['posta kodu', 'posta kod']);
         const idxDistrict = SalesModule.findImportColumnIndex(headerMap, ['ilce', 'ilceadi']);
-        const idxCity = SalesModule.findImportColumnIndex(headerMap, ['il']);
+        const idxCity = SalesModule.findImportColumnIndex(headerMap, ['sehir', 'il']);
         const idxCountry = SalesModule.findImportColumnIndex(headerMap, ['ulke']);
         const idxTelCountry = SalesModule.findImportColumnIndex(headerMap, ['tel ulke kodu', 'telefon ulke kodu']);
         const idxTelArea = SalesModule.findImportColumnIndex(headerMap, ['tel bolge kodu', 'telefon bolge kodu']);
-        const idxTel1 = SalesModule.findImportColumnIndex(headerMap, ['tel no1', 'telefon', 'tel no']);
-        const idxTel2 = SalesModule.findImportColumnIndex(headerMap, ['tel no2', 'telefon2']);
+        const idxTel1 = SalesModule.findImportColumnIndex(headerMap, ['gsm tel', 'tel no1', 'telefon', 'tel no', 'cep telefonu']);
+        const idxTel2 = SalesModule.findImportColumnIndex(headerMap, ['sabit tel', 'tel no2', 'telefon2']);
         const idxFax = SalesModule.findImportColumnIndex(headerMap, ['fax no', 'fax']);
         const idxModem = SalesModule.findImportColumnIndex(headerMap, ['modem no', 'modem']);
         const idxTaxNo = SalesModule.findImportColumnIndex(headerMap, ['vergi no', 'vkn', 'tc kimlik no', 'tc']);
@@ -2996,6 +3043,9 @@ const SalesModule = {
         const idxNote = SalesModule.findImportColumnIndex(headerMap, ['ozel not', 'not']);
         const idxEmail = SalesModule.findImportColumnIndex(headerMap, ['eposta', 'e posta', 'mail']);
         const idxAuthorized = SalesModule.findImportColumnIndex(headerMap, ['yetkili', 'yetkili kisi', 'yetkili ad']);
+        const idxDiscount = SalesModule.findImportColumnIndex(headerMap, ['genel iskonto', 'iskonto']);
+        const idxPaymentTermDays = SalesModule.findImportColumnIndex(headerMap, ['odeme vadesi gun', 'vade gun', 'odeme vadesi']);
+        const idxRiskLimit = SalesModule.findImportColumnIndex(headerMap, ['risk limiti']);
 
         const parsedRows = [];
         const skippedRows = [];
@@ -3041,6 +3091,9 @@ const SalesModule = {
                 taxOffice: SalesModule.toImportRowValue(row, idxTaxOffice),
                 email: SalesModule.toImportRowValue(row, idxEmail),
                 authorizedPerson: SalesModule.toImportRowValue(row, idxAuthorized),
+                discountRate: SalesModule.toImportRowValue(row, idxDiscount),
+                paymentTermDays: SalesModule.toImportRowValue(row, idxPaymentTermDays),
+                riskLimit: SalesModule.toImportRowValue(row, idxRiskLimit),
                 note: SalesModule.toImportRowValue(row, idxNote),
                 isActive: true
             });
@@ -3051,25 +3104,38 @@ const SalesModule = {
 
     buildCustomerImportPreview: (parsedRows = [], skippedRows = []) => {
         const existing = SalesModule.getCustomers();
-        const existingTax = new Set();
-        const existingNamePhone = new Set();
-
+        const existingByMatchKey = new Map();
         existing.forEach((row) => {
-            const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
-            if (taxKey) existingTax.add(taxKey);
-            const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
-            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || '');
-            if (nameKey && phoneKey) existingNamePhone.add(`${nameKey}|${phoneKey}`);
+            const key = SalesModule.getCustomerImportMatchKey(row);
+            if (!key) return;
+            if (!existingByMatchKey.has(key)) {
+                existingByMatchKey.set(key, String(row?.id || '').trim());
+            }
         });
 
-        const incomingTax = new Set();
-        const incomingNamePhone = new Set();
-        const previewRows = parsedRows.map((row) => {
+        const previewRows = [];
+        const latestRowByMatchKey = new Map();
+        parsedRows.forEach((row) => {
+            const matchKey = SalesModule.getCustomerImportMatchKey(row);
+            if (matchKey && latestRowByMatchKey.has(matchKey)) {
+                const previousIndex = latestRowByMatchKey.get(matchKey);
+                if (typeof previousIndex === 'number' && previousIndex >= 0 && previewRows[previousIndex]) {
+                    const previous = previewRows[previousIndex];
+                    previewRows[previousIndex] = {
+                        ...previous,
+                        status: 'duplicate',
+                        reason: `Dosyada tekrarlandi. Son satir (${String(row?.sourceRow || '-')}) esas alindi.`,
+                        warnings: [],
+                        matchedCustomerId: '',
+                        importable: false
+                    };
+                }
+            }
+
             const warnings = [];
             const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
-            const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
-            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || '');
-            const namePhoneKey = (nameKey && phoneKey) ? `${nameKey}|${phoneKey}` : '';
+            const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || '');
+            const matchedCustomerId = matchKey ? String(existingByMatchKey.get(matchKey) || '').trim() : '';
             let status = 'ready';
             let reason = '';
 
@@ -3077,35 +3143,34 @@ const SalesModule = {
             if (!taxKey) warnings.push('Vergi no eksik');
             if (!String(row?.city || '').trim()) warnings.push('Sehir eksik');
 
-            if (taxKey && (existingTax.has(taxKey) || incomingTax.has(taxKey))) {
-                status = 'duplicate';
-                reason = 'Vergi no ayni oldugu icin mukerrer.';
-            } else if (namePhoneKey && (existingNamePhone.has(namePhoneKey) || incomingNamePhone.has(namePhoneKey))) {
-                status = 'duplicate';
-                reason = 'Isim + telefon ayni oldugu icin mukerrer.';
+            if (status !== 'duplicate' && matchedCustomerId) {
+                status = 'update';
+                reason = 'Mevcut musteri guncellenecek.';
             }
 
-            if (status !== 'duplicate') {
-                if (taxKey) incomingTax.add(taxKey);
-                if (namePhoneKey) incomingNamePhone.add(namePhoneKey);
+            if ((status === 'ready' || status === 'update') && warnings.length > 0) {
+                if (status === 'ready') status = 'warning';
+                reason = reason
+                    ? `${reason} Uyari: ${warnings.join(', ')}.`
+                    : warnings.join(', ');
+            } else if ((status === 'ready' || status === 'warning') && !reason) {
+                reason = 'Yeni musteri eklenecek.';
             }
 
-            if (status === 'ready' && warnings.length > 0) {
-                status = 'warning';
-                reason = warnings.join(', ');
-            }
-
-            return {
+            previewRows.push({
                 ...row,
                 status,
                 reason,
                 warnings,
-                importable: status === 'ready' || status === 'warning'
-            };
+                matchedCustomerId,
+                importable: status === 'ready' || status === 'warning' || status === 'update'
+            });
+            if (matchKey) latestRowByMatchKey.set(matchKey, previewRows.length - 1);
         });
 
         const counters = {
             ready: previewRows.filter((row) => row.status === 'ready').length,
+            update: previewRows.filter((row) => row.status === 'update').length,
             warning: previewRows.filter((row) => row.status === 'warning').length,
             duplicate: previewRows.filter((row) => row.status === 'duplicate').length,
             skipped: Array.isArray(skippedRows) ? skippedRows.length : 0
@@ -3121,9 +3186,11 @@ const SalesModule = {
         return rows.map((row) => {
             const statusMeta = row.status === 'duplicate'
                 ? { text: 'Mukerrer', bg: '#fee2e2', color: '#991b1b', border: '#fecaca' }
-                : (row.status === 'warning'
+                : (row.status === 'update'
+                    ? { text: 'Guncelle', bg: '#e0f2fe', color: '#075985', border: '#bae6fd' }
+                    : (row.status === 'warning'
                     ? { text: 'Eksik Bilgi', bg: '#fef3c7', color: '#92400e', border: '#fcd34d' }
-                    : { text: 'Eklenecek', bg: '#dcfce7', color: '#166534', border: '#86efac' });
+                    : { text: 'Eklenecek', bg: '#dcfce7', color: '#166534', border: '#86efac' }));
             return `
                 <tr style="border-bottom:1px solid #eef2f7;">
                     <td style="padding:0.5rem; font-family:Consolas,monospace; color:#475569;">${SalesModule.escapeHtml(String(row?.sourceRow || '-'))}</td>
@@ -3179,8 +3246,9 @@ const SalesModule = {
     openCustomerImportPreviewModal: () => {
         const preview = SalesModule.state.customerImportPreview;
         if (!preview || !Array.isArray(preview.rows)) return alert('Onizleme verisi bulunamadi.');
-        const counters = preview.counters || { ready: 0, warning: 0, duplicate: 0, skipped: 0 };
+        const counters = preview.counters || { ready: 0, update: 0, warning: 0, duplicate: 0, skipped: 0 };
         const importableCount = preview.rows.filter((row) => row.importable).length;
+        const skippedAndDuplicate = Number(counters.duplicate || 0) + Number(counters.skipped || 0);
         const skippedHtml = (preview.skippedRows || []).length
             ? `
                 <div style="margin-top:0.55rem; border:1px solid #fcd34d; background:#fffbeb; color:#92400e; border-radius:0.6rem; padding:0.55rem; font-size:0.82rem;">
@@ -3195,10 +3263,11 @@ const SalesModule = {
             <div style="display:flex; flex-direction:column; gap:0.65rem;">
                 <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
                     <div style="border:1px solid #e2e8f0; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Dosya satiri</div><div style="font-weight:800; color:#0f172a;">${SalesModule.escapeHtml(String(preview.fileRowCount || 0))}</div></div>
-                    <div style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#166534;">Eklenecek</div><div style="font-weight:800; color:#166534;">${SalesModule.escapeHtml(String(counters.ready || 0))}</div></div>
-                    <div style="border:1px solid #fde68a; background:#fffbeb; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#92400e;">Eksik bilgi ile</div><div style="font-weight:800; color:#92400e;">${SalesModule.escapeHtml(String(counters.warning || 0))}</div></div>
-                    <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#991b1b;">Mukerrer/atlanan</div><div style="font-weight:800; color:#991b1b;">${SalesModule.escapeHtml(String((counters.duplicate || 0) + (counters.skipped || 0)))}</div></div>
+                    <div style="border:1px solid #bbf7d0; background:#f0fdf4; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#166534;">Yeni eklenecek</div><div style="font-weight:800; color:#166534;">${SalesModule.escapeHtml(String(counters.ready || 0))}</div></div>
+                    <div style="border:1px solid #bae6fd; background:#f0f9ff; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#075985;">Guncellenecek</div><div style="font-weight:800; color:#075985;">${SalesModule.escapeHtml(String(counters.update || 0))}</div></div>
+                    <div style="border:1px solid #fecaca; background:#fef2f2; border-radius:0.6rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#991b1b;">Atlanan / Mukerrer</div><div style="font-weight:800; color:#991b1b;">${SalesModule.escapeHtml(String(skippedAndDuplicate))}</div></div>
                 </div>
+                <div style="font-size:0.8rem; color:#92400e;">Eksik bilgi ile islenecek: <strong>${SalesModule.escapeHtml(String(counters.warning || 0))}</strong></div>
                 <div style="font-size:0.82rem; color:#64748b;">Dosya: <strong>${SalesModule.escapeHtml(String(preview.fileName || '-'))}</strong></div>
                 <div style="max-height:52vh; overflow:auto; border:1px solid #e2e8f0; border-radius:0.7rem;">
                     <table style="width:100%; min-width:900px; border-collapse:collapse;">
@@ -3232,13 +3301,76 @@ const SalesModule = {
         if (!preview || !Array.isArray(preview.rows)) return alert('Aktarma onizlemesi bulunamadi.');
         const importableRows = preview.rows.filter((row) => row.importable);
         if (!importableRows.length) return alert('Iceri alinacak kayit yok.');
+        const customerRows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const customerIndexById = new Map(
+            customerRows.map((row, index) => [String(row?.id || '').trim(), index])
+        );
+        const pickText = (incoming, current = '') => {
+            const normalizedIncoming = String(incoming || '').trim();
+            if (normalizedIncoming) return normalizedIncoming;
+            return String(current || '').trim();
+        };
+        const pickNumber = (incoming, current, parser) => {
+            const incomingText = String(incoming || '').trim();
+            if (!incomingText) return parser(current || 0);
+            return parser(incomingText);
+        };
         const now = new Date().toISOString();
         let added = 0;
+        let updated = 0;
         importableRows.forEach((item) => {
+            const name = String(item?.name || '').trim();
+            if (!name) return;
+            const matchedCustomerId = String(item?.matchedCustomerId || '').trim();
+            const targetIndex = matchedCustomerId ? customerIndexById.get(matchedCustomerId) : -1;
+
+            if (Number.isInteger(targetIndex) && targetIndex >= 0) {
+                const prev = customerRows[targetIndex] || {};
+                const preservedId = SalesModule.isValidUuid(prev?.id) ? String(prev.id).trim() : crypto.randomUUID();
+                const rawCustomerCode = String(prev?.customerCode || '').trim().toUpperCase();
+                const preservedCustomerCode = SalesModule.isValidCustomerCode(rawCustomerCode)
+                    ? rawCustomerCode
+                    : SalesModule.generateCustomerCode();
+                customerRows[targetIndex] = {
+                    ...prev,
+                    id: preservedId,
+                    customerCode: preservedCustomerCode,
+                    name,
+                    city: pickText(item?.city, prev?.city),
+                    district: pickText(item?.district, prev?.district),
+                    phone: pickText(item?.phone, prev?.phone),
+                    phoneCountryCode: pickText(item?.phoneCountryCode, prev?.phoneCountryCode),
+                    phoneAreaCode: pickText(item?.phoneAreaCode, prev?.phoneAreaCode),
+                    phoneAlt: pickText(item?.phoneAlt, prev?.phoneAlt),
+                    email: pickText(item?.email, prev?.email),
+                    taxOffice: pickText(item?.taxOffice, prev?.taxOffice),
+                    taxNo: pickText(item?.taxNo, prev?.taxNo),
+                    address: pickText(item?.address, prev?.address),
+                    addressNo: pickText(item?.addressNo, prev?.addressNo),
+                    postalCode: pickText(item?.postalCode, prev?.postalCode),
+                    country: pickText(item?.country, prev?.country),
+                    externalCode: pickText(item?.externalCode, prev?.externalCode),
+                    faxNo: pickText(item?.faxNo, prev?.faxNo),
+                    modemNo: pickText(item?.modemNo, prev?.modemNo),
+                    authorizedPerson: pickText(item?.authorizedPerson, prev?.authorizedPerson),
+                    discountRate: pickNumber(item?.discountRate, prev?.discountRate, SalesModule.parsePercent),
+                    paymentTermDays: pickNumber(item?.paymentTermDays, prev?.paymentTermDays, SalesModule.parseDays),
+                    riskLimit: pickNumber(item?.riskLimit, prev?.riskLimit, SalesModule.parseMoney),
+                    customerTypes: Array.isArray(prev?.customerTypes) ? prev.customerTypes : [],
+                    tags: Array.isArray(prev?.tags) ? prev.tags : [],
+                    note: pickText(item?.note, prev?.note),
+                    isActive: true,
+                    created_at: String(prev?.created_at || now),
+                    updated_at: now
+                };
+                updated += 1;
+                return;
+            }
+
             const row = {
                 id: crypto.randomUUID(),
                 customerCode: SalesModule.generateCustomerCode(),
-                name: String(item?.name || '').trim(),
+                name,
                 city: String(item?.city || '').trim(),
                 district: String(item?.district || '').trim(),
                 phone: String(item?.phone || '').trim(),
@@ -3256,9 +3388,9 @@ const SalesModule = {
                 faxNo: String(item?.faxNo || '').trim(),
                 modemNo: String(item?.modemNo || '').trim(),
                 authorizedPerson: String(item?.authorizedPerson || '').trim(),
-                discountRate: 0,
-                paymentTermDays: 0,
-                riskLimit: 0,
+                discountRate: SalesModule.parsePercent(item?.discountRate || 0),
+                paymentTermDays: SalesModule.parseDays(item?.paymentTermDays || 0),
+                riskLimit: SalesModule.parseMoney(item?.riskLimit || 0),
                 customerTypes: [],
                 tags: [],
                 note: String(item?.note || '').trim(),
@@ -3266,8 +3398,8 @@ const SalesModule = {
                 created_at: now,
                 updated_at: now
             };
-            if (!row.name) return;
-            DB.data.data.customers.push(row);
+            customerRows.push(row);
+            customerIndexById.set(String(row.id || '').trim(), customerRows.length - 1);
             added += 1;
         });
         await DB.save();
@@ -3276,7 +3408,7 @@ const SalesModule = {
         UI.renderCurrentPage();
         const duplicateCount = Number(preview?.counters?.duplicate || 0) + Number(preview?.counters?.skipped || 0);
         const warningCount = Number(preview?.counters?.warning || 0);
-        alert(`Iceri aktarma tamamlandi. Eklenen: ${added}, Eksik bilgi ile eklenen: ${warningCount}, Atlanan: ${duplicateCount}.`);
+        alert(`Iceri aktarma tamamlandi. Yeni: ${added}, Guncellenen: ${updated}, Eksik bilgi ile islenen: ${warningCount}, Atlanan: ${duplicateCount}.`);
     },
 
     getCatalogTree: () => ([

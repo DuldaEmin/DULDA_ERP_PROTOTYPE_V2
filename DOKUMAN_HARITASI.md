@@ -22,6 +22,9 @@ Amac: Tek bakista hangi sorunun cevabi hangi dosyada oldugunu gostermek.
 5. Temel degismez kurallari gormek istersen:
 - `ANAYASA.md`
 
+6. Ana omurgayi bozmadan degisiklik yapma kurallarini gormek istersen:
+- `OMURGA_DEGISIKLIK_PROTOKOLU.md`
+
 ## 2) Dokuman Rolleri
 
 - `KULLANICI_EL_KITABI.md`:
@@ -43,6 +46,10 @@ Amac: Tek bakista hangi sorunun cevabi hangi dosyada oldugunu gostermek.
 - `GELISTIRME_GUNLUGU.md`:
   - "Ne degisti" + "neden degisti" kayitlari
   - Karar hafizasi
+
+- `OMURGA_DEGISIKLIK_PROTOKOLU.md`:
+  - Kritik akislar icin degisiklik emniyet protokolu
+  - Test, CI, PR checklist ve rollback zorunluluklari
 
 ## 3) Dokuman Guncelleme Kurali
 

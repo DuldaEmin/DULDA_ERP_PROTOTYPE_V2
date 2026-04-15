@@ -76,6 +76,21 @@ try {
     Add-Issue "JS parse kontrol hatasi: $($_.Exception.Message)"
 }
 
+try {
+    if (Test-Path "package.json") {
+        npm.cmd run --silent guard:backbone *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Add-Issue "Backbone guard testleri basarisiz (npm run guard:backbone)."
+        } else {
+            Add-Note "Backbone guard OK"
+        }
+    } else {
+        Add-Note "package.json bulunamadi, backbone guard atlandi"
+    }
+} catch {
+    Add-Issue "Backbone guard kontrol hatasi: $($_.Exception.Message)"
+}
+
 $summary = if ($issues.Count -eq 0) { "OK" } else { "ISSUE" }
 $line = "[$now] $summary | " + (($notes + $issues) -join " | ")
 Add-Content -Path $logPath -Value $line -Encoding UTF8

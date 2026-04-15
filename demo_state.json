@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T12:09:15.216Z",
+    "updated_at": "2026-04-15T12:43:24.549Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 837
+    "revision": 838
   },
   "data": {
     "products": [
@@ -2619,7 +2619,63 @@
         "updated_at": "2026-04-15T12:03:24.557Z"
       }
     ],
-    "orders": [],
+    "orders": [
+      {
+        "id": "998b109f-4b1a-401b-b023-9fe96bd7b463",
+        "orderNo": "SOR-000001",
+        "orderDate": "2026-04-15",
+        "customerId": "8423a0e8-4909-4f72-bc8c-bf82d1462e2c",
+        "customerName": "ACAR SANAYİ METAL PASLANMAZ",
+        "status": "Taslak",
+        "currency": "USD",
+        "deliveryAddress": "KOPÇA SOKAK NO:47/A SİTELER",
+        "deliveryMethod": "",
+        "note": "",
+        "lines": [
+          {
+            "id": "cb68fabd-425b-454d-89e2-f85a4071a7a0",
+            "productId": "SCP-BA5C9FEA",
+            "productName": "40X40 profil",
+            "productCode": "ID-00007",
+            "qty": 1,
+            "unitPrice": 2,
+            "discountRate": 0,
+            "lineSubtotal": 2,
+            "lineDiscount": 0,
+            "lineTotal": 2
+          },
+          {
+            "id": "4ad3683a-eb28-497e-a183-6c429926e786",
+            "productId": "SCP-F2D9F025",
+            "productName": "Boru Ø 50",
+            "productCode": "ID-00008",
+            "qty": 1,
+            "unitPrice": 2,
+            "discountRate": 0,
+            "lineSubtotal": 2,
+            "lineDiscount": 0,
+            "lineTotal": 2
+          },
+          {
+            "id": "19632c1d-a1c4-46ae-855e-8273898cad2f",
+            "productId": "SCP-2E556979",
+            "productName": "Cubuk Ø 50",
+            "productCode": "ID-00006",
+            "qty": 1,
+            "unitPrice": 5,
+            "discountRate": 0,
+            "lineSubtotal": 5,
+            "lineDiscount": 0,
+            "lineTotal": 5
+          }
+        ],
+        "subtotal": 9,
+        "discountTotal": 0,
+        "totalAmount": 9,
+        "created_at": "2026-04-15T12:43:24.548Z",
+        "updated_at": "2026-04-15T12:43:24.548Z"
+      }
+    ],
     "units": [
       {
         "id": "u1",

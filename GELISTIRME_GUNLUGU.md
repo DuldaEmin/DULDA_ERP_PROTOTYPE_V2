@@ -30,6 +30,28 @@ Iletisim protokolu:
 
 ## 3) Kayitlar
 
+### 2026-04-15 - Omurga Koruma Paketi Aktif Edildi
+- Ne degisti:
+  - `tests/backbone.guard.test.cjs` eklendi.
+  - `scripts/check-parse.cjs` eklendi.
+  - `package.json` scriptleri `guard:backbone` akisi ile guncellendi.
+  - `.github/workflows/backbone-guard.yml` CI kontrolu eklendi.
+  - `.github/pull_request_template.md` omurga checklisti eklendi.
+  - `OMURGA_DEGISIKLIK_PROTOKOLU.md` olusturuldu.
+  - `AUTO_PROJECT_CHECK.ps1` icine backbone guard kontrolu eklendi.
+- Neden degisti:
+  - Ana omurga (malzeme rota ve aldim-verdim protokolleri) degisikliklerde sessiz regresyon riski tasiyordu.
+  - Bu riski merge oncesi otomatik yakalamak ve ekip standardi haline getirmek.
+- Etkilenen ekran/modul:
+  - UnitModule rota metrik hesaplama davranisi.
+  - StockModule transfer davranisi ve hareket kaydi.
+  - CI ve proje operasyon akisi.
+- Beklenen sonuc:
+  - Kritik akislarda bozulma daha gelistirme asamasinda yakalanir.
+  - PR kalite kapisi standart ve izlenebilir hale gelir.
+- Risk/Not:
+  - Omurgada bilincli davranis degisikligi yapildiginda testlerin birlikte guncellenmesi zorunludur.
+
 ### 2026-03-25 - Montaja Hazir Kurali Dokumante Edildi
 - Ne degisti:
   - `ISLEYIS.md` icine "Montaja Hazir Kurali (Net)" bolumu eklendi.

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T13:26:36.364Z",
+    "updated_at": "2026-04-15T14:32:26.382Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 839
+    "revision": 843
   },
   "data": {
     "products": [
@@ -3087,49 +3087,49 @@
     ],
     "workOrders": [
       {
-        "id": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "id": "ce19236f-86fe-486f-8470-d6e212c1f70e",
         "workOrderCode": "WO-000001",
         "montageCardId": "",
         "montageCardCode": "",
         "productCode": "PRC-000007",
         "productName": "2008 bombeli 40 lık dikme pleksi",
-        "lotQty": 6,
+        "lotQty": 5,
         "dueDate": "2026-04-18",
         "priority": "NORMAL",
         "note": "",
         "status": "OPEN",
         "lines": [
           {
-            "id": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+            "id": "35c3df4d-77a2-4345-8b9b-1d5344a4557e",
             "lineCode": "WO-000001-01",
             "componentCode": "PRC-000007",
             "componentName": "2008 bombeli 40 lık dikme pleksi",
             "multiplier": 1,
-            "targetQty": 6,
+            "targetQty": 5,
             "routes": [
               {
-                "id": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
+                "id": "71689ac1-281c-4b6d-a45b-737fcac89fce",
                 "seq": 1,
                 "stationId": "u2",
                 "stationName": "EKSTRUDER ATOLYESI",
                 "processId": "EKS-000001"
               },
               {
-                "id": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
+                "id": "512f8ac6-a28e-4f39-a096-8132fa2e770a",
                 "seq": 2,
                 "stationId": "u1",
                 "stationName": "CNC ATOLYESI",
                 "processId": "CNC-000001"
               },
               {
-                "id": "b27153c5-14ce-4cc7-bb43-71862a393b36",
+                "id": "bc099b00-67e4-43d1-8a89-51628e644821",
                 "seq": 3,
                 "stationId": "u5",
                 "stationName": "PLEKSI POLISAJ ATOLYESI",
                 "processId": "PLSJ-000001"
               },
               {
-                "id": "56b8a270-d902-4394-bd3d-c983f18afa66",
+                "id": "e6aa3b6c-2aeb-4278-8626-1fce60b605e2",
                 "seq": 4,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3141,17 +3141,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:03:24.557Z"
+        "created_at": "2026-04-15T14:30:56.910Z",
+        "updated_at": "2026-04-15T14:32:26.382Z"
       },
       {
-        "id": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "id": "e12c4573-0758-475a-8936-19f7469fb2a8",
         "workOrderCode": "WO-000002",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3164,7 +3164,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+            "id": "e075af14-bf4f-4d57-b637-448b538803f6",
             "lineCode": "WO-000002-01",
             "componentCode": "PRC-000008",
             "componentName": "40 lık aluminyum dikme flanşı",
@@ -3172,35 +3172,35 @@
             "targetQty": 5,
             "routes": [
               {
-                "id": "02ed0005-30ec-4e47-a132-c50e4fff047a",
+                "id": "6079d0d9-9ba9-414c-ae65-e9b07afa565b",
                 "seq": 1,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000001"
               },
               {
-                "id": "c44a4630-412d-49d6-b220-5d28c26ad717",
+                "id": "98303670-678d-44be-b4c3-9bf1e58e5c86",
                 "seq": 2,
                 "stationId": "u10",
                 "stationName": "IBRAHIM POLISAJ",
                 "processId": "IPS-000001"
               },
               {
-                "id": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
+                "id": "c9ce4c87-5c07-4797-b32f-d8faf2c7308e",
                 "seq": 3,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000002"
               },
               {
-                "id": "334a92ed-9f1c-40b0-9dc7-2c6a35f514ab",
+                "id": "5ebbe273-2772-4a01-a64c-df1b70549723",
                 "seq": 4,
                 "stationId": "u11",
                 "stationName": "TEKIN ELOKSAL",
                 "processId": "ELX-000001"
               },
               {
-                "id": "25a58c73-a4ab-48d7-98ee-80329f352903",
+                "id": "2b10f9d9-9db1-4a6d-b06e-e9b8ccb71ac9",
                 "seq": 5,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3212,17 +3212,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:08:55.662Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       },
       {
-        "id": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "id": "98959b46-e6e3-428f-a0df-9310326e4e35",
         "workOrderCode": "WO-000003",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3235,7 +3235,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+            "id": "627b4731-c263-4e5f-8b54-c5932d2d5f7a",
             "lineCode": "WO-000003-01",
             "componentCode": "PRC-000003",
             "componentName": "40 lık aluminyum dikme yarıklı tapa",
@@ -3243,42 +3243,42 @@
             "targetQty": 5,
             "routes": [
               {
-                "id": "a66efda3-ef54-4d5a-801d-bbb5840cad55",
+                "id": "cd4a07fb-004b-40b0-8e44-9075135551fe",
                 "seq": 1,
                 "stationId": "u1",
                 "stationName": "CNC ATOLYESI",
                 "processId": "CNC-000002"
               },
               {
-                "id": "24858d31-4e99-42bc-ae52-52a5b5d974da",
+                "id": "f6246833-b986-4874-bb61-510d3cf8be56",
                 "seq": 2,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000001"
               },
               {
-                "id": "2b971a4d-62e3-44fb-a5db-ffa911785dc2",
+                "id": "ac9053a6-28c7-4c33-b47e-ad3f28fd89a7",
                 "seq": 3,
                 "stationId": "u10",
                 "stationName": "IBRAHIM POLISAJ",
                 "processId": "IPS-000001"
               },
               {
-                "id": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
+                "id": "be5c22fe-810d-4c21-9a10-2d5f882229f9",
                 "seq": 4,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000002"
               },
               {
-                "id": "a9d7d942-99ce-4ac4-b677-c2f6d2a69ab4",
+                "id": "227e9a16-0458-4eed-8bc6-9fd0300a1f3a",
                 "seq": 5,
                 "stationId": "u11",
                 "stationName": "TEKIN ELOKSAL",
                 "processId": "ELX-000001"
               },
               {
-                "id": "8739c029-6d0f-4379-9866-5bcfdd3b2d5e",
+                "id": "0c53b8e8-cd32-4557-aecd-8f12e3005b40",
                 "seq": 6,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3290,17 +3290,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:09:15.216Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       },
       {
-        "id": "adc90f66-90e6-4e2f-8931-2f9ca3c22a3d",
+        "id": "3753099b-5edb-473e-b313-ac8b1a3f4793",
         "workOrderCode": "WO-000004",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3313,7 +3313,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "50d7fd27-8209-42ce-ac95-13c93b931327",
+            "id": "051ecd70-7de2-48f8-99bb-c2313fabfb23",
             "lineCode": "WO-000004-01",
             "componentCode": "PRC-000009",
             "componentName": "aluminyum dikme alt borusu 200 mm sarı",
@@ -3321,14 +3321,14 @@
             "targetQty": 5,
             "routes": [
               {
-                "id": "86ca37f5-2534-489c-9a6f-9ec4cd53d7b7",
+                "id": "40dc4aba-61aa-4a18-afaa-4468b2c10f77",
                 "seq": 1,
                 "stationId": "u7",
                 "stationName": "TESTERE ATOLYESI",
                 "processId": "TST-000002"
               },
               {
-                "id": "4a67d1ce-22e1-4f17-a836-cae2c50527a7",
+                "id": "48b4864f-4091-4661-8e5c-b1f753798a45",
                 "seq": 2,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3340,17 +3340,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       },
       {
-        "id": "f42aff7e-4536-440d-87e2-544980d53dd7",
+        "id": "d8b9e923-afd1-4f4a-afe8-ebb2cb91ff43",
         "workOrderCode": "WO-000005",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3363,7 +3363,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "e999f99f-6cc8-47b4-a03a-3c212930596c",
+            "id": "43e45639-ac03-4380-90ef-ea047ff8b1af",
             "lineCode": "WO-000005-01",
             "componentCode": "PRC-000005",
             "componentName": "aluminyum dikme ay bağlantısı",
@@ -3371,21 +3371,21 @@
             "targetQty": 5,
             "routes": [
               {
-                "id": "018f522f-cb9b-4141-8581-aa64a6e3335b",
+                "id": "52b3fa02-aa52-4567-806f-72ffab4139c2",
                 "seq": 1,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000001"
               },
               {
-                "id": "8853cb6b-f29a-4183-bc76-634fbf811db6",
+                "id": "3d60b2ec-ec9e-43e7-8950-cb455ab5b437",
                 "seq": 2,
                 "stationId": "u10",
                 "stationName": "IBRAHIM POLISAJ",
                 "processId": "IPS-000001"
               },
               {
-                "id": "cd8d021e-664b-42ed-9a47-5d57c5704b75",
+                "id": "6ff2a306-2aa2-4dde-bdb4-26b3a8455377",
                 "seq": 3,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3397,17 +3397,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:04:48.771Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       },
       {
-        "id": "0bc545d8-6677-4542-aec6-8cc6f85f529c",
+        "id": "c3dc2c97-6002-46ed-9628-21e684ac9163",
         "workOrderCode": "WO-000006",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3420,7 +3420,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "7380dacf-39e3-43b0-bb0a-3cb14caa84c1",
+            "id": "33b5a333-904b-4fb5-b182-b2b9e3fdcaf6",
             "lineCode": "WO-000006-01",
             "componentCode": "PRC-000001",
             "componentName": "aluminyum dikme üst boru 70 mm",
@@ -3428,14 +3428,14 @@
             "targetQty": 5,
             "routes": [
               {
-                "id": "27da2e0f-fb2c-4034-9f62-8b86c7298cf1",
+                "id": "16b91104-5526-427d-a107-dc3b9e426e53",
                 "seq": 1,
                 "stationId": "u7",
                 "stationName": "TESTERE ATOLYESI",
                 "processId": "TST-000001"
               },
               {
-                "id": "47b903b5-bdbc-4fc5-b605-1b45ff26773f",
+                "id": "6f6cd7bc-f7c3-42f5-a9d4-3e50083f8e02",
                 "seq": 2,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3447,17 +3447,17 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       },
       {
-        "id": "713a45ba-bd37-4273-977f-949a9a3e8b98",
+        "id": "c1961f81-e96a-45aa-8254-9ed313541cf0",
         "workOrderCode": "WO-000007",
         "montageCardId": "",
         "montageCardCode": "",
@@ -3470,7 +3470,7 @@
         "status": "OPEN",
         "lines": [
           {
-            "id": "bd0245de-9750-4f95-9f00-df7fbcdd018f",
+            "id": "ffa1a62a-f5ba-4235-aa28-5e1d3a520840",
             "lineCode": "WO-000007-01",
             "componentCode": "PRC-000006",
             "componentName": "aluminyum dikme yüzüğü",
@@ -3478,21 +3478,21 @@
             "targetQty": 10,
             "routes": [
               {
-                "id": "bde69170-05a5-440b-b661-494b264f0ea4",
+                "id": "c3896fa7-603a-496b-8bb1-4c6df91e46c5",
                 "seq": 1,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
                 "processId": "DTR-000001"
               },
               {
-                "id": "fc857c64-930e-48d3-bfde-4245d3bcb668",
+                "id": "f2e4f023-65ae-4515-87db-f62493ffc3f5",
                 "seq": 2,
                 "stationId": "u10",
                 "stationName": "IBRAHIM POLISAJ",
                 "processId": "IPS-000001"
               },
               {
-                "id": "1ed8a2fc-e152-4c1f-92ab-4660677549cb",
+                "id": "d6c3ec1a-fe8d-4b34-b0a1-1b7bef5633a9",
                 "seq": 3,
                 "stationId": "u_dtm",
                 "stationName": "DEPO TRANSFER",
@@ -3504,436 +3504,30 @@
         ],
         "createdByUnitId": "",
         "sourceType": "PLAN_POOL_COMPONENT",
-        "sourceId": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "sourceId": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "sourceCode": "PLN-000001",
-        "sourceItemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+        "sourceItemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
         "sourceItemName": "Dekorlu 2015",
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
-        "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:04:51.713Z"
+        "created_at": "2026-04-15T14:30:56.911Z",
+        "updated_at": "2026-04-15T14:30:56.911Z"
       }
     ],
     "workOrderTransactions": [
       {
-        "id": "efbaf669-68bb-40ea-af75-f4056d54b3b3",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
+        "id": "f22d3d73-944e-4e12-8295-f4644c4dc51d",
+        "workOrderId": "ce19236f-86fe-486f-8470-d6e212c1f70e",
+        "lineId": "35c3df4d-77a2-4345-8b9b-1d5344a4557e",
         "stationId": "u2",
-        "routeId": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
+        "routeId": "71689ac1-281c-4b6d-a45b-737fcac89fce",
         "routeSeq": 1,
         "processId": "EKS-000001",
         "type": "TAKE",
-        "qty": 6,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T11:51:07.142Z"
-      },
-      {
-        "id": "b1c11233-de03-4005-ae92-688d4446d7fd",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u1",
-        "routeId": "a66efda3-ef54-4d5a-801d-bbb5840cad55",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "TAKE",
         "qty": 5,
         "note": "Istasyon devir aldi",
         "user": "Demo User",
-        "created_at": "2026-04-15T11:52:57.488Z"
-      },
-      {
-        "id": "667fcb5a-bd32-45df-b9f7-c93e5900caf2",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u2",
-        "routeId": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
-        "routeSeq": 1,
-        "processId": "EKS-000001",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T11:53:17.664Z"
-      },
-      {
-        "id": "c889554b-b82e-4aec-ae81-813527065fe3",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u1",
-        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
-        "routeSeq": 2,
-        "processId": "CNC-000001",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T11:53:49.468Z"
-      },
-      {
-        "id": "9b484d9d-134f-4110-b93a-68f75cca1935",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u2",
-        "routeId": "f15b3337-51e9-473e-a80c-eb29867e4f3b",
-        "routeSeq": 1,
-        "processId": "EKS-000001",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T11:54:44.862Z"
-      },
-      {
-        "id": "33313cad-1361-49dd-86f7-06c28d3a074b",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u1",
-        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
-        "routeSeq": 2,
-        "processId": "CNC-000001",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T11:55:19.311Z"
-      },
-      {
-        "id": "eec9bb6a-b816-490c-9052-05431022a852",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u1",
-        "routeId": "1db2a06e-936c-4a94-b0d0-78e7e56c8a49",
-        "routeSeq": 2,
-        "processId": "CNC-000001",
-        "type": "COMPLETE",
-        "qty": 6,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:01:52.769Z"
-      },
-      {
-        "id": "a180ea21-6bff-44ea-b06a-13671b5a5de1",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u5",
-        "routeId": "b27153c5-14ce-4cc7-bb43-71862a393b36",
-        "routeSeq": 3,
-        "processId": "PLSJ-000001",
-        "type": "TAKE",
-        "qty": 6,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:02:03.319Z"
-      },
-      {
-        "id": "41fafb54-81c0-4bfc-8142-a36338de081b",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u5",
-        "routeId": "b27153c5-14ce-4cc7-bb43-71862a393b36",
-        "routeSeq": 3,
-        "processId": "PLSJ-000001",
-        "type": "COMPLETE",
-        "qty": 6,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:02:08.481Z"
-      },
-      {
-        "id": "aec051c6-9ef9-4c42-a5eb-77e29968f433",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u_dtm",
-        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 6,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:02:29.013Z"
-      },
-      {
-        "id": "75e58137-b416-4d0d-b2ba-efd55e3f2b66",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u_dtm",
-        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "COMPLETE",
-        "qty": 6,
-        "note": "Istasyon tamamlandi (depoya al)",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:03:24.557Z"
-      },
-      {
-        "id": "d9dce631-1a5f-4db1-b6bd-d358a5710ab9",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-        "lineId": "38a68d0d-31b8-46ba-81ee-ec6abb4051a4",
-        "stationId": "u_dtm",
-        "routeId": "56b8a270-d902-4394-bd3d-c983f18afa66",
-        "routeSeq": 4,
-        "processId": "DTR-000004",
-        "type": "STORE",
-        "qty": 6,
-        "note": "Depoya alindi: ANA DEPO / R01-A1 (LOC-000003)",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:03:24.557Z"
-      },
-      {
-        "id": "3eadbbd7-c2f9-4119-9404-52882659217e",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u1",
-        "routeId": "a66efda3-ef54-4d5a-801d-bbb5840cad55",
-        "routeSeq": 1,
-        "processId": "CNC-000002",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:04:19.291Z"
-      },
-      {
-        "id": "9a0a0c33-26c2-4b42-bd5c-722b4fde1f9f",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u_dtm",
-        "routeId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:04:36.437Z"
-      },
-      {
-        "id": "41ee2cd9-f3b1-4608-9ef9-7ff1973352cf",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u_dtm",
-        "routeId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:04:44.229Z"
-      },
-      {
-        "id": "c657d63e-e9ee-4e05-a78c-b44745ec07ad",
-        "workOrderId": "f42aff7e-4536-440d-87e2-544980d53dd7",
-        "lineId": "e999f99f-6cc8-47b4-a03a-3c212930596c",
-        "stationId": "u_dtm",
-        "routeId": "018f522f-cb9b-4141-8581-aa64a6e3335b",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:04:48.771Z"
-      },
-      {
-        "id": "5f06b548-0600-4fa7-8d7b-85fb9708d8b4",
-        "workOrderId": "713a45ba-bd37-4273-977f-949a9a3e8b98",
-        "lineId": "bd0245de-9750-4f95-9f00-df7fbcdd018f",
-        "stationId": "u_dtm",
-        "routeId": "bde69170-05a5-440b-b661-494b264f0ea4",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "TAKE",
-        "qty": 10,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:04:51.713Z"
-      },
-      {
-        "id": "010872a9-c791-4140-88a1-1d6f91c6f5da",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u_dtm",
-        "routeId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
-        "routeSeq": 1,
-        "processId": "DTR-000001",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:05:30.858Z"
-      },
-      {
-        "id": "72e3d4b0-0b2b-4d05-acc0-716e2b4f0baf",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u_dtm",
-        "routeId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
-        "routeSeq": 2,
-        "processId": "DTR-000001",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:05:30.858Z"
-      },
-      {
-        "id": "709f9e5f-a28a-424a-97b8-781b66038ca9",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u10",
-        "routeId": "c44a4630-412d-49d6-b220-5d28c26ad717",
-        "routeSeq": 2,
-        "processId": "IPS-000001",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:06:31.677Z"
-      },
-      {
-        "id": "7f240dcc-3900-4e01-b95a-64ca784c93df",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u10",
-        "routeId": "2b971a4d-62e3-44fb-a5db-ffa911785dc2",
-        "routeSeq": 3,
-        "processId": "IPS-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:06:33.021Z"
-      },
-      {
-        "id": "469c0cc1-5471-4fbd-b2f0-0312de995ac7",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u10",
-        "routeId": "c44a4630-412d-49d6-b220-5d28c26ad717",
-        "routeSeq": 2,
-        "processId": "IPS-000001",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:06:52.082Z"
-      },
-      {
-        "id": "175f28c9-19d3-4f07-802e-170c1dd61f96",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u10",
-        "routeId": "2b971a4d-62e3-44fb-a5db-ffa911785dc2",
-        "routeSeq": 3,
-        "processId": "IPS-000001",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:06:53.265Z"
-      },
-      {
-        "id": "85ab0185-a4a1-41c6-ba50-26b0f5e705ab",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u_dtm",
-        "routeId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
-        "routeSeq": 3,
-        "processId": "DTR-000002",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:07:12.479Z"
-      },
-      {
-        "id": "1961e62b-5e17-4cfe-8c63-9df61aac3388",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u_dtm",
-        "routeId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:07:13.775Z"
-      },
-      {
-        "id": "2341cec0-9f09-466d-8e70-02372ae73cb1",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u_dtm",
-        "routeId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
-        "routeSeq": 4,
-        "processId": "DTR-000002",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:08:26.213Z"
-      },
-      {
-        "id": "898eb71a-8147-46b6-bd8b-7f384f3abe2b",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u_dtm",
-        "routeId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
-        "routeSeq": 3,
-        "processId": "DTR-000002",
-        "type": "COMPLETE",
-        "qty": 3,
-        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:08:26.213Z"
-      },
-      {
-        "id": "af9923da-8a1f-4f62-bb10-ed2293a41463",
-        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-        "stationId": "u11",
-        "routeId": "334a92ed-9f1c-40b0-9dc7-2c6a35f514ab",
-        "routeSeq": 4,
-        "processId": "ELX-000001",
-        "type": "TAKE",
-        "qty": 3,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:08:55.662Z"
-      },
-      {
-        "id": "489e1c08-24fc-4096-8e56-612aae88d97f",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u11",
-        "routeId": "a9d7d942-99ce-4ac4-b677-c2f6d2a69ab4",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "TAKE",
-        "qty": 5,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:08:56.947Z"
-      },
-      {
-        "id": "2c97db23-1952-4cbb-9a70-1dec1d5bb13f",
-        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-        "stationId": "u11",
-        "routeId": "a9d7d942-99ce-4ac4-b677-c2f6d2a69ab4",
-        "routeSeq": 5,
-        "processId": "ELX-000001",
-        "type": "COMPLETE",
-        "qty": 5,
-        "note": "Istasyon tamamlandi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T12:09:15.216Z"
+        "created_at": "2026-04-15T14:32:26.382Z"
       }
     ],
     "outsourceTransfers": [
@@ -5311,14 +4905,14 @@
     ],
     "planningDemands": [
       {
-        "id": "ba70c5dd-2aea-467e-8b3a-38c8b466e912",
+        "id": "f2ba1dfd-bdc7-402b-a958-01d50e3cfb9b",
         "demandCode": "PLN-000001",
         "sourceType": "STOCK",
         "sourceLabel": "Stok Uretimi",
-        "created_at": "2026-04-15T11:48:20.359Z",
+        "created_at": "2026-04-15T14:29:51.202Z",
         "items": [
           {
-            "id": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+            "id": "5647c37b-59df-46fb-bd5b-4426a81e277e",
             "itemType": "MODEL",
             "qty": 5,
             "variantId": "salesvar_073e8728-99c9-482b-8748-0e927119c0a0",
@@ -5353,16 +4947,16 @@
         "priority": "NORMAL",
         "note": "",
         "status": "RELEASED",
-        "workOrderId": "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
+        "workOrderId": "ce19236f-86fe-486f-8470-d6e212c1f70e",
         "workOrderCode": "WO-000001 +6",
         "workOrderIds": [
-          "f7ce11a7-e09d-4d6b-aea9-e205a7a28901",
-          "214d0672-80d9-40ac-b9a5-826e6651d945",
-          "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-          "adc90f66-90e6-4e2f-8931-2f9ca3c22a3d",
-          "f42aff7e-4536-440d-87e2-544980d53dd7",
-          "0bc545d8-6677-4542-aec6-8cc6f85f529c",
-          "713a45ba-bd37-4273-977f-949a9a3e8b98"
+          "ce19236f-86fe-486f-8470-d6e212c1f70e",
+          "e12c4573-0758-475a-8936-19f7469fb2a8",
+          "98959b46-e6e3-428f-a0df-9310326e4e35",
+          "3753099b-5edb-473e-b313-ac8b1a3f4793",
+          "d8b9e923-afd1-4f4a-afe8-ebb2cb91ff43",
+          "c3dc2c97-6002-46ed-9628-21e684ac9163",
+          "c1961f81-e96a-45aa-8254-9ed313541cf0"
         ],
         "workOrderCodes": [
           "WO-000001",
@@ -5373,13 +4967,13 @@
           "WO-000006",
           "WO-000007"
         ],
-        "updated_at": "2026-04-15T11:49:35.145Z",
+        "updated_at": "2026-04-15T14:30:56.911Z",
         "releasedQty": 5,
         "poolAnalysis": {
           "rows": [
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:45a9550a-ce5c-4e74-89eb-c40e8d4ffc5f",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5391,11 +4985,11 @@
               "useEnabled": false,
               "useStockQty": 0,
               "useSemiQty": 0,
-              "netQty": 6
+              "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:b720dffa-db74-4422-b198-419d2b9aa8ce",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:b720dffa-db74-4422-b198-419d2b9aa8ce",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5410,8 +5004,8 @@
               "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:2a8a1993-5c0b-4386-8ef4-076f63c01b34",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5426,8 +5020,8 @@
               "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:3cafd5a9-4876-4bbd-bba0-a2a8dac19532",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5442,8 +5036,8 @@
               "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:d9299b72-3d47-4b96-a4ee-6d7b876c1367",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:d9299b72-3d47-4b96-a4ee-6d7b876c1367",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5458,8 +5052,8 @@
               "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:0f95fb28-d22f-475a-8b68-d6a054c7189a",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:0f95fb28-d22f-475a-8b68-d6a054c7189a",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5474,8 +5068,8 @@
               "netQty": 5
             },
             {
-              "key": "380dd3a7-85bf-4041-b799-10df5c8427e5::PART:3f3c7192-6721-4c58-af07-785b8edf3013",
-              "itemKey": "380dd3a7-85bf-4041-b799-10df5c8427e5",
+              "key": "5647c37b-59df-46fb-bd5b-4426a81e277e::PART:3f3c7192-6721-4c58-af07-785b8edf3013",
+              "itemKey": "5647c37b-59df-46fb-bd5b-4426a81e277e",
               "itemName": "Dekorlu 2015",
               "itemCode": "2015-002",
               "itemQty": 5,
@@ -5490,9 +5084,9 @@
               "netQty": 10
             }
           ],
-          "converted_at": "2026-04-15T11:49:35.145Z"
+          "converted_at": "2026-04-15T14:30:56.911Z"
         },
-        "released_at": "2026-04-15T11:49:35.145Z"
+        "released_at": "2026-04-15T14:30:56.911Z"
       }
     ],
     "semiFinishedCards": [
@@ -5531,116 +5125,7 @@
       }
     ],
     "requests": [],
-    "workOrderDispatchNotes": [
-      {
-        "id": "0a9346bd-29ce-4fe2-a96b-e39833732ae3",
-        "docNo": "DSI-000001",
-        "stationId": "u_dtm",
-        "targetUnitId": "u10",
-        "targetUnitName": "IBRAHIM POLISAJ",
-        "status": "HAZIRLANDI",
-        "isArchived": false,
-        "created_at": "2026-04-15T12:05:30.858Z",
-        "created_by": "Demo User",
-        "note": "",
-        "history": [
-          {
-            "at": "2026-04-15T12:05:30.858Z",
-            "status": "HAZIRLANDI",
-            "user": "Demo User"
-          }
-        ],
-        "rows": [
-          {
-            "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-            "workOrderCode": "WO-000002",
-            "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-            "lineCode": "WO-000002-01",
-            "componentCode": "PRC-000008",
-            "componentName": "40 lık aluminyum dikme flanşı",
-            "qty": 3,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
-            "sourceRouteSeq": 1,
-            "sourceProcessId": "DTR-000001",
-            "targetProcessId": "IPS-000001",
-            "targetProcessName": "parlak polisaj",
-            "targetUnitId": "u10"
-          },
-          {
-            "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-            "workOrderCode": "WO-000003",
-            "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-            "lineCode": "WO-000003-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 5,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
-            "sourceRouteSeq": 2,
-            "sourceProcessId": "DTR-000001",
-            "targetProcessId": "IPS-000001",
-            "targetProcessName": "parlak polisaj",
-            "targetUnitId": "u10"
-          }
-        ],
-        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000001</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000001</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">IBRAHIM POLISAJ</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">15.04.2026 15:05</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000002</div><div>WO-000002-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme flanşı</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000008</div></td>\n                        <td>\n                            <div class=\"proc-code\">IPS-000001</div>\n                            <div class=\"proc-name\">parlak polisaj</div>\n                        </td>\n                        <td class=\"right\"><strong>3</strong></td>\n                    </tr>\n                \n                    <tr>\n                        <td class=\"center\">2</td>\n                        <td><div class=\"mono\">WO-000003</div><div>WO-000003-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">IPS-000001</div>\n                            <div class=\"proc-name\">parlak polisaj</div>\n                        </td>\n                        <td class=\"right\"><strong>5</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">8</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>15.04.2026 15:05</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 15.04.2026 15:05</span>\n        </div>\n    </section>\n</body>\n</html>\n        "
-      },
-      {
-        "id": "cb69f22c-400b-4ee8-9086-2530f1d87133",
-        "docNo": "DSI-000002",
-        "stationId": "u_dtm",
-        "targetUnitId": "u11",
-        "targetUnitName": "TEKIN ELOKSAL",
-        "status": "HAZIRLANDI",
-        "isArchived": false,
-        "created_at": "2026-04-15T12:08:26.213Z",
-        "created_by": "Demo User",
-        "note": "",
-        "history": [
-          {
-            "at": "2026-04-15T12:08:26.213Z",
-            "status": "HAZIRLANDI",
-            "user": "Demo User"
-          }
-        ],
-        "rows": [
-          {
-            "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
-            "workOrderCode": "WO-000003",
-            "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
-            "lineCode": "WO-000003-01",
-            "componentCode": "PRC-000003",
-            "componentName": "40 lık aluminyum dikme yarıklı tapa",
-            "qty": 5,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
-            "sourceRouteSeq": 4,
-            "sourceProcessId": "DTR-000002",
-            "targetProcessId": "ELX-000001",
-            "targetProcessName": "sarı eloksal",
-            "targetUnitId": "u11"
-          },
-          {
-            "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
-            "workOrderCode": "WO-000002",
-            "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
-            "lineCode": "WO-000002-01",
-            "componentCode": "PRC-000008",
-            "componentName": "40 lık aluminyum dikme flanşı",
-            "qty": 3,
-            "sourceStationId": "u_dtm",
-            "sourceRouteId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
-            "sourceRouteSeq": 3,
-            "sourceProcessId": "DTR-000002",
-            "targetProcessId": "ELX-000001",
-            "targetProcessName": "sarı eloksal",
-            "targetUnitId": "u11"
-          }
-        ],
-        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000002</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000002</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">TEKIN ELOKSAL</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">15.04.2026 15:08</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000003</div><div>WO-000003-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">ELX-000001</div>\n                            <div class=\"proc-name\">sarı eloksal</div>\n                        </td>\n                        <td class=\"right\"><strong>5</strong></td>\n                    </tr>\n                \n                    <tr>\n                        <td class=\"center\">2</td>\n                        <td><div class=\"mono\">WO-000002</div><div>WO-000002-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme flanşı</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000008</div></td>\n                        <td>\n                            <div class=\"proc-code\">ELX-000001</div>\n                            <div class=\"proc-name\">sarı eloksal</div>\n                        </td>\n                        <td class=\"right\"><strong>3</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">8</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>15.04.2026 15:08</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 15.04.2026 15:08</span>\n        </div>\n    </section>\n</body>\n</html>\n        "
-      }
-    ],
+    "workOrderDispatchNotes": [],
     "stockGoodsReceipts": [
       {
         "id": "e25b52b9-6033-4dec-b0d3-b3ef6e958bea",

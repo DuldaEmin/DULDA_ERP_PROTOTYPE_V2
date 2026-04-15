@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T14:48:38.109Z",
+    "updated_at": "2026-04-15T14:48:36.737Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 864
+    "revision": 863
   },
   "data": {
     "products": [
@@ -3511,7 +3511,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T14:30:56.911Z",
-        "updated_at": "2026-04-15T14:48:38.109Z"
+        "updated_at": "2026-04-15T14:47:11.347Z"
       }
     ],
     "workOrderTransactions": [
@@ -3850,20 +3850,6 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-04-15T14:48:36.737Z"
-      },
-      {
-        "id": "e97dcacc-ab46-443e-9fd4-d36c4a0fd2c1",
-        "workOrderId": "c1961f81-e96a-45aa-8254-9ed313541cf0",
-        "lineId": "ffa1a62a-f5ba-4235-aa28-5e1d3a520840",
-        "stationId": "u_dtm",
-        "routeId": "d6c3ec1a-fe8d-4b34-b0a1-1b7bef5633a9",
-        "routeSeq": 3,
-        "processId": "DTR-000004",
-        "type": "TAKE",
-        "qty": 1,
-        "note": "Istasyon devir aldi",
-        "user": "Demo User",
-        "created_at": "2026-04-15T14:48:38.109Z"
       }
     ],
     "outsourceTransfers": [

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-15T12:04:48.771Z",
+    "updated_at": "2026-04-15T12:09:15.216Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 825
+    "revision": 837
   },
   "data": {
     "products": [
@@ -3132,7 +3132,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:04:36.437Z"
+        "updated_at": "2026-04-15T12:08:55.662Z"
       },
       {
         "id": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
@@ -3210,7 +3210,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T12:04:44.229Z"
+        "updated_at": "2026-04-15T12:09:15.216Z"
       },
       {
         "id": "adc90f66-90e6-4e2f-8931-2f9ca3c22a3d",
@@ -3424,7 +3424,7 @@
         "sourceItemCode": "2015-002",
         "sourceItemQty": 5,
         "created_at": "2026-04-15T11:49:35.145Z",
-        "updated_at": "2026-04-15T11:49:35.145Z"
+        "updated_at": "2026-04-15T12:04:51.713Z"
       }
     ],
     "workOrderTransactions": [
@@ -3651,6 +3651,202 @@
         "note": "Istasyon devir aldi",
         "user": "Demo User",
         "created_at": "2026-04-15T12:04:48.771Z"
+      },
+      {
+        "id": "5f06b548-0600-4fa7-8d7b-85fb9708d8b4",
+        "workOrderId": "713a45ba-bd37-4273-977f-949a9a3e8b98",
+        "lineId": "bd0245de-9750-4f95-9f00-df7fbcdd018f",
+        "stationId": "u_dtm",
+        "routeId": "bde69170-05a5-440b-b661-494b264f0ea4",
+        "routeSeq": 1,
+        "processId": "DTR-000001",
+        "type": "TAKE",
+        "qty": 10,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:04:51.713Z"
+      },
+      {
+        "id": "010872a9-c791-4140-88a1-1d6f91c6f5da",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u_dtm",
+        "routeId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
+        "routeSeq": 1,
+        "processId": "DTR-000001",
+        "type": "COMPLETE",
+        "qty": 3,
+        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:05:30.858Z"
+      },
+      {
+        "id": "72e3d4b0-0b2b-4d05-acc0-716e2b4f0baf",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u_dtm",
+        "routeId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
+        "routeSeq": 2,
+        "processId": "DTR-000001",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Sevk irsaliyesi olusturuldu / DSI-000001",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:05:30.858Z"
+      },
+      {
+        "id": "709f9e5f-a28a-424a-97b8-781b66038ca9",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u10",
+        "routeId": "c44a4630-412d-49d6-b220-5d28c26ad717",
+        "routeSeq": 2,
+        "processId": "IPS-000001",
+        "type": "TAKE",
+        "qty": 3,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:06:31.677Z"
+      },
+      {
+        "id": "7f240dcc-3900-4e01-b95a-64ca784c93df",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u10",
+        "routeId": "2b971a4d-62e3-44fb-a5db-ffa911785dc2",
+        "routeSeq": 3,
+        "processId": "IPS-000001",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:06:33.021Z"
+      },
+      {
+        "id": "469c0cc1-5471-4fbd-b2f0-0312de995ac7",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u10",
+        "routeId": "c44a4630-412d-49d6-b220-5d28c26ad717",
+        "routeSeq": 2,
+        "processId": "IPS-000001",
+        "type": "COMPLETE",
+        "qty": 3,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:06:52.082Z"
+      },
+      {
+        "id": "175f28c9-19d3-4f07-802e-170c1dd61f96",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u10",
+        "routeId": "2b971a4d-62e3-44fb-a5db-ffa911785dc2",
+        "routeSeq": 3,
+        "processId": "IPS-000001",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:06:53.265Z"
+      },
+      {
+        "id": "85ab0185-a4a1-41c6-ba50-26b0f5e705ab",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u_dtm",
+        "routeId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
+        "routeSeq": 3,
+        "processId": "DTR-000002",
+        "type": "TAKE",
+        "qty": 3,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:07:12.479Z"
+      },
+      {
+        "id": "1961e62b-5e17-4cfe-8c63-9df61aac3388",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u_dtm",
+        "routeId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
+        "routeSeq": 4,
+        "processId": "DTR-000002",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:07:13.775Z"
+      },
+      {
+        "id": "2341cec0-9f09-466d-8e70-02372ae73cb1",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u_dtm",
+        "routeId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
+        "routeSeq": 4,
+        "processId": "DTR-000002",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:08:26.213Z"
+      },
+      {
+        "id": "898eb71a-8147-46b6-bd8b-7f384f3abe2b",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u_dtm",
+        "routeId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
+        "routeSeq": 3,
+        "processId": "DTR-000002",
+        "type": "COMPLETE",
+        "qty": 3,
+        "note": "Sevk irsaliyesi olusturuldu / DSI-000002",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:08:26.213Z"
+      },
+      {
+        "id": "af9923da-8a1f-4f62-bb10-ed2293a41463",
+        "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+        "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+        "stationId": "u11",
+        "routeId": "334a92ed-9f1c-40b0-9dc7-2c6a35f514ab",
+        "routeSeq": 4,
+        "processId": "ELX-000001",
+        "type": "TAKE",
+        "qty": 3,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:08:55.662Z"
+      },
+      {
+        "id": "489e1c08-24fc-4096-8e56-612aae88d97f",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u11",
+        "routeId": "a9d7d942-99ce-4ac4-b677-c2f6d2a69ab4",
+        "routeSeq": 5,
+        "processId": "ELX-000001",
+        "type": "TAKE",
+        "qty": 5,
+        "note": "Istasyon devir aldi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:08:56.947Z"
+      },
+      {
+        "id": "2c97db23-1952-4cbb-9a70-1dec1d5bb13f",
+        "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+        "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+        "stationId": "u11",
+        "routeId": "a9d7d942-99ce-4ac4-b677-c2f6d2a69ab4",
+        "routeSeq": 5,
+        "processId": "ELX-000001",
+        "type": "COMPLETE",
+        "qty": 5,
+        "note": "Istasyon tamamlandi",
+        "user": "Demo User",
+        "created_at": "2026-04-15T12:09:15.216Z"
       }
     ],
     "outsourceTransfers": [
@@ -5248,7 +5444,116 @@
       }
     ],
     "requests": [],
-    "workOrderDispatchNotes": [],
+    "workOrderDispatchNotes": [
+      {
+        "id": "0a9346bd-29ce-4fe2-a96b-e39833732ae3",
+        "docNo": "DSI-000001",
+        "stationId": "u_dtm",
+        "targetUnitId": "u10",
+        "targetUnitName": "IBRAHIM POLISAJ",
+        "status": "HAZIRLANDI",
+        "isArchived": false,
+        "created_at": "2026-04-15T12:05:30.858Z",
+        "created_by": "Demo User",
+        "note": "",
+        "history": [
+          {
+            "at": "2026-04-15T12:05:30.858Z",
+            "status": "HAZIRLANDI",
+            "user": "Demo User"
+          }
+        ],
+        "rows": [
+          {
+            "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+            "workOrderCode": "WO-000002",
+            "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+            "lineCode": "WO-000002-01",
+            "componentCode": "PRC-000008",
+            "componentName": "40 lık aluminyum dikme flanşı",
+            "qty": 3,
+            "sourceStationId": "u_dtm",
+            "sourceRouteId": "02ed0005-30ec-4e47-a132-c50e4fff047a",
+            "sourceRouteSeq": 1,
+            "sourceProcessId": "DTR-000001",
+            "targetProcessId": "IPS-000001",
+            "targetProcessName": "parlak polisaj",
+            "targetUnitId": "u10"
+          },
+          {
+            "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+            "workOrderCode": "WO-000003",
+            "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+            "lineCode": "WO-000003-01",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
+            "qty": 5,
+            "sourceStationId": "u_dtm",
+            "sourceRouteId": "24858d31-4e99-42bc-ae52-52a5b5d974da",
+            "sourceRouteSeq": 2,
+            "sourceProcessId": "DTR-000001",
+            "targetProcessId": "IPS-000001",
+            "targetProcessName": "parlak polisaj",
+            "targetUnitId": "u10"
+          }
+        ],
+        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000001</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000001</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">IBRAHIM POLISAJ</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">15.04.2026 15:05</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000002</div><div>WO-000002-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme flanşı</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000008</div></td>\n                        <td>\n                            <div class=\"proc-code\">IPS-000001</div>\n                            <div class=\"proc-name\">parlak polisaj</div>\n                        </td>\n                        <td class=\"right\"><strong>3</strong></td>\n                    </tr>\n                \n                    <tr>\n                        <td class=\"center\">2</td>\n                        <td><div class=\"mono\">WO-000003</div><div>WO-000003-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">IPS-000001</div>\n                            <div class=\"proc-name\">parlak polisaj</div>\n                        </td>\n                        <td class=\"right\"><strong>5</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">8</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>15.04.2026 15:05</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 15.04.2026 15:05</span>\n        </div>\n    </section>\n</body>\n</html>\n        "
+      },
+      {
+        "id": "cb69f22c-400b-4ee8-9086-2530f1d87133",
+        "docNo": "DSI-000002",
+        "stationId": "u_dtm",
+        "targetUnitId": "u11",
+        "targetUnitName": "TEKIN ELOKSAL",
+        "status": "HAZIRLANDI",
+        "isArchived": false,
+        "created_at": "2026-04-15T12:08:26.213Z",
+        "created_by": "Demo User",
+        "note": "",
+        "history": [
+          {
+            "at": "2026-04-15T12:08:26.213Z",
+            "status": "HAZIRLANDI",
+            "user": "Demo User"
+          }
+        ],
+        "rows": [
+          {
+            "workOrderId": "45dacf8e-bc28-4446-8c60-7fb5a918d943",
+            "workOrderCode": "WO-000003",
+            "lineId": "602b66e3-ade5-4f61-80f8-40301141d3ee",
+            "lineCode": "WO-000003-01",
+            "componentCode": "PRC-000003",
+            "componentName": "40 lık aluminyum dikme yarıklı tapa",
+            "qty": 5,
+            "sourceStationId": "u_dtm",
+            "sourceRouteId": "caaf32ce-ef2b-4c46-92a2-acbeaef0fc9c",
+            "sourceRouteSeq": 4,
+            "sourceProcessId": "DTR-000002",
+            "targetProcessId": "ELX-000001",
+            "targetProcessName": "sarı eloksal",
+            "targetUnitId": "u11"
+          },
+          {
+            "workOrderId": "214d0672-80d9-40ac-b9a5-826e6651d945",
+            "workOrderCode": "WO-000002",
+            "lineId": "e2fb973f-0641-4e55-9a39-14377bc496f4",
+            "lineCode": "WO-000002-01",
+            "componentCode": "PRC-000008",
+            "componentName": "40 lık aluminyum dikme flanşı",
+            "qty": 3,
+            "sourceStationId": "u_dtm",
+            "sourceRouteId": "a3d6a3c2-8be9-4f88-9bd0-276992c5de2d",
+            "sourceRouteSeq": 3,
+            "sourceProcessId": "DTR-000002",
+            "targetProcessId": "ELX-000001",
+            "targetProcessName": "sarı eloksal",
+            "targetUnitId": "u11"
+          }
+        ],
+        "documentHtml": "\n<!doctype html>\n<html lang=\"tr\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n    <title>Teslim Belgesi DSI-000002</title>\n    <style>\n        :root {\n            --ink:#0f172a;\n            --muted:#64748b;\n            --line:#cbd5e1;\n            --bg:#f1f5f9;\n            --card:#ffffff;\n            --brand:#0b3a8f;\n            --brand-soft:#dbeafe;\n        }\n        * { box-sizing:border-box; }\n        body {\n            margin:0;\n            font-family: \"Segoe UI\", Tahoma, Arial, sans-serif;\n            color:var(--ink);\n            background:var(--bg);\n        }\n        .screen-tools {\n            max-width:920px;\n            margin:14px auto 0 auto;\n            padding:0 8px;\n            display:flex;\n            justify-content:flex-end;\n            gap:8px;\n        }\n        .tool-btn {\n            border:1px solid #334155;\n            background:#0f172a;\n            color:#fff;\n            border-radius:8px;\n            height:34px;\n            padding:0 12px;\n            font-size:12px;\n            font-weight:700;\n            cursor:pointer;\n        }\n        .tool-btn.secondary {\n            background:#fff;\n            color:#0f172a;\n            border-color:#94a3b8;\n        }\n        .sheet {\n            width:210mm;\n            min-height:297mm;\n            margin:10px auto 22px auto;\n            background:var(--card);\n            border:1px solid #dbe3ef;\n            box-shadow:0 18px 45px rgba(15,23,42,0.16);\n            padding:12mm;\n            position:relative;\n        }\n        .header {\n            border:2px solid #1e293b;\n            border-radius:12px;\n            padding:10px 12px;\n            display:flex;\n            align-items:center;\n            justify-content:space-between;\n            gap:14px;\n            margin-bottom:12px;\n            background:linear-gradient(120deg, #ffffff 0%, #f8fbff 100%);\n            position:relative;\n        }\n        .brand-wrap {\n            display:flex;\n            align-items:center;\n            gap:12px;\n            min-width:0;\n        }\n        .title-wrap {\n            position:absolute;\n            left:50%;\n            top:50%;\n            transform:translate(-50%, -50%);\n            text-align:center;\n            z-index:1;\n        }\n        .brand-logo {\n            width:300px;\n            max-height:112px;\n            object-fit:contain;\n            object-position:left center;\n            display:block;\n        }\n        .title-wrap h1 {\n            margin:0;\n            font-size:20px;\n            letter-spacing:0.02em;\n            font-weight:900;\n            color:#0b3a8f;\n        }\n        .title-wrap .subtitle {\n            margin-top:4px;\n            color:var(--muted);\n            font-size:12px;\n            font-weight:600;\n        }\n        .doc-no {\n            border:1px solid #93c5fd;\n            background:var(--brand-soft);\n            color:#1d4ed8;\n            border-radius:999px;\n            padding:4px 10px;\n            font-size:12px;\n            font-weight:800;\n            font-family:Consolas, monospace;\n            white-space:nowrap;\n        }\n        .meta-grid {\n            display:grid;\n            grid-template-columns:repeat(4,minmax(0,1fr));\n            gap:8px;\n            margin-bottom:10px;\n        }\n        .meta-card {\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:7px 9px;\n            min-height:66px;\n        }\n        .meta-k {\n            color:var(--muted);\n            font-size:10px;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .meta-v {\n            color:var(--ink);\n            font-size:13px;\n            font-weight:800;\n            line-height:1.35;\n            word-break:break-word;\n        }\n        .status-chip {\n            display:inline-flex;\n            border:1px solid #bfdbfe;\n            border-radius:999px;\n            padding:2px 8px;\n            font-size:11px;\n            font-weight:800;\n            background:#eff6ff;\n            color:#1d4ed8;\n        }\n        table {\n            width:100%;\n            border-collapse:collapse;\n            margin-top:8px;\n        }\n        thead th {\n            border:1px solid var(--line);\n            background:#f8fafc;\n            color:#334155;\n            font-size:10px;\n            letter-spacing:0.04em;\n            text-transform:uppercase;\n            padding:8px 7px;\n            text-align:left;\n        }\n        tbody td {\n            border:1px solid var(--line);\n            font-size:12px;\n            padding:7px;\n            vertical-align:top;\n        }\n        .proc-code {\n            font-size:10px;\n            line-height:1.25;\n            font-family:Consolas, monospace;\n            color:#64748b;\n            font-weight:700;\n        }\n        .proc-name {\n            margin-top:2px;\n            font-size:12px;\n            line-height:1.35;\n            color:#0f172a;\n            font-weight:800;\n        }\n        .mono { font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; }\n        .right { text-align:right; }\n        .center { text-align:center; }\n        .sum-row td {\n            background:#f8fafc;\n            font-weight:900;\n        }\n        .timeline {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n        }\n        .dispatch-note-box {\n            margin-top:10px;\n            border:1px solid var(--line);\n            border-radius:10px;\n            padding:8px 10px;\n            background:#f8fafc;\n        }\n        .dispatch-note-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n            margin-bottom:4px;\n        }\n        .dispatch-note-text {\n            font-size:12px;\n            color:#0f172a;\n            line-height:1.5;\n            white-space:pre-wrap;\n            word-break:break-word;\n        }\n        .timeline-title {\n            font-size:11px;\n            font-weight:800;\n            color:#334155;\n            margin-bottom:5px;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .timeline-row {\n            display:flex;\n            justify-content:space-between;\n            align-items:center;\n            gap:10px;\n            padding:4px 0;\n            border-top:1px dashed #e2e8f0;\n            font-size:11px;\n        }\n        .timeline-row:first-of-type { border-top:none; }\n        .footer-sign {\n            margin-top:16px;\n            display:grid;\n            grid-template-columns:repeat(3,minmax(0,1fr));\n            gap:16px;\n        }\n        .sign-box {\n            border:1px solid var(--line);\n            border-radius:10px;\n            min-height:78px;\n            padding:8px;\n            display:flex;\n            flex-direction:column;\n            justify-content:flex-end;\n        }\n        .sign-line {\n            border-top:1px solid #94a3b8;\n            padding-top:5px;\n            text-align:center;\n            font-size:10px;\n            color:#64748b;\n            font-weight:700;\n            text-transform:uppercase;\n            letter-spacing:0.04em;\n        }\n        .note {\n            margin-top:10px;\n            font-size:10px;\n            color:#64748b;\n            display:flex;\n            justify-content:space-between;\n            gap:10px;\n            flex-wrap:wrap;\n        }\n        @page { size: A4; margin: 10mm; }\n        @media print {\n            body { background:#fff; }\n            .screen-tools { display:none !important; }\n            .sheet {\n                margin:0;\n                border:none;\n                box-shadow:none;\n                width:auto;\n                min-height:auto;\n                padding:0;\n            }\n        }\n    </style>\n</head>\n<body>\n    <div class=\"screen-tools\">\n        <button class=\"tool-btn\" onclick=\"window.print()\">PDF indir / Yazdir</button>\n        <button class=\"tool-btn secondary\" onclick=\"window.close()\">Kapat</button>\n    </div>\n    <section class=\"sheet\">\n        <div class=\"header\">\n            <div class=\"brand-wrap\">\n                <img class=\"brand-logo\" src=\"http://localhost:5500/assets/logodulda.jpg\" alt=\"Dulda Logo\" onerror=\"this.style.display='none';\">\n                <div class=\"title-wrap\">\n                    <h1>TESLIM BELGESI</h1>\n                    <div class=\"subtitle\">Fason sevk ve teslim takip dokumani</div>\n                </div>\n            </div>\n            <div class=\"doc-no\">DSI-000002</div>\n        </div>\n\n        <div class=\"meta-grid\">\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Kaynak Birim</div>\n                <div class=\"meta-v\">DEPO TRANSFER</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Hedef Birim</div>\n                <div class=\"meta-v\">TEKIN ELOKSAL</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Belge Tarihi</div>\n                <div class=\"meta-v\">15.04.2026 15:08</div>\n            </div>\n            <div class=\"meta-card\">\n                <div class=\"meta-k\">Durum</div>\n                <div class=\"meta-v\"><span class=\"status-chip\">Hazirlandi</span></div>\n            </div>\n        </div>\n\n        <table>\n            <thead>\n                <tr>\n                    <th style=\"width:40px;\" class=\"center\">Sira</th>\n                    <th style=\"width:170px;\">Is Emri / Satir</th>\n                    <th>Parca Bilgisi</th>\n                    <th style=\"width:220px;\">Yapilacak Islem</th>\n                    <th style=\"width:92px;\" class=\"right\">Adet</th>\n                </tr>\n            </thead>\n            <tbody>\n                \n                    <tr>\n                        <td class=\"center\">1</td>\n                        <td><div class=\"mono\">WO-000003</div><div>WO-000003-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme yarıklı tapa</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000003</div></td>\n                        <td>\n                            <div class=\"proc-code\">ELX-000001</div>\n                            <div class=\"proc-name\">sarı eloksal</div>\n                        </td>\n                        <td class=\"right\"><strong>5</strong></td>\n                    </tr>\n                \n                    <tr>\n                        <td class=\"center\">2</td>\n                        <td><div class=\"mono\">WO-000002</div><div>WO-000002-01</div></td>\n                        <td><div style=\"font-weight:700;\">40 lık aluminyum dikme flanşı</div><div style=\"font-family:Consolas, monospace; color:#475569;\">PRC-000008</div></td>\n                        <td>\n                            <div class=\"proc-code\">ELX-000001</div>\n                            <div class=\"proc-name\">sarı eloksal</div>\n                        </td>\n                        <td class=\"right\"><strong>3</strong></td>\n                    </tr>\n                \n                <tr class=\"sum-row\">\n                    <td colspan=\"4\" class=\"right\">TOPLAM SEVK ADEDI</td>\n                    <td class=\"right\">8</td>\n                </tr>\n            </tbody>\n        </table>\n\n        <div class=\"dispatch-note-box\">\n            <div class=\"dispatch-note-title\">Sevk Notu</div>\n            <div class=\"dispatch-note-text\">-</div>\n        </div>\n\n        <div class=\"timeline\">\n            <div class=\"timeline-title\">Durum Gecmisi</div>\n            \n                    <div class=\"timeline-row\">\n                        <div><strong>Hazirlandi</strong> - Demo User</div>\n                        <div>15.04.2026 15:08</div>\n                    </div>\n                \n        </div>\n\n        <div class=\"footer-sign\">\n            <div class=\"sign-box\"><div class=\"sign-line\">Sevk Eden Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Teslim Alan Imza</div></div>\n            <div class=\"sign-box\"><div class=\"sign-line\">Depo Kontrol Imza</div></div>\n        </div>\n\n        <div class=\"note\">\n            <span>Kayit sorumlusu: Demo User</span>\n            <span>PDF olusturma: 15.04.2026 15:08</span>\n        </div>\n    </section>\n</body>\n</html>\n        "
+      }
+    ],
     "stockGoodsReceipts": [
       {
         "id": "e25b52b9-6033-4dec-b0d3-b3ef6e958bea",

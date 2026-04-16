@@ -46,6 +46,6 @@ Sadece su durumlarda dur ve kullanicidan yeni yonlendirme iste:
 
 ## 8) Metin ve Turkce Karakter Kurali
 - Programin hicbir yerinde metin encoding bozulmasi (mojibake) kabul edilmez.
-- Turkce karakter kullanimi serbesttir: `C, G, I, O, S, U` turu ASCII zorlamasi yapilmaz; dogru Turkce karakterler kullanilir.
+- Turkce karakter kullanimi serbesttir: `Ç Ğ İ Ö Ş Ü ç ğ ı ö ş ü` dogrudan kullanilir; ASCII'ye zorlama yapilmaz.
 - Yeni modul veya yeni metin eklenen her degisiklikte `npm run check:text` calistirilir.
 - `check:text` basarisiz ise is tamamlanmis sayilmaz; bozuk metinler duzeltilmeden teslim edilmez.

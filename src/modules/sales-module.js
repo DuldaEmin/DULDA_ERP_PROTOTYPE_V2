@@ -1635,6 +1635,53 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
+    hasSalesOrderDraftChanges: (draft = null) => {
+        const source = draft && typeof draft === 'object' ? draft : SalesModule.state.salesOrderDraft;
+        if (!source || typeof source !== 'object') return false;
+        if (String(source.customerId || '').trim()) return true;
+        if (String(source.deliveryAddress || '').trim()) return true;
+        if (String(source.note || '').trim()) return true;
+        if (String(source.paymentMethod || '').trim() && SalesModule.normalize(String(source.paymentMethod || '')) !== 'nakit') return true;
+        if (Number(source.globalDiscountRate || 0) > 0) return true;
+        if (SalesModule.normalizeSalesCurrency(source.currency || 'USD') !== 'USD') return true;
+        if (Number(source.exchangeRate || 0) > 0) return true;
+        if (Number(source.deliveryLeadDays || 0) > 0) return true;
+        if (Number(source.vatRate || 20) === 0) return true;
+        const lines = Array.isArray(source.lines) ? source.lines : [];
+        return lines.some((line) => {
+            if (!line || typeof line !== 'object') return false;
+            if (String(line.productId || '').trim()) return true;
+            if (String(line.variationId || '').trim()) return true;
+            if (Number(line.unitPrice || 0) > 0) return true;
+            const qty = Number(line.qty || 0);
+            return Math.abs(qty - 1) > 0.0001;
+        });
+    },
+
+    openNewOrderModal: () => {
+        SalesModule.ensureSalesOrderDraft();
+        const hasChanges = SalesModule.hasSalesOrderDraftChanges(SalesModule.state.salesOrderDraft);
+        const warningText = hasChanges
+            ? 'Mevcut taslaktaki degisiklikler temizlenecek. Devam etmek istiyor musun?'
+            : 'Yeni bos siparis karti acilsin mi?';
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.75rem;">
+                <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Yeni Siparis</div>
+                <div style="font-size:0.84rem; color:#475569; line-height:1.5;">${SalesModule.escapeHtml(warningText)}</div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem; margin-top:0.2rem;">
+                    <button class="btn-sm" type="button" onclick="Modal.close()">iptal</button>
+                    <button class="btn-primary" type="button" onclick="SalesModule.confirmOpenNewOrderFromModal()">yeni siparis ac</button>
+                </div>
+            </div>
+        `;
+        Modal.open('Yeni Siparis', html, { maxWidth: '520px' });
+    },
+
+    confirmOpenNewOrderFromModal: () => {
+        Modal.close();
+        SalesModule.resetSalesOrderDraft();
+    },
+
     setSalesWorkspaceTab: (tabId) => {
         const next = String(tabId || 'ORDERS').trim().toUpperCase();
         SalesModule.state.salesWorkspaceTab = ['ORDERS', 'QUOTES', 'ARCHIVE'].includes(next) ? next : 'ORDERS';
@@ -6142,7 +6189,7 @@ const SalesModule = {
                                     <option value="THIS_WEEK" ${periodFilter === 'THIS_WEEK' ? 'selected' : ''}>Bu hafta</option>
                                     <option value="THIS_MONTH" ${periodFilter === 'THIS_MONTH' ? 'selected' : ''}>Bu ay</option>
                                 </select>
-                                <button class="btn-primary" type="button" onclick="SalesModule.resetSalesOrderDraft()">yeni siparis +</button>
+                                <button class="btn-primary" type="button" onclick="SalesModule.openNewOrderModal()">yeni siparis +</button>
                             </div>
                         </div>
                         <div style="overflow:auto; margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem;">

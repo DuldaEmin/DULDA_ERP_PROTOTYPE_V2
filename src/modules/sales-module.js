@@ -6610,24 +6610,31 @@
             const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
             const unitPrice = Number(line?.unitPrice || 0);
             const lineTotal = Number((qty * unitPrice).toFixed(2));
-            const detailParts = productId && variationId
-                ? [
-                    String(product?.name || '-'),
-                    String(variation?.variantCode || '-'),
-                    String(variation?.selectedDiameter || product?.selectedDiameter || '-'),
-                    resolveColor(accessory),
-                    resolveColor(tube),
-                    resolveColor(plexi),
-                    String(variation?.bubble || product?.bubble || 'yok'),
-                    String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart')
-                ]
-                : ['urun secilmedi'];
-            const detailText = detailParts.map((item) => String(item || '-').trim() || '-').join(' | ');
+            const summaryColumns = [
+                { label: 'urun adi', value: String(product?.name || '-') },
+                { label: 'urun kodu', value: String(variation?.variantCode || product?.productCode || '-') },
+                { label: 'id kodu', value: String(product?.idCode || '-') },
+                { label: 'cap', value: String(variation?.selectedDiameter || product?.selectedDiameter || '-') },
+                { label: 'aksesuar rengi', value: resolveColor(accessory) },
+                { label: 'boru rengi', value: resolveColor(tube) },
+                { label: 'pleksi rengi', value: resolveColor(plexi) },
+                { label: 'kabarcik', value: String(variation?.bubble || product?.bubble || 'yok') },
+                { label: 'alt boru uzunlugu', value: String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart') }
+            ];
+            const summaryHeaderHtml = summaryColumns
+                .map((item) => `<div style="font-size:0.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.02em; white-space:nowrap;">${SalesModule.escapeHtml(item.label)}</div>`)
+                .join('');
+            const summaryValueHtml = summaryColumns
+                .map((item) => `<div style="font-size:0.82rem; font-weight:700; color:${productId && variationId ? '#0f172a' : '#94a3b8'}; white-space:nowrap;">${SalesModule.escapeHtml(String(item.value || '-'))}</div>`)
+                .join('');
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.38rem; text-align:center; color:#64748b; min-width:48px;">${index + 1}</td>
                     <td style="padding:0.38rem; min-width:760px;">
-                        <div style="font-size:0.82rem; color:${productId && variationId ? '#334155' : '#94a3b8'}; font-family:Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:880px;">${SalesModule.escapeHtml(detailText)}</div>
+                        <div style="max-width:100%; overflow:auto;">
+                            <div style="display:grid; grid-template-columns:repeat(9,minmax(120px,max-content)); gap:0.42rem;">${summaryHeaderHtml}</div>
+                            <div style="display:grid; grid-template-columns:repeat(9,minmax(120px,max-content)); gap:0.42rem; margin-top:0.18rem;">${summaryValueHtml}</div>
+                        </div>
                     </td>
                     <td style="padding:0.38rem; min-width:140px; text-align:center;">
                         <button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
@@ -6705,8 +6712,7 @@
                 </div>
 
                 <div style="margin-top:0.62rem; display:flex; gap:0.4rem; flex-wrap:wrap;">
-                    <button class="btn-sm" type="button" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button>
-                    <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" onclick="SalesModule.addSalesOrderAnchoragePlaceholder()">ankraj ekle +</button>
+                    <button class="btn-sm" type="button" style="height:34px; padding:0 0.92rem; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800;" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button>
                 </div>
                 <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
                     <table style="width:100%; min-width:1320px; border-collapse:collapse;">

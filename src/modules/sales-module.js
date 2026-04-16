@@ -651,7 +651,7 @@
         const vatRate = rawVatRate === 0 ? 0 : 20;
         const discountRaw = source.globalDiscountRate ?? source.discountRate ?? 0;
         const hasLineArray = Array.isArray(source.lines);
-        const lines = (hasLineArray ? source.lines : [SalesModule.createSalesOrderLineDraft()])
+        const lines = (hasLineArray ? source.lines : [])
             .map((line) => SalesModule.createSalesOrderLineDraft(line));
         const preparedBy = String(source.preparedBy || SalesModule.getCurrentEditorName() || 'Demo User').trim() || 'Demo User';
         return {
@@ -2420,6 +2420,16 @@
 
     convertSalesOrderPlaceholder: () => {
         alert('Siparise donustur akisi sonraki asamada uretim modulu ile baglanacak. Su an tetikleme kapali.');
+    },
+
+    addSalesOrderLineAnchoragePlaceholder: (lineId) => {
+        const targetId = String(lineId || '').trim();
+        if (!targetId) return;
+        alert('Ankraj ekleme akisini bir sonraki adimda birlikte tamamlayacagiz.');
+    },
+
+    addSalesOrderAnchoragePlaceholder: () => {
+        alert('Ankraj ekle butonu hazir. Detay akisina bir sonraki adimda gececegiz.');
     },
 
     generateSalesOrderNo: () => {
@@ -6564,14 +6574,13 @@
         };
         const lines = Array.isArray(draft?.lines) ? draft.lines : [];
         if (!lines.length) {
-            return '<tr><td colspan="14" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir bulunmuyor. "urun satiri ekle +" ile devam edebilirsin.</td></tr>';
+            return '<tr><td colspan="7" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir bulunmuyor. "urun satiri ekle +" ile devam edebilirsin.</td></tr>';
         }
         return lines.map((line, index) => {
             const lineId = String(line?.id || '').trim();
             const productId = String(line?.productId || '').trim();
             const variationId = String(line?.variationId || '').trim();
             const product = productMap.get(productId) || {};
-            const variations = productId ? SalesModule.getSalesVariationsForCatalogProduct(productId) : [];
             const variation = (productId && variationId) ? SalesModule.getSalesVariationRowById(productId, variationId) : null;
             const resolveColor = (obj = {}) => {
                 const category = String(obj?.category || '').trim();
@@ -6585,55 +6594,36 @@
             const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
             const unitPrice = Number(line?.unitPrice || 0);
             const lineTotal = Number((qty * unitPrice).toFixed(2));
-            const variationOptions = [
-                '<option value="">varyant sec *</option>',
-                ...variations.map((row) => {
-                    const id = String(row?.id || '').trim();
-                    const selected = id === variationId ? 'selected' : '';
-                    const title = String(row?.variantCode || row?.id || '-').trim();
-                    return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(title)}</option>`;
-                })
-            ].join('');
+            const detailParts = productId && variationId
+                ? [
+                    String(product?.name || '-'),
+                    String(variation?.variantCode || '-'),
+                    String(variation?.selectedDiameter || product?.selectedDiameter || '-'),
+                    resolveColor(accessory),
+                    resolveColor(tube),
+                    resolveColor(plexi),
+                    String(variation?.bubble || product?.bubble || 'yok'),
+                    String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart')
+                ]
+                : ['urun secilmedi'];
+            const detailText = detailParts.map((item) => String(item || '-').trim() || '-').join(' | ');
+            const pickLabel = productId && variationId ? 'degistir' : 'kutuphaneden sec';
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:0.38rem; text-align:center; color:#64748b;">${index + 1}</td>
-                    <td style="padding:0.38rem; min-width:210px;">
-                        <select id="sales_line_product_${SalesModule.escapeHtml(lineId)}" class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','productId', this.value)">
-                            <option value="">urun sec *</option>
-                            ${catalogProducts.map((row) => {
-                    const id = String(row?.id || '').trim();
-                    const selected = id === productId ? 'selected' : '';
-                    const name = String(row?.name || '-').trim();
-                    const code = String(row?.productCode || '-').trim();
-                    return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(name)} (${SalesModule.escapeHtml(code)})</option>`;
-                                }).join('')}
-                        </select>
-                        <div style="display:flex; gap:0.25rem; margin-top:0.2rem;">
-                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductLibraryPicker('${SalesModule.escapeHtml(lineId)}')">kutuphaneden sec</button>
+                    <td style="padding:0.38rem; text-align:center; color:#64748b; min-width:48px;">${index + 1}</td>
+                    <td style="padding:0.38rem; min-width:760px;">
+                        <div style="display:flex; align-items:center; gap:0.38rem; flex-wrap:wrap;">
+                            <div style="font-size:0.82rem; color:${productId && variationId ? '#334155' : '#94a3b8'}; font-family:Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:760px;">${SalesModule.escapeHtml(detailText)}</div>
+                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductLibraryPicker('${SalesModule.escapeHtml(lineId)}')">${pickLabel}</button>
                         </div>
                     </td>
-                    <td style="padding:0.38rem; min-width:170px;">
-                        <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','variationId', this.value)">
-                            ${variationOptions}
-                        </select>
-                        <div style="display:flex; gap:0.25rem; margin-top:0.2rem;">
-                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesCatalogVariationPage('${SalesModule.escapeHtml(productId)}')">urun karti</button>
-                            ${variationId
-                    ? `<button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesVariationFromPriceList('${SalesModule.escapeHtml(productId)}','${SalesModule.escapeHtml(variationId)}')">varyant</button>`
-                    : ''}
-                        </div>
+                    <td style="padding:0.38rem; min-width:140px; text-align:center;">
+                        <button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
                     </td>
-                    <td style="padding:0.38rem; font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(String(product?.idCode || '-'))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.selectedDiameter || product?.selectedDiameter || '-'))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(accessory))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(tube))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(plexi))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.bubble || product?.bubble || 'yok'))}</td>
-                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart'))}</td>
                     <td style="padding:0.38rem; min-width:110px;"><input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)"></td>
                     <td style="padding:0.38rem; min-width:120px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)"></td>
-                    <td style="padding:0.38rem; text-align:right; font-weight:800;">${fmtMoney(lineTotal)}</td>
-                    <td style="padding:0.38rem; text-align:center;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
+                    <td style="padding:0.38rem; text-align:right; font-weight:800; min-width:130px;">${fmtMoney(lineTotal)}</td>
+                    <td style="padding:0.38rem; text-align:center; min-width:64px;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
                 </tr>
             `;
         }).join('');
@@ -6702,12 +6692,21 @@
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea></div>
                 </div>
 
-                <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button></div>
+                <div style="margin-top:0.62rem; display:flex; gap:0.4rem; flex-wrap:wrap;">
+                    <button class="btn-sm" type="button" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button>
+                    <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" onclick="SalesModule.addSalesOrderAnchoragePlaceholder()">ankraj ekle +</button>
+                </div>
                 <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
-                    <table style="width:100%; min-width:1700px; border-collapse:collapse;">
+                    <table style="width:100%; min-width:1320px; border-collapse:collapse;">
                         <thead>
                             <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                <th style="padding:0.38rem;">Sira</th><th style="padding:0.38rem; text-align:left;">Urun Adi</th><th style="padding:0.38rem; text-align:left;">Varyant</th><th style="padding:0.38rem; text-align:left;">ID Kodu</th><th style="padding:0.38rem; text-align:left;">Cap</th><th style="padding:0.38rem; text-align:left;">Aksesuar Rengi</th><th style="padding:0.38rem; text-align:left;">Boru Rengi</th><th style="padding:0.38rem; text-align:left;">Pleksi Rengi</th><th style="padding:0.38rem; text-align:left;">Kabarcik</th><th style="padding:0.38rem; text-align:left;">Alt Boru Uzunlugu</th><th style="padding:0.38rem; text-align:left;">Adet</th><th style="padding:0.38rem; text-align:left;">Birim Fiyat</th><th style="padding:0.38rem; text-align:right;">Tutar</th><th style="padding:0.38rem;">Sil</th>
+                                <th style="padding:0.38rem;">Sira</th>
+                                <th style="padding:0.38rem; text-align:left;">Satir Ozeti</th>
+                                <th style="padding:0.38rem; text-align:center;">Ankraj</th>
+                                <th style="padding:0.38rem; text-align:left;">Metre</th>
+                                <th style="padding:0.38rem; text-align:left;">Fiyat</th>
+                                <th style="padding:0.38rem; text-align:right;">Tutar</th>
+                                <th style="padding:0.38rem;">Sil</th>
                             </tr>
                         </thead>
                         <tbody>${lineRowsHtml}</tbody>

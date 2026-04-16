@@ -7,7 +7,8 @@
     "test": "npm run test:backbone",
     "test:backbone": "node tests/backbone.guard.test.cjs",
     "check:parse": "node scripts/check-parse.cjs",
-    "guard:backbone": "npm run check:parse && npm run test:backbone"
+    "check:text": "node scripts/check-text-encoding.cjs",
+    "guard:backbone": "npm run check:parse && npm run check:text && npm run test:backbone"
   },
   "keywords": [],
   "author": "",

@@ -146,7 +146,7 @@
         ProductLibraryModule.ensureAssemblyDefaults();
         const view = String(ProductLibraryModule.state.workspaceView || 'menu');
         if (view === 'assembly') {
-            // ParÃƒÂ§a grup ÃƒÂ¶zelliÃ„Å¸i devre dÃ„Â±Ã…Å¸Ã„Â±: assembly gÃƒÂ¶rÃƒÂ¼nÃƒÂ¼mÃƒÂ¼nÃƒÂ¼ komponent listesine yÃƒÂ¶nlendir.
+            // Parça grup özelliği devre dışı: assembly görünümünü komponent listesine yönlendir.
             ProductLibraryModule.state.componentLibraryKind = 'PART';
             ProductLibraryModule.state.workspaceView = 'components';
             ProductLibraryModule.renderComponentsPage(container);
@@ -185,7 +185,7 @@
 
     openWorkspace: (view) => {
         const candidate = String(view || 'menu');
-        const nextView = candidate === 'assembly' ? 'components' : candidate; // assembly devre dÃ„Â±Ã…Å¸Ã„Â±
+        const nextView = candidate === 'assembly' ? 'components' : candidate; // assembly devre dışı
         if (String(ProductLibraryModule.state.workspaceView || '') === 'models' && nextView !== 'models') {
             ProductLibraryModule.resetModelAccordionState();
         }
@@ -6586,9 +6586,9 @@
     ensureMasterDefaults: () => {
         if (!DB.data.data.productCategories || DB.data.data.productCategories.length === 0) {
             DB.data.data.productCategories = [
-                { id: 'cat1', name: 'AlÃƒÂ¼minyum profil', icon: 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', prefix: 'ALM' },
-                { id: 'cat3', name: 'HÃ„Â±rdavat & Vida', icon: 'ÄŸÅ¸â€Â©', prefix: 'VID' },
-                { id: 'cat_ext', name: 'EkstrÃƒÂ¼der pleksi', icon: 'ÄŸÅ¸ÂÂ­', prefix: 'AKS' },
+                { id: 'cat1', name: 'Alüminyum profil', icon: '🧱', prefix: 'ALM' },
+                { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩', prefix: 'VID' },
+                { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🧪', prefix: 'AKS' },
                 { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
                 { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
                 { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
@@ -6596,9 +6596,9 @@
         }
 
         const defaults = [
-            { id: 'cat1', name: 'AlÃƒÂ¼minyum profil', icon: 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', prefix: 'ALM' },
-            { id: 'cat3', name: 'HÃ„Â±rdavat & Vida', icon: 'ÄŸÅ¸â€Â©', prefix: 'VID' },
-            { id: 'cat_ext', name: 'EkstrÃƒÂ¼der pleksi', icon: 'ÄŸÅ¸ÂÂ­', prefix: 'AKS' },
+            { id: 'cat1', name: 'Alüminyum profil', icon: '🧱', prefix: 'ALM' },
+            { id: 'cat3', name: 'Hırdavat & Vida', icon: '🔩', prefix: 'VID' },
+            { id: 'cat_ext', name: 'Ekstrüder pleksi', icon: '🧪', prefix: 'AKS' },
             { id: 'cat_box', name: 'Koli', icon: '[ ]', prefix: 'KLI' },
             { id: 'cat_sarf', name: 'Sarf & Genel Malzeme', icon: 'SG', prefix: 'SRF' },
             { id: 'cat_sales', name: 'Satis Urun Kutuphanesi', icon: 'SK', prefix: 'STS' }
@@ -6616,7 +6616,7 @@
                 return {
                     ...c,
                     name: safeName,
-                    icon: c.icon || 'ÄŸÅ¸â€œÂ¦',
+                    icon: c.icon || '📦',
                     prefix: ProductLibraryModule.buildCategoryPrefix(c.prefix || safeName, c.id)
                 };
             });
@@ -6873,8 +6873,8 @@
 
     normalizeAsciiUpper: (value) => {
         return String(value || '')
-            .replace(/Ã„Â±/g, 'i')
-            .replace(/Ã„Â°/g, 'I')
+            .replace(/ı/g, 'i')
+            .replace(/İ/g, 'I')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-zA-Z0-9]/g, '')
@@ -7092,11 +7092,11 @@
             return {
                 id: '',
                 name: raw,
-                icon: 'ÄŸÅ¸â€œÂ¦',
+                icon: '📦',
                 prefix: ProductLibraryModule.buildCategoryPrefix(raw)
             };
         }
-        return categories[0] || { id: '', name: 'Diger', icon: 'ÄŸÅ¸â€œÂ¦', prefix: 'URN' };
+        return categories[0] || { id: '', name: 'Diger', icon: '📦', prefix: 'URN' };
     },
 
     extractSupplierRefs: (product) => {
@@ -8352,7 +8352,7 @@
         DB.data.data.productCategories.push({
             id: crypto.randomUUID(),
             name,
-            icon: 'ÄŸÅ¸â€œÂ¦',
+            icon: '📦',
             prefix: ProductLibraryModule.buildCategoryPrefix(rawPrefix || name)
         });
         await DB.save();
@@ -8474,7 +8474,7 @@
 
     renderList: (category) => {
         const products = (DB.data.data.products || []).filter(p => p.category === category.name || p.categoryId === category.id);
-        if (products.length === 0) return '<div style="text-align:center; padding:2rem; color:#cbd5e1">Bu kategoride henÃƒÂ¼z ÃƒÂ¼rÃƒÂ¼n yok.</div>';
+        if (products.length === 0) return '<div style="text-align:center; padding:2rem; color:#cbd5e1">Bu kategoride henüz ürün yok.</div>';
         return products.map(p => `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:1rem; border-bottom:1px solid #f1f5f9">
                 <span style="font-weight:600; color:#334155">${p.name}</span>
@@ -8490,13 +8490,13 @@
         if (!category) { ProductLibraryModule.state.activeCategory = null; UI.renderCurrentPage(); return; }
 
         // --- CUSTOM UI FOR EXTRUDER & PLEXI ---
-        if (category.name.toLowerCase().includes('ekstrÃƒÂ¼der') || category.name.toLowerCase().includes('pleksi') || category.id === 'cat_ext') {
+        if (category.name.toLowerCase().includes('ekstrüder') || category.name.toLowerCase().includes('pleksi') || category.id === 'cat_ext') {
             ProductLibraryModule.renderExtruderPage(container);
             return;
         }
 
         // --- HARDWARE MODULE ROUTING ---
-        if (category.name.toLowerCase().includes('hÃ„Â±rdavat') || category.name.toLowerCase().includes('vida') || category.id === 'cat3') {
+        if (category.name.toLowerCase().includes('hırdavat') || category.name.toLowerCase().includes('vida') || category.id === 'cat3') {
             ProductLibraryModule.renderHardwarePage(container);
             return;
         }
@@ -8525,7 +8525,7 @@
                      <!-- Search Capsules (Generic) -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
                          <div class="search-capsule">
-                            <input type="text" placeholder="ÃƒÂ¼rÃƒÂ¼n ara..." style="width:200px">
+                            <input type="text" placeholder="ürün ara..." style="width:200px">
                             <i data-lucide="search" width="16" style="color:#94a3b8"></i>
                          </div>
                     </div>
@@ -8533,9 +8533,9 @@
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">İptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">Ürün ekle +</button>`
             }
                     </div>
                 </div>
@@ -8543,16 +8543,16 @@
                 <!-- LIST (Empty State for now) -->
                <div style="display:flex; flex-direction:column; gap:0; border-top:2px solid #334155">
                      <div style="padding:4rem; text-align:center; color:#94a3b8">
-                        HenÃƒÂ¼z ÃƒÂ¼rÃƒÂ¼n bulunamadÃ„Â±.
+                        Henüz ürün bulunamadı.
                      </div>
                 </div>
 
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="extFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni ÃƒÅ“rÃƒÂ¼n Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni Ürün Ekle</h3>
                          <div style="text-align:center; color:#64748b">
-                            Bu kategori iÃƒÂ§in form yapÃ„Â±sÃ„Â± henÃƒÂ¼z oluÃ…Å¸turulmadÃ„Â±.
+                            Bu kategori için form yapısı henüz oluşturulmadı.
                          </div>
                     </div>
                 ` : ''}
@@ -8597,30 +8597,30 @@
 
     openCategoryModal: (editId = null) => {
         const cat = editId ? DB.data.data.productCategories.find(c => c.id === editId) : null;
-        window.selectedEmoji = cat ? cat.icon : 'ÄŸÅ¸â€œÂ¦';
+        window.selectedEmoji = cat ? cat.icon : '📦';
 
-        Modal.open(editId ? 'Kategoriyi DÃƒÂ¼zenle' : 'Yeni Kategori Ekle', `
+        Modal.open(editId ? 'Kategoriyi Düzenle' : 'Yeni Kategori Ekle', `
             <div style="display:flex; flex-direction:column; gap:1.5rem">
                 <div>
-                    <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Kategori AdÃ„Â±</label>
-                    <input id="new_cat_name" value="${cat ? cat.name : ''}" placeholder="Ãƒâ€“rn: Profil, Civata, Kutu..." style="width:100%; padding:0.8rem; border:1px solid #cbd5e1; border-radius:0.5rem; font-size:1rem">
+                    <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Kategori Adı</label>
+                    <input id="new_cat_name" value="${cat ? cat.name : ''}" placeholder="Örn: Profil, Civata, Kutu..." style="width:100%; padding:0.8rem; border:1px solid #cbd5e1; border-radius:0.5rem; font-size:1rem">
                 </div>
                 <div>
                     <label style="display:block; font-weight:700; color:#334155; margin-bottom:0.5rem">Emoji Simgesi</label>
                     <div style="display:grid; grid-template-columns:repeat(6, 1fr); gap:0.5rem">
-                        ${['ÄŸÅ¸â€œÂ¦', 'ÄŸÅ¸Ââ€”Ã¯Â¸Â', 'ÄŸÅ¸â€Â©', 'ÄŸÅ¸â€Â®', 'Ã¢Å¡â„¢Ã¯Â¸Â', 'ÄŸÅ¸â€Å’', 'ÄŸÅ¸Â§Â°', 'ÄŸÅ¸Â§Âµ', 'ÄŸÅ¸ÂªÂµ', 'ÄŸÅ¸â€œÂ', 'ÄŸÅ¸Â§Âª', 'ÄŸÅ¸â€ºÂ¡Ã¯Â¸Â'].map(e => `
+                        ${['📦', '🧱', '🔩', '🔧', '⚙️', '🛠️', '🧰', '🧵', '🪵', '📐', '🧪', '🚨'].map(e => `
                             <button onclick="document.querySelectorAll('.emoji-btn').forEach(b => b.style.background='white'); this.style.background='#eff6ff'; window.selectedEmoji='${e}'" class="emoji-btn" style="font-size:1.5rem; padding:0.5rem; border:1px solid #e2e8f0; border-radius:0.5rem; background:${e === window.selectedEmoji ? '#eff6ff' : 'white'}; cursor:pointer; transition:all 0.1s">${e}</button>
                         `).join('')}
                     </div>
                 </div>
-                <button onclick="ProductLibraryModule.saveCategory('${editId || ''}')" class="btn-primary" style="padding:1rem">${editId ? 'GÃƒÂ¼ncelle' : 'OluÃ…Å¸tur'}</button>
+                <button onclick="ProductLibraryModule.saveCategory('${editId || ''}')" class="btn-primary" style="padding:1rem">${editId ? 'Güncelle' : 'Oluştur'}</button>
             </div>
         `);
     },
 
     saveCategory: async (editId) => {
         const name = document.getElementById('new_cat_name').value;
-        if (!name) return alert('Kategori adÃ„Â± giriniz.');
+        if (!name) return alert('Kategori adı giriniz.');
 
         if (editId && editId !== 'undefined' && editId !== 'null' && editId !== '') {
             const idx = DB.data.data.productCategories.findIndex(c => c.id === editId);
@@ -8631,7 +8631,7 @@
             DB.data.data.productCategories.push({
                 id: crypto.randomUUID(),
                 name,
-                icon: window.selectedEmoji || 'ÄŸÅ¸â€œÂ¦'
+                icon: window.selectedEmoji || 'ğŸ“¦'
             });
         }
 
@@ -8641,7 +8641,7 @@
     },
 
     deleteCategory: async (id) => {
-        if (confirm('Bu kategoriyi silmek istediÃ„Å¸inize emin misiniz?')) {
+        if (confirm('Bu kategoriyi silmek istediğinize emin misiniz?')) {
             DB.data.data.productCategories = DB.data.data.productCategories.filter(c => c.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -8655,10 +8655,10 @@
         // Initial Defaults for Options - ROBUST MERGE
         if (!DB.data.meta.options) DB.data.meta.options = {};
         const defaults = {
-            colors: ['FÃƒÂ¼me', 'Antrasit', 'Ã…Âeffaf', 'Beyaz'],
+            colors: ['Füme', 'Antrasit', 'Şeffaf', 'Beyaz'],
             diameters: [50, 60, 65, 70],
             thicknesses: [2, 3, 5],
-            surfaces: ['KabarcÃ„Â±ksÃ„Â±z', 'KabarcÃ„Â±klÃ„Â±']
+            surfaces: ['Kabarcıksız', 'Kabarcıklı']
         };
         for (let k in defaults) {
             if (!DB.data.meta.options[k]) DB.data.meta.options[k] = defaults[k];
@@ -8671,7 +8671,7 @@
                 
                 <!-- MAIN TITLE -->
                 <div style="text-align:center; margin-bottom:3rem; position:relative">
-                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">ekstrÃƒÂ¼der <span style="font-weight:700">envanter</span></h1>
+                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">ekstrüder <span style="font-weight:700">envanter</span></h1>
                 </div>
 
                 <!-- TABS & ACTIONS ROW -->
@@ -8680,7 +8680,7 @@
                     <div style="display:flex; gap:1rem;">
                         <button onclick="ProductLibraryModule.setExtruderTab('ROD')" 
                             class="${extruderTab === 'ROD' ? 'active-tab' : 'inactive-tab'}">
-                            ÃƒÂ§ubuk
+                            çubuk
                         </button>
                         <button onclick="ProductLibraryModule.setExtruderTab('PIPE')" 
                             class="${extruderTab === 'PIPE' ? 'active-tab' : 'inactive-tab'}">
@@ -8690,8 +8690,8 @@
 
                     <!-- SEARCH CAPSULES (Filters) -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
-                         ${ProductLibraryModule.renderCapsule('ÃƒÂ§ap ile ara', 'dia', opts.diameters)}
-                         ${ProductLibraryModule.renderCapsule(extruderTab === 'ROD' ? 'yÃƒÂ¼zey ile ara' : 'kalÃ„Â±nlÃ„Â±k ile ara', extruderTab === 'ROD' ? 'surface' : 'thick', extruderTab === 'ROD' ? opts.surfaces : opts.thicknesses)}
+                         ${ProductLibraryModule.renderCapsule('çap ile ara', 'dia', opts.diameters)}
+                         ${ProductLibraryModule.renderCapsule(extruderTab === 'ROD' ? 'yüzey ile ara' : 'kalınlık ile ara', extruderTab === 'ROD' ? 'surface' : 'thick', extruderTab === 'ROD' ? opts.surfaces : opts.thicknesses)}
                          ${ProductLibraryModule.renderCapsule('renk ile ara', 'color', opts.colors)}
                          
                          <!-- Length Capsule (Text Input) -->
@@ -8705,9 +8705,9 @@
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">İptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleExtruderForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">Ürün ekle +</button>`
             }
                     </div>
                 </div>
@@ -8734,11 +8734,11 @@
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="extFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni EkstrÃƒÂ¼der ÃƒÅ“rÃƒÂ¼nÃƒÂ¼ Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni Ekstrüder Ürünü Ekle</h3>
                          
                          <!-- Re-using existing check logic but presented better -->
                          <div style="display:flex; gap:2rem; flex-wrap:wrap; align-items:flex-end">
-                            ${ProductLibraryModule.renderInputGroup('ÃƒÂ§ap / ebat', 'dia', opts.diameters, 'mm')}
+                            ${ProductLibraryModule.renderInputGroup('çap / ebat', 'dia', opts.diameters, 'mm')}
                              <!-- Length Input for Form -->
                             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
                                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0 1rem; height:56px; display:flex; align-items:center;">
@@ -8748,8 +8748,8 @@
                             </div>
 
                             ${extruderTab === 'ROD' ?
-                    ProductLibraryModule.renderInputGroup('kabarcÃ„Â±k', 'surface', opts.surfaces || ['KabarcÃ„Â±ksÃ„Â±z', 'KabarcÃ„Â±klÃ„Â±'], '') :
-                    ProductLibraryModule.renderInputGroup('kalÃ„Â±nlÃ„Â±k', 'thick', opts.thicknesses, 'mm')
+                    ProductLibraryModule.renderInputGroup('kabarcık', 'surface', opts.surfaces || ['Kabarcıksız', 'Kabarcıklı'], '') :
+                    ProductLibraryModule.renderInputGroup('kalınlık', 'thick', opts.thicknesses, 'mm')
                 }
                             
                             ${ProductLibraryModule.renderInputGroup('renk', 'color', opts.colors, '')}
@@ -8800,7 +8800,7 @@
         const val = ProductLibraryModule.state.filters[key];
         return `
             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
-                <button onclick="ProductLibraryModule.openOptionLibrary('${key}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃƒâ€“NET ekle/sil )</button>
+                <button onclick="ProductLibraryModule.openOptionLibrary('${key}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÖNET ekle/sil )</button>
                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0.2rem 1rem; position:relative; height:56px; display:flex; align-items:center;">
                    <select onchange="ProductLibraryModule.setFilter('${key}', this.value)" style="width:100%; border:none; background:transparent; font-size:1.1rem; color:#334155; font-weight:600; outline:none; appearance:none; cursor:pointer; text-align-last:center; padding-right:1rem">
                         <option value="">${label}</option>
@@ -8819,7 +8819,7 @@
              <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
                 <button style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600; opacity:0">.</button>
                 <div onclick="ProductLibraryModule.toggleBubble()" style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0 1rem; height:56px; display:flex; align-items:center; justify-content:center; cursor:pointer; background:${val ? '#eff6ff' : 'transparent'}; border-color:${val ? '#3b82f6' : '#94a3b8'}">
-                    <span style="font-size:1.1rem; font-weight:600; color:${val ? '#1d4ed8' : '#334155'}">kabarcÃ„Â±k</span>
+                    <span style="font-size:1.1rem; font-weight:600; color:${val ? '#1d4ed8' : '#334155'}">kabarcık</span>
                     ${val ? '<i data-lucide="check" width="16" style="margin-left:0.5rem; color:#1d4ed8"></i>' : ''}
                 </div>
             </div>
@@ -8857,7 +8857,7 @@
         const { extruderTab, filters } = ProductLibraryModule.state;
         const allProducts = DB.data.data.products || [];
         const exactMatchExp = allProducts.find(p =>
-            p.category === 'EkstrÃƒÂ¼der' &&
+            p.category === 'Ekstrüder' &&
             p.type === extruderTab &&
             p.specs.diameter == filters.dia &&
             p.specs.length == filters.len &&
@@ -8868,11 +8868,11 @@
         const isFilled = filters.dia && filters.len && filters.color && (extruderTab === 'PIPE' ? filters.thick : filters.surface);
         const isDuplicate = !!exactMatchExp;
         const btnDisabled = !isFilled || isDuplicate;
-        const btnText = isDuplicate ? 'Zaten Mevcut!' : 'ÃƒÅ“rÃƒÂ¼n Ekle +';
+        const btnText = isDuplicate ? 'Zaten Mevcut!' : 'Ürün Ekle +';
         const btnStyle = isDuplicate ? 'background:#f1f5f9; color:#94a3b8; border-color:#cbd5e1; cursor:not-allowed' : (isFilled ? 'background:#10b981; color:white; border-color:#059669; cursor:pointer' : 'background:white; color:#94a3b8; border-color:#cbd5e1; cursor:not-allowed');
 
         return `
-            ${isDuplicate ? '<div style="font-size:0.8rem; color:#ef4444; font-weight:700">Ã¢Å¡Â Ã¯Â¸Â Bu kombinasyon zaten kayÃ„Â±tlÃ„Â±</div>' : ''}
+            ${isDuplicate ? '<div style="font-size:0.8rem; color:#ef4444; font-weight:700">⚠️ Bu kombinasyon zaten kayıtlı</div>' : ''}
             <button id="btnAddExtProduct" onclick="ProductLibraryModule.addExtruderProduct()" ${btnDisabled ? 'disabled' : ''} style="padding:1rem 3rem; border:2px solid; border-radius:1.5rem; font-size:1.1rem; font-weight:600; transition:all 0.2s; ${btnStyle}">
                 ${btnText}
             </button>
@@ -8882,7 +8882,7 @@
     renderProductList: () => {
         const { extruderTab, filters } = ProductLibraryModule.state;
         // Re-calculate filtered products locally
-        const products = (DB.data.data.products || []).filter(p => p.category === 'EkstrÃƒÂ¼der' && p.type === extruderTab);
+        const products = (DB.data.data.products || []).filter(p => p.category === 'Ekstrüder' && p.type === extruderTab);
 
         // SORTING: Diameter/Size (smart sort) -> Length (asc) -> Color (alpha)
         products.sort((a, b) => {
@@ -8906,7 +8906,7 @@
         if (extruderTab === 'PIPE' && filters.thick) filteredProducts = filteredProducts.filter(p => p.specs.thickness == filters.thick);
 
         return `
-            ${filteredProducts.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ÃƒÂ¼rÃƒÂ¼n yok. Yeni ekleyebilirsiniz.</div>' : ''}
+            ${filteredProducts.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ürün yok. Yeni ekleyebilirsiniz.</div>' : ''}
             
             ${filteredProducts.map(p => `
                 <div style="display:flex; justify-content:space-between; align-items:center; padding:1.5rem 0; border-bottom:1px solid #64748b;">
@@ -8916,12 +8916,12 @@
                     <div style="display:flex; align-items:center; gap:3rem">
                         <div style="font-family:monospace; color:#64748b; font-size:1rem">ID; ${p.code || p.id.substring(0, 8)}</div>
                         <div style="display:flex; gap:0.5rem; align-items:center">
-                            <button class="list-btn" onclick="ProductLibraryModule.editExtruderProduct('${p.id}')">dÃƒÂ¼zenle</button>
+                            <button class="list-btn" onclick="ProductLibraryModule.editExtruderProduct('${p.id}')">düzenle</button>
                             <span style="color:#cbd5e1">/</span>
                             <button class="list-btn" onclick="ProductLibraryModule.deleteExtruderProduct('${p.id}')">sil</button>
                         </div>
                         <input type="checkbox" style="width:1.5rem; height:1.5rem; border:2px solid #94a3b8; border-radius:0.4rem; cursor:pointer">
-                        <span style="color:#64748b; font-size:0.9rem">seÃƒÂ§</span>
+                        <span style="color:#64748b; font-size:0.9rem">seç</span>
                     </div>
                 </div>
             `).join('')}
@@ -8933,11 +8933,11 @@
     },
 
     formatProductTitle: (p) => {
-        let text = `Ãƒâ€¡ap ${p.specs.diameter} mm / boy ${p.specs.length} mm`;
+        let text = `Çap ${p.specs.diameter} mm / boy ${p.specs.length} mm`;
         if (p.specs.thickness) text += ` / ${p.specs.thickness} mm`;
         if (p.specs.surface) text += ` / ${p.specs.surface}`;
         // Backward comp for bubble boolean if needed
-        else if (p.specs.bubble) text += ` / kabarcÃ„Â±klÃ„Â±`;
+        else if (p.specs.bubble) text += ` / kabarcıklı`;
 
         text += ` / ${p.specs.color} renk`;
         return text;
@@ -8950,20 +8950,20 @@
 
     openOptionLibrary: (key) => {
         const mapping = {
-            dia: { t: 'Ãƒâ€¡ap KÃƒÂ¼tÃƒÂ¼phanesi', i: 'circle-dashed', k: 'diameters' },
-            thick: { t: 'KalÃ„Â±nlÃ„Â±k KÃƒÂ¼tÃƒÂ¼phanesi', i: 'layers', k: 'thicknesses' },
-            color: { t: 'Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'colors' },
-            surface: { t: 'YÃƒÂ¼zey Tipi KÃƒÂ¼tÃƒÂ¼phanesi', i: 'scan-line', k: 'surfaces' },
-            consumableTypes: { t: 'Alt TÃƒÂ¼r KÃƒÂ¼tÃƒÂ¼phanesi', i: 'list', k: 'consumableTypes' },
+            dia: { t: 'Çap Kütüphanesi', i: 'circle-dashed', k: 'diameters' },
+            thick: { t: 'Kalınlık Kütüphanesi', i: 'layers', k: 'thicknesses' },
+            color: { t: 'Renk Kütüphanesi', i: 'palette', k: 'colors' },
+            surface: { t: 'Yüzey Tipi Kütüphanesi', i: 'scan-line', k: 'surfaces' },
+            consumableTypes: { t: 'Alt Tür Kütüphanesi', i: 'list', k: 'consumableTypes' },
             // Hardware Mappings
-            hardwareShapes: { t: 'Ã…Âekil KÃƒÂ¼tÃƒÂ¼phanesi', i: 'shapes', k: 'hardwareShapes' },
-            hardwareDias: { t: 'Ãƒâ€¡ap KÃƒÂ¼tÃƒÂ¼phanesi', i: 'circle-dashed', k: 'hardwareDias' },
-            hardwareMaterials: { t: 'Malzeme KÃƒÂ¼tÃƒÂ¼phanesi', i: 'layers', k: 'hardwareMaterials' },
-            hardwareLengths: { t: 'Boy KÃƒÂ¼tÃƒÂ¼phanesi', i: 'ruler', k: 'hardwareLengths' },
+            hardwareShapes: { t: 'Şekil Kütüphanesi', i: 'shapes', k: 'hardwareShapes' },
+            hardwareDias: { t: 'Çap Kütüphanesi', i: 'circle-dashed', k: 'hardwareDias' },
+            hardwareMaterials: { t: 'Malzeme Kütüphanesi', i: 'layers', k: 'hardwareMaterials' },
+            hardwareLengths: { t: 'Boy Kütüphanesi', i: 'ruler', k: 'hardwareLengths' },
             // Aluminum Mappings
-            aluAnodized: { t: 'Eloksal Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'aluAnodized' },
-            aluPainted: { t: 'Boya Renk KÃƒÂ¼tÃƒÂ¼phanesi', i: 'palette', k: 'aluPainted' },
-            aluLengths: { t: 'Profil Boyu KÃƒÂ¼tÃƒÂ¼phanesi', i: 'ruler', k: 'aluLengths' }
+            aluAnodized: { t: 'Eloksal Renk Kütüphanesi', i: 'palette', k: 'aluAnodized' },
+            aluPainted: { t: 'Boya Renk Kütüphanesi', i: 'palette', k: 'aluPainted' },
+            aluLengths: { t: 'Profil Boyu Kütüphanesi', i: 'ruler', k: 'aluLengths' }
         };
         const conf = mapping[key];
         if (!conf) return;
@@ -8986,13 +8986,13 @@
 
                     <!-- Add New -->
                     <div style="display:flex; gap:0.5rem; margin-bottom:1.5rem">
-                        <input id="newLibItemInput" placeholder="Yeni deÃ„Å¸er..." onkeydown="if(event.key==='Enter') ProductLibraryModule.addLibraryItem('${key}')" style="flex:1; padding:0.75rem 1rem; border:2px solid #e2e8f0; border-radius:0.75rem; font-weight:600; color:#475569; outline:none; font-size:0.95rem; transition:border-color 0.2s" onfocus="this.style.borderColor='#a78bfa'" onblur="this.style.borderColor='#e2e8f0'">
+                        <input id="newLibItemInput" placeholder="Yeni değer..." onkeydown="if(event.key==='Enter') ProductLibraryModule.addLibraryItem('${key}')" style="flex:1; padding:0.75rem 1rem; border:2px solid #e2e8f0; border-radius:0.75rem; font-weight:600; color:#475569; outline:none; font-size:0.95rem; transition:border-color 0.2s" onfocus="this.style.borderColor='#a78bfa'" onblur="this.style.borderColor='#e2e8f0'">
                         <button onclick="ProductLibraryModule.addLibraryItem('${key}')" style="background:#8b5cf6; color:white; border:none; padding:0 1.5rem; border-radius:0.75rem; font-weight:700; cursor:pointer; box-shadow:0 4px 6px -1px rgba(139, 92, 246, 0.4); transition:transform 0.1s" onmousedown="this.style.transform='scale(0.95)'" onmouseup="this.style.transform='scale(1)'">Ekle</button>
                     </div>
 
                     <!-- List -->
                     <div style="max-height:350px; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding-right:0.5rem">
-                        ${items.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1.5rem; font-style:italic">Liste boÃ…Å¸.</div>' : ''}
+                        ${items.length === 0 ? '<div style="text-align:center; color:#cbd5e1; padding:1.5rem; font-style:italic">Liste boş.</div>' : ''}
                         
                         ${items.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.8rem 1rem; border-radius:0.75rem; border:1px solid #f1f5f9; group">
@@ -9001,7 +9001,7 @@
                                     <span style="font-weight:700; color:#475569; font-size:0.95rem;">${item}</span>
                                 </div>
                                 <div style="display:flex; gap:0.25rem">
-                                    <button title="DÃƒÂ¼zenle" onclick="ProductLibraryModule.editLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="pencil" width="16"></i></button>
+                                    <button title="Düzenle" onclick="ProductLibraryModule.editLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#64748b'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="pencil" width="16"></i></button>
                                     <button title="Sil" onclick="ProductLibraryModule.deleteLibraryItem('${key}', '${item}')" style="background:none; border:none; color:#cbd5e1; cursor:pointer; padding:0.3rem" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#cbd5e1'"><i data-lucide="trash-2" width="16"></i></button>
                                 </div>
                             </div>
@@ -9009,7 +9009,7 @@
                     </div>
 
                     <div style="margin-top:1.5rem; text-align:center; font-size:0.75rem; color:#cbd5e1; font-weight:500">
-                        DeÃ„Å¸iÃ…Å¸iklikler anÃ„Â±nda kaydedilir.
+                        Değişiklikler anında kaydedilir.
                     </div>
                 </div>
             </div>
@@ -9020,7 +9020,7 @@
     },
 
     getColorCode: (c) => {
-        const map = { 'Siyah': '#000', 'Beyaz': '#fff', 'Ã…Âeffaf': 'transparent', 'Antrasit': '#374151', 'FÃƒÂ¼me': '#525252', 'Gri': '#9ca3af', 'KÃ„Â±rmÃ„Â±zÃ„Â±': '#ef4444', 'SarÃ„Â±': '#facc15', 'Mavi': '#3b82f6' };
+        const map = { 'Siyah': '#000', 'Beyaz': '#fff', 'Şeffaf': 'transparent', 'Antrasit': '#374151', 'Füme': '#525252', 'Gri': '#9ca3af', 'Kırmızı': '#ef4444', 'Sarı': '#facc15', 'Mavi': '#3b82f6' };
         return map[c] || '#cbd5e1';
     },
 
@@ -9043,7 +9043,7 @@
 
         // Type conversion (Strict for Thickness only, Smart for Dia)
         if (key === 'thick' || key === 'hardwareDias' || key === 'hardwareLengths') {
-            if (isNaN(Number(val))) return alert('LÃƒÂ¼tfen sayÃ„Â±sal bir deÃ„Å¸er giriniz.');
+            if (isNaN(Number(val))) return alert('Lütfen sayısal bir değer giriniz.');
             val = Number(val);
         } else if (key === 'dia') {
             // Keep as number if it's a pure number, otherwise string (for 40x40)
@@ -9055,7 +9055,7 @@
         }
 
         if (current.some(x => String(x).toLowerCase() === String(val).toLowerCase())) {
-            alert('Bu deÃ„Å¸er zaten listede var.');
+            alert('Bu değer zaten listede var.');
             return;
         }
 
@@ -9071,7 +9071,7 @@
     },
 
     deleteLibraryItem: async (key, itemVal) => {
-        if (!confirm('Silmek istediÃ„Å¸inize emin misiniz?')) return;
+        if (!confirm('Silmek istediğinize emin misiniz?')) return;
 
         const mapping = {
             dia: 'diameters', thick: 'thicknesses', color: 'colors', surface: 'surfaces',
@@ -9107,13 +9107,13 @@
         if (!Array.isArray(DB.data.meta.options[metaKey])) DB.data.meta.options[metaKey] = [];
         const current = DB.data.meta.options[metaKey];
 
-        const newVal = prompt("Yeni deÃ„Å¸eri giriniz:", oldVal);
+        const newVal = prompt("Yeni değeri giriniz:", oldVal);
         if (!newVal || newVal == oldVal) return;
 
         let processedVal = newVal.trim();
 
         if (key === 'thick' || key === 'hardwareDias' || key === 'hardwareLengths') {
-            if (isNaN(Number(processedVal))) return alert('LÃƒÂ¼tfen sayÃ„Â±sal bir deÃ„Å¸er giriniz.');
+            if (isNaN(Number(processedVal))) return alert('Lütfen sayısal bir değer giriniz.');
             processedVal = Number(processedVal);
         } else if (key === 'dia') {
             // Smart type for dia
@@ -9141,9 +9141,9 @@
         // Initial Defaults
         if (!DB.data.meta.options) DB.data.meta.options = {};
         const defaults = {
-            hardwareShapes: ['HavÃ…Å¸a BaÃ…Å¸', 'Anahtar BaÃ…Å¸', 'Ã„Â°nbus', 'HavÃ…Å¸a BaÃ…Å¸ Ã„Â°nbus', 'Gijon Saplama', 'Somun', 'Pul', 'Kelebek Somun', 'AkÃ„Â±llÃ„Â± Vida'],
+            hardwareShapes: ['Havşa Baş', 'Anahtar Baş', 'İnbus', 'Havşa Baş İnbus', 'Gijon Saplama', 'Somun', 'Pul', 'Kelebek Somun', 'Akıllı Vida'],
             hardwareDias: ['M2', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10', 'M12', 'M14', 'M16', 'M18', 'M20', '3.9', '4.2', '4.8'],
-            hardwareMaterials: ['Siyah', 'Galvaniz', 'Paslanmaz', 'Ã„Â°nox', 'PirinÃƒÂ§']
+            hardwareMaterials: ['Siyah', 'Galvaniz', 'Paslanmaz', 'İnox', 'Pirinç']
         };
         for (let k in defaults) {
             if (!DB.data.meta.options[k]) DB.data.meta.options[k] = defaults[k];
@@ -9179,15 +9179,15 @@
             <div style="max-width:1400px; margin:0 auto; font-family: 'Inter', sans-serif;">
                 <!-- MAIN TITLE -->
                 <div style="text-align:center; margin-bottom:3rem; position:relative">
-                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">hÃ„Â±rdavat & <span style="font-weight:700">baÃ„Å¸lantÃ„Â± elemanlarÃ„Â±</span></h1>
+                    <h1 style="font-size:2.5rem; color:#1e293b; letter-spacing:-0.03em; font-weight:300;">hırdavat & <span style="font-weight:700">bağlantı elemanları</span></h1>
                 </div>
 
                 <!-- ACTIONS ROW -->
                 <div style="display:flex; flex-wrap:wrap; gap:1rem; align-items:center; margin-bottom:3rem; justify-content:space-between">
                      <!-- SEARCH CAPSULES -->
                     <div style="display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; flex:1; justify-content:center">
-                         ${ProductLibraryModule.renderHardwareCapsule('Ã…Å¸ekil ile ara', 'shape', opts.hardwareShapes)}
-                         ${ProductLibraryModule.renderHardwareCapsule('ÃƒÂ§ap ile ara', 'dia', opts.hardwareDias)}
+                         ${ProductLibraryModule.renderHardwareCapsule('şekil ile ara', 'shape', opts.hardwareShapes)}
+                         ${ProductLibraryModule.renderHardwareCapsule('çap ile ara', 'dia', opts.hardwareDias)}
 
                          <!-- Length Capsule -->
                         <div class="search-capsule">
@@ -9202,9 +9202,9 @@
                     <!-- ADD BUTTON -->
                     <div style="flex-shrink:0">
                         ${(ProductLibraryModule.state.isFormVisible) ?
-                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">Ã„Â°ptal</button>`
+                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="background:#ef4444; padding:0.8rem 2rem; border-radius:1rem">İptal</button>`
                 :
-                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">ÃƒÅ“rÃƒÂ¼n ekle +</button>`
+                `<button onclick="ProductLibraryModule.toggleHardwareForm()" class="btn-primary" style="padding:0.8rem 2rem; border-radius:1rem; font-size:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.05)">Ürün ekle +</button>`
             }
                     </div>
                 </div>
@@ -9227,11 +9227,11 @@
                 <!-- ADD FORM (CONDITIONAL) -->
                 ${(ProductLibraryModule.state.isFormVisible) ? `
                     <div id="hwFormSection" style="margin-top:4rem; background:white; border:2px solid #e2e8f0; border-radius:2rem; padding:3rem; position:relative; box-shadow:0 20px 40px -10px rgba(0,0,0,0.05); animation: slideDown 0.3s ease-out">
-                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni HÃ„Â±rdavat/CÃ„Â±vata Ekle</h3>
+                         <h3 style="font-size:1.5rem; color:#334155; margin-bottom:2rem; font-weight:700">Yeni Hırdavat/Cıvata Ekle</h3>
 
                          <div style="display:flex; gap:2rem; flex-wrap:wrap; align-items:flex-end">
-                            ${ProductLibraryModule.renderHardwareInputGroup('civata Ã…Å¸ekli', 'shape', opts.hardwareShapes, '')}
-                            ${ProductLibraryModule.renderHardwareInputGroup('ÃƒÂ§ap / ebat', 'dia', opts.hardwareDias, '')}
+                            ${ProductLibraryModule.renderHardwareInputGroup('civata şekli', 'shape', opts.hardwareShapes, '')}
+                            ${ProductLibraryModule.renderHardwareInputGroup('çap / ebat', 'dia', opts.hardwareDias, '')}
 
                              <!-- Length Input for Form -->
                             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
@@ -9245,7 +9245,7 @@
 
                             <div style="margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:0.5rem">
                                 <button onclick="ProductLibraryModule.addHardwareProduct()" class="btn-primary" style="padding:1rem 3rem; border-radius:1.5rem; font-size:1.1rem; font-weight:600">
-                                    ÃƒÅ“RÃƒÅ“NÃƒÅ“ EKLE +
+                                    ÜRÜNÜ EKLE +
                                 </button>
                             </div>
                          </div>
@@ -9273,7 +9273,7 @@
         const val = ProductLibraryModule.state.hardwareFilters[key];
         return `
             <div style="display:flex; flex-direction:column; gap:0.5rem; min-width:140px;">
-                 <button onclick="ProductLibraryModule.openOptionLibrary('${key === 'shape' ? 'hardwareShapes' : (key === 'dia' ? 'hardwareDias' : 'hardwareMaterials')}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÃƒâ€“NET ekle/sil )</button>
+                 <button onclick="ProductLibraryModule.openOptionLibrary('${key === 'shape' ? 'hardwareShapes' : (key === 'dia' ? 'hardwareDias' : 'hardwareMaterials')}')" style="font-size:0.65rem; color:#3b82f6; text-align:center; background:none; border:none; cursor:pointer; font-weight:600">( + YÖNET ekle/sil )</button>
                 <div style="border:2px solid #94a3b8; border-radius:1.5rem; padding:0.2rem 1rem; position:relative; height:56px; display:flex; align-items:center;">
                    <select onchange="ProductLibraryModule.setHardwareFilter('${key}', this.value)" style="width:100%; border:none; background:transparent; font-size:1.1rem; color:#334155; font-weight:600; outline:none; appearance:none; cursor:pointer; text-align-last:center; padding-right:1rem">
                         <option value="">${label.toUpperCase()}</option>
@@ -9307,7 +9307,7 @@
     },
 
     renderHardwareList: (products) => {
-        if (products.length === 0) return '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ÃƒÂ¼rÃƒÂ¼n yok. Yeni ekleyebilirsiniz.</div>';
+        if (products.length === 0) return '<div style="text-align:center; color:#cbd5e1; padding:3rem; font-size:1.2rem; font-weight:300">Bu kriterlerde ürün yok. Yeni ekleyebilirsiniz.</div>';
 
         return products.map(p => `
             <div style="display:flex; justify-content:space-between; align-items:center; padding:1.5rem 0; border-bottom:1px solid #64748b;">
@@ -9319,13 +9319,13 @@
                 <div style="display:flex; align-items:center; gap:3rem">
                     <div style="font-family:monospace; color:#3b82f6; font-size:0.9rem; font-weight:600">ID: ${p.code || '---'}</div>
                     <div style="display:flex; gap:0.5rem; align-items:center">
-                        <button class="list-btn" onclick="ProductLibraryModule.editHardwareProduct('${p.id}')">dÃƒÂ¼zenle</button>
+                        <button class="list-btn" onclick="ProductLibraryModule.editHardwareProduct('${p.id}')">düzenle</button>
                         <span style="color:#cbd5e1">/</span>
                         <button class="list-btn" onclick="ProductLibraryModule.deleteHardwareProduct('${p.id}')">sil</button>
                     </div>
                     <div style="display:flex; align-items:center; gap:0.5rem; border-left:1px solid #e2e8f0; padding-left:1rem; margin-left:1rem">
                         <input type="checkbox" style="width:1.5rem; height:1.5rem; border:2px solid #94a3b8; border-radius:0.4rem; cursor:pointer">
-                        <span style="color:#64748b; font-size:0.9rem">seÃƒÂ§</span>
+                        <span style="color:#64748b; font-size:0.9rem">seç</span>
                     </div>
                 </div>
             </div>
@@ -10002,17 +10002,17 @@
         const { hardwareFilters } = ProductLibraryModule.state;
         // Validation
         if (!hardwareFilters.shape || !hardwareFilters.dia || !hardwareFilters.mat) {
-            alert("LÃƒÂ¼tfen Ã…Âekil, Ãƒâ€¡ap ve Malzeme seÃƒÂ§iniz.");
+            alert("Lütfen Şekil, Çap ve Malzeme seçiniz.");
             return;
         }
 
         // Auto Generate ID Logic
         // Map Shape
         const shapeMap = {
-            'HavÃ…Å¸a BaÃ…Å¸': 'HB', 'Anahtar BaÃ…Å¸': 'AB', 'Ã„Â°nbus': 'INB', 'HavÃ…Å¸a BaÃ…Å¸ Ã„Â°nbus': 'HBI',
-            'Gijon Saplama': 'GSP', 'Somun': 'SOM', 'Pul': 'PUL', 'Kelebek Somun': 'KLB', 'AkÃ„Â±llÃ„Â± Vida': 'AKL'
+            'Havşa Baş': 'HB', 'Anahtar Baş': 'AB', 'İnbus': 'INB', 'Havşa Baş İnbus': 'HBI',
+            'Gijon Saplama': 'GSP', 'Somun': 'SOM', 'Pul': 'PUL', 'Kelebek Somun': 'KLB', 'Akıllı Vida': 'AKL'
         };
-        const matMap = { 'Siyah': 'SYH', 'Galvaniz': 'GLV', 'Paslanmaz': 'PSL', 'Ã„Â°nox': 'INOX', 'PirinÃƒÂ§': 'PRC' };
+        const matMap = { 'Siyah': 'SYH', 'Galvaniz': 'GLV', 'Paslanmaz': 'PSL', 'İnox': 'INOX', 'Pirinç': 'PRC' };
 
         const sCode = shapeMap[hardwareFilters.shape] || hardwareFilters.shape.substring(0, 3).toUpperCase();
         const mCode = matMap[hardwareFilters.mat] || hardwareFilters.mat.substring(0, 3).toUpperCase();
@@ -10035,7 +10035,7 @@
         const newProduct = {
             id: crypto.randomUUID(),
             category: 'Hardware',
-            type: 'CÃ„Â±vata',
+            type: 'Cıvata',
             name: `${hardwareFilters.shape} ${hardwareFilters.dia} ${hardwareFilters.len ? 'x ' + hardwareFilters.len : ''}`,
             code: code,
             specs: {
@@ -10057,7 +10057,7 @@
     },
 
     deleteHardwareProduct: async (id) => {
-        if (confirm("Bu ÃƒÂ¼rÃƒÂ¼nÃƒÂ¼ silmek istediÃ„Å¸inize emin misiniz?")) {
+        if (confirm("Bu ürünü silmek istediğinize emin misiniz?")) {
             DB.data.data.products = DB.data.data.products.filter(p => p.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -10080,7 +10080,7 @@
         setTimeout(() => {
             const el = document.getElementById('hwFormSection');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
-            alert("ÃƒÅ“rÃƒÂ¼n bilgileri forma yÃƒÂ¼klendi. DÃƒÂ¼zenleyip 'ÃƒÅ“rÃƒÂ¼n Ekle' diyerek yeni bir kayÃ„Â±t oluÃ…Å¸turabilirsiniz.");
+            alert("Ürün bilgileri forma yüklendi. Düzenleyip 'Ürün Ekle' diyerek yeni bir kayıt oluşturabilirsiniz.");
         }, 50);
     },
 
@@ -10089,20 +10089,20 @@
 
         // Validate required fields based on Tab
         if (!filters.dia || !filters.len || !filters.color) {
-            alert("LÃƒÂ¼tfen ÃƒÂ§ap, boy ve renk seÃƒÂ§iniz.");
+            alert("Lütfen çap, boy ve renk seçiniz.");
             return;
         }
         if (extruderTab === 'PIPE' && !filters.thick) {
-            alert("LÃƒÂ¼tfen kalÃ„Â±nlÃ„Â±k seÃƒÂ§iniz.");
+            alert("Lütfen kalınlık seçiniz.");
             return;
         }
         if (extruderTab === 'ROD' && !filters.surface) {
-            alert("LÃƒÂ¼tfen yÃƒÂ¼zey tipi seÃƒÂ§iniz.");
+            alert("Lütfen yüzey tipi seçiniz.");
             return;
         }
 
         // Generate ID / Code
-        const typeCode = extruderTab === 'ROD' ? 'CB' : 'BR'; // CB: Ãƒâ€¡ubuk, BR: Boru
+        const typeCode = extruderTab === 'ROD' ? 'CB' : 'BR'; // CB: Çubuk, BR: Boru
         const specCode = `${filters.dia}-${filters.len}-${filters.color.substring(0, 3).toUpperCase()}`;
         let code = '';
         for (let i = 0; i < 5000; i += 1) {
@@ -10120,9 +10120,9 @@
 
         const newProduct = {
             id: crypto.randomUUID(),
-            category: 'EkstrÃƒÂ¼der',
+            category: 'Ekstrüder',
             type: extruderTab,
-            name: `${filters.dia}mm ${extruderTab === 'ROD' ? 'Ãƒâ€¡ubuk' : 'Boru'}`,
+            name: `${filters.dia}mm ${extruderTab === 'ROD' ? 'Çubuk' : 'Boru'}`,
             code: code,
             specs: {
                 diameter: filters.dia,
@@ -10130,7 +10130,7 @@
                 color: filters.color,
                 thickness: filters.thick || null,
                 surface: filters.surface || null,
-                // bubble: filters.surface === 'KabarcÃ„Â±klÃ„Â±' // Keep backward compat logic if needed - REMOVED
+                // bubble: filters.surface === 'Kabarcıklı' // Keep backward compat logic if needed - REMOVED
             },
             created_at: new Date().toISOString()
         };
@@ -10146,7 +10146,7 @@
     },
 
     deleteExtruderProduct: async (id) => {
-        if (confirm("Bu ÃƒÂ¼rÃƒÂ¼nÃƒÂ¼ silmek istediÃ„Å¸inize emin misiniz?")) {
+        if (confirm("Bu ürünü silmek istediğinize emin misiniz?")) {
             DB.data.data.products = DB.data.data.products.filter(p => p.id !== id);
             await DB.save();
             UI.renderCurrentPage();
@@ -10165,7 +10165,7 @@
             len: p.specs.length,
             color: p.specs.color,
             thick: p.specs.thickness || '',
-            surface: p.specs.surface || (p.specs.bubble ? 'KabarcÃ„Â±klÃ„Â±' : 'KabarcÃ„Â±ksÃ„Â±z')
+            surface: p.specs.surface || (p.specs.bubble ? 'Kabarcıklı' : 'Kabarcıksız')
         };
         // We should probably delete the old one if they click "Update" but we only have "Add" button right now.
         // For Prototype, let's just populate the fields so they can add a NEW similar one or delete the old one.
@@ -10176,7 +10176,7 @@
         setTimeout(() => {
             const el = document.getElementById('extFormSection');
             if (el) el.scrollIntoView({ behavior: 'smooth' });
-            alert("ÃƒÅ“rÃƒÂ¼n ÃƒÂ¶zellikleri forma aktarÃ„Â±ldÃ„Â±. DÃƒÂ¼zenleyip 'ÃƒÅ“rÃƒÂ¼n Ekle' diyerek yeni bir kayÃ„Â±t oluÃ…Å¸turabilirsiniz.");
+            alert("Ürün özellikleri forma aktarıldı. Düzenleyip 'Ürün Ekle' diyerek yeni bir kayıt oluşturabilirsiniz.");
         }, 100);
     }
 };

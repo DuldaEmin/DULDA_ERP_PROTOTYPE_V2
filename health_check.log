@@ -181,3 +181,4 @@
 [2026-04-16 15:12:00] OK | Git repo OK | Calisma alani temiz | 15 dk yedek gorevi aktif | Hizli JS parse OK | Backbone guard OK
 [2026-04-16 16:12:00] OK | Git repo OK | Calisma alani temiz | 15 dk yedek gorevi aktif | Hizli JS parse OK | Backbone guard OK
 [2026-04-16 17:12:00] OK | Git repo OK | Calisma alani temiz | 15 dk yedek gorevi aktif | Hizli JS parse OK | Backbone guard OK
+[2026-04-16 18:12:00] ISSUE | Git repo OK | Bekleyen degisiklik var: 8 dosya | 15 dk yedek gorevi aktif | Hizli JS parse OK | Backbone guard kontrol hatasi: Metin encoding guard basarisiz. Supheli karakterler bulundu:

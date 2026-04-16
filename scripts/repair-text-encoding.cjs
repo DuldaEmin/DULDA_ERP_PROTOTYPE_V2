@@ -12,10 +12,10 @@ const CP1252_UNICODE_TO_BYTE = new Map([
 
 const markerRegex = /[ÃÂâÄÅÆ]/;
 const suspiciousRegex = /[ÃÂâÄÅÆƒ‚�œŒŠšŽžŸ]/;
-const cpChunkRegex = /[A-Za-z0-9\u00C0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201A\u201C-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A€]+/g;
+const cpChunkRegex = /[A-Za-z0-9\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201A\u201C-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A€]+/g;
 
 function repairChunk(chunk) {
-  if (!markerRegex.test(chunk)) return chunk;
+    if (!markerRegex.test(chunk)) return chunk;
   const bytes = [];
   for (const ch of chunk) {
     const cp = ch.codePointAt(0);
@@ -30,12 +30,17 @@ function repairChunk(chunk) {
     }
     return chunk;
   }
-  const decoded = Buffer.from(bytes).toString('utf8');
-  if (!decoded) return chunk;
-  const beforeBad = (chunk.match(/[ÃÂâÄÅÆ�]/g) || []).length;
-  const afterBad = (decoded.match(/[ÃÂâÄÅÆ�]/g) || []).length;
-  if (afterBad > beforeBad) return chunk;
-  return decoded;
+    const decoded = Buffer.from(bytes).toString('utf8');
+    if (!decoded) return chunk;
+    if (decoded.includes('\uFFFD')) return chunk;
+    const score = (value) => {
+        const raw = String(value || '');
+        const markerCount = (raw.match(/[ÃÂâÄÅÆ]/g) || []).length;
+        const replCount = (raw.match(/\uFFFD/g) || []).length;
+        return (markerCount * 3) + (replCount * 8);
+    };
+    if (score(decoded) >= score(chunk)) return chunk;
+    return decoded;
 }
 
 function normalizeMojibakeText(input) {
@@ -154,3 +159,4 @@ if (!touched.length) {
   console.log('Encoding onarimi tamamlandi:');
   touched.forEach((row) => console.log(`- ${row}`));
 }
+

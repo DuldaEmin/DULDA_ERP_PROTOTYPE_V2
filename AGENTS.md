@@ -43,3 +43,9 @@ Sadece su durumlarda dur ve kullanicidan yeni yonlendirme iste:
 ## 7) Plan Disi Yeni Ihtiyac Kurali
 - Uygulama sirasinda yeni bir ihtiyac cikarsa ve bu ihtiyac ilk onaylanan planin disindaysa dur.
 - Ek uygulamaya gecmeden once yeni acik onay al.
+
+## 8) Metin ve Turkce Karakter Kurali
+- Programin hicbir yerinde metin encoding bozulmasi (mojibake) kabul edilmez.
+- Turkce karakter kullanimi serbesttir: `C, G, I, O, S, U` turu ASCII zorlamasi yapilmaz; dogru Turkce karakterler kullanilir.
+- Yeni modul veya yeni metin eklenen her degisiklikte `npm run check:text` calistirilir.
+- `check:text` basarisiz ise is tamamlanmis sayilmaz; bozuk metinler duzeltilmeden teslim edilmez.

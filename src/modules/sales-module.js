@@ -1,4 +1,4 @@
-const SalesModule = {
+﻿const SalesModule = {
     state: {
         workspaceView: 'menu',
         customerFilters: {
@@ -62,14 +62,17 @@ const SalesModule = {
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
 
     normalizeSearchText: (value) => {
-        const lowered = String(value || '').toLocaleLowerCase('tr-TR');
+        const normalized = (window.MojibakeFix && typeof window.MojibakeFix.normalize === 'function')
+            ? window.MojibakeFix.normalize(String(value || ''))
+            : String(value || '');
+        const lowered = normalized.toLocaleLowerCase('tr-TR');
         const folded = lowered
-            .replace(/ı/g, 'i')
-            .replace(/ş/g, 's')
-            .replace(/ğ/g, 'g')
-            .replace(/ü/g, 'u')
-            .replace(/ö/g, 'o')
-            .replace(/ç/g, 'c');
+            .replace(/[ıİ]/g, 'i')
+            .replace(/[şŞ]/g, 's')
+            .replace(/[ğĞ]/g, 'g')
+            .replace(/[üÜ]/g, 'u')
+            .replace(/[öÖ]/g, 'o')
+            .replace(/[çÇ]/g, 'c');
         return folded
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
@@ -3516,23 +3519,6 @@ const SalesModule = {
         return window.XLSX;
     },
 
-    normalizeImportToken: (value) => String(value || '')
-        .trim()
-        .toLocaleLowerCase('tr-TR')
-        .replace(/ı/g, 'i')
-        .replace(/İ/g, 'i')
-        .replace(/ş/g, 's')
-        .replace(/Ş/g, 's')
-        .replace(/ğ/g, 'g')
-        .replace(/Ğ/g, 'g')
-        .replace(/ü/g, 'u')
-        .replace(/Ü/g, 'u')
-        .replace(/ö/g, 'o')
-        .replace(/Ö/g, 'o')
-        .replace(/ç/g, 'c')
-        .replace(/Ç/g, 'c')
-        .replace(/[^a-z0-9]+/g, ''),
-
     normalizeCustomerNameKey: (value) => String(value || '')
         .trim()
         .toLocaleUpperCase('tr-TR')
@@ -3640,19 +3626,16 @@ const SalesModule = {
     normalizeImportToken: (value) => {
         const raw = String(value || '').trim().toLocaleLowerCase('tr-TR');
         if (!raw) return '';
-        return raw
-            .replace(/ı|İ/g, 'i')
-            .replace(/ş|Ş/g, 's')
-            .replace(/ğ|Ğ/g, 'g')
-            .replace(/ü|Ü/g, 'u')
-            .replace(/ö|Ö/g, 'o')
-            .replace(/ç|Ç/g, 'c')
-            .replace(/Ä±|Ä°/g, 'i')
-            .replace(/ÅŸ|Å/g, 's')
-            .replace(/ÄŸ|Ä/g, 'g')
-            .replace(/Ã¼|Ãœ/g, 'u')
-            .replace(/Ã¶|Ã–/g, 'o')
-            .replace(/Ã§|Ã‡/g, 'c')
+        const cleaned = (window.MojibakeFix && typeof window.MojibakeFix.normalize === 'function')
+            ? window.MojibakeFix.normalize(raw)
+            : raw;
+        return cleaned
+            .replace(/[ıİ]/g, 'i')
+            .replace(/[şŞ]/g, 's')
+            .replace(/[ğĞ]/g, 'g')
+            .replace(/[üÜ]/g, 'u')
+            .replace(/[öÖ]/g, 'o')
+            .replace(/[çÇ]/g, 'c')
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '')
             .replace(/[^a-z0-9]+/g, '');
@@ -7007,6 +6990,7 @@ const SalesModule = {
         return SalesModule.renderMenuLayout();
     }
 };
+
 
 
 

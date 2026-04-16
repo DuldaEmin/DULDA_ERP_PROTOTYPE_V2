@@ -32,6 +32,8 @@
         salesWorkspaceTab: 'ORDERS',
         salesOrderEditorModalOpen: false,
         salesPendingFocusLineId: '',
+        salesOrderLinePicker: null,
+        salesPaymentMethodDraft: '',
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -135,6 +137,32 @@
         SalesModule.ensureSettingsData();
     },
 
+    normalizeSalesPaymentMethod: (value) => String(value || '')
+        .replace(/\s+/g, ' ')
+        .trim(),
+
+    buildDefaultSalesPaymentMethods: () => ([
+        'Nakit',
+        'Havale',
+        'EFT'
+    ]),
+
+    normalizeSalesPaymentMethods: (rows = []) => {
+        const source = Array.isArray(rows) ? rows : [];
+        const normalized = source
+            .map((row) => SalesModule.normalizeSalesPaymentMethod(row))
+            .filter(Boolean);
+        const merged = [];
+        const seen = new Set();
+        [...SalesModule.buildDefaultSalesPaymentMethods(), ...normalized].forEach((item) => {
+            const key = SalesModule.normalizeSearchText(item);
+            if (!key || seen.has(key)) return;
+            seen.add(key);
+            merged.push(item);
+        });
+        return merged;
+    },
+
     buildDefaultProformaSettings: () => ({
         logoDataUrl: '',
         logoFileName: '',
@@ -198,6 +226,47 @@
         DB.data.data.salesSettings.priceLists = DB.data.data.salesSettings.priceLists
             .map((row) => SalesModule.normalizePriceList(row))
             .filter((row) => row.name);
+        DB.data.data.salesSettings.paymentMethods = SalesModule.normalizeSalesPaymentMethods(DB.data.data.salesSettings.paymentMethods);
+    },
+
+    getSalesPaymentMethods: () => {
+        SalesModule.ensureSettingsData();
+        const rows = Array.isArray(DB.data?.data?.salesSettings?.paymentMethods)
+            ? DB.data.data.salesSettings.paymentMethods
+            : [];
+        return SalesModule.normalizeSalesPaymentMethods(rows);
+    },
+
+    getSalesPaymentMethodSuggestions: (draft = null) => {
+        SalesModule.ensureData();
+        const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
+        const bag = [
+            ...SalesModule.getSalesPaymentMethods(),
+            String(source?.paymentMethod || '').trim()
+        ];
+        if (source?.customerId) {
+            const customer = SalesModule.getCustomerById(source.customerId);
+            bag.push(String(customer?.defaultPaymentMethod || '').trim());
+        }
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        orders.slice(-50).forEach((row) => bag.push(String(row?.paymentMethod || '').trim()));
+        return SalesModule.normalizeSalesPaymentMethods(bag);
+    },
+
+    upsertSalesPaymentMethod: (value) => {
+        const normalized = SalesModule.normalizeSalesPaymentMethod(value);
+        if (!normalized) return false;
+        SalesModule.ensureSettingsData();
+        const store = Array.isArray(DB.data?.data?.salesSettings?.paymentMethods)
+            ? DB.data.data.salesSettings.paymentMethods
+            : [];
+        const key = SalesModule.normalizeSearchText(normalized);
+        const exists = store.some((row) => SalesModule.normalizeSearchText(row) === key);
+        if (exists) return false;
+        store.push(normalized);
+        DB.data.data.salesSettings.paymentMethods = SalesModule.normalizeSalesPaymentMethods(store);
+        if (typeof DB.markDirty === 'function') DB.markDirty();
+        return true;
     },
 
     getProformaSettings: () => {
@@ -1530,6 +1599,11 @@
             SalesModule.refreshSalesOrderUi();
             return;
         }
+        if (key === 'paymentMethod') {
+            draft.paymentMethod = SalesModule.normalizeSalesPaymentMethod(value || '');
+            SalesModule.refreshSalesOrderUi();
+            return;
+        }
         draft[key] = String(value || '').trim();
         if (key === 'customerId') {
             const customer = SalesModule.getCustomerById(draft.customerId);
@@ -1554,7 +1628,45 @@
         SalesModule.refreshSalesOrderUi();
     },
 
-    addSalesOrderLine: () => {
+    openSalesPaymentMethodModal: () => {
+        SalesModule.ensureSalesOrderDraft();
+        SalesModule.state.salesPaymentMethodDraft = '';
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.65rem;">
+                <div style="font-size:0.84rem; color:#475569;">Yeni odeme sekli ekleyebilirsin. Kaydedince siparis formuna otomatik secilir.</div>
+                <div>
+                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.25rem;">Odeme sekli</label>
+                    <input id="sales_payment_method_new_input" class="stock-input stock-input-tall" value="" placeholder="or: Cek / Senet" oninput="SalesModule.state.salesPaymentMethodDraft = this.value">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
+                    <button class="btn-sm" type="button" onclick="Modal.close()">vazgec</button>
+                    <button class="btn-primary" type="button" onclick="SalesModule.saveSalesPaymentMethodFromModal()">ekle ve sec</button>
+                </div>
+            </div>
+        `;
+        Modal.open('Odeme sekli ekle', html, { maxWidth: '460px', closeExisting: false });
+        setTimeout(() => {
+            const input = document.getElementById('sales_payment_method_new_input');
+            if (input && typeof input.focus === 'function') input.focus();
+        }, 0);
+    },
+
+    saveSalesPaymentMethodFromModal: () => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const input = document.getElementById('sales_payment_method_new_input');
+        const value = SalesModule.normalizeSalesPaymentMethod(input ? input.value : SalesModule.state.salesPaymentMethodDraft);
+        if (!value) return alert('Odeme sekli bos olamaz.');
+        SalesModule.upsertSalesPaymentMethod(value);
+        if (draft && typeof draft === 'object') {
+            draft.paymentMethod = value;
+        }
+        SalesModule.state.salesPaymentMethodDraft = '';
+        Modal.close();
+        SalesModule.refreshSalesOrderUi();
+    },
+
+    addSalesOrderLine: (options = {}) => {
         SalesModule.ensureSalesOrderDraft();
         const draft = SalesModule.state.salesOrderDraft;
         if (!draft || typeof draft !== 'object') return;
@@ -1564,11 +1676,270 @@
         draft.lines = rows;
         SalesModule.state.salesPendingFocusLineId = String(nextLine.id || '');
         SalesModule.refreshSalesOrderUi();
+        const shouldOpenPicker = options?.openPicker !== false;
+        if (shouldOpenPicker) {
+            SalesModule.state.salesPendingFocusLineId = '';
+            setTimeout(() => {
+                SalesModule.openSalesOrderLineProductPicker(String(nextLine.id || ''));
+            }, 0);
+            return;
+        }
         setTimeout(() => {
             const node = document.getElementById(`sales_line_product_${SalesModule.state.salesPendingFocusLineId}`);
             if (node && typeof node.focus === 'function') node.focus();
             SalesModule.state.salesPendingFocusLineId = '';
         }, 0);
+    },
+
+    startAddSalesOrderLineFromCatalog: () => {
+        SalesModule.addSalesOrderLine({ openPicker: true });
+    },
+
+    openSalesOrderLineProductPicker: (lineId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetLineId = String(lineId || '').trim();
+        if (!draft || !targetLineId) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '').trim() === targetLineId);
+        if (!line) return;
+
+        const allProducts = SalesModule.getCatalogProducts();
+        if (!allProducts.length) {
+            alert('Katalog urunu bulunamadi. Once urun kutuphanesine kayit ekleyin.');
+            return;
+        }
+        const categoryCounts = new Map();
+        allProducts.forEach((row) => {
+            const categoryId = String(row?.categoryId || '').trim();
+            if (!categoryId) return;
+            categoryCounts.set(categoryId, Number(categoryCounts.get(categoryId) || 0) + 1);
+        });
+        const leafNodes = SalesModule.getCatalogLeafNodes().filter((leaf) => Number(categoryCounts.get(String(leaf?.id || '').trim()) || 0) > 0);
+        if (!leafNodes.length) {
+            alert('Secilebilir kategori bulunamadi.');
+            return;
+        }
+
+        const selectedProduct = allProducts.find((row) => String(row?.id || '').trim() === String(line?.productId || '').trim());
+        const preferredCategoryId = String(selectedProduct?.categoryId || line?.categoryId || '').trim();
+        const firstCategoryId = String(leafNodes[0]?.id || '').trim();
+        const categoryId = leafNodes.some((leaf) => String(leaf?.id || '').trim() === preferredCategoryId)
+            ? preferredCategoryId
+            : firstCategoryId;
+        SalesModule.state.salesOrderLinePicker = {
+            lineId: targetLineId,
+            categoryId,
+            searchText: '',
+            productId: String(selectedProduct?.id || '').trim()
+        };
+        SalesModule.renderSalesOrderLineProductPickerModal();
+    },
+
+    closeSalesOrderLineProductPicker: () => {
+        SalesModule.state.salesOrderLinePicker = null;
+        Modal.close();
+    },
+
+    setSalesOrderLinePickerField: (field, value) => {
+        const picker = SalesModule.state.salesOrderLinePicker;
+        if (!picker || typeof picker !== 'object') return;
+        const key = String(field || '').trim();
+        if (!key) return;
+        if (key === 'categoryId') {
+            picker.categoryId = String(value || '').trim();
+            picker.productId = '';
+        } else if (key === 'searchText') {
+            picker.searchText = String(value || '');
+        } else if (key === 'productId') {
+            picker.productId = String(value || '').trim();
+        }
+        SalesModule.renderSalesOrderLineProductPickerModal({ reopen: true });
+    },
+
+    renderSalesOrderLineProductPickerModal: (options = {}) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const picker = SalesModule.state.salesOrderLinePicker;
+        if (!draft || !picker || typeof picker !== 'object') return;
+
+        const targetLineId = String(picker.lineId || '').trim();
+        const targetLine = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '').trim() === targetLineId);
+        if (!targetLine) {
+            SalesModule.state.salesOrderLinePicker = null;
+            return;
+        }
+
+        const products = SalesModule.getCatalogProducts();
+        const categoryCounts = new Map();
+        products.forEach((row) => {
+            const categoryId = String(row?.categoryId || '').trim();
+            if (!categoryId) return;
+            categoryCounts.set(categoryId, Number(categoryCounts.get(categoryId) || 0) + 1);
+        });
+        const categories = SalesModule.getCatalogLeafNodes()
+            .filter((leaf) => Number(categoryCounts.get(String(leaf?.id || '').trim()) || 0) > 0)
+            .sort((a, b) => String(a?.label || '').localeCompare(String(b?.label || ''), 'tr'));
+        if (!categories.length) {
+            SalesModule.state.salesOrderLinePicker = null;
+            alert('Secilebilir kategori bulunamadi.');
+            return;
+        }
+
+        const selectedCategoryId = categories.some((leaf) => String(leaf?.id || '').trim() === String(picker.categoryId || '').trim())
+            ? String(picker.categoryId || '').trim()
+            : String(categories[0]?.id || '').trim();
+        picker.categoryId = selectedCategoryId;
+
+        const query = SalesModule.normalizeSearchText(picker.searchText || '');
+        const categoryProducts = SalesModule.getCatalogProductsByCategory(selectedCategoryId)
+            .filter((row) => {
+                if (!query) return true;
+                const bag = [
+                    String(row?.name || ''),
+                    String(row?.productCode || ''),
+                    String(row?.idCode || ''),
+                    String(row?.id || '')
+                ].join(' ');
+                return SalesModule.normalizeSearchText(bag).includes(query);
+            });
+
+        const selectedProductId = categoryProducts.some((row) => String(row?.id || '').trim() === String(picker.productId || '').trim())
+            ? String(picker.productId || '').trim()
+            : String(categoryProducts[0]?.id || '').trim();
+        picker.productId = selectedProductId;
+        const selectedProduct = categoryProducts.find((row) => String(row?.id || '').trim() === selectedProductId) || null;
+        const variations = selectedProduct ? SalesModule.getSalesVariationsForCatalogProduct(selectedProduct.id) : [];
+
+        const resolveColor = (obj = {}) => {
+            const category = String(obj?.category || '').trim();
+            const color = String(obj?.color || '').trim();
+            if (category && color) return `${category} / ${color}`;
+            return color || category || '-';
+        };
+
+        const modalHtml = `
+            <div style="display:grid; grid-template-columns:300px minmax(0,1fr); gap:0.85rem; min-height:520px;">
+                <div style="border:1px solid #dbe2ec; border-radius:0.75rem; padding:0.6rem; display:flex; flex-direction:column; gap:0.5rem; background:#f8fafc;">
+                    <div style="font-size:0.82rem; color:#475569; font-weight:700;">Urun secimi</div>
+                    <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLinePickerField('categoryId', this.value)">
+                        ${categories.map((leaf) => {
+            const id = String(leaf?.id || '').trim();
+            const selected = id === selectedCategoryId ? 'selected' : '';
+            const count = Number(categoryCounts.get(id) || 0);
+            const label = `${leaf?.mainLabel || ''} / ${leaf?.groupLabel || ''} / ${leaf?.label || ''}`;
+            return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(label)} (${count})</option>`;
+        }).join('')}
+                    </select>
+                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(picker.searchText || ''))}" oninput="SalesModule.setSalesOrderLinePickerField('searchText', this.value)" placeholder="urun adi / urun kodu / id kodu ara">
+                    <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:0.65rem; background:#fff; min-height:350px;">
+                        ${!categoryProducts.length
+                ? '<div style="padding:0.8rem; color:#94a3b8; font-size:0.84rem;">Aramaya uygun urun bulunamadi.</div>'
+                : categoryProducts.map((row) => {
+                    const id = String(row?.id || '').trim();
+                    const active = id === selectedProductId;
+                    const variantCount = SalesModule.getSalesVariationsForCatalogProduct(id).length;
+                    return `
+                                    <button type="button" onclick="SalesModule.setSalesOrderLinePickerField('productId','${SalesModule.escapeHtml(id)}')" style="width:100%; text-align:left; border:none; border-bottom:1px solid #f1f5f9; background:${active ? '#eff6ff' : '#fff'}; padding:0.55rem 0.58rem; cursor:pointer;">
+                                        <div style="font-weight:700; color:${active ? '#1d4ed8' : '#0f172a'};">${SalesModule.escapeHtml(String(row?.name || '-'))}</div>
+                                        <div style="font-size:0.73rem; color:#64748b; margin-top:0.14rem;">${SalesModule.escapeHtml(String(row?.productCode || '-'))} | ${SalesModule.escapeHtml(String(row?.idCode || '-'))}</div>
+                                        <div style="font-size:0.72rem; color:#475569; margin-top:0.12rem;">varyant: ${variantCount}</div>
+                                    </button>
+                                `;
+                }).join('')}
+                    </div>
+                </div>
+
+                <div style="border:1px solid #dbe2ec; border-radius:0.75rem; padding:0.65rem; background:#fff; display:flex; flex-direction:column; gap:0.6rem;">
+                    <div style="display:flex; justify-content:space-between; gap:0.65rem; align-items:flex-start; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:0.76rem; color:#64748b;">Secilen satir</div>
+                            <div style="font-size:0.86rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(`${(Array.isArray(draft.lines) ? draft.lines : []).findIndex((row) => String(row?.id || '').trim() === targetLineId) + 1}. satir`)}</div>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.22rem;">Adet: ${SalesModule.escapeHtml(String(Number(targetLine?.qty || 1).toFixed(2)))}</div>
+                        </div>
+                        ${selectedProduct
+                ? `<button class="btn-sm" type="button" onclick="SalesModule.openSalesCatalogVariationPage('${SalesModule.escapeHtml(String(selectedProduct.id || ''))}')">urun karti</button>`
+                : ''}
+                    </div>
+
+                    ${selectedProduct
+                ? `
+                    <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">${SalesModule.escapeHtml(String(selectedProduct?.name || '-'))}</div>
+                    <div style="font-size:0.76rem; color:#475569;">${SalesModule.escapeHtml(String(selectedProduct?.productCode || '-'))} | ${SalesModule.escapeHtml(String(selectedProduct?.idCode || '-'))}</div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.7rem; overflow:auto;">
+                        <table style="width:100%; min-width:900px; border-collapse:collapse;">
+                            <thead>
+                                <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                    <th style="padding:0.35rem; text-align:left;">Varyant</th>
+                                    <th style="padding:0.35rem; text-align:left;">Cap</th>
+                                    <th style="padding:0.35rem; text-align:left;">Aksesuar</th>
+                                    <th style="padding:0.35rem; text-align:left;">Boru</th>
+                                    <th style="padding:0.35rem; text-align:left;">Pleksi</th>
+                                    <th style="padding:0.35rem; text-align:left;">Kabarcik</th>
+                                    <th style="padding:0.35rem; text-align:left;">Alt boru</th>
+                                    <th style="padding:0.35rem; text-align:right;">Islem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${!variations.length
+                        ? '<tr><td colspan="8" style="padding:0.72rem; color:#94a3b8; text-align:center;">Bu urun icin varyant bulunamadi.</td></tr>'
+                        : variations.map((row) => {
+                            const variation = SalesModule.getSalesVariationRowById(selectedProduct.id, row.id) || row;
+                            const accessory = variation?.colors?.accessory && typeof variation.colors.accessory === 'object'
+                                ? variation.colors.accessory
+                                : (selectedProduct?.colors?.accessory || {});
+                            const tube = variation?.colors?.tube && typeof variation.colors.tube === 'object'
+                                ? variation.colors.tube
+                                : (selectedProduct?.colors?.tube || {});
+                            const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object'
+                                ? variation.colors.plexi
+                                : (selectedProduct?.colors?.plexi || {});
+                            return `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.38rem; font-family:Consolas,monospace; color:#0f172a;">${SalesModule.escapeHtml(String(variation?.variantCode || row?.variantCode || '-'))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.selectedDiameter || selectedProduct?.selectedDiameter || '-'))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(accessory))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(tube))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(plexi))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.bubble || selectedProduct?.bubble || 'yok'))}</td>
+                                                <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.lowerTubeLengthMm || selectedProduct?.lowerTubeLength || 'standart'))}</td>
+                                                <td style="padding:0.38rem; text-align:right;"><button class="btn-sm" type="button" onclick="SalesModule.selectSalesOrderLineVariation('${SalesModule.escapeHtml(targetLineId)}','${SalesModule.escapeHtml(String(selectedProduct.id || ''))}','${SalesModule.escapeHtml(String(row?.id || ''))}')">bu varyanti sec</button></td>
+                                            </tr>
+                                        `;
+                        }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `
+                : '<div style="padding:1rem; border:1px dashed #cbd5e1; border-radius:0.7rem; color:#64748b;">Soldan bir urun secerek varyantlarini ac.</div>'}
+
+                    <div style="display:flex; justify-content:flex-end; gap:0.45rem; margin-top:auto;">
+                        <button class="btn-sm" type="button" onclick="SalesModule.closeSalesOrderLineProductPicker()">kapat</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        if (options?.reopen === true) {
+            Modal.close();
+        }
+        Modal.open('Siparis satiri urun secimi', modalHtml, { maxWidth: '1500px', closeExisting: false });
+    },
+
+    selectSalesOrderLineVariation: (lineId, productId, variationId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetLineId = String(lineId || '').trim();
+        const targetProductId = String(productId || '').trim();
+        const targetVariationId = String(variationId || '').trim();
+        if (!draft || !targetLineId || !targetProductId || !targetVariationId) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((item) => String(item?.id || '').trim() === targetLineId);
+        if (!line) return;
+        line.productId = targetProductId;
+        line.variationId = targetVariationId;
+        line.isManualPrice = false;
+        SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+        SalesModule.state.salesOrderLinePicker = null;
+        Modal.close();
+        SalesModule.refreshSalesOrderUi();
     },
 
     removeSalesOrderLine: (lineId) => {
@@ -1675,6 +2046,8 @@
         if (options?.reset === true) {
             SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
         }
+        SalesModule.state.salesOrderLinePicker = null;
+        SalesModule.state.salesPaymentMethodDraft = '';
         SalesModule.state.salesOrderEditorModalOpen = true;
         SalesModule.renderSalesOrderEditorModal();
     },
@@ -1691,6 +2064,8 @@
 
     closeSalesOrderEditorModal: () => {
         SalesModule.state.salesOrderEditorModalOpen = false;
+        SalesModule.state.salesOrderLinePicker = null;
+        SalesModule.state.salesPaymentMethodDraft = '';
         Modal.close();
         UI.renderCurrentPage();
     },
@@ -2052,6 +2427,7 @@
         }
         customer.preferredCurrency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
         customer.defaultPaymentMethod = String(draft.paymentMethod || 'Nakit').trim() || 'Nakit';
+        SalesModule.upsertSalesPaymentMethod(draft.paymentMethod || '');
         await DB.save();
         alert(`Proforma kaydedildi: ${savedOrderNo}`);
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
@@ -6102,8 +6478,11 @@
                     const name = String(row?.name || '-').trim();
                     const code = String(row?.productCode || '-').trim();
                     return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(name)} (${SalesModule.escapeHtml(code)})</option>`;
-                }).join('')}
+                                }).join('')}
                         </select>
+                        <div style="display:flex; gap:0.25rem; margin-top:0.2rem;">
+                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductPicker('${SalesModule.escapeHtml(lineId)}')">katalogdan sec</button>
+                        </div>
                     </td>
                     <td style="padding:0.38rem; min-width:170px;">
                         <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','variationId', this.value)">
@@ -6153,6 +6532,10 @@
             const extCode = String(row?.externalCode || row?.customerCode || '-').trim();
             return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))} (${SalesModule.escapeHtml(extCode)})</option>`;
         }).join('');
+        const paymentMethodSuggestions = SalesModule.getSalesPaymentMethodSuggestions(draft);
+        const paymentMethodOptionsHtml = paymentMethodSuggestions
+            .map((item) => `<option value="${SalesModule.escapeHtml(String(item || ''))}"></option>`)
+            .join('');
         const lineRowsHtml = SalesModule.renderSalesWorkspaceDraftLineRowsHtml(draft, catalogProducts, productMap, currency);
         return `
             <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
@@ -6176,7 +6559,14 @@
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${Number(draft.vatRate || 20) === 20 ? 'selected' : ''}>%20</option><option value="0" ${Number(draft.vatRate || 20) === 0 ? 'selected' : ''}>%0</option></select></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.paymentMethod || 'Nakit'))}" onchange="SalesModule.setSalesOrderDraftField('paymentMethod', this.value)"></div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label>
+                        <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.35rem;">
+                            <input class="stock-input stock-input-tall" list="sales_payment_method_list" value="${SalesModule.escapeHtml(String(draft.paymentMethod || 'Nakit'))}" onchange="SalesModule.setSalesOrderDraftField('paymentMethod', this.value)" placeholder="odeme sekli yaz veya sec">
+                            <button class="btn-sm" type="button" style="height:36px; min-width:40px;" onclick="SalesModule.openSalesPaymentMethodModal()">+</button>
+                        </div>
+                        <datalist id="sales_payment_method_list">${paymentMethodOptionsHtml}</datalist>
+                    </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,1fr); gap:0.6rem; margin-top:0.62rem;">
@@ -6184,7 +6574,7 @@
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea></div>
                 </div>
 
-                <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.addSalesOrderLine()">urun satiri ekle +</button></div>
+                <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button></div>
                 <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
                     <table style="width:100%; min-width:1700px; border-collapse:collapse;">
                         <thead>

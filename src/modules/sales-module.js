@@ -1766,7 +1766,7 @@
             alert('Katalog urunu bulunamadi. Once urun kutuphanesine kayit ekleyin.');
             return;
         }
-        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof ProductLibraryModule.openPlanningPicker !== 'function') {
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule) {
             alert('Satis urun kutuphanesi acilamadi.');
             return;
         }
@@ -1780,7 +1780,23 @@
             SalesModule.state.salesOrderEditorModalOpen = false;
             if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
         }
-        ProductLibraryModule.openPlanningPicker('model');
+        if (typeof ProductLibraryModule.resetLibraryAccordionState === 'function') {
+            ProductLibraryModule.resetLibraryAccordionState();
+        }
+        ProductLibraryModule.state.masterPickerSource = '';
+        ProductLibraryModule.state.componentPickerSource = '';
+        ProductLibraryModule.state.planningPickerSource = 'model';
+        ProductLibraryModule.state.workspaceView = 'sales-products';
+        ProductLibraryModule.state.salesProductEntrySource = 'sales';
+        ProductLibraryModule.state.salesProductDetailId = '';
+        ProductLibraryModule.state.salesVariationEditorMode = '';
+        ProductLibraryModule.state.salesVariationEditingId = '';
+        ProductLibraryModule.state.salesVariationDraft = null;
+        if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('products', { fromBack: true, preserveProductsState: true });
+            return;
+        }
+        UI.renderCurrentPage();
     },
 
     selectSalesOrderLineFromLibrary: (modelId) => {

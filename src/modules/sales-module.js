@@ -2198,11 +2198,11 @@
     renderSalesOrderEditorModal: () => {
         SalesModule.ensureSalesOrderDraft();
         const html = `
-            <div style="padding:0.2rem 0.2rem 0.35rem;">
+            <div style="padding:0;">
                 ${SalesModule.renderSalesOrderEditorCardHtml({ inModal: true })}
             </div>
         `;
-        Modal.open('Siparis olusturma', html, { maxWidth: '1540px', showHeader: false });
+        Modal.open('Siparis olusturma', html, { maxWidth: '2200px', showHeader: false });
     },
 
     closeSalesOrderEditorModal: () => {
@@ -6623,15 +6623,11 @@
                 ]
                 : ['urun secilmedi'];
             const detailText = detailParts.map((item) => String(item || '-').trim() || '-').join(' | ');
-            const pickLabel = productId && variationId ? 'degistir' : 'kutuphaneden sec';
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.38rem; text-align:center; color:#64748b; min-width:48px;">${index + 1}</td>
                     <td style="padding:0.38rem; min-width:760px;">
-                        <div style="display:flex; align-items:center; gap:0.38rem; flex-wrap:wrap;">
-                            <div style="font-size:0.82rem; color:${productId && variationId ? '#334155' : '#94a3b8'}; font-family:Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:760px;">${SalesModule.escapeHtml(detailText)}</div>
-                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductLibraryPicker('${SalesModule.escapeHtml(lineId)}')">${pickLabel}</button>
-                        </div>
+                        <div style="font-size:0.82rem; color:${productId && variationId ? '#334155' : '#94a3b8'}; font-family:Consolas,monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:880px;">${SalesModule.escapeHtml(detailText)}</div>
                     </td>
                     <td style="padding:0.38rem; min-width:140px; text-align:center;">
                         <button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>

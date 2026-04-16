@@ -33,6 +33,8 @@
         salesOrderEditorModalOpen: false,
         salesPendingFocusLineId: '',
         salesOrderLinePicker: null,
+        salesOrderLineLibraryPickerPending: false,
+        salesOrderLineLibraryPickerContext: null,
         salesPaymentMethodDraft: '',
         priceListDraft: null,
         priceListLineDraft: {
@@ -1680,7 +1682,7 @@
         if (shouldOpenPicker) {
             SalesModule.state.salesPendingFocusLineId = '';
             setTimeout(() => {
-                SalesModule.openSalesOrderLineProductPicker(String(nextLine.id || ''));
+                SalesModule.openSalesOrderLineProductLibraryPicker(String(nextLine.id || ''));
             }, 0);
             return;
         }
@@ -1693,6 +1695,130 @@
 
     startAddSalesOrderLineFromCatalog: () => {
         SalesModule.addSalesOrderLine({ openPicker: true });
+    },
+
+    clearSalesOrderLineLibraryPickerState: () => {
+        SalesModule.state.salesOrderLineLibraryPickerPending = false;
+        SalesModule.state.salesOrderLineLibraryPickerContext = null;
+    },
+
+    restoreSalesOrderAfterLibraryPicker: (reopenModal = true) => {
+        const shouldReopenModal = reopenModal !== false;
+        if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('sales', { fromBack: true });
+            if (shouldReopenModal) {
+                setTimeout(() => {
+                    SalesModule.openSalesOrderEditorModal({ reset: false });
+                }, 0);
+            }
+            return;
+        }
+        if (shouldReopenModal) {
+            SalesModule.openSalesOrderEditorModal({ reset: false });
+            return;
+        }
+        UI.renderCurrentPage();
+    },
+
+    resolveSalesOrderLineLibrarySelection: (modelId) => {
+        const rawId = String(modelId || '').trim();
+        if (!rawId) return { ok: false, message: 'Secilen varyant gecersiz.' };
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule) {
+            return { ok: false, message: 'Urun kutuphanesi modulu bulunamadi.' };
+        }
+        const planningRow = typeof ProductLibraryModule.getPlanningModelById === 'function'
+            ? ProductLibraryModule.getPlanningModelById(rawId)
+            : null;
+        const variationId = (typeof ProductLibraryModule.getSalesVariationIdFromPlanningModelId === 'function'
+            ? ProductLibraryModule.getSalesVariationIdFromPlanningModelId(rawId)
+            : rawId) || '';
+        let productId = String(planningRow?.sourceCatalogProductId || '').trim();
+        if (!productId && variationId && typeof ProductLibraryModule.getAllSalesProductVariationRows === 'function') {
+            const variationRow = ProductLibraryModule.getAllSalesProductVariationRows()
+                .find((row) => String(row?.id || '').trim() === String(variationId || '').trim()) || null;
+            productId = String(variationRow?.sourceCatalogProductId || '').trim();
+        }
+        if (!productId || !variationId) {
+            return { ok: false, message: 'Secilen kayit satis varyasyonuna bagli degil.' };
+        }
+        const productRows = SalesModule.getCatalogProducts();
+        const hasProduct = productRows.some((row) => String(row?.id || '').trim() === productId);
+        if (!hasProduct) return { ok: false, message: 'Secilen urun katalogda bulunamadi.' };
+        const hasVariation = SalesModule.getSalesVariationsForCatalogProduct(productId)
+            .some((row) => String(row?.id || '').trim() === String(variationId || '').trim());
+        if (!hasVariation) return { ok: false, message: 'Secilen varyant urun kaydiyla eslesmedi.' };
+        return {
+            ok: true,
+            productId,
+            variationId: String(variationId || '').trim()
+        };
+    },
+
+    openSalesOrderLineProductLibraryPicker: (lineId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetLineId = String(lineId || '').trim();
+        if (!draft || !targetLineId) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '').trim() === targetLineId);
+        if (!line) return;
+        const allProducts = SalesModule.getCatalogProducts();
+        if (!allProducts.length) {
+            alert('Katalog urunu bulunamadi. Once urun kutuphanesine kayit ekleyin.');
+            return;
+        }
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule || typeof ProductLibraryModule.openPlanningPicker !== 'function') {
+            alert('Satis urun kutuphanesi acilamadi.');
+            return;
+        }
+        SalesModule.state.salesOrderLineLibraryPickerPending = true;
+        SalesModule.state.salesOrderLineLibraryPickerContext = {
+            lineId: targetLineId,
+            reopenModal: !!SalesModule.state.salesOrderEditorModalOpen
+        };
+        SalesModule.state.salesOrderLinePicker = null;
+        if (SalesModule.state.salesOrderEditorModalOpen) {
+            SalesModule.state.salesOrderEditorModalOpen = false;
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        }
+        ProductLibraryModule.openPlanningPicker('model');
+    },
+
+    selectSalesOrderLineFromLibrary: (modelId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const isPending = !!SalesModule.state.salesOrderLineLibraryPickerPending;
+        if (!draft || !isPending) return false;
+        const context = SalesModule.state.salesOrderLineLibraryPickerContext && typeof SalesModule.state.salesOrderLineLibraryPickerContext === 'object'
+            ? SalesModule.state.salesOrderLineLibraryPickerContext
+            : {};
+        const targetLineId = String(context.lineId || '').trim();
+        const resolved = SalesModule.resolveSalesOrderLineLibrarySelection(modelId);
+        if (!resolved.ok) {
+            alert(resolved.message || 'Secilen urun siparis satirina baglanamadi.');
+            return false;
+        }
+        const lines = Array.isArray(draft.lines) ? draft.lines : [];
+        let line = lines.find((item) => String(item?.id || '').trim() === targetLineId);
+        if (!line) {
+            line = SalesModule.createSalesOrderLineDraft();
+            lines.push(line);
+            draft.lines = lines;
+        }
+        line.productId = String(resolved.productId || '').trim();
+        line.variationId = String(resolved.variationId || '').trim();
+        line.isManualPrice = false;
+        SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+        SalesModule.clearSalesOrderLineLibraryPickerState();
+        SalesModule.restoreSalesOrderAfterLibraryPicker(context.reopenModal !== false);
+        return true;
+    },
+
+    cancelSalesOrderLineLibraryPicker: () => {
+        const context = SalesModule.state.salesOrderLineLibraryPickerContext && typeof SalesModule.state.salesOrderLineLibraryPickerContext === 'object'
+            ? SalesModule.state.salesOrderLineLibraryPickerContext
+            : {};
+        SalesModule.clearSalesOrderLineLibraryPickerState();
+        SalesModule.restoreSalesOrderAfterLibraryPicker(context.reopenModal !== false);
     },
 
     openSalesOrderLineProductPicker: (lineId) => {
@@ -2046,6 +2172,7 @@
         if (options?.reset === true) {
             SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
         }
+        SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
         SalesModule.state.salesOrderEditorModalOpen = true;
@@ -2064,6 +2191,7 @@
 
     closeSalesOrderEditorModal: () => {
         SalesModule.state.salesOrderEditorModalOpen = false;
+        SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
         Modal.close();
@@ -6481,7 +6609,7 @@
                                 }).join('')}
                         </select>
                         <div style="display:flex; gap:0.25rem; margin-top:0.2rem;">
-                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductPicker('${SalesModule.escapeHtml(lineId)}')">katalogdan sec</button>
+                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesOrderLineProductLibraryPicker('${SalesModule.escapeHtml(lineId)}')">kutuphaneden sec</button>
                         </div>
                     </td>
                     <td style="padding:0.38rem; min-width:170px;">

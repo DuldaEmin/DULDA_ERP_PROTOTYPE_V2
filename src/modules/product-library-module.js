@@ -285,6 +285,12 @@
                 return;
             }
         }
+        if (typeof SalesModule !== 'undefined' && SalesModule && SalesModule.state?.salesOrderLineLibraryPickerPending) {
+            if (typeof SalesModule.cancelSalesOrderLineLibraryPicker === 'function') {
+                SalesModule.cancelSalesOrderLineLibraryPicker();
+                return;
+            }
+        }
         Router.navigate('planlama', { fromBack: true });
     },
 
@@ -370,6 +376,9 @@
 
     renderSalesProductBuilderPage: (container) => {
         const isPlanningModelPicker = String(ProductLibraryModule.state.planningPickerSource || '') === 'model';
+        const isSalesOrderPicker = isPlanningModelPicker
+            && typeof SalesModule !== 'undefined'
+            && !!SalesModule?.state?.salesOrderLineLibraryPickerPending;
         const isStockInventoryPicker = isPlanningModelPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
@@ -395,8 +404,10 @@
                         <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
                             <div style="font-weight:700;">${isStockInventoryPicker
                         ? 'Envantere elle kayit icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.'
-                        : 'Planlama icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.'}</div>
-                            <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
+                        : (isSalesOrderPicker
+                            ? 'Siparis satiri icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.'
+                            : 'Planlama icin satilan urun varyasyonu secimi modundasin. Once urunu ac, sonra varyasyon satirindan "ekle" butonuna bas.')}</div>
+                            <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : (isSalesOrderPicker ? 'siparise don' : 'planlamaya don')}</button>
                         </div>
                     </div>
                     ${layoutHtml}
@@ -1862,6 +1873,9 @@
         const diameters = Array.isArray(row?.diameters) ? row.diameters.filter(Boolean) : [];
         const variantRows = ProductLibraryModule.getSalesProductVariationRows(row?.id);
         const isPlanningModelPicker = String(ProductLibraryModule.state.planningPickerSource || '') === 'model';
+        const isSalesOrderPicker = isPlanningModelPicker
+            && typeof SalesModule !== 'undefined'
+            && !!SalesModule?.state?.salesOrderLineLibraryPickerPending;
         const isStockInventoryPicker = isPlanningModelPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
@@ -1873,8 +1887,10 @@
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.85rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
                         <div style="font-weight:700;">${isStockInventoryPicker
                 ? 'Envantere elle kayit icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.'
-                : 'Planlama icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.'}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
+                : (isSalesOrderPicker
+                    ? 'Siparis satiri icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.'
+                    : 'Planlama icin varyasyon secimi modundasin. Satirdaki "ekle" butonuyla secim yapabilirsin.')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : (isSalesOrderPicker ? 'siparise don' : 'planlamaya don')}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.7rem; margin-bottom:0.85rem;">
@@ -5856,6 +5872,17 @@
             UI.renderCurrentPage();
             return;
         }
+        if (typeof SalesModule !== 'undefined' && SalesModule && SalesModule.state?.salesOrderLineLibraryPickerPending) {
+            const applied = typeof SalesModule.selectSalesOrderLineFromLibrary === 'function'
+                ? SalesModule.selectSalesOrderLineFromLibrary(modelId)
+                : false;
+            if (!applied) return;
+            ProductLibraryModule.resetLibraryAccordionState();
+            ProductLibraryModule.state.planningPickerSource = '';
+            ProductLibraryModule.state.workspaceView = 'menu';
+            ProductLibraryModule.state.salesProductEntrySource = '';
+            return;
+        }
         if (typeof PlanningModule?.applyPickedModel !== 'function') return;
         ProductLibraryModule.resetLibraryAccordionState();
         ProductLibraryModule.state.planningPickerSource = '';
@@ -6371,6 +6398,9 @@
     renderModelsPage: (container) => {
         const state = ProductLibraryModule.state;
         const isPlanningModelPicker = String(state.planningPickerSource || '') === 'model';
+        const isSalesOrderPicker = isPlanningModelPicker
+            && typeof SalesModule !== 'undefined'
+            && !!SalesModule?.state?.salesOrderLineLibraryPickerPending;
         const isStockInventoryPicker = isPlanningModelPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
@@ -6501,8 +6531,12 @@
             <div style="max-width:1920px; margin:0 auto; font-family:'Inter',sans-serif;">
                 ${isPlanningModelPicker ? `
                     <div style="background:#eff6ff; border:2px solid #1d4ed8; color:#1e3a8a; border-radius:0.9rem; padding:0.7rem 0.85rem; margin-bottom:0.8rem; display:flex; justify-content:space-between; align-items:center; gap:0.7rem; flex-wrap:wrap;">
-                        <div style="font-weight:700;">${isStockInventoryPicker ? 'Envantere elle kayit icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok giris formuna baglanir.' : 'Planlama icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok icin uretim ekranina baglanir.'}</div>
-                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : 'planlamaya don'}</button>
+                        <div style="font-weight:700;">${isStockInventoryPicker
+                ? 'Envantere elle kayit icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok giris formuna baglanir.'
+                : (isSalesOrderPicker
+                    ? 'Siparis satiri icin urun modeli secimi modundasin. "ekle" ile secilen varyant siparis satirina baglanir.'
+                    : 'Planlama icin urun modeli secimi modundasin. "ekle" ile secilen varyant stok icin uretim ekranina baglanir.')}</div>
+                        <button class="btn-sm" onclick="ProductLibraryModule.cancelPlanningPicker()">${isStockInventoryPicker ? 'envantere don' : (isSalesOrderPicker ? 'siparise don' : 'planlamaya don')}</button>
                     </div>
                 ` : ''}
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.8rem; flex-wrap:wrap; margin-bottom:1rem;">
@@ -6512,7 +6546,7 @@
                     </div>
                     <div style="display:flex; gap:0.55rem; flex-wrap:wrap;">
                         <button class="btn-sm" onclick="ProductLibraryModule.goWorkspaceMenu()">geri</button>
-                        <button class="btn-primary" onclick="${isPlanningModelPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.openModelForm()'}">${isPlanningModelPicker ? 'vazgec' : 'urun ekle +'}</button>
+                        <button class="btn-primary" onclick="${isPlanningModelPicker ? 'ProductLibraryModule.cancelPlanningPicker()' : 'ProductLibraryModule.openModelForm()'}">${isPlanningModelPicker ? (isSalesOrderPicker ? 'siparise don' : 'vazgec') : 'urun ekle +'}</button>
                     </div>
                 </div>
 

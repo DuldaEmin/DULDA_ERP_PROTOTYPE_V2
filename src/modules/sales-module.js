@@ -29,6 +29,8 @@ const SalesModule = {
             status: 'ALL',
             period: 'ALL'
         },
+        salesWorkspaceTab: 'ORDERS',
+        salesPendingFocusLineId: '',
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -433,43 +435,71 @@ const SalesModule = {
         return filtered[0];
     },
 
+    normalizeSalesCurrency: (value = 'USD') => {
+        const normalized = String(value || '').trim().toUpperCase();
+        return ['USD', 'EUR', 'TL'].includes(normalized) ? normalized : 'USD';
+    },
+
+    parseSalesQuantity: (value, fallback = 1) => {
+        const parsed = Number(String(value ?? '').replace(',', '.'));
+        if (!Number.isFinite(parsed)) return Number(fallback || 1);
+        return Math.max(0.01, Number(parsed.toFixed(2)));
+    },
+
+    getPriceListLineUnitPriceByVariation: (line, variationId = '') => {
+        const normalizedLine = SalesModule.normalizePriceListLine(line || {});
+        const variationKey = String(variationId || '').trim();
+        if (variationKey) {
+            const hit = (Array.isArray(normalizedLine.variantPrices) ? normalizedLine.variantPrices : [])
+                .map((row) => SalesModule.normalizePriceListVariantPrice(row))
+                .find((row) => String(row?.variationId || '').trim() === variationKey);
+            if (hit && Number(hit.unitPrice || 0) > 0) return Number(hit.unitPrice || 0);
+        }
+        return Number(normalizedLine.unitPrice || 0);
+    },
+
     getLastSalesPriceForCustomerProduct: (customerId, productId, options = {}) => {
         const targetCustomerId = String(customerId || '').trim();
         const targetProductId = String(productId || '').trim();
+        const targetVariationId = String(options?.variationId || '').trim();
         if (!targetCustomerId || !targetProductId) return null;
         const lookbackDays = Number(options.lookbackDays || 365);
         const threshold = Date.now() - (lookbackDays * 24 * 60 * 60 * 1000);
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
 
-        const normalizeStatus = (value) => SalesModule.normalize(String(value || ''));
-        const isCompletedStatus = (status) => {
-            const text = normalizeStatus(status);
-            return text.includes('tamam') || text.includes('teslim') || text.includes('sevk');
+        const isIgnoredStatus = (status) => {
+            const text = SalesModule.normalize(String(status || ''));
+            if (!text) return false;
+            return text.includes('iptal') || text.includes('arsiv') || text.includes('sil');
         };
 
         const candidates = [];
         rows.forEach((order) => {
             const orderCustomerId = String(order?.customerId || order?.customer?.id || '').trim();
             if (orderCustomerId !== targetCustomerId) return;
-            if (!isCompletedStatus(order?.status)) return;
+            if (isIgnoredStatus(order?.status)) return;
             const orderDate = String(order?.orderDate || order?.created_at || '').trim();
             const orderMs = Date.parse(orderDate);
             if (Number.isFinite(orderMs) && orderMs < threshold) return;
             const lines = Array.isArray(order?.lines) ? order.lines : [];
             lines.forEach((line) => {
                 const lineProductId = String(line?.productId || '').trim();
+                const lineVariationId = String(line?.variationId || '').trim();
                 if (lineProductId !== targetProductId) return;
+                if (targetVariationId && lineVariationId && lineVariationId !== targetVariationId) return;
                 const unitPrice = Number(line?.unitPrice || 0);
                 if (!(unitPrice > 0)) return;
                 candidates.push({
                     unitPrice: Number(unitPrice.toFixed(2)),
                     orderDate,
-                    orderNo: String(order?.orderNo || order?.code || order?.id || '-').trim()
+                    orderNo: String(order?.orderNo || order?.code || order?.id || '-').trim(),
+                    variationMatch: targetVariationId ? lineVariationId === targetVariationId : true
                 });
             });
         });
         if (!candidates.length) return null;
         candidates.sort((a, b) => {
+            if (!!a.variationMatch !== !!b.variationMatch) return a.variationMatch ? -1 : 1;
             const aMs = Date.parse(String(a.orderDate || ''));
             const bMs = Date.parse(String(b.orderDate || ''));
             return (Number.isFinite(bMs) ? bMs : 0) - (Number.isFinite(aMs) ? aMs : 0);
@@ -477,30 +507,17 @@ const SalesModule = {
         return candidates[0];
     },
 
-    getSalesPriceSuggestion: (customerId, productId, qty = 1, orderDate = '') => {
+    getSalesPriceSuggestion: (customerId, productId, qty = 1, orderDate = '', variationId = '') => {
         const targetCustomerId = String(customerId || '').trim();
         const targetProductId = String(productId || '').trim();
-        const quantity = Math.max(1, Number(qty || 1));
+        const targetVariationId = String(variationId || '').trim();
+        const quantity = Math.max(0.01, Number(qty || 1));
         if (!targetProductId) return null;
-        const priceLists = SalesModule.getPriceLists();
-        const activeLists = priceLists.filter((list) => SalesModule.isPriceListActiveOnDate(list, orderDate));
 
-        const customerLists = activeLists.filter((list) => list.scope === 'customer' && String(list.customerId || '') === targetCustomerId);
-        const customerLineCandidates = customerLists
-            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
-            .filter((item) => item.line);
-        customerLineCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
-        if (customerLineCandidates.length > 0) {
-            const winner = customerLineCandidates[0];
-            return {
-                source: 'customer-price-list',
-                unitPrice: Number(winner.line.unitPrice || 0),
-                currency: winner.list.currency || 'USD',
-                label: `Musteri fiyat listesi: ${winner.list.name}`
-            };
-        }
-
-        const lastSales = SalesModule.getLastSalesPriceForCustomerProduct(targetCustomerId, targetProductId, { lookbackDays: 365 });
+        const lastSales = SalesModule.getLastSalesPriceForCustomerProduct(targetCustomerId, targetProductId, {
+            lookbackDays: 365,
+            variationId: targetVariationId
+        });
         if (lastSales) {
             const dateText = lastSales.orderDate ? new Date(lastSales.orderDate).toLocaleDateString('tr-TR') : '-';
             return {
@@ -511,54 +528,80 @@ const SalesModule = {
             };
         }
 
-        const globalLists = activeLists.filter((list) => list.scope !== 'customer');
-        const globalCandidates = globalLists
-            .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
-            .filter((item) => item.line);
-        globalCandidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
-        if (globalCandidates.length > 0) {
-            const winner = globalCandidates[0];
+        const priceLists = SalesModule.getPriceLists();
+        const activeLists = priceLists.filter((list) => SalesModule.isPriceListActiveOnDate(list, orderDate));
+        const chooseWinner = (lists = [], source) => {
+            const candidates = lists
+                .map((list) => ({ list, line: SalesModule.findBestPriceListLine(list.lines, targetProductId, quantity) }))
+                .filter((item) => item.line)
+                .map((item) => {
+                    const unitPrice = SalesModule.getPriceListLineUnitPriceByVariation(item.line, targetVariationId);
+                    return { ...item, unitPrice: Number(unitPrice || 0) };
+                })
+                .filter((item) => item.unitPrice > 0);
+            candidates.sort((a, b) => String(b.list.updatedAt || '').localeCompare(String(a.list.updatedAt || ''), 'tr'));
+            if (!candidates.length) return null;
+            const winner = candidates[0];
             return {
-                source: 'global-price-list',
-                unitPrice: Number(winner.line.unitPrice || 0),
+                source,
+                unitPrice: Number(winner.unitPrice || 0),
                 currency: winner.list.currency || 'USD',
-                label: `Liste fiyati: ${winner.list.name}`
+                label: `${source === 'customer-price-list' ? 'Musteri fiyat listesi' : 'Liste fiyati'}: ${winner.list.name}`
             };
-        }
+        };
+
+        const customerLists = activeLists.filter((list) => list.scope === 'customer' && String(list.customerId || '') === targetCustomerId);
+        const customerWinner = chooseWinner(customerLists, 'customer-price-list');
+        if (customerWinner) return customerWinner;
+
+        const globalLists = activeLists.filter((list) => list.scope !== 'customer');
+        const globalWinner = chooseWinner(globalLists, 'global-price-list');
+        if (globalWinner) return globalWinner;
         return null;
     },
 
     createSalesOrderLineDraft: (seed = {}) => ({
         id: String(seed.id || crypto.randomUUID()).trim(),
         productId: String(seed.productId || '').trim(),
-        qty: Math.max(1, Number(seed.qty || 1)),
+        variationId: String(seed.variationId || '').trim(),
+        qty: SalesModule.parseSalesQuantity(seed.qty, 1),
         unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
-        discountRate: Math.max(0, Math.min(100, Number(seed.discountRate || 0))),
         isManualPrice: !!seed.isManualPrice
     }),
 
     buildSalesOrderDraft: (seed = {}) => {
         const source = seed && typeof seed === 'object' ? seed : {};
         const orderDate = String(source.orderDate || new Date().toISOString().slice(0, 10)).trim();
-        const lines = (Array.isArray(source.lines) ? source.lines : [SalesModule.createSalesOrderLineDraft()])
+        const rawVatRate = Number(String(source.vatRate ?? 20).replace(',', '.'));
+        const vatRate = rawVatRate === 0 ? 0 : 20;
+        const discountRaw = source.globalDiscountRate ?? source.discountRate ?? 0;
+        const hasLineArray = Array.isArray(source.lines);
+        const lines = (hasLineArray ? source.lines : [SalesModule.createSalesOrderLineDraft()])
             .map((line) => SalesModule.createSalesOrderLineDraft(line));
+        const preparedBy = String(source.preparedBy || SalesModule.getCurrentEditorName() || 'Demo User').trim() || 'Demo User';
         return {
+            editingOrderId: String(source.editingOrderId || source.id || '').trim(),
             orderDate,
             customerId: String(source.customerId || '').trim(),
-            status: String(source.status || 'Taslak').trim() || 'Taslak',
-            currency: ['USD', 'TL', 'EUR'].includes(String(source.currency || '').trim().toUpperCase())
-                ? String(source.currency || '').trim().toUpperCase()
-                : 'USD',
+            status: String(source.status || 'Onay Bekliyor').trim() || 'Onay Bekliyor',
+            currency: SalesModule.normalizeSalesCurrency(source.currency || 'USD'),
+            exchangeRate: SalesModule.parseMoney(source.exchangeRate || 0),
+            preparedBy,
+            globalDiscountRate: SalesModule.parsePercent(discountRaw),
+            vatRate,
+            deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
             deliveryAddress: String(source.deliveryAddress || '').trim(),
-            deliveryMethod: String(source.deliveryMethod || '').trim(),
+            paymentMethod: String(source.paymentMethod || source.deliveryMethod || 'Nakit').trim() || 'Nakit',
             note: String(source.note || '').trim(),
+            revisionNo: Math.max(1, Number(source.revisionNo || 1)),
+            approvalDate: String(source.approvalDate || '').trim(),
             lines
         };
     },
 
     buildSalesOrderHistoryFilters: (seed = {}) => ({
         query: String(seed?.query || '').trim(),
-        status: ['ALL', 'DRAFT', 'APPROVED', 'COMPLETED', 'CANCELLED'].includes(String(seed?.status || '').trim().toUpperCase())
+        status: ['ALL', 'WAITING', 'APPROVED', 'ARCHIVED', 'CANCELLED'].includes(String(seed?.status || '').trim().toUpperCase())
             ? String(seed?.status || '').trim().toUpperCase()
             : 'ALL',
         period: ['ALL', 'TODAY', 'THIS_WEEK', 'THIS_MONTH'].includes(String(seed?.period || '').trim().toUpperCase())
@@ -573,31 +616,44 @@ const SalesModule = {
 
     normalizeSalesOrderStatusGroup: (status) => {
         const text = SalesModule.normalize(String(status || ''));
-        if (!text) return 'DRAFT';
+        if (!text) return 'WAITING';
+        if (text.includes('arsiv')) return 'ARCHIVED';
         if (text.includes('iptal') || text.includes('cancel')) return 'CANCELLED';
-        if (text.includes('tamam') || text.includes('teslim') || text.includes('sevk')) return 'COMPLETED';
+        if (text.includes('bekliyor') || text.includes('teklif') || text.includes('taslak')) return 'WAITING';
+        if (text.includes('tamam') || text.includes('teslim') || text.includes('sevk') || text.includes('donus')) return 'APPROVED';
         if (text.includes('onay')) return 'APPROVED';
-        return 'DRAFT';
+        return 'WAITING';
     },
 
     getSalesOrderStatusMeta: (status) => {
         const group = SalesModule.normalizeSalesOrderStatusGroup(status);
         const rawLabel = String(status || '').trim();
-        if (group === 'COMPLETED') {
-            return { group, text: rawLabel || 'Tamamlandi', border: '#86efac', bg: '#f0fdf4', color: '#166534' };
-        }
         if (group === 'APPROVED') {
-            return { group, text: rawLabel || 'Onaylandi', border: '#bfdbfe', bg: '#eff6ff', color: '#1d4ed8' };
+            return { group, text: rawLabel || 'Onaylandi', border: '#86efac', bg: '#f0fdf4', color: '#166534' };
+        }
+        if (group === 'WAITING') {
+            return { group, text: rawLabel || 'Onay Bekliyor', border: '#bfdbfe', bg: '#eff6ff', color: '#1d4ed8' };
+        }
+        if (group === 'ARCHIVED') {
+            return { group, text: rawLabel || 'Arsiv', border: '#cbd5e1', bg: '#f8fafc', color: '#475569' };
         }
         if (group === 'CANCELLED') {
             return { group, text: rawLabel || 'Iptal', border: '#fecaca', bg: '#fff1f2', color: '#be123c' };
         }
-        return { group, text: rawLabel || 'Taslak', border: '#e2e8f0', bg: '#f8fafc', color: '#475569' };
+        return { group, text: rawLabel || 'Onay Bekliyor', border: '#e2e8f0', bg: '#f8fafc', color: '#475569' };
     },
 
     getSalesOrderHistoryRows: () => {
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         return rows
+            .filter((row) => {
+                const orderType = SalesModule.normalize(String(row?.orderType || ''));
+                if (orderType === 'proforma' || orderType === 'sales') return true;
+                const orderNo = String(row?.orderNo || row?.orderCode || '').trim().toUpperCase();
+                if (/^SOR-\d{6}$/.test(orderNo)) return true;
+                const lines = Array.isArray(row?.lines) ? row.lines : [];
+                return !!(String(row?.customerId || '').trim() && lines.some((line) => String(line?.productId || '').trim()));
+            })
             .map((row) => {
                 const dateRaw = String(row?.orderDate || row?.created_at || '').trim();
                 const dateMs = Date.parse(dateRaw);
@@ -609,7 +665,7 @@ const SalesModule = {
                     customerName: String(row?.customerName || row?.customer?.name || '-').trim(),
                     orderDate: dateRaw,
                     orderDateMs: Number.isFinite(dateMs) ? dateMs : 0,
-                    status: String(row?.status || 'Taslak').trim(),
+                    status: String(row?.status || 'Onay Bekliyor').trim(),
                     statusGroup: SalesModule.normalizeSalesOrderStatusGroup(row?.status),
                     currency: String(row?.currency || 'USD').trim().toUpperCase() || 'USD',
                     lineCount: lines.length,
@@ -669,33 +725,35 @@ const SalesModule = {
         const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
         const lines = Array.isArray(source.lines) ? source.lines : [];
         let subtotal = 0;
-        let discountTotal = 0;
-        let netTotal = 0;
+        const discountRate = SalesModule.parsePercent(source.globalDiscountRate || 0);
+        const vatRate = Number(String(source.vatRate ?? 20).replace(',', '.')) === 0 ? 0 : 20;
         const normalizedLines = lines.map((line) => {
-            const qty = Math.max(1, Number(line?.qty || 1));
+            const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
             const unitPrice = Math.max(0, Number(line?.unitPrice || 0));
-            const discountRate = Math.max(0, Math.min(100, Number(line?.discountRate || 0)));
             const lineSubtotal = Number((qty * unitPrice).toFixed(2));
-            const lineDiscount = Number((lineSubtotal * (discountRate / 100)).toFixed(2));
-            const lineTotal = Number((lineSubtotal - lineDiscount).toFixed(2));
             subtotal += lineSubtotal;
-            discountTotal += lineDiscount;
-            netTotal += lineTotal;
             return {
                 ...line,
                 qty,
                 unitPrice: Number(unitPrice.toFixed(2)),
-                discountRate: Number(discountRate.toFixed(2)),
                 lineSubtotal,
-                lineDiscount,
-                lineTotal
+                lineTotal: lineSubtotal
             };
         });
+        const discountTotal = Number((subtotal * (discountRate / 100)).toFixed(2));
+        const taxBase = Number((subtotal - discountTotal).toFixed(2));
+        const vatTotal = Number((taxBase * (vatRate / 100)).toFixed(2));
+        const grandTotal = Number((taxBase + vatTotal).toFixed(2));
         return {
             lines: normalizedLines,
             subtotal: Number(subtotal.toFixed(2)),
-            discountTotal: Number(discountTotal.toFixed(2)),
-            netTotal: Number(netTotal.toFixed(2))
+            discountRate,
+            discountTotal,
+            taxBase,
+            vatRate,
+            vatTotal,
+            grandTotal,
+            netTotal: grandTotal
         };
     },
 
@@ -705,7 +763,8 @@ const SalesModule = {
             String(draft?.customerId || '').trim(),
             String(line?.productId || '').trim(),
             Number(line?.qty || 1),
-            String(draft?.orderDate || '').trim()
+            String(draft?.orderDate || '').trim(),
+            String(line?.variationId || '').trim()
         );
         if (!suggestion) return;
         if (line.isManualPrice && Number(line.unitPrice || 0) > 0) return;
@@ -1440,10 +1499,42 @@ const SalesModule = {
         const draft = SalesModule.state.salesOrderDraft;
         const key = String(field || '').trim();
         if (!draft || !key) return;
-        draft[key] = String(value || '');
+        if (key === 'currency') {
+            draft.currency = SalesModule.normalizeSalesCurrency(value || 'USD');
+            if (draft.currency === 'TL') draft.exchangeRate = 0;
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'exchangeRate') {
+            draft.exchangeRate = SalesModule.parseMoney(value || 0);
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'globalDiscountRate') {
+            draft.globalDiscountRate = SalesModule.parsePercent(value || 0);
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'vatRate') {
+            const numeric = Number(String(value || '').replace(',', '.'));
+            draft.vatRate = numeric === 0 ? 0 : 20;
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'deliveryLeadDays') {
+            draft.deliveryLeadDays = SalesModule.parseDays(value || 0);
+            UI.renderCurrentPage();
+            return;
+        }
+        draft[key] = String(value || '').trim();
         if (key === 'customerId') {
             const customer = SalesModule.getCustomerById(draft.customerId);
             draft.deliveryAddress = customer ? String(customer.address || '').trim() : '';
+            if (customer) {
+                draft.currency = SalesModule.normalizeSalesCurrency(customer.preferredCurrency || draft.currency || 'USD');
+                if (draft.currency === 'TL') draft.exchangeRate = 0;
+                draft.paymentMethod = String(customer.defaultPaymentMethod || draft.paymentMethod || 'Nakit').trim() || 'Nakit';
+            }
             (Array.isArray(draft.lines) ? draft.lines : []).forEach((line) => {
                 if (line && typeof line === 'object') {
                     line.isManualPrice = false;
@@ -1463,10 +1554,17 @@ const SalesModule = {
         SalesModule.ensureSalesOrderDraft();
         const draft = SalesModule.state.salesOrderDraft;
         if (!draft || typeof draft !== 'object') return;
+        const nextLine = SalesModule.createSalesOrderLineDraft();
         const rows = Array.isArray(draft.lines) ? draft.lines : [];
-        rows.push(SalesModule.createSalesOrderLineDraft());
+        rows.push(nextLine);
         draft.lines = rows;
+        SalesModule.state.salesPendingFocusLineId = String(nextLine.id || '');
         UI.renderCurrentPage();
+        setTimeout(() => {
+            const node = document.getElementById(`sales_line_product_${SalesModule.state.salesPendingFocusLineId}`);
+            if (node && typeof node.focus === 'function') node.focus();
+            SalesModule.state.salesPendingFocusLineId = '';
+        }, 0);
     },
 
     removeSalesOrderLine: (lineId) => {
@@ -1474,9 +1572,9 @@ const SalesModule = {
         const draft = SalesModule.state.salesOrderDraft;
         const targetId = String(lineId || '').trim();
         if (!draft || !targetId) return;
+        if (!confirm('Satir kalici olarak silinsin mi?')) return;
         draft.lines = (Array.isArray(draft.lines) ? draft.lines : [])
             .filter((line) => String(line?.id || '').trim() !== targetId);
-        if (!draft.lines.length) draft.lines = [SalesModule.createSalesOrderLineDraft()];
         UI.renderCurrentPage();
     },
 
@@ -1491,14 +1589,8 @@ const SalesModule = {
         if (!line) return;
 
         if (key === 'qty') {
-            const qty = Number(String(value || '').replace(',', '.'));
-            line.qty = Number.isFinite(qty) ? Math.max(1, Math.floor(qty)) : 1;
+            line.qty = SalesModule.parseSalesQuantity(value, 1);
             if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
-            UI.renderCurrentPage();
-            return;
-        }
-        if (key === 'discountRate') {
-            line.discountRate = SalesModule.parsePercent(value);
             UI.renderCurrentPage();
             return;
         }
@@ -1511,6 +1603,14 @@ const SalesModule = {
         }
         if (key === 'productId') {
             line.productId = String(value || '').trim();
+            line.variationId = '';
+            line.isManualPrice = false;
+            SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+            UI.renderCurrentPage();
+            return;
+        }
+        if (key === 'variationId') {
+            line.variationId = String(value || '').trim();
             line.isManualPrice = false;
             SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             UI.renderCurrentPage();
@@ -1535,6 +1635,226 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
+    setSalesWorkspaceTab: (tabId) => {
+        const next = String(tabId || 'ORDERS').trim().toUpperCase();
+        SalesModule.state.salesWorkspaceTab = ['ORDERS', 'QUOTES', 'ARCHIVE'].includes(next) ? next : 'ORDERS';
+        UI.renderCurrentPage();
+    },
+
+    setSalesOrderHistoryFilter: (field, value) => {
+        SalesModule.ensureSalesOrderHistoryFilters();
+        const key = String(field || '').trim();
+        if (!key) return;
+        const filters = SalesModule.state.salesOrderHistoryFilters || SalesModule.buildSalesOrderHistoryFilters();
+        if (key === 'query') filters.query = String(value || '').trim();
+        if (key === 'status') {
+            const next = String(value || 'ALL').trim().toUpperCase();
+            filters.status = ['ALL', 'WAITING', 'APPROVED', 'ARCHIVED', 'CANCELLED'].includes(next) ? next : 'ALL';
+        }
+        if (key === 'period') {
+            const next = String(value || 'ALL').trim().toUpperCase();
+            filters.period = ['ALL', 'TODAY', 'THIS_WEEK', 'THIS_MONTH'].includes(next) ? next : 'ALL';
+        }
+        SalesModule.state.salesOrderHistoryFilters = filters;
+        UI.renderCurrentPage();
+    },
+
+    getSalesWorkspaceRows: () => {
+        const rows = SalesModule.getFilteredSalesOrderHistoryRows(SalesModule.getSalesOrderHistoryRows());
+        const tab = String(SalesModule.state.salesWorkspaceTab || 'ORDERS').trim().toUpperCase();
+        return rows.filter((row) => {
+            if (tab === 'ARCHIVE') return String(row?.statusGroup || '') === 'ARCHIVED';
+            if (tab === 'QUOTES') return ['WAITING', 'APPROVED'].includes(String(row?.statusGroup || ''));
+            return String(row?.statusGroup || '') !== 'ARCHIVED';
+        });
+    },
+
+    openSalesOrderForEdit: (orderId) => {
+        SalesModule.ensureData();
+        const targetId = String(orderId || '').trim();
+        if (!targetId) return;
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const row = rows.find((item) => String(item?.id || '').trim() === targetId);
+        if (!row) return alert('Kayit bulunamadi.');
+        SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
+            ...row,
+            editingOrderId: targetId,
+            lines: (Array.isArray(row?.lines) ? row.lines : []).map((line) => ({
+                id: String(line?.id || crypto.randomUUID()),
+                productId: String(line?.productId || '').trim(),
+                variationId: String(line?.variationId || '').trim(),
+                qty: Number(line?.qty || 1),
+                unitPrice: Number(line?.unitPrice || 0),
+                isManualPrice: true
+            }))
+        });
+        if (!Array.isArray(SalesModule.state.salesOrderDraft.lines) || !SalesModule.state.salesOrderDraft.lines.length) {
+            SalesModule.state.salesOrderDraft.lines = [SalesModule.createSalesOrderLineDraft()];
+        }
+        UI.renderCurrentPage();
+    },
+
+    deleteSalesOrder: async (orderId) => {
+        SalesModule.ensureData();
+        const targetId = String(orderId || '').trim();
+        if (!targetId) return;
+        if (!confirm('Siparis kaydi kalici olarak silinsin mi?')) return;
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
+        DB.data.data.orders = next;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    setSalesOrderStatus: async (orderId, statusText) => {
+        SalesModule.ensureData();
+        const targetId = String(orderId || '').trim();
+        if (!targetId) return;
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
+        if (idx < 0) return;
+        const nextStatus = String(statusText || '').trim() || rows[idx].status || 'Onay Bekliyor';
+        rows[idx].status = nextStatus;
+        if (SalesModule.normalize(nextStatus).includes('onay') && !String(rows[idx].approvalDate || '').trim()) {
+            rows[idx].approvalDate = new Date().toISOString().slice(0, 10);
+        }
+        rows[idx].updated_at = new Date().toISOString();
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    buildSalesOrderComparableSignature: (orderLike = {}) => {
+        const source = orderLike && typeof orderLike === 'object' ? orderLike : {};
+        const normalized = {
+            customerId: String(source.customerId || '').trim(),
+            orderDate: String(source.orderDate || '').trim(),
+            currency: SalesModule.normalizeSalesCurrency(source.currency || 'USD'),
+            exchangeRate: Number(Number(source.exchangeRate || 0).toFixed(4)),
+            globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
+            vatRate: Number(source.vatRate || 20) === 0 ? 0 : 20,
+            deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
+            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            paymentMethod: String(source.paymentMethod || '').trim(),
+            note: String(source.note || '').trim(),
+            lines: (Array.isArray(source.lines) ? source.lines : [])
+                .map((line) => ({
+                    productId: String(line?.productId || '').trim(),
+                    variationId: String(line?.variationId || '').trim(),
+                    qty: SalesModule.parseSalesQuantity(line?.qty, 1),
+                    unitPrice: Number(Number(line?.unitPrice || 0).toFixed(2))
+                }))
+                .sort((a, b) => {
+                    const aKey = `${a.productId}|${a.variationId}|${a.qty}|${a.unitPrice}`;
+                    const bKey = `${b.productId}|${b.variationId}|${b.qty}|${b.unitPrice}`;
+                    return aKey.localeCompare(bKey, 'tr');
+                })
+        };
+        return JSON.stringify(normalized);
+    },
+
+    buildSalesOrderLinePayloads: (lines = []) => {
+        const productMap = new Map(SalesModule.getCatalogProducts().map((row) => [String(row.id || ''), row]));
+        const resolveColorText = (source = {}) => {
+            const category = String(source?.category || '').trim();
+            const color = String(source?.color || '').trim();
+            if (category && color) return `${category} / ${color}`;
+            return color || category || '-';
+        };
+        return (Array.isArray(lines) ? lines : []).map((line) => {
+            const product = productMap.get(String(line.productId || '')) || {};
+            const variation = SalesModule.getSalesVariationRowById(String(line.productId || ''), String(line.variationId || '')) || {};
+            const selectedDiameter = String(variation?.selectedDiameter || product?.selectedDiameter || '').trim();
+            const lowerTubeLength = String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart').trim() || 'standart';
+            const bubble = String(variation?.bubble || product?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
+            const accessory = variation?.colors?.accessory && typeof variation.colors.accessory === 'object'
+                ? variation.colors.accessory
+                : (product?.colors?.accessory || {});
+            const tube = variation?.colors?.tube && typeof variation.colors.tube === 'object'
+                ? variation.colors.tube
+                : (product?.colors?.tube || {});
+            const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object'
+                ? variation.colors.plexi
+                : (product?.colors?.plexi || {});
+            return {
+                id: String(line.id || crypto.randomUUID()),
+                productId: String(line.productId || '').trim(),
+                variationId: String(line.variationId || '').trim(),
+                variantCode: String(variation?.variantCode || '-').trim(),
+                productName: String(product?.name || variation?.productName || '-').trim(),
+                productCode: String(product?.productCode || '-').trim(),
+                idCode: String(product?.idCode || '-').trim(),
+                selectedDiameter,
+                accessoryColor: resolveColorText(accessory),
+                tubeColor: resolveColorText(tube),
+                plexiColor: resolveColorText(plexi),
+                bubble,
+                lowerTubeLength,
+                qty: SalesModule.parseSalesQuantity(line.qty, 1),
+                unitPrice: Number(Number(line.unitPrice || 0).toFixed(2)),
+                lineSubtotal: Number(Number(line.lineSubtotal || 0).toFixed(2)),
+                lineTotal: Number(Number(line.lineTotal || 0).toFixed(2))
+            };
+        });
+    },
+
+    buildSalesOrderPreviewPayloadFromDraft: (draft = null) => {
+        SalesModule.ensureSalesOrderDraft();
+        const source = draft && typeof draft === 'object' ? draft : SalesModule.state.salesOrderDraft;
+        if (!source || typeof source !== 'object') return null;
+        const customer = SalesModule.getCustomerById(source.customerId);
+        if (!customer) return null;
+        const totals = SalesModule.computeSalesOrderTotals(source);
+        const lines = SalesModule.buildSalesOrderLinePayloads(
+            totals.lines.filter((line) => String(line?.productId || '').trim())
+        );
+        return {
+            orderNo: String(source.orderNo || source.orderCode || 'ONIZLEME').trim(),
+            orderDate: String(source.orderDate || new Date().toISOString().slice(0, 10)).trim(),
+            customerId: String(customer.id || '').trim(),
+            customerName: String(customer.name || '-').trim(),
+            customerDisplayId: String(customer.externalCode || customer.customerCode || customer.id || '-').trim(),
+            status: String(source.status || 'Onay Bekliyor').trim() || 'Onay Bekliyor',
+            currency: SalesModule.normalizeSalesCurrency(source.currency || 'USD'),
+            exchangeRate: Number(Number(source.exchangeRate || 0).toFixed(4)),
+            preparedBy: String(source.preparedBy || SalesModule.getCurrentEditorName()).trim(),
+            globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
+            vatRate: Number(source.vatRate || 20) === 0 ? 0 : 20,
+            deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
+            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            paymentMethod: String(source.paymentMethod || 'Nakit').trim() || 'Nakit',
+            note: String(source.note || '').trim(),
+            lines,
+            subtotal: totals.subtotal,
+            discountTotal: totals.discountTotal,
+            taxBase: totals.taxBase,
+            vatTotal: totals.vatTotal,
+            totalAmount: totals.grandTotal,
+            grandTotal: totals.grandTotal
+        };
+    },
+
+    previewCurrentSalesOrderProforma: () => {
+        const payload = SalesModule.buildSalesOrderPreviewPayloadFromDraft();
+        if (!payload) return alert('Onizleme icin once musteri secmelisin.');
+        const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), payload);
+        Modal.open('Proforma goruntule', html, { maxWidth: '1260px' });
+    },
+
+    previewSavedSalesOrderProforma: (orderId) => {
+        SalesModule.ensureData();
+        const targetId = String(orderId || '').trim();
+        if (!targetId) return;
+        const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const order = rows.find((row) => String(row?.id || '').trim() === targetId);
+        if (!order) return alert('Kayit bulunamadi.');
+        const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), order);
+        Modal.open('Proforma goruntule', html, { maxWidth: '1260px' });
+    },
+
+    convertSalesOrderPlaceholder: () => {
+        alert('Siparise donustur akisi sonraki asamada uretim modulu ile baglanacak. Su an tetikleme kapali.');
+    },
+
     generateSalesOrderNo: () => {
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         let maxSeq = 0;
@@ -1554,52 +1874,127 @@ const SalesModule = {
         const draft = SalesModule.state.salesOrderDraft;
         if (!draft || typeof draft !== 'object') return;
         const customer = SalesModule.getCustomerById(draft.customerId);
-        if (!customer) return alert('Siparis icin musteri secmelisin.');
+        if (!customer) return alert('Proforma icin musteri secmelisin.');
+        if (SalesModule.normalizeSalesCurrency(draft.currency) !== 'TL' && !(Number(draft.exchangeRate || 0) > 0)) {
+            return alert('USD/EUR icin kur alani zorunludur.');
+        }
+        if (!(Number(draft.deliveryLeadDays || 0) > 0)) {
+            return alert('Teslim tarihi kurali (onaydan sonra kac gun) zorunludur.');
+        }
         const totals = SalesModule.computeSalesOrderTotals(draft);
-        const validLines = totals.lines.filter((line) => String(line?.productId || '').trim() && Number(line?.unitPrice || 0) > 0);
+        const lineIssues = [];
+        const validLines = totals.lines
+            .map((line, index) => {
+                const rowNo = index + 1;
+                const productId = String(line?.productId || '').trim();
+                const variationId = String(line?.variationId || '').trim();
+                const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+                const unitPrice = Number(line?.unitPrice || 0);
+                if (!productId) lineIssues.push(`${rowNo}. satir: Urun secmelisin.`);
+                if (!variationId) lineIssues.push(`${rowNo}. satir: Varyant secmelisin.`);
+                if (!(qty > 0)) lineIssues.push(`${rowNo}. satir: Adet 0'dan buyuk olmali.`);
+                if (!(unitPrice > 0)) lineIssues.push(`${rowNo}. satir: Birim fiyat zorunludur.`);
+                return {
+                    ...line,
+                    productId,
+                    variationId,
+                    qty,
+                    unitPrice: Number(unitPrice.toFixed(2))
+                };
+            })
+            .filter((line) => line.productId);
         if (!validLines.length) return alert('En az bir urun satiri eklemelisin.');
-        const productMap = new Map(SalesModule.getCatalogProducts().map((row) => [String(row.id || ''), row]));
+        if (lineIssues.length) return alert(lineIssues.slice(0, 6).join('\n'));
         const now = new Date().toISOString();
-        const order = {
-            id: crypto.randomUUID(),
-            orderNo: SalesModule.generateSalesOrderNo(),
+        const editorName = SalesModule.getCurrentEditorName();
+        const rowPayload = SalesModule.buildSalesOrderLinePayloads(validLines);
+
+        const basePayload = {
+            orderType: 'PROFORMA',
             orderDate: String(draft.orderDate || '').trim() || new Date().toISOString().slice(0, 10),
             customerId: String(customer.id || '').trim(),
             customerName: String(customer.name || '').trim(),
-            status: String(draft.status || 'Taslak').trim() || 'Taslak',
-            currency: String(draft.currency || 'USD').trim().toUpperCase(),
+            customerDisplayId: String(customer.externalCode || customer.customerCode || customer.id || '-').trim(),
+            status: String(draft.status || 'Onay Bekliyor').trim() || 'Onay Bekliyor',
+            currency: SalesModule.normalizeSalesCurrency(draft.currency || 'USD'),
+            exchangeRate: Number(Number(draft.exchangeRate || 0).toFixed(4)),
+            preparedBy: String(draft.preparedBy || editorName).trim() || editorName,
+            globalDiscountRate: Number(Number(draft.globalDiscountRate || 0).toFixed(2)),
+            vatRate: Number(draft.vatRate || 20) === 0 ? 0 : 20,
+            deliveryLeadDays: SalesModule.parseDays(draft.deliveryLeadDays || 0),
             deliveryAddress: String(draft.deliveryAddress || '').trim(),
-            deliveryMethod: String(draft.deliveryMethod || '').trim(),
+            paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
+            deliveryMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             note: String(draft.note || '').trim(),
-            lines: validLines.map((line) => {
-                const product = productMap.get(String(line.productId || '')) || {};
-                return {
-                    id: String(line.id || crypto.randomUUID()),
-                    productId: String(line.productId || '').trim(),
-                    productName: String(product?.name || '-').trim(),
-                    productCode: String(product?.productCode || product?.idCode || '-').trim(),
-                    qty: Math.max(1, Number(line.qty || 1)),
-                    unitPrice: Number(Number(line.unitPrice || 0).toFixed(2)),
-                    discountRate: Number(Number(line.discountRate || 0).toFixed(2)),
-                    lineSubtotal: Number(Number(line.lineSubtotal || 0).toFixed(2)),
-                    lineDiscount: Number(Number(line.lineDiscount || 0).toFixed(2)),
-                    lineTotal: Number(Number(line.lineTotal || 0).toFixed(2))
-                };
-            }),
+            lines: rowPayload,
             subtotal: totals.subtotal,
+            discountRate: totals.discountRate,
             discountTotal: totals.discountTotal,
-            totalAmount: totals.netTotal,
-            created_at: now,
+            taxBase: totals.taxBase,
+            vatTotal: totals.vatTotal,
+            totalAmount: totals.grandTotal,
+            grandTotal: totals.grandTotal,
             updated_at: now
         };
-        DB.data.data.orders.push(order);
+
+        const store = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const editingId = String(draft.editingOrderId || '').trim();
+        const idx = editingId ? store.findIndex((row) => String(row?.id || '').trim() === editingId) : -1;
+        let savedOrderNo = '';
+        if (idx >= 0) {
+            const prev = store[idx] || {};
+            const prevSignature = SalesModule.buildSalesOrderComparableSignature(prev);
+            const nextSignature = SalesModule.buildSalesOrderComparableSignature(basePayload);
+            const hasChange = prevSignature !== nextSignature;
+            const nextRevisionNo = hasChange ? (Math.max(1, Number(prev?.revisionNo || 1)) + 1) : Math.max(1, Number(prev?.revisionNo || 1));
+            const revisionHistory = Array.isArray(prev?.revisionHistory) ? prev.revisionHistory.slice() : [];
+            if (hasChange) {
+                revisionHistory.push({
+                    version: `v${nextRevisionNo}`,
+                    editor: editorName,
+                    at: now
+                });
+            }
+            store[idx] = {
+                ...prev,
+                ...basePayload,
+                id: String(prev.id || editingId || crypto.randomUUID()),
+                orderNo: String(prev.orderNo || prev.orderCode || SalesModule.generateSalesOrderNo()),
+                created_at: String(prev.created_at || now),
+                revisionNo: nextRevisionNo,
+                revisionHistory
+            };
+            if (!hasChange) {
+                alert('Kayitta degisiklik algilanmadi.');
+                UI.renderCurrentPage();
+                return;
+            }
+            savedOrderNo = String(store[idx].orderNo || '-');
+        } else {
+            const newOrder = {
+                ...basePayload,
+                id: crypto.randomUUID(),
+                orderNo: SalesModule.generateSalesOrderNo(),
+                created_at: now,
+                revisionNo: 1,
+                revisionHistory: [{
+                    version: 'v1',
+                    editor: editorName,
+                    at: now
+                }]
+            };
+            store.push(newOrder);
+            savedOrderNo = String(newOrder.orderNo || '-');
+        }
+        customer.preferredCurrency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
+        customer.defaultPaymentMethod = String(draft.paymentMethod || 'Nakit').trim() || 'Nakit';
         await DB.save();
-        alert(`Siparis kaydedildi: ${order.orderNo}`);
+        alert(`Proforma kaydedildi: ${savedOrderNo}`);
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
             customerId: String(customer.id || '').trim(),
             deliveryAddress: String(draft.deliveryAddress || '').trim(),
-            deliveryMethod: String(draft.deliveryMethod || '').trim(),
-            currency: String(draft.currency || 'USD').trim().toUpperCase()
+            paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
+            currency: SalesModule.normalizeSalesCurrency(draft.currency || 'USD')
         });
         UI.renderCurrentPage();
     },
@@ -1720,51 +2115,124 @@ const SalesModule = {
         UI.renderCurrentPage();
     },
 
-    buildProformaPreviewDocumentHtml: (draft = {}) => {
+    buildProformaPreviewDocumentHtml: (draft = {}, orderData = null) => {
         const settings = SalesModule.normalizeProformaSettings(draft || {});
         const logoDataUrl = String(settings.logoDataUrl || '').trim();
         const bankAccounts = Array.isArray(settings.bankAccounts) ? settings.bankAccounts : [];
-        const unitPrice = 9.5;
-        const qty = 5;
-        const discountRate = 0.30;
-        const vatRate = 0.20;
-        const usdTryRate = 45.0;
+        const sampleOrder = {
+            orderNo: 'ONIZLEME',
+            orderDate: new Date().toISOString().slice(0, 10),
+            customerName: 'Musteri secilmedi',
+            status: 'Onay Bekliyor',
+            currency: 'USD',
+            exchangeRate: 45,
+            preparedBy: SalesModule.getCurrentEditorName(),
+            globalDiscountRate: 0,
+            vatRate: 20,
+            deliveryLeadDays: 7,
+            deliveryAddress: '-',
+            paymentMethod: 'Nakit',
+            note: '',
+            lines: [{
+                productName: 'Ornek urun',
+                productCode: 'ORNEK-001',
+                idCode: 'SAL-000001',
+                selectedDiameter: '40',
+                accessoryColor: '-',
+                tubeColor: '-',
+                plexiColor: '-',
+                bubble: 'yok',
+                lowerTubeLength: 'standart',
+                qty: 1,
+                unitPrice: 10,
+                lineTotal: 10
+            }]
+        };
+        const order = orderData && typeof orderData === 'object' ? orderData : sampleOrder;
+        const currency = SalesModule.normalizeSalesCurrency(order.currency || 'USD');
+        const exchangeRate = Number(order.exchangeRate || 0);
+        const discountRate = SalesModule.parsePercent(order.globalDiscountRate ?? order.discountRate ?? 0);
+        const vatRate = Number(order.vatRate || 20) === 0 ? 0 : 20;
+        const rawLines = Array.isArray(order.lines) ? order.lines : [];
+        const lines = rawLines.map((line) => {
+            const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+            const unitPrice = Number(Number(line?.unitPrice || 0).toFixed(2));
+            const lineSubtotal = Number((qty * unitPrice).toFixed(2));
+            const lineTotal = Number(line?.lineTotal || line?.lineSubtotal || lineSubtotal);
+            return {
+                ...line,
+                qty,
+                unitPrice,
+                lineSubtotal,
+                lineTotal: Number(lineTotal.toFixed(2))
+            };
+        });
 
-        const subtotal = Number((unitPrice * qty).toFixed(2));
-        const discount = Number((subtotal * discountRate).toFixed(2));
-        const taxBase = Number((subtotal - discount).toFixed(2));
-        const vat = Number((taxBase * vatRate).toFixed(2));
-        const grandTotal = Number((taxBase + vat).toFixed(2));
-        const grandTotalTry = Number((grandTotal * usdTryRate).toFixed(2));
+        const subtotalRaw = lines.reduce((sum, line) => sum + Number(line?.lineTotal || line?.lineSubtotal || 0), 0);
+        const subtotal = Number(subtotalRaw.toFixed(2));
+        const discountTotal = Number((subtotal * (discountRate / 100)).toFixed(2));
+        const taxBase = Number((subtotal - discountTotal).toFixed(2));
+        const vatTotal = Number((taxBase * (vatRate / 100)).toFixed(2));
+        const grandTotal = Number((taxBase + vatTotal).toFixed(2));
+        const totalTl = currency === 'TL'
+            ? grandTotal
+            : (exchangeRate > 0 ? Number((grandTotal * exchangeRate).toFixed(2)) : 0);
 
-        const fmtUsd = (value) => `$${Number(value || 0).toFixed(2)}`;
-        const fmtTl = (value) => `${Number(value || 0).toFixed(2)} TL`;
-        const notesHtml = SalesModule.escapeHtml(String(settings.defaultNotes || 'Satis kosullari buraya eklenecek.'))
-            .replace(/\n/g, '<br>');
-
+        const formatter = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const fmtMoney = (value, curr = currency) => {
+            const amount = Number(value || 0);
+            if (curr === 'USD') return `$${formatter.format(amount)}`;
+            if (curr === 'EUR') return `${formatter.format(amount)} EUR`;
+            return `${formatter.format(amount)} TL`;
+        };
+        const fmtQty = (value) => new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+        const notesBag = [String(settings.defaultNotes || '').trim(), String(order.note || '').trim()].filter(Boolean).join('\n');
+        const notesHtml = SalesModule.escapeHtml(notesBag || 'Not girilmedi.').replace(/\n/g, '<br>');
+        const statusMeta = SalesModule.getSalesOrderStatusMeta(order.status);
         const logoHtml = logoDataUrl
             ? `<img src="${SalesModule.escapeHtml(logoDataUrl)}" alt="logo" style="max-height:72px; max-width:220px; object-fit:contain;">`
             : '<div style="font-size:2.8rem; font-style:italic; font-weight:700; color:#334155; letter-spacing:0.01em;">dulda</div>';
 
         const bankRowsHtml = bankAccounts.length === 0
-            ? `<tr>
-                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#94a3b8;" colspan="4">Banka hesabi eklenmedi.</td>
-               </tr>`
+            ? `<tr><td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#94a3b8;" colspan="4">Banka hesabi eklenmedi.</td></tr>`
             : bankAccounts.map((row) => `
-                    <tr>
-                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.bankName || '-'))}</td>
-                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.branchCode || '-'))}</td>
-                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.accountNo || '-'))}</td>
-                        <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.iban || '-'))}</td>
-                    </tr>
-                `).join('');
+                <tr>
+                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.bankName || '-'))}</td>
+                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.branchCode || '-'))}</td>
+                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.accountNo || '-'))}</td>
+                    <td style="padding:0.32rem 0.35rem; border-bottom:1px solid #e2e8f0; color:#0f172a;">${SalesModule.escapeHtml(String(row?.iban || '-'))}</td>
+                </tr>
+            `).join('');
 
+        const lineRowsHtml = lines.length === 0
+            ? `<tr><td colspan="12" style="padding:0.5rem; border-top:1px solid #e2e8f0; color:#94a3b8; text-align:center;">Satir bulunmuyor.</td></tr>`
+            : lines.map((line) => `
+                <tr>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.productName || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; font-family:Consolas,monospace;">${SalesModule.escapeHtml(String(line?.productCode || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(String(line?.idCode || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.selectedDiameter || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.accessoryColor || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.tubeColor || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.plexiColor || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.bubble || 'yok'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.lowerTubeLength || '-'))}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right;">${fmtQty(line?.qty || 0)}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right;">${fmtMoney(line?.unitPrice || 0)}</td>
+                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right; font-weight:700;">${fmtMoney(line?.lineTotal || 0)}</td>
+                </tr>
+            `).join('');
+
+        const kdvTitle = vatRate === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${vatRate})`;
+        const kurText = currency === 'TL' ? '-' : (exchangeRate > 0 ? Number(exchangeRate).toFixed(4) : '-');
+        const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
+        const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
         return `
             <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:1rem; overflow:auto;">
-                <div style="width:100%; min-width:760px; max-width:920px; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:1.1rem 1.2rem;">
-                    <div style="display:grid; grid-template-columns:1fr 1.4fr; gap:0.8rem; align-items:start;">
+                <div style="width:100%; min-width:1000px; max-width:1240px; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:1rem 1.1rem;">
+                    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.8rem; align-items:start;">
                         <div>${logoHtml}</div>
-                        <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.35;">
+                        <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.4;">
                             <div style="font-weight:800;">DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.</div>
                             <div>S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.</div>
                             <div>29.SOK. 3.CADDE NO:10 KOSELER MAH. DILOVASI / KOCAELI</div>
@@ -1775,61 +2243,70 @@ const SalesModule = {
 
                     <div style="margin-top:0.65rem; border-top:3px solid #334155;"></div>
 
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.9rem; margin-top:0.9rem;">
-                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.6rem 0.72rem;">
-                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a; margin-bottom:0.35rem;">TEKLIF ALAN</div>
-                            <div style="font-weight:700; color:#0f172a;">KOCLAR PLEKSI - DOGAN KOC</div>
-                            <div style="color:#334155; margin-top:0.2rem;">Ikitelli</div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.8rem; margin-top:0.85rem;">
+                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
+                            <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF ALAN</div>
+                            <div style="font-weight:700; margin-top:0.25rem;">${SalesModule.escapeHtml(String(order.customerName || '-'))}</div>
+                            <div style="margin-top:0.2rem; color:#334155;">${SalesModule.escapeHtml(String(order.deliveryAddress || '-'))}</div>
                         </div>
-                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.6rem 0.72rem;">
-                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a; margin-bottom:0.35rem;">TEKLIF DETAYLARI</div>
-                            <div>Teklif No: DLD-024</div>
-                            <div>Tarih: 09.04.2026</div>
-                            <div>Dolar Kuru: ${Number(usdTryRate).toFixed(4)}</div>
+                        <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
+                            <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF DETAYLARI</div>
+                            <div style="display:grid; grid-template-columns:120px 1fr; gap:0.25rem; margin-top:0.28rem; font-size:0.82rem;">
+                                <strong>Teklif No</strong><span>: ${SalesModule.escapeHtml(String(order.orderNo || '-'))}</span>
+                                <strong>Tarih</strong><span>: ${SalesModule.escapeHtml(orderDateText)}</span>
+                                <strong>Hazirlayan</strong><span>: ${SalesModule.escapeHtml(String(order.preparedBy || '-'))}</span>
+                                <strong>Para Birimi</strong><span>: ${SalesModule.escapeHtml(currency)}</span>
+                                <strong>Kur</strong><span>: ${SalesModule.escapeHtml(kurText)}</span>
+                                <strong>Durum</strong><span>: <span style="display:inline-flex; padding:0.05rem 0.42rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-weight:700;">${SalesModule.escapeHtml(statusMeta.text)}</span></span>
+                            </div>
                         </div>
                     </div>
 
-                    <div style="margin-top:0.9rem; border:1px solid #cbd5e1;">
-                        <table style="width:100%; border-collapse:collapse; font-size:0.88rem;">
+                    <div style="margin-top:0.8rem; border:1px solid #cbd5e1; overflow:auto;">
+                        <table style="width:100%; min-width:1250px; border-collapse:collapse; font-size:0.78rem;">
                             <thead>
                                 <tr style="background:#334155; color:white; text-align:left;">
-                                    <th style="padding:0.4rem;">Aciklama</th>
-                                    <th style="padding:0.4rem; width:85px;">Adet</th>
-                                    <th style="padding:0.4rem; width:85px;">Birim</th>
-                                    <th style="padding:0.4rem; width:120px;">Birim Fiyat</th>
-                                    <th style="padding:0.4rem; width:120px;">Toplam Fiyat</th>
+                                    <th style="padding:0.35rem;">Urun Adi</th>
+                                    <th style="padding:0.35rem;">Urun Kodu</th>
+                                    <th style="padding:0.35rem;">ID Kodu</th>
+                                    <th style="padding:0.35rem;">Cap</th>
+                                    <th style="padding:0.35rem;">Aksesuar Rengi</th>
+                                    <th style="padding:0.35rem;">Boru Rengi</th>
+                                    <th style="padding:0.35rem;">Pleksi Rengi</th>
+                                    <th style="padding:0.35rem;">Kabarcik</th>
+                                    <th style="padding:0.35rem;">Alt Boru Uzunlugu</th>
+                                    <th style="padding:0.35rem; text-align:right;">Adet</th>
+                                    <th style="padding:0.35rem; text-align:right;">Birim Fiyat</th>
+                                    <th style="padding:0.35rem; text-align:right;">Tutar</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <tr>
-                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">BORU PLEKSI SEFFAF O50 X2 X2000MM</td>
-                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${qty}</td>
-                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">Adet</td>
-                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${fmtUsd(unitPrice)}</td>
-                                    <td style="padding:0.42rem; border-top:1px solid #e2e8f0;">${fmtUsd(subtotal)}</td>
-                                </tr>
-                            </tbody>
+                            <tbody>${lineRowsHtml}</tbody>
                         </table>
                     </div>
 
-                    <div style="display:flex; justify-content:flex-end; margin-top:0.75rem;">
-                        <div style="min-width:320px; font-size:0.92rem;">
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>Ara Toplam:</span><strong>${fmtUsd(subtotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; color:#dc2626;"><span>Iskonto (%30):</span><strong>-${fmtUsd(discount).slice(1)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>KDV Matrahi:</span><strong>${fmtUsd(taxBase)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0;"><span>KDV (%20):</span><strong>${fmtUsd(vat)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.08rem;"><span><strong>Genel Toplam:</strong></span><strong>${fmtUsd(grandTotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.08rem;"><span><strong>Genel Toplam (TL):</strong></span><strong>${fmtTl(grandTotalTry)}</strong></div>
+                    <div style="display:flex; justify-content:space-between; gap:0.75rem; margin-top:0.7rem; align-items:flex-start;">
+                        <div style="flex:1; font-size:0.82rem; color:#334155;">
+                            <div style="font-weight:800; color:#0f172a; margin-bottom:0.2rem;">Aciklamalar</div>
+                            <div style="white-space:normal; line-height:1.5;">${notesHtml}</div>
+                            <div style="margin-top:0.45rem; font-size:0.78rem; color:#64748b;">Son duzenleme: ${SalesModule.escapeHtml(updateDateText)}</div>
+                        </div>
+                        <div style="min-width:350px; font-size:0.9rem;">
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>Ara Toplam</span><strong>${fmtMoney(subtotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(discountRate))})</span><strong>-${fmtMoney(discountTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>KDV Matrahi</span><strong>${fmtMoney(taxBase)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>${kdvTitle}</span><strong>${fmtMoney(vatTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.06rem; border-top:1px solid #e2e8f0; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(grandTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>Genel Toplam (TL)</span><strong>${fmtMoney(totalTl, 'TL')}</strong></div>
                         </div>
                     </div>
 
-                    <div style="margin-top:0.85rem; font-size:0.9rem; color:#0f172a;">
-                        <div style="display:grid; grid-template-columns:145px 1fr; gap:0.3rem; padding:0.2rem 0;"><strong>ODEME SEKLI:</strong><span>Pesin</span></div>
-                        <div style="display:grid; grid-template-columns:145px 1fr; gap:0.3rem; padding:0.2rem 0;"><strong>TESLIM KOSULLARI:</strong><span>Depo Teslim</span></div>
+                    <div style="margin-top:0.8rem; font-size:0.9rem; color:#0f172a;">
+                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>ODEME SEKLI</strong><span>${SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit'))}</span></div>
+                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(order.deliveryAddress || '-'))}</span></div>
                     </div>
 
                     <div style="margin-top:0.7rem;">
-                        <div style="font-weight:800; color:#0f172a; margin-bottom:0.35rem;">BANKA BILGILERI:</div>
+                        <div style="font-weight:800; color:#0f172a; margin-bottom:0.35rem;">BANKA BILGILERI</div>
                         <table style="width:100%; border-collapse:collapse; font-size:0.82rem; border:1px solid #e2e8f0;">
                             <thead>
                                 <tr style="background:#f1f5f9; text-align:left;">
@@ -1841,11 +2318,6 @@ const SalesModule = {
                             </thead>
                             <tbody>${bankRowsHtml}</tbody>
                         </table>
-                    </div>
-
-                    <div style="margin-top:0.72rem; font-size:0.82rem; color:#334155;">
-                        <div style="font-weight:800; color:#0f172a; margin-bottom:0.2rem;">VARSAYILAN NOTLAR:</div>
-                        <div style="white-space:normal;">${notesHtml}</div>
                     </div>
                 </div>
             </div>
@@ -5481,7 +5953,165 @@ const SalesModule = {
         </section>
     `,
 
+    renderSalesWorkspaceOrderRowsHtml: (rows = []) => {
+        const fmtMoney = (value, currency = 'USD') => {
+            const amount = Number(value || 0);
+            const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+            if (String(currency || '').toUpperCase() === 'USD') return `$${out}`;
+            if (String(currency || '').toUpperCase() === 'EUR') return `${out} EUR`;
+            return `${out} TL`;
+        };
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return '<tr><td colspan="9" style="padding:0.8rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>';
+        }
+        return rows.map((row) => {
+            const source = row?.source || {};
+            const statusMeta = SalesModule.getSalesOrderStatusMeta(row?.status || '');
+            const updatedMs = Date.parse(String(source?.updated_at || source?.created_at || row?.orderDate || ''));
+            const daysPassed = Number.isFinite(updatedMs)
+                ? Math.max(0, Math.floor((Date.now() - updatedMs) / (24 * 60 * 60 * 1000)))
+                : '-';
+            const revisionNo = Math.max(1, Number(source?.revisionNo || 1));
+            const statusGroup = String(row?.statusGroup || '');
+            const canApprove = statusGroup === 'WAITING';
+            const canArchive = statusGroup !== 'ARCHIVED';
+            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:0.42rem; font-family:Consolas,monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.orderNo || '-'))}</td>
+                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.customerName || '-'))}</td>
+                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.orderDate || '-'))}</td>
+                    <td style="padding:0.42rem;"><span style="display:inline-flex; padding:0.12rem 0.45rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span></td>
+                    <td style="padding:0.42rem; text-align:right;">${fmtMoney(row?.total || 0, String(row?.currency || 'USD'))}</td>
+                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(row?.currency || 'USD'))}</td>
+                    <td style="padding:0.42rem; text-align:center;">v${SalesModule.escapeHtml(String(revisionNo))}</td>
+                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(daysPassed))}</td>
+                    <td style="padding:0.42rem; text-align:right;">
+                        <div style="display:flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
+                            <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
+                            ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
+                            ${canArchive
+                    ? `<button class="btn-sm" type="button" onclick="SalesModule.setSalesOrderStatus('${id}','Arsiv')">arsive al</button>`
+                    : `<button class="btn-sm" type="button" onclick="SalesModule.setSalesOrderStatus('${id}','Onay Bekliyor')">arsivden cikar</button>`}
+                            <button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.deleteSalesOrder('${id}')">sil</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    },
+
+    renderSalesWorkspaceDraftLineRowsHtml: (draft, catalogProducts = [], productMap = new Map(), currency = 'USD') => {
+        const fmtMoney = (value) => {
+            const amount = Number(value || 0);
+            const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount);
+            if (currency === 'USD') return `$${out}`;
+            if (currency === 'EUR') return `${out} EUR`;
+            return `${out} TL`;
+        };
+        const lines = Array.isArray(draft?.lines) ? draft.lines : [];
+        if (!lines.length) {
+            return '<tr><td colspan="14" style="padding:0.8rem; text-align:center; color:#94a3b8;">Satir bulunmuyor. "urun satiri ekle +" ile devam edebilirsin.</td></tr>';
+        }
+        return lines.map((line, index) => {
+            const lineId = String(line?.id || '').trim();
+            const productId = String(line?.productId || '').trim();
+            const variationId = String(line?.variationId || '').trim();
+            const product = productMap.get(productId) || {};
+            const variations = productId ? SalesModule.getSalesVariationsForCatalogProduct(productId) : [];
+            const variation = (productId && variationId) ? SalesModule.getSalesVariationRowById(productId, variationId) : null;
+            const resolveColor = (obj = {}) => {
+                const category = String(obj?.category || '').trim();
+                const color = String(obj?.color || '').trim();
+                if (category && color) return `${category} / ${color}`;
+                return color || category || '-';
+            };
+            const accessory = variation?.colors?.accessory && typeof variation.colors.accessory === 'object' ? variation.colors.accessory : (product?.colors?.accessory || {});
+            const tube = variation?.colors?.tube && typeof variation.colors.tube === 'object' ? variation.colors.tube : (product?.colors?.tube || {});
+            const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object' ? variation.colors.plexi : (product?.colors?.plexi || {});
+            const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+            const unitPrice = Number(line?.unitPrice || 0);
+            const lineTotal = Number((qty * unitPrice).toFixed(2));
+            const variationOptions = [
+                '<option value="">varyant sec *</option>',
+                ...variations.map((row) => {
+                    const id = String(row?.id || '').trim();
+                    const selected = id === variationId ? 'selected' : '';
+                    const title = String(row?.variantCode || row?.id || '-').trim();
+                    return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(title)}</option>`;
+                })
+            ].join('');
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:0.38rem; text-align:center; color:#64748b;">${index + 1}</td>
+                    <td style="padding:0.38rem; min-width:210px;">
+                        <select id="sales_line_product_${SalesModule.escapeHtml(lineId)}" class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','productId', this.value)">
+                            <option value="">urun sec *</option>
+                            ${catalogProducts.map((row) => {
+                    const id = String(row?.id || '').trim();
+                    const selected = id === productId ? 'selected' : '';
+                    const name = String(row?.name || '-').trim();
+                    const code = String(row?.productCode || '-').trim();
+                    return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(name)} (${SalesModule.escapeHtml(code)})</option>`;
+                }).join('')}
+                        </select>
+                    </td>
+                    <td style="padding:0.38rem; min-width:170px;">
+                        <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','variationId', this.value)">
+                            ${variationOptions}
+                        </select>
+                        <div style="display:flex; gap:0.25rem; margin-top:0.2rem;">
+                            <button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesCatalogVariationPage('${SalesModule.escapeHtml(productId)}')">urun karti</button>
+                            ${variationId
+                    ? `<button class="btn-sm" type="button" style="height:27px;" onclick="SalesModule.openSalesVariationFromPriceList('${SalesModule.escapeHtml(productId)}','${SalesModule.escapeHtml(variationId)}')">varyant</button>`
+                    : ''}
+                        </div>
+                    </td>
+                    <td style="padding:0.38rem; font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(String(product?.idCode || '-'))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.selectedDiameter || product?.selectedDiameter || '-'))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(accessory))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(tube))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(resolveColor(plexi))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.bubble || product?.bubble || 'yok'))}</td>
+                    <td style="padding:0.38rem;">${SalesModule.escapeHtml(String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart'))}</td>
+                    <td style="padding:0.38rem; min-width:110px;"><input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)"></td>
+                    <td style="padding:0.38rem; min-width:120px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)"></td>
+                    <td style="padding:0.38rem; text-align:right; font-weight:800;">${fmtMoney(lineTotal)}</td>
+                    <td style="padding:0.38rem; text-align:center;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
+                </tr>
+            `;
+        }).join('');
+    },
+
     renderSalesWorkspaceLayout: () => {
+        SalesModule.ensureSalesOrderDraft();
+        SalesModule.ensureSalesOrderHistoryFilters();
+        const draft = SalesModule.state.salesOrderDraft || SalesModule.buildSalesOrderDraft();
+        const totals = SalesModule.computeSalesOrderTotals(draft);
+        const customers = SalesModule.getCustomers().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const catalogProducts = SalesModule.getCatalogProducts().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const productMap = new Map(catalogProducts.map((row) => [String(row?.id || ''), row]));
+        const rows = SalesModule.getSalesWorkspaceRows();
+        const tab = String(SalesModule.state.salesWorkspaceTab || 'ORDERS').trim().toUpperCase();
+        const query = String(SalesModule.state.salesOrderHistoryFilters?.query || '').trim();
+        const statusFilter = String(SalesModule.state.salesOrderHistoryFilters?.status || 'ALL').trim().toUpperCase();
+        const periodFilter = String(SalesModule.state.salesOrderHistoryFilters?.period || 'ALL').trim().toUpperCase();
+        const currency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
+        const fmtMoney = (value) => {
+            const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+            if (currency === 'USD') return `$${out}`;
+            if (currency === 'EUR') return `${out} EUR`;
+            return `${out} TL`;
+        };
+        const customerOptions = customers.map((row) => {
+            const id = String(row?.id || '').trim();
+            const selected = id === String(draft.customerId || '').trim() ? 'selected' : '';
+            const extCode = String(row?.externalCode || row?.customerCode || '-').trim();
+            return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))} (${SalesModule.escapeHtml(extCode)})</option>`;
+        }).join('');
+        const lineRowsHtml = SalesModule.renderSalesWorkspaceDraftLineRowsHtml(draft, catalogProducts, productMap, currency);
+        const orderRowsHtml = SalesModule.renderSalesWorkspaceOrderRowsHtml(rows);
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -5489,8 +6119,107 @@ const SalesModule = {
                         <h2 class="stock-title">satis / siparis olusturma</h2>
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                     </div>
-                    <div class="card-table" style="padding:1rem; display:flex; align-items:center; justify-content:center; min-height:300px;">
-                        <div style="font-size:1.2rem; font-weight:800; color:#0f172a; text-align:center;">sayfa yeniden oluşturulacaktır</div>
+
+                    <div class="card-table" style="padding:0.9rem; margin-bottom:0.75rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                            <div style="display:flex; gap:0.34rem;">
+                                <button class="btn-sm" type="button" style="${tab === 'ORDERS' ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:800;' : ''}" onclick="SalesModule.setSalesWorkspaceTab('ORDERS')">siparisler</button>
+                                <button class="btn-sm" type="button" style="${tab === 'QUOTES' ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:800;' : ''}" onclick="SalesModule.setSalesWorkspaceTab('QUOTES')">teklifler</button>
+                                <button class="btn-sm" type="button" style="${tab === 'ARCHIVE' ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:800;' : ''}" onclick="SalesModule.setSalesWorkspaceTab('ARCHIVE')">siparis arsivi</button>
+                            </div>
+                            <div style="display:flex; gap:0.35rem; align-items:center; flex-wrap:wrap;">
+                                <input class="stock-input stock-input-tall" style="min-width:220px;" value="${SalesModule.escapeHtml(query)}" placeholder="siparis no / musteri ara" oninput="SalesModule.setSalesOrderHistoryFilter('query', this.value)">
+                                <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderHistoryFilter('status', this.value)">
+                                    <option value="ALL" ${statusFilter === 'ALL' ? 'selected' : ''}>Tum durumlar</option>
+                                    <option value="WAITING" ${statusFilter === 'WAITING' ? 'selected' : ''}>Onay bekliyor</option>
+                                    <option value="APPROVED" ${statusFilter === 'APPROVED' ? 'selected' : ''}>Onaylandi</option>
+                                    <option value="ARCHIVED" ${statusFilter === 'ARCHIVED' ? 'selected' : ''}>Arsiv</option>
+                                    <option value="CANCELLED" ${statusFilter === 'CANCELLED' ? 'selected' : ''}>Iptal</option>
+                                </select>
+                                <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderHistoryFilter('period', this.value)">
+                                    <option value="ALL" ${periodFilter === 'ALL' ? 'selected' : ''}>Tum tarih</option>
+                                    <option value="TODAY" ${periodFilter === 'TODAY' ? 'selected' : ''}>Bugun</option>
+                                    <option value="THIS_WEEK" ${periodFilter === 'THIS_WEEK' ? 'selected' : ''}>Bu hafta</option>
+                                    <option value="THIS_MONTH" ${periodFilter === 'THIS_MONTH' ? 'selected' : ''}>Bu ay</option>
+                                </select>
+                                <button class="btn-primary" type="button" onclick="SalesModule.resetSalesOrderDraft()">yeni siparis +</button>
+                            </div>
+                        </div>
+                        <div style="overflow:auto; margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem;">
+                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                        <th style="padding:0.42rem; text-align:left;">Siparis No</th>
+                                        <th style="padding:0.42rem; text-align:left;">Musteri</th>
+                                        <th style="padding:0.42rem; text-align:left;">Tarih</th>
+                                        <th style="padding:0.42rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.42rem; text-align:right;">Toplam</th>
+                                        <th style="padding:0.42rem; text-align:center;">Kur</th>
+                                        <th style="padding:0.42rem; text-align:center;">Revizyon</th>
+                                        <th style="padding:0.42rem; text-align:center;">Gecen Gun</th>
+                                        <th style="padding:0.42rem; text-align:right;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${orderRowsHtml}</tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:0.95rem;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                            <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">siparis olusturma ekrani</div>
+                            <div style="display:flex; gap:0.45rem; font-size:0.76rem; color:#64748b;">
+                                <span>hazirlayan: <strong>${SalesModule.escapeHtml(String(draft.preparedBy || '-'))}</strong></span>
+                                <span>tarih: <strong>${SalesModule.escapeHtml(String(draft.orderDate || '-'))}</strong></span>
+                            </div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(110px,1fr)); gap:0.55rem; margin-top:0.68rem;">
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(String(Number(draft.exchangeRate || 0).toFixed(4)))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${Number(draft.vatRate || 20) === 20 ? 'selected' : ''}>%20</option><option value="0" ${Number(draft.vatRate || 20) === 0 ? 'selected' : ''}>%0</option></select></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.paymentMethod || 'Nakit'))}" onchange="SalesModule.setSalesOrderDraftField('paymentMethod', this.value)"></div>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,1fr); gap:0.6rem; margin-top:0.62rem;">
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim yeri</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('deliveryAddress', this.value)">${SalesModule.escapeHtml(String(draft.deliveryAddress || ''))}</textarea></div>
+                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea></div>
+                        </div>
+
+                        <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.addSalesOrderLine()">urun satiri ekle +</button></div>
+                        <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
+                            <table style="width:100%; min-width:1700px; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                        <th style="padding:0.38rem;">Sira</th><th style="padding:0.38rem; text-align:left;">Urun Adi</th><th style="padding:0.38rem; text-align:left;">Varyant</th><th style="padding:0.38rem; text-align:left;">ID Kodu</th><th style="padding:0.38rem; text-align:left;">Cap</th><th style="padding:0.38rem; text-align:left;">Aksesuar Rengi</th><th style="padding:0.38rem; text-align:left;">Boru Rengi</th><th style="padding:0.38rem; text-align:left;">Pleksi Rengi</th><th style="padding:0.38rem; text-align:left;">Kabarcik</th><th style="padding:0.38rem; text-align:left;">Alt Boru Uzunlugu</th><th style="padding:0.38rem; text-align:left;">Adet</th><th style="padding:0.38rem; text-align:left;">Birim Fiyat</th><th style="padding:0.38rem; text-align:right;">Tutar</th><th style="padding:0.38rem;">Sil</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${lineRowsHtml}</tbody>
+                            </table>
+                        </div>
+
+                        <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0.65rem; margin-top:0.72rem;">
+                            <div style="font-size:0.8rem; color:#64748b;">
+                                <div><span style="color:#e11d48;">*</span> zorunlu alanlar kayit sirasinda kontrol edilir.</div>
+                                <div style="margin-top:0.22rem;">Fiyat = onceki siparis / fiyat listesi / manuel giris. Fiyat 0 ise kayit olmaz.</div>
+                            </div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.72rem; padding:0.62rem; background:#f8fafc;">
+                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
+                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(totals.discountRate || 0))})</span><strong>-${fmtMoney(totals.discountTotal)}</strong></div>
+                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>KDV Matrahi</span><strong>${fmtMoney(totals.taxBase)}</strong></div>
+                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>${Number(draft.vatRate || 20) === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${Number(draft.vatRate || 20) === 0 ? 0 : 20})`}</span><strong>${fmtMoney(totals.vatTotal)}</strong></div>
+                                <div style="display:flex; justify-content:space-between; padding:0.18rem 0; font-size:1rem; border-top:1px solid #dbe2ec; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(totals.grandTotal)}</strong></div>
+                            </div>
+                        </div>
+
+                        <div style="display:flex; justify-content:flex-end; gap:0.42rem; margin-top:0.72rem;">
+                            <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">onizle</button>
+                            <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
+                            <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
+                        </div>
                     </div>
                 </div>
             </section>

@@ -521,6 +521,20 @@
         return Math.max(0.01, Number(parsed.toFixed(2)));
     },
 
+    normalizeSalesLineUnit: (value = 'adet') => {
+        const normalized = SalesModule.normalize(String(value || 'adet'));
+        if (['metre', 'meter', 'm'].includes(normalized)) return 'metre';
+        if (['kilogram', 'kg', 'kilo'].includes(normalized)) return 'kilogram';
+        return 'adet';
+    },
+
+    getSalesLineUnitLabel: (value = 'adet') => {
+        const unit = SalesModule.normalizeSalesLineUnit(value);
+        if (unit === 'metre') return 'Metre';
+        if (unit === 'kilogram') return 'Kilogram';
+        return 'Adet';
+    },
+
     getPriceListLineUnitPriceByVariation: (line, variationId = '') => {
         const normalizedLine = SalesModule.normalizePriceListLine(line || {});
         const variationKey = String(variationId || '').trim();
@@ -639,6 +653,7 @@
         id: String(seed.id || crypto.randomUUID()).trim(),
         productId: String(seed.productId || '').trim(),
         variationId: String(seed.variationId || '').trim(),
+        unit: SalesModule.normalizeSalesLineUnit(seed.unit || seed.quantityUnit || 'adet'),
         qty: SalesModule.parseSalesQuantity(seed.qty, 1),
         unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
         isManualPrice: !!seed.isManualPrice
@@ -803,12 +818,14 @@
         const discountRate = SalesModule.parsePercent(source.globalDiscountRate || 0);
         const vatRate = Number(String(source.vatRate ?? 20).replace(',', '.')) === 0 ? 0 : 20;
         const normalizedLines = lines.map((line) => {
+            const unit = SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet');
             const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
             const unitPrice = Math.max(0, Number(line?.unitPrice || 0));
             const lineSubtotal = Number((qty * unitPrice).toFixed(2));
             subtotal += lineSubtotal;
             return {
                 ...line,
+                unit,
                 qty,
                 unitPrice: Number(unitPrice.toFixed(2)),
                 lineSubtotal,
@@ -1996,7 +2013,7 @@
                         <div>
                             <div style="font-size:0.76rem; color:#64748b;">Secilen satir</div>
                             <div style="font-size:0.86rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(`${(Array.isArray(draft.lines) ? draft.lines : []).findIndex((row) => String(row?.id || '').trim() === targetLineId) + 1}. satir`)}</div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.22rem;">Adet: ${SalesModule.escapeHtml(String(Number(targetLine?.qty || 1).toFixed(2)))}</div>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.22rem;">${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(targetLine?.unit || 'adet'))}: ${SalesModule.escapeHtml(String(Number(targetLine?.qty || 1).toFixed(2)))}</div>
                         </div>
                         ${selectedProduct
                 ? `<button class="btn-sm" type="button" onclick="SalesModule.openSalesCatalogVariationPage('${SalesModule.escapeHtml(String(selectedProduct.id || ''))}')">urun karti</button>`
@@ -2108,6 +2125,11 @@
         if (key === 'qty') {
             line.qty = SalesModule.parseSalesQuantity(value, 1);
             if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
+            SalesModule.refreshSalesOrderUi();
+            return;
+        }
+        if (key === 'unit') {
+            line.unit = SalesModule.normalizeSalesLineUnit(value || 'adet');
             SalesModule.refreshSalesOrderUi();
             return;
         }
@@ -2266,6 +2288,7 @@
                 id: String(line?.id || crypto.randomUUID()),
                 productId: String(line?.productId || '').trim(),
                 variationId: String(line?.variationId || '').trim(),
+                unit: SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet'),
                 qty: Number(line?.qty || 1),
                 unitPrice: Number(line?.unitPrice || 0),
                 isManualPrice: true
@@ -2323,12 +2346,13 @@
                 .map((line) => ({
                     productId: String(line?.productId || '').trim(),
                     variationId: String(line?.variationId || '').trim(),
+                    unit: SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet'),
                     qty: SalesModule.parseSalesQuantity(line?.qty, 1),
                     unitPrice: Number(Number(line?.unitPrice || 0).toFixed(2))
                 }))
                 .sort((a, b) => {
-                    const aKey = `${a.productId}|${a.variationId}|${a.qty}|${a.unitPrice}`;
-                    const bKey = `${b.productId}|${b.variationId}|${b.qty}|${b.unitPrice}`;
+                    const aKey = `${a.productId}|${a.variationId}|${a.unit}|${a.qty}|${a.unitPrice}`;
+                    const bKey = `${b.productId}|${b.variationId}|${b.unit}|${b.qty}|${b.unitPrice}`;
                     return aKey.localeCompare(bKey, 'tr');
                 })
         };
@@ -2358,6 +2382,7 @@
             const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object'
                 ? variation.colors.plexi
                 : (product?.colors?.plexi || {});
+            const normalizedUnit = SalesModule.normalizeSalesLineUnit(line.unit || line.quantityUnit || 'adet');
             return {
                 id: String(line.id || crypto.randomUUID()),
                 productId: String(line.productId || '').trim(),
@@ -2372,6 +2397,8 @@
                 plexiColor: resolveColorText(plexi),
                 bubble,
                 lowerTubeLength,
+                unit: normalizedUnit,
+                quantityUnit: normalizedUnit,
                 qty: SalesModule.parseSalesQuantity(line.qty, 1),
                 unitPrice: Number(Number(line.unitPrice || 0).toFixed(2)),
                 lineSubtotal: Number(Number(line.lineSubtotal || 0).toFixed(2)),
@@ -2483,9 +2510,10 @@
                 const variationId = String(line?.variationId || '').trim();
                 const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
                 const unitPrice = Number(line?.unitPrice || 0);
+                const quantityLabel = SalesModule.getSalesLineUnitLabel(line?.unit || 'adet');
                 if (!productId) lineIssues.push(`${rowNo}. satir: Urun secmelisin.`);
                 if (!variationId) lineIssues.push(`${rowNo}. satir: Varyant secmelisin.`);
-                if (!(qty > 0)) lineIssues.push(`${rowNo}. satir: Adet 0'dan buyuk olmali.`);
+                if (!(qty > 0)) lineIssues.push(`${rowNo}. satir: ${quantityLabel} miktari 0'dan buyuk olmali.`);
                 if (!(unitPrice > 0)) lineIssues.push(`${rowNo}. satir: Birim fiyat zorunludur.`);
                 return {
                     ...line,
@@ -6607,11 +6635,13 @@
             const accessory = variation?.colors?.accessory && typeof variation.colors.accessory === 'object' ? variation.colors.accessory : (product?.colors?.accessory || {});
             const tube = variation?.colors?.tube && typeof variation.colors.tube === 'object' ? variation.colors.tube : (product?.colors?.tube || {});
             const plexi = variation?.colors?.plexi && typeof variation.colors.plexi === 'object' ? variation.colors.plexi : (product?.colors?.plexi || {});
+            const lineUnit = SalesModule.normalizeSalesLineUnit(line?.unit || 'adet');
+            const lineUnitLabel = SalesModule.getSalesLineUnitLabel(lineUnit);
             const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
             const unitPrice = Number(line?.unitPrice || 0);
             const lineTotal = Number((qty * unitPrice).toFixed(2));
             const summaryColumns = [
-                { label: 'urun adi', value: String(product?.name || '-') },
+                { label: 'urun adi', value: String(product?.name || (productId ? '-' : 'urun secilmedi')) },
                 { label: 'urun kodu', value: String(variation?.variantCode || product?.productCode || '-') },
                 { label: 'id kodu', value: String(product?.idCode || '-') },
                 { label: 'cap', value: String(variation?.selectedDiameter || product?.selectedDiameter || '-') },
@@ -6619,30 +6649,43 @@
                 { label: 'boru rengi', value: resolveColor(tube) },
                 { label: 'pleksi rengi', value: resolveColor(plexi) },
                 { label: 'kabarcik', value: String(variation?.bubble || product?.bubble || 'yok') },
-                { label: 'alt boru uzunlugu', value: String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart') }
+                { label: 'alt boru uzunlugu', value: String(variation?.lowerTubeLengthMm || product?.lowerTubeLength || 'standart') },
+                { label: 'birim', value: lineUnitLabel }
             ];
             const summaryHeaderHtml = summaryColumns
-                .map((item) => `<div style="font-size:0.66rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.02em; white-space:nowrap;">${SalesModule.escapeHtml(item.label)}</div>`)
+                .map((item) => `<div style="padding:0.08rem 0.24rem; border:1px solid #e2e8f0; border-radius:0.33rem; background:#f8fafc; font-size:0.62rem; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.02em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${SalesModule.escapeHtml(item.label)}</div>`)
                 .join('');
             const summaryValueHtml = summaryColumns
-                .map((item) => `<div style="font-size:0.82rem; font-weight:700; color:${productId && variationId ? '#0f172a' : '#94a3b8'}; white-space:nowrap;">${SalesModule.escapeHtml(String(item.value || '-'))}</div>`)
+                .map((item) => `<div style="padding:0.14rem 0.24rem; border:1px solid #e2e8f0; border-radius:0.33rem; background:#ffffff; font-size:0.77rem; font-weight:700; color:${productId && variationId ? '#0f172a' : '#94a3b8'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${SalesModule.escapeHtml(String(item.value || '-'))}</div>`)
+                .join('');
+            const unitOptionsHtml = [
+                { value: 'adet', label: 'Adet' },
+                { value: 'metre', label: 'Metre' },
+                { value: 'kilogram', label: 'Kilogram' }
+            ]
+                .map((item) => `<option value="${SalesModule.escapeHtml(item.value)}" ${item.value === lineUnit ? 'selected' : ''}>${SalesModule.escapeHtml(item.label)}</option>`)
                 .join('');
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:0.38rem; text-align:center; color:#64748b; min-width:48px;">${index + 1}</td>
-                    <td style="padding:0.38rem; min-width:760px;">
-                        <div style="max-width:100%; overflow:auto;">
-                            <div style="display:grid; grid-template-columns:repeat(9,minmax(120px,max-content)); gap:0.42rem;">${summaryHeaderHtml}</div>
-                            <div style="display:grid; grid-template-columns:repeat(9,minmax(120px,max-content)); gap:0.42rem; margin-top:0.18rem;">${summaryValueHtml}</div>
+                    <td style="padding:0.34rem; text-align:center; color:#64748b; min-width:42px;">${index + 1}</td>
+                    <td style="padding:0.34rem; min-width:680px;">
+                        <div style="max-width:100%; overflow:auto; padding-bottom:0.06rem;">
+                            <div style="display:grid; grid-template-columns:repeat(10,minmax(92px,1fr)); gap:0.3rem;">${summaryHeaderHtml}</div>
+                            <div style="display:grid; grid-template-columns:repeat(10,minmax(92px,1fr)); gap:0.3rem; margin-top:0.16rem;">${summaryValueHtml}</div>
                         </div>
                     </td>
-                    <td style="padding:0.38rem; min-width:140px; text-align:center;">
-                        <button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
+                    <td style="padding:0.34rem; min-width:106px; text-align:center;">
+                        <button class="btn-sm" type="button" style="height:30px; padding:0 0.5rem;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
                     </td>
-                    <td style="padding:0.38rem; min-width:110px;"><input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)"></td>
-                    <td style="padding:0.38rem; min-width:120px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)"></td>
-                    <td style="padding:0.38rem; text-align:right; font-weight:800; min-width:130px;">${fmtMoney(lineTotal)}</td>
-                    <td style="padding:0.38rem; text-align:center; min-width:64px;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
+                    <td style="padding:0.34rem; min-width:196px;">
+                        <div style="display:grid; grid-template-columns:minmax(84px,1fr) minmax(94px,1fr); gap:0.3rem;">
+                            <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unit', this.value)">${unitOptionsHtml}</select>
+                            <input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)" style="text-align:right;" placeholder="miktar">
+                        </div>
+                    </td>
+                    <td style="padding:0.34rem; min-width:104px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)" style="text-align:right;"></td>
+                    <td style="padding:0.34rem; text-align:right; font-weight:800; min-width:88px;">${fmtMoney(lineTotal)}</td>
+                    <td style="padding:0.34rem; text-align:center; min-width:52px;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
                 </tr>
             `;
         }).join('');
@@ -6715,13 +6758,13 @@
                     <button class="btn-sm" type="button" style="height:34px; padding:0 0.92rem; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800;" onclick="SalesModule.startAddSalesOrderLineFromCatalog()">urun satiri ekle +</button>
                 </div>
                 <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
-                    <table style="width:100%; min-width:1320px; border-collapse:collapse;">
+                    <table style="width:100%; min-width:1180px; border-collapse:collapse;">
                         <thead>
                             <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
                                 <th style="padding:0.38rem;">Sira</th>
                                 <th style="padding:0.38rem; text-align:left;">Satir Ozeti</th>
                                 <th style="padding:0.38rem; text-align:center;">Ankraj</th>
-                                <th style="padding:0.38rem; text-align:left;">Metre</th>
+                                <th style="padding:0.38rem; text-align:left;">Birim / Miktar</th>
                                 <th style="padding:0.38rem; text-align:left;">Fiyat</th>
                                 <th style="padding:0.38rem; text-align:right;">Tutar</th>
                                 <th style="padding:0.38rem;">Sil</th>

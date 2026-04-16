@@ -30,6 +30,7 @@ const SalesModule = {
             period: 'ALL'
         },
         salesWorkspaceTab: 'ORDERS',
+        salesOrderEditorModalOpen: false,
         salesPendingFocusLineId: '',
         priceListDraft: null,
         priceListLineDraft: {
@@ -1502,28 +1503,28 @@ const SalesModule = {
         if (key === 'currency') {
             draft.currency = SalesModule.normalizeSalesCurrency(value || 'USD');
             if (draft.currency === 'TL') draft.exchangeRate = 0;
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'exchangeRate') {
             draft.exchangeRate = SalesModule.parseMoney(value || 0);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'globalDiscountRate') {
             draft.globalDiscountRate = SalesModule.parsePercent(value || 0);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'vatRate') {
             const numeric = Number(String(value || '').replace(',', '.'));
             draft.vatRate = numeric === 0 ? 0 : 20;
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'deliveryLeadDays') {
             draft.deliveryLeadDays = SalesModule.parseDays(value || 0);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         draft[key] = String(value || '').trim();
@@ -1547,7 +1548,7 @@ const SalesModule = {
                 if (line && typeof line === 'object') SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             });
         }
-        UI.renderCurrentPage();
+        SalesModule.refreshSalesOrderUi();
     },
 
     addSalesOrderLine: () => {
@@ -1559,7 +1560,7 @@ const SalesModule = {
         rows.push(nextLine);
         draft.lines = rows;
         SalesModule.state.salesPendingFocusLineId = String(nextLine.id || '');
-        UI.renderCurrentPage();
+        SalesModule.refreshSalesOrderUi();
         setTimeout(() => {
             const node = document.getElementById(`sales_line_product_${SalesModule.state.salesPendingFocusLineId}`);
             if (node && typeof node.focus === 'function') node.focus();
@@ -1575,7 +1576,7 @@ const SalesModule = {
         if (!confirm('Satir kalici olarak silinsin mi?')) return;
         draft.lines = (Array.isArray(draft.lines) ? draft.lines : [])
             .filter((line) => String(line?.id || '').trim() !== targetId);
-        UI.renderCurrentPage();
+        SalesModule.refreshSalesOrderUi();
     },
 
     setSalesOrderLineField: (lineId, field, value) => {
@@ -1591,14 +1592,14 @@ const SalesModule = {
         if (key === 'qty') {
             line.qty = SalesModule.parseSalesQuantity(value, 1);
             if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'unitPrice') {
             const unitPrice = Number(String(value || '').replace(',', '.'));
             line.unitPrice = Number.isFinite(unitPrice) ? Math.max(0, Number(unitPrice.toFixed(2))) : 0;
             line.isManualPrice = true;
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'productId') {
@@ -1606,14 +1607,14 @@ const SalesModule = {
             line.variationId = '';
             line.isManualPrice = false;
             SalesModule.applyPriceSuggestionToOrderLine(line, draft);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
         if (key === 'variationId') {
             line.variationId = String(value || '').trim();
             line.isManualPrice = false;
             SalesModule.applyPriceSuggestionToOrderLine(line, draft);
-            UI.renderCurrentPage();
+            SalesModule.refreshSalesOrderUi();
             return;
         }
     },
@@ -1627,11 +1628,19 @@ const SalesModule = {
         if (!line) return;
         line.isManualPrice = false;
         SalesModule.applyPriceSuggestionToOrderLine(line, draft);
-        UI.renderCurrentPage();
+        SalesModule.refreshSalesOrderUi();
     },
 
     resetSalesOrderDraft: () => {
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+        SalesModule.refreshSalesOrderUi();
+    },
+
+    refreshSalesOrderUi: () => {
+        if (SalesModule.state.salesOrderEditorModalOpen) {
+            SalesModule.renderSalesOrderEditorModal();
+            return;
+        }
         UI.renderCurrentPage();
     },
 
@@ -1658,28 +1667,33 @@ const SalesModule = {
         });
     },
 
-    openNewOrderModal: () => {
+    openSalesOrderEditorModal: (options = {}) => {
         SalesModule.ensureSalesOrderDraft();
-        const hasChanges = SalesModule.hasSalesOrderDraftChanges(SalesModule.state.salesOrderDraft);
-        const warningText = hasChanges
-            ? 'Mevcut taslaktaki degisiklikler temizlenecek. Devam etmek istiyor musun?'
-            : 'Yeni bos siparis karti acilsin mi?';
-        const html = `
-            <div style="display:flex; flex-direction:column; gap:0.75rem;">
-                <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Yeni Siparis</div>
-                <div style="font-size:0.84rem; color:#475569; line-height:1.5;">${SalesModule.escapeHtml(warningText)}</div>
-                <div style="display:flex; justify-content:flex-end; gap:0.45rem; margin-top:0.2rem;">
-                    <button class="btn-sm" type="button" onclick="Modal.close()">iptal</button>
-                    <button class="btn-primary" type="button" onclick="SalesModule.confirmOpenNewOrderFromModal()">yeni siparis ac</button>
-                </div>
-            </div>
-        `;
-        Modal.open('Yeni Siparis', html, { maxWidth: '520px' });
+        if (options?.reset === true) {
+            SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+        }
+        SalesModule.state.salesOrderEditorModalOpen = true;
+        SalesModule.renderSalesOrderEditorModal();
     },
 
-    confirmOpenNewOrderFromModal: () => {
+    renderSalesOrderEditorModal: () => {
+        SalesModule.ensureSalesOrderDraft();
+        const html = `
+            <div style="padding:0.2rem 0.2rem 0.35rem;">
+                ${SalesModule.renderSalesOrderEditorCardHtml({ inModal: true })}
+            </div>
+        `;
+        Modal.open('Siparis olusturma', html, { maxWidth: '1540px', showHeader: false });
+    },
+
+    closeSalesOrderEditorModal: () => {
+        SalesModule.state.salesOrderEditorModalOpen = false;
         Modal.close();
-        SalesModule.resetSalesOrderDraft();
+        UI.renderCurrentPage();
+    },
+
+    openNewOrderModal: () => {
+        SalesModule.openSalesOrderEditorModal({ reset: true });
     },
 
     setSalesWorkspaceTab: (tabId) => {
@@ -1738,7 +1752,7 @@ const SalesModule = {
         if (!Array.isArray(SalesModule.state.salesOrderDraft.lines) || !SalesModule.state.salesOrderDraft.lines.length) {
             SalesModule.state.salesOrderDraft.lines = [SalesModule.createSalesOrderLineDraft()];
         }
-        UI.renderCurrentPage();
+        SalesModule.openSalesOrderEditorModal({ reset: false });
     },
 
     deleteSalesOrder: async (orderId) => {
@@ -1884,7 +1898,7 @@ const SalesModule = {
         const payload = SalesModule.buildSalesOrderPreviewPayloadFromDraft();
         if (!payload) return alert('Onizleme icin once musteri secmelisin.');
         const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), payload);
-        Modal.open('Proforma goruntule', html, { maxWidth: '1260px' });
+        Modal.open('Proforma goruntule', html, { maxWidth: '1260px', closeExisting: false });
     },
 
     previewSavedSalesOrderProforma: (orderId) => {
@@ -2043,6 +2057,10 @@ const SalesModule = {
             paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             currency: SalesModule.normalizeSalesCurrency(draft.currency || 'USD')
         });
+        if (SalesModule.state.salesOrderEditorModalOpen) {
+            SalesModule.state.salesOrderEditorModalOpen = false;
+            Modal.close();
+        }
         UI.renderCurrentPage();
     },
 
@@ -6131,19 +6149,14 @@ const SalesModule = {
         }).join('');
     },
 
-    renderSalesWorkspaceLayout: () => {
+    renderSalesOrderEditorCardHtml: (options = {}) => {
+        const inModal = options?.inModal === true;
         SalesModule.ensureSalesOrderDraft();
-        SalesModule.ensureSalesOrderHistoryFilters();
         const draft = SalesModule.state.salesOrderDraft || SalesModule.buildSalesOrderDraft();
         const totals = SalesModule.computeSalesOrderTotals(draft);
         const customers = SalesModule.getCustomers().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
         const catalogProducts = SalesModule.getCatalogProducts().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
         const productMap = new Map(catalogProducts.map((row) => [String(row?.id || ''), row]));
-        const rows = SalesModule.getSalesWorkspaceRows();
-        const tab = String(SalesModule.state.salesWorkspaceTab || 'ORDERS').trim().toUpperCase();
-        const query = String(SalesModule.state.salesOrderHistoryFilters?.query || '').trim();
-        const statusFilter = String(SalesModule.state.salesOrderHistoryFilters?.status || 'ALL').trim().toUpperCase();
-        const periodFilter = String(SalesModule.state.salesOrderHistoryFilters?.period || 'ALL').trim().toUpperCase();
         const currency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
         const fmtMoney = (value) => {
             const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -6158,6 +6171,78 @@ const SalesModule = {
             return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))} (${SalesModule.escapeHtml(extCode)})</option>`;
         }).join('');
         const lineRowsHtml = SalesModule.renderSalesWorkspaceDraftLineRowsHtml(draft, catalogProducts, productMap, currency);
+        return `
+            <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                    <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">siparis olusturma ekrani</div>
+                    <div style="display:flex; align-items:center; gap:0.45rem;">
+                        <div style="display:flex; gap:0.45rem; font-size:0.76rem; color:#64748b;">
+                            <span>hazirlayan: <strong>${SalesModule.escapeHtml(String(draft.preparedBy || '-'))}</strong></span>
+                            <span>tarih: <strong>${SalesModule.escapeHtml(String(draft.orderDate || '-'))}</strong></span>
+                        </div>
+                        ${inModal
+                ? `<button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.closeSalesOrderEditorModal()">kapat</button>`
+                : ''}
+                    </div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(110px,1fr)); gap:0.55rem; margin-top:0.68rem;">
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(String(Number(draft.exchangeRate || 0).toFixed(4)))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${Number(draft.vatRate || 20) === 20 ? 'selected' : ''}>%20</option><option value="0" ${Number(draft.vatRate || 20) === 0 ? 'selected' : ''}>%0</option></select></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.paymentMethod || 'Nakit'))}" onchange="SalesModule.setSalesOrderDraftField('paymentMethod', this.value)"></div>
+                </div>
+
+                <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,1fr); gap:0.6rem; margin-top:0.62rem;">
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim yeri</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('deliveryAddress', this.value)">${SalesModule.escapeHtml(String(draft.deliveryAddress || ''))}</textarea></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea></div>
+                </div>
+
+                <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.addSalesOrderLine()">urun satiri ekle +</button></div>
+                <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
+                    <table style="width:100%; min-width:1700px; border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.38rem;">Sira</th><th style="padding:0.38rem; text-align:left;">Urun Adi</th><th style="padding:0.38rem; text-align:left;">Varyant</th><th style="padding:0.38rem; text-align:left;">ID Kodu</th><th style="padding:0.38rem; text-align:left;">Cap</th><th style="padding:0.38rem; text-align:left;">Aksesuar Rengi</th><th style="padding:0.38rem; text-align:left;">Boru Rengi</th><th style="padding:0.38rem; text-align:left;">Pleksi Rengi</th><th style="padding:0.38rem; text-align:left;">Kabarcik</th><th style="padding:0.38rem; text-align:left;">Alt Boru Uzunlugu</th><th style="padding:0.38rem; text-align:left;">Adet</th><th style="padding:0.38rem; text-align:left;">Birim Fiyat</th><th style="padding:0.38rem; text-align:right;">Tutar</th><th style="padding:0.38rem;">Sil</th>
+                            </tr>
+                        </thead>
+                        <tbody>${lineRowsHtml}</tbody>
+                    </table>
+                </div>
+
+                <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0.65rem; margin-top:0.72rem;">
+                    <div style="font-size:0.8rem; color:#64748b;">
+                        <div><span style="color:#e11d48;">*</span> zorunlu alanlar kayit sirasinda kontrol edilir.</div>
+                        <div style="margin-top:0.22rem;">Fiyat = onceki siparis / fiyat listesi / manuel giris. Fiyat 0 ise kayit olmaz.</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.72rem; padding:0.62rem; background:#f8fafc;">
+                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
+                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(totals.discountRate || 0))})</span><strong>-${fmtMoney(totals.discountTotal)}</strong></div>
+                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>KDV Matrahi</span><strong>${fmtMoney(totals.taxBase)}</strong></div>
+                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>${Number(draft.vatRate || 20) === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${Number(draft.vatRate || 20) === 0 ? 0 : 20})`}</span><strong>${fmtMoney(totals.vatTotal)}</strong></div>
+                        <div style="display:flex; justify-content:space-between; padding:0.18rem 0; font-size:1rem; border-top:1px solid #dbe2ec; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(totals.grandTotal)}</strong></div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.42rem; margin-top:0.72rem;">
+                    <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">onizle</button>
+                    <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
+                    <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
+                </div>
+            </div>
+        `;
+    },
+
+    renderSalesWorkspaceLayout: () => {
+        SalesModule.ensureSalesOrderHistoryFilters();
+        const rows = SalesModule.getSalesWorkspaceRows();
+        const tab = String(SalesModule.state.salesWorkspaceTab || 'ORDERS').trim().toUpperCase();
+        const query = String(SalesModule.state.salesOrderHistoryFilters?.query || '').trim();
+        const statusFilter = String(SalesModule.state.salesOrderHistoryFilters?.status || 'ALL').trim().toUpperCase();
+        const periodFilter = String(SalesModule.state.salesOrderHistoryFilters?.period || 'ALL').trim().toUpperCase();
         const orderRowsHtml = SalesModule.renderSalesWorkspaceOrderRowsHtml(rows);
         return `
             <section class="stock-shell">
@@ -6212,61 +6297,12 @@ const SalesModule = {
                         </div>
                     </div>
 
-                    <div class="card-table" style="padding:0.95rem;">
+                    <div class="card-table" style="padding:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                            <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">siparis olusturma ekrani</div>
-                            <div style="display:flex; gap:0.45rem; font-size:0.76rem; color:#64748b;">
-                                <span>hazirlayan: <strong>${SalesModule.escapeHtml(String(draft.preparedBy || '-'))}</strong></span>
-                                <span>tarih: <strong>${SalesModule.escapeHtml(String(draft.orderDate || '-'))}</strong></span>
-                            </div>
+                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Siparis formu buyuk popup modal olarak acilir.</div>
+                            <button class="btn-primary" type="button" onclick="SalesModule.openNewOrderModal()">Yeni Siparis +</button>
                         </div>
-
-                        <div style="display:grid; grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(110px,1fr)); gap:0.55rem; margin-top:0.68rem;">
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(String(Number(draft.exchangeRate || 0).toFixed(4)))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${Number(draft.vatRate || 20) === 20 ? 'selected' : ''}>%20</option><option value="0" ${Number(draft.vatRate || 20) === 0 ? 'selected' : ''}>%0</option></select></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label><input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.paymentMethod || 'Nakit'))}" onchange="SalesModule.setSalesOrderDraftField('paymentMethod', this.value)"></div>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:minmax(0,1fr) minmax(260px,1fr); gap:0.6rem; margin-top:0.62rem;">
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim yeri</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('deliveryAddress', this.value)">${SalesModule.escapeHtml(String(draft.deliveryAddress || ''))}</textarea></div>
-                            <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not</label><textarea class="stock-textarea" style="min-height:68px;" oninput="SalesModule.setSalesOrderDraftField('note', this.value)">${SalesModule.escapeHtml(String(draft.note || ''))}</textarea></div>
-                        </div>
-
-                        <div style="margin-top:0.62rem;"><button class="btn-sm" type="button" onclick="SalesModule.addSalesOrderLine()">urun satiri ekle +</button></div>
-                        <div style="margin-top:0.55rem; border:1px solid #dbe2ec; border-radius:0.8rem; overflow:auto;">
-                            <table style="width:100%; min-width:1700px; border-collapse:collapse;">
-                                <thead>
-                                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                        <th style="padding:0.38rem;">Sira</th><th style="padding:0.38rem; text-align:left;">Urun Adi</th><th style="padding:0.38rem; text-align:left;">Varyant</th><th style="padding:0.38rem; text-align:left;">ID Kodu</th><th style="padding:0.38rem; text-align:left;">Cap</th><th style="padding:0.38rem; text-align:left;">Aksesuar Rengi</th><th style="padding:0.38rem; text-align:left;">Boru Rengi</th><th style="padding:0.38rem; text-align:left;">Pleksi Rengi</th><th style="padding:0.38rem; text-align:left;">Kabarcik</th><th style="padding:0.38rem; text-align:left;">Alt Boru Uzunlugu</th><th style="padding:0.38rem; text-align:left;">Adet</th><th style="padding:0.38rem; text-align:left;">Birim Fiyat</th><th style="padding:0.38rem; text-align:right;">Tutar</th><th style="padding:0.38rem;">Sil</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${lineRowsHtml}</tbody>
-                            </table>
-                        </div>
-
-                        <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0.65rem; margin-top:0.72rem;">
-                            <div style="font-size:0.8rem; color:#64748b;">
-                                <div><span style="color:#e11d48;">*</span> zorunlu alanlar kayit sirasinda kontrol edilir.</div>
-                                <div style="margin-top:0.22rem;">Fiyat = onceki siparis / fiyat listesi / manuel giris. Fiyat 0 ise kayit olmaz.</div>
-                            </div>
-                            <div style="border:1px solid #e2e8f0; border-radius:0.72rem; padding:0.62rem; background:#f8fafc;">
-                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
-                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(totals.discountRate || 0))})</span><strong>-${fmtMoney(totals.discountTotal)}</strong></div>
-                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>KDV Matrahi</span><strong>${fmtMoney(totals.taxBase)}</strong></div>
-                                <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>${Number(draft.vatRate || 20) === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${Number(draft.vatRate || 20) === 0 ? 0 : 20})`}</span><strong>${fmtMoney(totals.vatTotal)}</strong></div>
-                                <div style="display:flex; justify-content:space-between; padding:0.18rem 0; font-size:1rem; border-top:1px solid #dbe2ec; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(totals.grandTotal)}</strong></div>
-                            </div>
-                        </div>
-
-                        <div style="display:flex; justify-content:flex-end; gap:0.42rem; margin-top:0.72rem;">
-                            <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">onizle</button>
-                            <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
-                            <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
-                        </div>
+                        <div style="font-size:0.84rem; color:#64748b; margin-top:0.35rem;">Duzenle butonuna bastiginda da ayni modal editor acilir.</div>
                     </div>
                 </div>
             </section>

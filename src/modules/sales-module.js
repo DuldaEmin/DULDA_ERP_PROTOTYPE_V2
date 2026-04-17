@@ -24,6 +24,7 @@
         catalogEditingProductId: '',
         catalogDraft: null,
         salesOrderDraft: null,
+        salesOrderCustomerSearch: '',
         salesOrderHistoryFilters: {
             query: '',
             status: 'ALL',
@@ -1645,6 +1646,10 @@
             SalesModule.refreshSalesOrderUi();
             return;
         }
+        if (key === 'deliveryAddress' || key === 'note') {
+            draft[key] = String(value ?? '');
+            return;
+        }
         draft[key] = String(value || '').trim();
         if (key === 'customerId') {
             const customer = SalesModule.getCustomerById(draft.customerId);
@@ -1666,6 +1671,11 @@
                 if (line && typeof line === 'object') SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             });
         }
+        SalesModule.refreshSalesOrderUi();
+    },
+
+    setSalesOrderCustomerSearch: (value) => {
+        SalesModule.state.salesOrderCustomerSearch = String(value || '').trimStart();
         SalesModule.refreshSalesOrderUi();
     },
 
@@ -2193,6 +2203,7 @@
 
     resetSalesOrderDraft: () => {
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+        SalesModule.state.salesOrderCustomerSearch = '';
         SalesModule.refreshSalesOrderUi();
     },
 
@@ -2232,6 +2243,7 @@
         if (options?.reset === true) {
             SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
         }
+        SalesModule.state.salesOrderCustomerSearch = '';
         SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
@@ -2254,6 +2266,7 @@
         SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
+        SalesModule.state.salesOrderCustomerSearch = '';
         Modal.close();
         UI.renderCurrentPage();
     },
@@ -6708,13 +6721,13 @@
                     <td style="padding:0.34rem; min-width:106px; text-align:center;">
                         <button class="btn-sm" type="button" style="height:30px; padding:0 0.5rem;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
                     </td>
-                    <td style="padding:0.34rem; min-width:196px;">
-                        <div style="display:grid; grid-template-columns:minmax(84px,1fr) minmax(94px,1fr); gap:0.3rem;">
-                            <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unit', this.value)">${unitOptionsHtml}</select>
-                            <input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)" style="text-align:right;" placeholder="miktar">
+                    <td style="padding:0.34rem; min-width:166px;">
+                        <div style="display:grid; grid-template-columns:74px 82px; gap:0.24rem; justify-content:start;">
+                            <select class="stock-input stock-input-tall" style="width:74px;" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unit', this.value)">${unitOptionsHtml}</select>
+                            <input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)" style="text-align:right; width:82px;" placeholder="miktar">
                         </div>
                     </td>
-                    <td style="padding:0.34rem; min-width:104px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)" style="text-align:right;"></td>
+                    <td style="padding:0.34rem; min-width:96px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)" style="text-align:right; width:96px;"></td>
                     <td style="padding:0.34rem; text-align:right; font-weight:800; min-width:88px;">${fmtMoney(lineTotal)}</td>
                     <td style="padding:0.34rem; text-align:center; min-width:52px;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
                 </tr>
@@ -6737,12 +6750,35 @@
             if (currency === 'EUR') return `${out} EUR`;
             return `${out} TL`;
         };
-        const customerOptions = customers.map((row) => {
+        const selectedCustomerId = String(draft.customerId || '').trim();
+        const customerSearchTerm = String(SalesModule.state.salesOrderCustomerSearch || '');
+        const customerSearchQuery = SalesModule.normalizeSearchText(customerSearchTerm);
+        const filteredCustomers = customerSearchQuery
+            ? customers.filter((row) => {
+                const haystack = SalesModule.normalizeSearchText([
+                    row?.name,
+                    row?.customerCode,
+                    row?.externalCode,
+                    row?.taxNo,
+                    row?.city,
+                    row?.district
+                ].filter(Boolean).join(' '));
+                return haystack.includes(customerSearchQuery);
+            })
+            : customers.slice(0, 240);
+        if (selectedCustomerId && !filteredCustomers.some((row) => String(row?.id || '').trim() === selectedCustomerId)) {
+            const selectedRow = customers.find((row) => String(row?.id || '').trim() === selectedCustomerId);
+            if (selectedRow) filteredCustomers.unshift(selectedRow);
+        }
+        const customerOptions = filteredCustomers.map((row) => {
             const id = String(row?.id || '').trim();
-            const selected = id === String(draft.customerId || '').trim() ? 'selected' : '';
+            const selected = id === selectedCustomerId ? 'selected' : '';
             const extCode = String(row?.externalCode || row?.customerCode || '-').trim();
             return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))} (${SalesModule.escapeHtml(extCode)})</option>`;
         }).join('');
+        const customerFilterMeta = customerSearchQuery
+            ? `${filteredCustomers.length} eslesme / ${customers.length} musteri`
+            : `${Math.min(filteredCustomers.length, customers.length)} musteri listeleniyor (ara yazarak filtrele)`;
         const paymentMethodSuggestions = SalesModule.getSalesPaymentMethodSuggestions(draft);
         const paymentMethodOptionsHtml = paymentMethodSuggestions
             .map((item) => `<option value="${SalesModule.escapeHtml(String(item || ''))}"></option>`)
@@ -6761,13 +6797,20 @@
                             <span>tarih: <strong>${SalesModule.escapeHtml(String(draft.orderDate || '-'))}</strong></span>
                         </div>
                         ${inModal
-                ? `<button class="btn-sm" type="button" style="height:30px;" onclick="SalesModule.closeSalesOrderEditorModal()">kapat</button>`
+                ? `<button class="btn-sm" type="button" style="height:38px; min-width:82px; padding:0 0.95rem; border-color:#ef4444; background:#ef4444; color:#ffffff; font-weight:800; box-shadow:0 2px 8px rgba(239,68,68,0.25);" onclick="SalesModule.closeSalesOrderEditorModal()">Kapat</button>`
                 : ''}
                     </div>
                 </div>
 
                 <div style="display:grid; grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(110px,1fr)); gap:0.55rem; margin-top:0.68rem;">
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select></div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label>
+                        <div style="display:flex; flex-direction:column; gap:0.22rem;">
+                            <input class="stock-input" type="text" value="${SalesModule.escapeHtml(customerSearchTerm)}" placeholder="musteri ara (or: hançerli)" oninput="SalesModule.setSalesOrderCustomerSearch(this.value)">
+                            <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select>
+                            <div style="font-size:0.66rem; color:#64748b;">${SalesModule.escapeHtml(customerFilterMeta)}</div>
+                        </div>
+                    </div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(exchangeRateInputValue)}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
@@ -6798,8 +6841,8 @@
                                 <th style="padding:0.38rem;">Sira</th>
                                 <th style="padding:0.38rem; text-align:left;">Satir Ozeti</th>
                                 <th style="padding:0.38rem; text-align:center;">Ankraj</th>
-                                <th style="padding:0.38rem; text-align:left;">Birim / Miktar</th>
-                                <th style="padding:0.38rem; text-align:left;">Fiyat</th>
+                                <th style="padding:0.38rem; text-align:left; width:176px;">Birim / Miktar</th>
+                                <th style="padding:0.38rem; text-align:left; width:104px;">Fiyat</th>
                                 <th style="padding:0.38rem; text-align:right;">Tutar</th>
                                 <th style="padding:0.38rem;">Sil</th>
                             </tr>

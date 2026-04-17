@@ -2544,6 +2544,16 @@
         const orderNoText = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
         const fileBase = SalesModule.buildSalesProformaDownloadFileBase(order);
         const apiEndpoint = `${String(window.location.origin || '').replace(/\/+$/, '')}/api/dispatch-pdf`;
+        const salesPdfRenderOptions = {
+            media: 'screen',
+            format: 'A4',
+            landscape: false,
+            printBackground: true,
+            preferCSSPageSize: false,
+            scale: 0.93,
+            margin: { top: '6mm', right: '6mm', bottom: '6mm', left: '6mm' },
+            viewport: { width: 1760, height: 1200 }
+        };
         const pageHtml = `
 <!doctype html>
 <html lang="tr">
@@ -2582,7 +2592,8 @@
       previewHtml: '',
       html: '',
       fileName: 'proforma',
-      apiEndpoint: '/api/dispatch-pdf'
+      apiEndpoint: '/api/dispatch-pdf',
+      pdfOptions: ${JSON.stringify(salesPdfRenderOptions)}
     };
     function mountPreview() {
       const iframe = document.getElementById('pdf_preview_frame');
@@ -2609,7 +2620,11 @@
         const res = await fetch(String(PAYLOAD.apiEndpoint || '/api/dispatch-pdf'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ html: String(PAYLOAD.html || ''), fileName: String(PAYLOAD.fileName || 'proforma') })
+          body: JSON.stringify({
+            html: String(PAYLOAD.html || ''),
+            fileName: String(PAYLOAD.fileName || 'proforma'),
+            pdfOptions: PAYLOAD.pdfOptions || {}
+          })
         });
         if (!res.ok) {
           let detail = '';
@@ -2677,7 +2692,8 @@
             previewHtml: String(html || ''),
             html: String(html || ''),
             fileName: String(fileBase || 'proforma'),
-            apiEndpoint: String(apiEndpoint || '/api/dispatch-pdf')
+            apiEndpoint: String(apiEndpoint || '/api/dispatch-pdf'),
+            pdfOptions: salesPdfRenderOptions
         };
         let injectAttempts = 0;
         const injectPayload = () => {
@@ -3148,7 +3164,7 @@
             .map((line) => String(line || '').trim())
             .filter(Boolean);
         const companyInfoHtml = companyInfoLines
-            .map((line) => `<div>${SalesModule.escapeHtml(line)}</div>`)
+            .map((line) => `<div style="white-space:normal; overflow-wrap:break-word; word-break:normal;">${SalesModule.escapeHtml(line)}</div>`)
             .join('');
         const logoHtml = logoDataUrl
             ? `<img src="${SalesModule.escapeHtml(logoDataUrl)}" alt="logo" style="max-height:72px; max-width:220px; object-fit:contain;">`
@@ -3187,13 +3203,19 @@
         const kurText = currency === 'TL' ? '-' : (exchangeRate > 0 ? Number(exchangeRate).toFixed(4) : '-');
         const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
+        const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
+        const hasSavedCustomTemplate = customTemplateHtml.length > 0;
+        const sourceBadgeHtml = hasSavedCustomTemplate
+            ? `<div style="display:flex; justify-content:flex-end; margin-bottom:0.35rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">Kaynak: Kayitli Sablon</span></div>`
+            : `<div style="display:flex; justify-content:flex-end; margin-bottom:0.35rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">Kaynak: Standart Dulda Formati</span></div>`;
         const defaultHtml = `
             <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.65rem;">
                 <div style="width:100%; max-width:100%; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:0.72rem 0.75rem;">
-                    <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.8rem; align-items:start;">
+                    ${sourceBadgeHtml}
+                    <div style="display:grid; grid-template-columns:minmax(180px,0.9fr) minmax(0,1.8fr); gap:0.7rem; align-items:start;">
                         <div>${logoHtml}</div>
-                        <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.4;">
-                            <div style="font-weight:800;">${SalesModule.escapeHtml(companyTitle || '-')}</div>
+                        <div style="text-align:right; font-size:0.7rem; color:#0f172a; line-height:1.32; white-space:normal; overflow-wrap:break-word; word-break:normal;">
+                            <div style="font-weight:800; white-space:normal; overflow-wrap:break-word; word-break:normal;">${SalesModule.escapeHtml(companyTitle || '-')}</div>
                             ${companyInfoHtml || '<div>-</div>'}
                         </div>
                     </div>
@@ -3269,12 +3291,12 @@
                         </div>
                     </div>
 
-                    <div style="margin-top:0.8rem; font-size:0.9rem; color:#0f172a;">
+                    <div style="margin-top:1.25rem; font-size:0.9rem; color:#0f172a;">
                         <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>ODEME SEKLI</strong><span>${SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit'))}</span></div>
                         <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Siparis onayindan ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun</span></div>
                     </div>
 
-                    <div style="margin-top:0.7rem;">
+                    <div style="margin-top:0.95rem;">
                         <div style="font-weight:800; color:#0f172a; margin-bottom:0.35rem;">BANKA BILGILERI</div>
                         <table style="width:100%; border-collapse:collapse; font-size:0.82rem; border:1px solid #e2e8f0;">
                             <thead>
@@ -3291,12 +3313,7 @@
                 </div>
             </div>
         `;
-        const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
-        const hasSavedCustomTemplate = customTemplateHtml.length > 0;
-        const sourceBadgeHtml = hasSavedCustomTemplate
-            ? `<div style="display:flex; justify-content:flex-end; margin-bottom:0.4rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">Kaynak: Kayitli Sablon</span></div>`
-            : `<div style="display:flex; justify-content:flex-end; margin-bottom:0.4rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">Kaynak: Standart Dulda Formati</span></div>`;
-        if (!hasSavedCustomTemplate) return `${sourceBadgeHtml}${defaultHtml}`;
+        if (!hasSavedCustomTemplate) return defaultHtml;
 
         const tokenMap = {
             DEFAULT_PROFORMA_HTML: defaultHtml,

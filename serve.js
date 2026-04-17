@@ -79,6 +79,53 @@ function buildContentDisposition(fileNameBase, extension = "pdf") {
   return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }
 
+function isPlainObject(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function parsePdfNumber(value, fallback, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  if (num < min || num > max) return fallback;
+  return num;
+}
+
+function parsePdfLength(value, fallback) {
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  if (!/^\d+(\.\d+)?(mm|cm|in|px)$/i.test(raw)) return fallback;
+  return raw;
+}
+
+function resolvePdfRenderOptions(value) {
+  const options = isPlainObject(value) ? value : {};
+  const defaultViewport = { width: 1366, height: 960 };
+  const viewportSource = isPlainObject(options.viewport) ? options.viewport : {};
+  const marginSource = isPlainObject(options.margin) ? options.margin : {};
+  const allowedFormats = new Set(["A4", "A3", "A5", "LETTER", "LEGAL", "TABLOID"]);
+  const formatRaw = String(options.format || "A4").trim().toUpperCase();
+  const format = allowedFormats.has(formatRaw) ? formatRaw : "A4";
+  const media = String(options.media || "print").trim().toLowerCase() === "screen" ? "screen" : "print";
+  return {
+    media,
+    format,
+    landscape: !!options.landscape,
+    printBackground: options.printBackground !== false,
+    preferCSSPageSize: options.preferCSSPageSize !== false,
+    scale: parsePdfNumber(options.scale, 1, 0.1, 2),
+    margin: {
+      top: parsePdfLength(marginSource.top, "10mm"),
+      right: parsePdfLength(marginSource.right, "10mm"),
+      bottom: parsePdfLength(marginSource.bottom, "10mm"),
+      left: parsePdfLength(marginSource.left, "10mm"),
+    },
+    viewport: {
+      width: Math.round(parsePdfNumber(viewportSource.width, defaultViewport.width, 640, 4000)),
+      height: Math.round(parsePdfNumber(viewportSource.height, defaultViewport.height, 480, 4000)),
+    },
+  };
+}
+
 async function getPdfBrowser() {
   if (!pdfBrowserPromise) {
     let playwright;
@@ -110,18 +157,22 @@ async function getPdfBrowser() {
   return pdfBrowserPromise;
 }
 
-async function renderPdfFromHtml(html) {
+async function renderPdfFromHtml(html, renderOptions = {}) {
+  const options = resolvePdfRenderOptions(renderOptions);
   const browser = await getPdfBrowser();
   const context = await browser.newContext();
   const page = await context.newPage();
   try {
+    await page.setViewportSize(options.viewport);
     await page.setContent(String(html || ""), { waitUntil: "domcontentloaded" });
-    await page.emulateMedia({ media: "print" });
+    await page.emulateMedia({ media: options.media });
     const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "10mm", right: "10mm", bottom: "10mm", left: "10mm" },
-      preferCSSPageSize: true,
+      format: options.format,
+      landscape: options.landscape,
+      printBackground: options.printBackground,
+      margin: options.margin,
+      preferCSSPageSize: options.preferCSSPageSize,
+      scale: options.scale,
     });
     return pdfBuffer;
   } finally {
@@ -264,7 +315,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { ok: false, error: "invalid_html" });
       }
       const fileName = sanitizeDownloadName(payload?.fileName || "teslim-belgesi");
-      const pdfBuffer = await renderPdfFromHtml(html);
+      const pdfBuffer = await renderPdfFromHtml(html, payload?.pdfOptions);
       res.writeHead(200, {
         "Content-Type": "application/pdf",
         "Content-Disposition": buildContentDisposition(fileName, "pdf"),

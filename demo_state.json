@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-17T11:16:31.846Z",
+    "updated_at": "2026-04-17T11:27:29.662Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 9005,
+    "revision": 9008,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -6421,6 +6421,88 @@
         "totalAmount": 1,
         "created_at": "2026-04-15T13:26:36.364Z",
         "updated_at": "2026-04-15T13:26:36.364Z"
+      },
+      {
+        "orderType": "PROFORMA",
+        "orderDate": "2026-04-17",
+        "customerId": "9cd28297-f382-40d6-8e32-5c977f9c1e1b",
+        "customerName": "ABDULKADİR HANÇERLİ - HANÇERLİ MOBİLYA",
+        "customerDisplayId": "120.01.A.221",
+        "status": "Onaylandi",
+        "currency": "USD",
+        "exchangeRate": 45,
+        "preparedBy": "Yerel Kullanici",
+        "globalDiscountRate": 0,
+        "vatRate": 20,
+        "deliveryLeadDays": 20,
+        "deliveryAddress": "Önder, Demirhendek Cd. No:134, 06160 Altındağ/Ankara",
+        "paymentMethod": "1 ay vadeli",
+        "deliveryMethod": "1 ay vadeli",
+        "note": "",
+        "lines": [
+          {
+            "id": "507dedc5-64d3-4b90-a6c8-ec5799abf8fb",
+            "productId": "SCP-022FF89B",
+            "variationId": "e75e0dfe-9d2d-4836-8eed-e076ea6c222b",
+            "variantCode": "2034-001",
+            "productName": "Kral",
+            "productCode": "2034",
+            "idCode": "ID-00001",
+            "selectedDiameter": "100",
+            "accessoryColor": "eloksal / P3 Sarı Eloksal",
+            "tubeColor": "eloksal / P3 Sarı Eloksal",
+            "plexiColor": "pleksi / şeffaf",
+            "bubble": "var",
+            "lowerTubeLength": "standart",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 5,
+            "unitPrice": 55,
+            "lineSubtotal": 275,
+            "lineTotal": 275
+          },
+          {
+            "id": "e76c0254-b14c-4489-ba04-710d80f41004",
+            "productId": "SCP-FCA68185",
+            "variationId": "073e8728-99c9-482b-8748-0e927119c0a0",
+            "variantCode": "2015-002",
+            "productName": "Dekorlu 2015",
+            "productCode": "2015",
+            "idCode": "SAL-000001",
+            "selectedDiameter": "40",
+            "accessoryColor": "eloksal / P3 Sarı Eloksal",
+            "tubeColor": "eloksal / P3 Sarı Eloksal",
+            "plexiColor": "pleksi / şeffaf",
+            "bubble": "var",
+            "lowerTubeLength": "200",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 50,
+            "unitPrice": 22,
+            "lineSubtotal": 1100,
+            "lineTotal": 1100
+          }
+        ],
+        "subtotal": 1375,
+        "discountRate": 0,
+        "discountTotal": 0,
+        "taxBase": 1375,
+        "vatTotal": 0,
+        "totalAmount": 1375,
+        "grandTotal": 1375,
+        "updated_at": "2026-04-17T11:27:29.662Z",
+        "id": "ad136ec3-5d52-431a-9b89-a86721475401",
+        "orderNo": "SOR-000003",
+        "created_at": "2026-04-17T11:25:51.306Z",
+        "revisionNo": 1,
+        "revisionHistory": [
+          {
+            "version": "v1",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T11:25:51.306Z"
+          }
+        ],
+        "approvalDate": "2026-04-17"
       }
     ],
     "units": [
@@ -10228,6 +10310,45 @@
         "productionPlanCompletedAt": "",
         "created_at": "2026-04-15T11:39:47.793Z",
         "updated_at": "2026-04-15T11:39:47.793Z",
+        "productionReady": false,
+        "productionStatusReason": "Eksik: uretim plani, montaj karti, master urun bagi, parca/bilesen bagi"
+      },
+      {
+        "id": "e75e0dfe-9d2d-4836-8eed-e076ea6c222b",
+        "scope": "sales-library",
+        "sourceCatalogProductId": "SCP-022FF89B",
+        "sourceCatalogIdCode": "ID-00001",
+        "sourceCatalogProductCode": "2034",
+        "sourceCatalogCategoryId": "rail-aluminum-baba",
+        "sourceCatalogName": "Kral",
+        "variantCode": "2034-001",
+        "productName": "Kral",
+        "bubble": "var",
+        "selectedDiameter": "100",
+        "lowerTubeLengthMm": "standart",
+        "colors": {
+          "accessory": {
+            "category": "eloksal",
+            "color": "P3 Sarı Eloksal"
+          },
+          "tube": {
+            "category": "eloksal",
+            "color": "P3 Sarı Eloksal"
+          },
+          "plexi": {
+            "category": "pleksi",
+            "color": "şeffaf"
+          }
+        },
+        "montageCard": null,
+        "masterRefs": [],
+        "items": [],
+        "explodedFiles": [],
+        "note": "",
+        "productionPlanCompleted": false,
+        "productionPlanCompletedAt": "",
+        "created_at": "2026-04-17T11:22:46.310Z",
+        "updated_at": "2026-04-17T11:22:46.310Z",
         "productionReady": false,
         "productionStatusReason": "Eksik: uretim plani, montaj karti, master urun bagi, parca/bilesen bagi"
       }

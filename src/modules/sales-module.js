@@ -171,6 +171,8 @@
         logoFileName: '',
         bankAccounts: [],
         defaultNotes: '',
+        templateMode: 'default',
+        customTemplateHtml: '',
         companyTitle: 'DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.',
         companyInfo: [
             'S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.',
@@ -205,6 +207,8 @@
             logoFileName: String(source.logoFileName || '').trim(),
             bankAccounts,
             defaultNotes: String(source.defaultNotes || '').trim(),
+            templateMode: String(source.templateMode || '').trim().toLowerCase() === 'custom' ? 'custom' : 'default',
+            customTemplateHtml: String(source.customTemplateHtml || '').trim(),
             companyTitle: String(source.companyTitle ?? defaults.companyTitle).trim() || defaults.companyTitle,
             companyInfo: companyInfoText || defaults.companyInfo
         };
@@ -216,6 +220,8 @@
             logoDataUrl: normalized.logoDataUrl,
             logoFileName: normalized.logoFileName,
             defaultNotes: normalized.defaultNotes,
+            templateMode: normalized.templateMode,
+            customTemplateHtml: normalized.customTemplateHtml,
             companyTitle: normalized.companyTitle,
             companyInfo: normalized.companyInfo,
             bankAccounts: normalized.bankAccounts.map((row) => ({
@@ -299,6 +305,8 @@
             logoFileName: normalized.logoFileName,
             bankAccounts: normalized.bankAccounts.map((row) => ({ ...row })),
             defaultNotes: normalized.defaultNotes,
+            templateMode: normalized.templateMode,
+            customTemplateHtml: normalized.customTemplateHtml,
             companyTitle: normalized.companyTitle,
             companyInfo: normalized.companyInfo
         };
@@ -2803,6 +2811,16 @@
         UI.renderCurrentPage();
     },
 
+    applyProformaTemplateTokens: (templateHtml = '', tokenMap = {}) => {
+        let html = String(templateHtml || '');
+        const entries = Object.entries(tokenMap || {});
+        entries.forEach(([key, value]) => {
+            const token = `{{${String(key || '').trim().toUpperCase()}}}`;
+            html = html.split(token).join(String(value ?? ''));
+        });
+        return html;
+    },
+
     buildProformaPreviewDocumentHtml: (draft = {}, orderData = null) => {
         const settings = SalesModule.normalizeProformaSettings(draft || {});
         const logoDataUrl = String(settings.logoDataUrl || '').trim();
@@ -2924,7 +2942,7 @@
         const kurText = currency === 'TL' ? '-' : (exchangeRate > 0 ? Number(exchangeRate).toFixed(4) : '-');
         const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
-        return `
+        const defaultHtml = `
             <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:1rem; overflow:auto;">
                 <div style="width:100%; min-width:1000px; max-width:1240px; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:1rem 1.1rem;">
                     <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.8rem; align-items:start;">
@@ -3016,6 +3034,46 @@
                 </div>
             </div>
         `;
+        const customTemplateEnabled = String(settings.templateMode || '').trim().toLowerCase() === 'custom';
+        const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
+        if (!customTemplateEnabled || !customTemplateHtml) return defaultHtml;
+
+        const tokenMap = {
+            DEFAULT_PROFORMA_HTML: defaultHtml,
+            LOGO_HTML: logoHtml,
+            COMPANY_TITLE: SalesModule.escapeHtml(companyTitle || '-'),
+            COMPANY_INFO_HTML: companyInfoHtml || '<div>-</div>',
+            ORDER_NO: SalesModule.escapeHtml(String(order.orderNo || '-')),
+            ORDER_DATE: SalesModule.escapeHtml(orderDateText),
+            CUSTOMER_NAME: SalesModule.escapeHtml(String(order.customerName || '-')),
+            CUSTOMER_DISPLAY_ID: SalesModule.escapeHtml(String(order.customerDisplayId || '-')),
+            DELIVERY_ADDRESS: SalesModule.escapeHtml(String(deliveryAddress)),
+            PREPARED_BY: SalesModule.escapeHtml(String(order.preparedBy || '-')),
+            CURRENCY: SalesModule.escapeHtml(currency),
+            EXCHANGE_RATE: SalesModule.escapeHtml(kurText),
+            STATUS_TEXT: SalesModule.escapeHtml(String(statusMeta.text || '-')),
+            STATUS_COLOR: SalesModule.escapeHtml(String(statusMeta.color || '#334155')),
+            STATUS_BG: SalesModule.escapeHtml(String(statusMeta.bg || '#f8fafc')),
+            STATUS_BORDER: SalesModule.escapeHtml(String(statusMeta.border || '#cbd5e1')),
+            NOTES_HTML: notesHtml,
+            DISCOUNT_RATE: SalesModule.escapeHtml(String(discountRate)),
+            VAT_RATE: SalesModule.escapeHtml(String(vatRate)),
+            VAT_TITLE: SalesModule.escapeHtml(kdvTitle),
+            SUBTOTAL: fmtMoney(subtotal),
+            DISCOUNT_TOTAL: fmtMoney(discountTotal),
+            TAX_BASE: fmtMoney(taxBase),
+            VAT_TOTAL: fmtMoney(vatTotal),
+            GRAND_TOTAL: fmtMoney(grandTotal),
+            GRAND_TOTAL_TL: fmtMoney(totalTl, 'TL'),
+            DELIVERY_LEAD_DAYS: SalesModule.escapeHtml(String(order.deliveryLeadDays || 0)),
+            PAYMENT_METHOD: SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit')),
+            DELIVERY_TEXT: `Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
+            UPDATED_AT: SalesModule.escapeHtml(updateDateText),
+            LINE_ROWS_HTML: lineRowsHtml,
+            BANK_ROWS_HTML: bankRowsHtml
+        };
+        const renderedCustomHtml = SalesModule.applyProformaTemplateTokens(customTemplateHtml, tokenMap).trim();
+        return renderedCustomHtml || defaultHtml;
     },
 
     renderProformaSettingsPreview: () => {
@@ -7303,6 +7361,7 @@
             ? SalesModule.state.proformaBankDraft
             : { bankName: '', branchCode: '', accountNo: '', iban: '' };
         const bankAccounts = Array.isArray(draft.bankAccounts) ? draft.bankAccounts : [];
+        const templateMode = String(draft.templateMode || '').trim().toLowerCase() === 'custom' ? 'custom' : 'default';
         const hasChanges = SalesModule.hasProformaSettingsChanges();
 
         return `
@@ -7355,6 +7414,36 @@
                                     <textarea class="stock-textarea" style="min-height:98px;" oninput="SalesModule.setProformaSettingsDraftField('companyInfo', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="Her satiri alt alta yazin.">${SalesModule.escapeHtml(String(draft.companyInfo || ''))}</textarea>
                                 </div>
                             </div>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
+                            <div style="font-size:1rem; font-weight:800; color:#1e293b;">Format Kaynagi</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Proforma onizleme ve cikti bu secimden gelir.</div>
+                            <div style="margin-top:0.55rem; display:grid; grid-template-columns:220px 1fr; gap:0.65rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Sablon Tipi</label>
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setProformaSettingsDraftField('templateMode', this.value); SalesModule.renderProformaSettingsPreview(); UI.renderCurrentPage();">
+                                        <option value="default" ${templateMode === 'default' ? 'selected' : ''}>Standart Dulda Formati</option>
+                                        <option value="custom" ${templateMode === 'custom' ? 'selected' : ''}>Ayarlar / Ozel HTML</option>
+                                    </select>
+                                </div>
+                                <div style="font-size:0.76rem; color:#64748b; align-self:end;">
+                                    Ozel formatta asagidaki tokenlar kullanilabilir:
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{DEFAULT_PROFORMA_HTML}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{COMPANY_TITLE}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{COMPANY_INFO_HTML}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{LOGO_HTML}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{ORDER_NO}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{LINE_ROWS_HTML}}</code>,
+                                    <code style="color:#0f172a; font-size:0.74rem;">{{BANK_ROWS_HTML}}</code>
+                                </div>
+                            </div>
+                            ${templateMode === 'custom'
+                ? `<div style="margin-top:0.6rem;">
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Ozel HTML Sablonu</label>
+                                    <textarea class="stock-textarea" style="min-height:210px; font-family:Consolas,monospace;" oninput="SalesModule.setProformaSettingsDraftField('customTemplateHtml', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="<div>{{DEFAULT_PROFORMA_HTML}}</div>">${SalesModule.escapeHtml(String(draft.customTemplateHtml || ''))}</textarea>
+                                </div>`
+                : ''}
                         </div>
 
                         <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">

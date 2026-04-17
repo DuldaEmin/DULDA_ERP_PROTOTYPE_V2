@@ -7063,7 +7063,7 @@
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; gap:0.42rem; margin-top:0.72rem;">
-                    <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">onizle</button>
+                    <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">PDF Goruntule</button>
                     <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
                     <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
                 </div>

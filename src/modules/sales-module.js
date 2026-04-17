@@ -3181,6 +3181,17 @@
                 </tr>
             `).join('');
 
+        const formatPlexiColorForPdf = (value) => {
+            const raw = String(value || '').trim();
+            if (!raw) return '-';
+            if (!raw.includes('/')) return raw;
+            const parts = raw
+                .split('/')
+                .map((item) => String(item || '').trim())
+                .filter(Boolean);
+            return parts.length ? parts[parts.length - 1] : raw;
+        };
+
         const lineRowsHtml = lines.length === 0
             ? `<tr><td colspan="11" style="padding:0.5rem; border-top:1px solid #e2e8f0; color:#94a3b8; text-align:center;">Satir bulunmuyor.</td></tr>`
             : lines.map((line) => `
@@ -3190,7 +3201,7 @@
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:nowrap; vertical-align:top;">${SalesModule.escapeHtml(String(line?.selectedDiameter || '-'))}</td>
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.accessoryColor || '-'))}</td>
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.tubeColor || '-'))}</td>
-                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.plexiColor || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(formatPlexiColorForPdf(line?.plexiColor))}</td>
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.bubble || 'yok'))}</td>
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.lowerTubeLength || '-'))}</td>
                     <td style="padding:0.34rem; border-top:1px solid #e2e8f0; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:top;">${fmtQty(line?.qty || 0)}</td>

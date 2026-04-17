@@ -3166,21 +3166,20 @@
             `).join('');
 
         const lineRowsHtml = lines.length === 0
-            ? `<tr><td colspan="12" style="padding:0.5rem; border-top:1px solid #e2e8f0; color:#94a3b8; text-align:center;">Satir bulunmuyor.</td></tr>`
+            ? `<tr><td colspan="11" style="padding:0.5rem; border-top:1px solid #e2e8f0; color:#94a3b8; text-align:center;">Satir bulunmuyor.</td></tr>`
             : lines.map((line) => `
                 <tr>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.productName || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; font-family:Consolas,monospace;">${SalesModule.escapeHtml(String(line?.productCode || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(String(line?.idCode || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.selectedDiameter || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.accessoryColor || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.tubeColor || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.plexiColor || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.bubble || 'yok'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0;">${SalesModule.escapeHtml(String(line?.lowerTubeLength || '-'))}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right;">${fmtQty(line?.qty || 0)}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right;">${fmtMoney(line?.unitPrice || 0)}</td>
-                    <td style="padding:0.36rem; border-top:1px solid #e2e8f0; text-align:right; font-weight:700;">${fmtMoney(line?.lineTotal || 0)}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.productName || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; font-family:Consolas,monospace; white-space:nowrap; vertical-align:top;">${SalesModule.escapeHtml(String(line?.productCode || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:nowrap; vertical-align:top;">${SalesModule.escapeHtml(String(line?.selectedDiameter || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.accessoryColor || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.tubeColor || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.plexiColor || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.bubble || 'yok'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; white-space:normal; overflow-wrap:break-word; word-break:normal; vertical-align:top;">${SalesModule.escapeHtml(String(line?.lowerTubeLength || '-'))}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:top;">${fmtQty(line?.qty || 0)}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:top;">${fmtMoney(line?.unitPrice || 0)}</td>
+                    <td style="padding:0.34rem; border-top:1px solid #e2e8f0; text-align:right; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; vertical-align:top;">${fmtMoney(line?.lineTotal || 0)}</td>
                 </tr>
             `).join('');
 
@@ -3189,8 +3188,8 @@
         const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
         const defaultHtml = `
-            <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:1rem; overflow:auto;">
-                <div style="width:100%; min-width:1000px; max-width:1240px; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:1rem 1.1rem;">
+            <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.65rem;">
+                <div style="width:100%; max-width:100%; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:0.72rem 0.75rem;">
                     <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.8rem; align-items:start;">
                         <div>${logoHtml}</div>
                         <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.4;">
@@ -3220,22 +3219,34 @@
                         </div>
                     </div>
 
-                    <div style="margin-top:0.8rem; border:1px solid #cbd5e1; overflow:auto;">
-                        <table style="width:100%; min-width:1250px; border-collapse:collapse; font-size:0.78rem;">
+                    <div style="margin-top:0.8rem; border:1px solid #cbd5e1;">
+                        <table style="width:100%; table-layout:fixed; border-collapse:collapse; font-size:0.67rem;">
+                            <colgroup>
+                                <col style="width:16%;">
+                                <col style="width:8%;">
+                                <col style="width:5%;">
+                                <col style="width:14%;">
+                                <col style="width:14%;">
+                                <col style="width:9%;">
+                                <col style="width:6%;">
+                                <col style="width:8%;">
+                                <col style="width:6%;">
+                                <col style="width:6%;">
+                                <col style="width:8%;">
+                            </colgroup>
                             <thead>
                                 <tr style="background:#334155; color:white; text-align:left;">
-                                    <th style="padding:0.35rem;">Urun Adi</th>
-                                    <th style="padding:0.35rem;">Urun Kodu</th>
-                                    <th style="padding:0.35rem;">ID Kodu</th>
-                                    <th style="padding:0.35rem;">Cap</th>
-                                    <th style="padding:0.35rem;">Aksesuar Rengi</th>
-                                    <th style="padding:0.35rem;">Boru Rengi</th>
-                                    <th style="padding:0.35rem;">Pleksi Rengi</th>
-                                    <th style="padding:0.35rem;">Kabarcik</th>
-                                    <th style="padding:0.35rem;">Alt Boru Uzunlugu</th>
-                                    <th style="padding:0.35rem; text-align:right;">Adet</th>
-                                    <th style="padding:0.35rem; text-align:right;">Birim Fiyat</th>
-                                    <th style="padding:0.35rem; text-align:right;">Tutar</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Urun Adi</th>
+                                    <th style="padding:0.32rem; white-space:nowrap;">Urun Kodu</th>
+                                    <th style="padding:0.32rem; white-space:nowrap;">Cap</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Aks Renk</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Boru Rengi</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Plks Rengi</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Kabarcik</th>
+                                    <th style="padding:0.32rem; white-space:normal; overflow-wrap:break-word; word-break:normal;">Alt Boru Uzunlugu</th>
+                                    <th style="padding:0.32rem; text-align:right; white-space:nowrap;">Adet</th>
+                                    <th style="padding:0.32rem; text-align:right; white-space:nowrap;">Birim Fiyat</th>
+                                    <th style="padding:0.32rem; text-align:right; white-space:nowrap;">Tutar</th>
                                 </tr>
                             </thead>
                             <tbody>${lineRowsHtml}</tbody>
@@ -3248,7 +3259,7 @@
                             <div style="white-space:normal; line-height:1.5;">${notesHtml}</div>
                             <div style="margin-top:0.45rem; font-size:0.78rem; color:#64748b;">Son duzenleme: ${SalesModule.escapeHtml(updateDateText)}</div>
                         </div>
-                        <div style="min-width:350px; font-size:0.9rem;">
+                        <div style="min-width:270px; font-size:0.86rem;">
                             <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>Ara Toplam</span><strong>${fmtMoney(subtotal)}</strong></div>
                             <div style="display:flex; justify-content:space-between; padding:0.1rem 0; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(discountRate))})</span><strong>-${fmtMoney(discountTotal)}</strong></div>
                             <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>KDV Matrahi</span><strong>${fmtMoney(taxBase)}</strong></div>
@@ -3260,7 +3271,7 @@
 
                     <div style="margin-top:0.8rem; font-size:0.9rem; color:#0f172a;">
                         <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>ODEME SEKLI</strong><span>${SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit'))}</span></div>
-                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}</span></div>
+                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Siparis onayindan ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun</span></div>
                     </div>
 
                     <div style="margin-top:0.7rem;">
@@ -3318,7 +3329,8 @@
             GRAND_TOTAL_TL: fmtMoney(totalTl, 'TL'),
             DELIVERY_LEAD_DAYS: SalesModule.escapeHtml(String(order.deliveryLeadDays || 0)),
             PAYMENT_METHOD: SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit')),
-            DELIVERY_TEXT: `Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
+            DELIVERY_TEXT: `Siparis onayindan ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun`,
+            DELIVERY_TEXT_WITH_ADDRESS: `Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
             UPDATED_AT: SalesModule.escapeHtml(updateDateText),
             LINE_ROWS_HTML: lineRowsHtml,
             BANK_ROWS_HTML: bankRowsHtml

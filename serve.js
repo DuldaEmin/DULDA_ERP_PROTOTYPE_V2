@@ -53,9 +53,30 @@ function sanitizeDownloadName(value) {
   const raw = String(value || "teslim-belgesi")
     .trim()
     .replace(/[<>:"/\\|?*\x00-\x1F]+/g, "-")
-    .replace(/\s+/g, "_");
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, "_")
+    .replace(/\.+$/g, "");
   const normalized = raw || "teslim-belgesi";
   return normalized.slice(0, 96);
+}
+
+function buildContentDisposition(fileNameBase, extension = "pdf") {
+  const base = sanitizeDownloadName(fileNameBase || "teslim-belgesi");
+  const ext = String(extension || "pdf").replace(/[^a-z0-9]+/gi, "").toLowerCase() || "pdf";
+  const fullName = `${base}.${ext}`;
+  const asciiFallback = fullName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 128) || `document.${ext}`;
+  const encoded = encodeURIComponent(fullName)
+    .replace(/\*/g, "%2A")
+    .replace(/'/g, "%27")
+    .replace(/\(/g, "%28")
+    .replace(/\)/g, "%29");
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`;
 }
 
 async function getPdfBrowser() {
@@ -246,7 +267,7 @@ const server = http.createServer(async (req, res) => {
       const pdfBuffer = await renderPdfFromHtml(html);
       res.writeHead(200, {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${fileName}.pdf"`,
+        "Content-Disposition": buildContentDisposition(fileName, "pdf"),
         "Content-Length": String(pdfBuffer.length),
         ...noCacheHeaders,
       });

@@ -2514,11 +2514,192 @@
         };
     },
 
+    formatSalesProformaFileDate: (value = new Date()) => {
+        const date = value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date();
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yy = String(date.getFullYear()).slice(-2);
+        return `${dd}.${mm}.${yy}`;
+    },
+
+    buildSalesProformaDownloadFileBase: (orderData = {}) => {
+        const title = String(orderData?.customerName || orderData?.customerTitle || '').trim();
+        const upper = title.toLocaleUpperCase('tr-TR');
+        const words = (upper.match(/[\p{L}\p{N}]+/gu) || []).filter(Boolean);
+        const head = words.slice(0, 2).join('-') || 'MUSTERI';
+        const datePart = SalesModule.formatSalesProformaFileDate(new Date());
+        const raw = `${head}${datePart}`;
+        const safe = raw
+            .replace(/[\\/:*?"<>|]+/g, '')
+            .replace(/\s+/g, '')
+            .replace(/\.+$/g, '')
+            .trim();
+        return safe || `MUSTERI${datePart}`;
+    },
+
+    openSalesOrderProformaPdfPreview: (orderData = null) => {
+        const order = orderData && typeof orderData === 'object' ? orderData : null;
+        if (!order) return alert('Proforma verisi bulunamadi.');
+        const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), order);
+        const orderNoText = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
+        const fileBase = SalesModule.buildSalesProformaDownloadFileBase(order);
+        const apiEndpoint = `${String(window.location.origin || '').replace(/\/+$/, '')}/api/dispatch-pdf`;
+        const pageHtml = `
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PDF Goruntule - ${SalesModule.escapeHtml(orderNoText)}</title>
+  <style>
+    :root { --line:#cbd5e1; --ink:#0f172a; --muted:#64748b; --bg:#f1f5f9; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Segoe UI",Tahoma,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+    .topbar { position:sticky; top:0; z-index:20; background:rgba(248,250,252,0.98); border-bottom:1px solid var(--line); padding:0.62rem 0.8rem; display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; }
+    .title { font-size:1.02rem; font-weight:800; color:#0f172a; }
+    .actions { display:inline-flex; align-items:center; gap:0.45rem; flex-wrap:wrap; }
+    .btn { height:36px; border-radius:0.6rem; padding:0 0.85rem; border:1px solid var(--line); background:white; color:#334155; font-weight:700; cursor:pointer; }
+    .btn.primary { background:#0f172a; border-color:#0f172a; color:#fff; }
+    .btn.blue { background:#eff6ff; border-color:#93c5fd; color:#1d4ed8; }
+    .frame-wrap { height:calc(100vh - 64px); padding:0.7rem; }
+    iframe { width:100%; height:100%; border:1px solid var(--line); border-radius:0.85rem; background:#fff; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="title">PDF Goruntule - ${SalesModule.escapeHtml(orderNoText)}</div>
+    <div class="actions">
+      <button class="btn blue" type="button" onclick="downloadPdf()">Indir</button>
+      <button class="btn primary" type="button" onclick="printPdf()">Yazdir</button>
+      <button class="btn" type="button" onclick="window.close()">Kapat</button>
+    </div>
+  </div>
+  <div class="frame-wrap">
+    <iframe id="pdf_preview_frame" title="PDF onizleme"></iframe>
+  </div>
+  <script>
+    let PAYLOAD = {
+      previewHtml: '',
+      html: '',
+      fileName: 'proforma',
+      apiEndpoint: '/api/dispatch-pdf'
+    };
+    function mountPreview() {
+      const iframe = document.getElementById('pdf_preview_frame');
+      if (!iframe) return;
+      try {
+        iframe.srcdoc = String(PAYLOAD.previewHtml || '');
+      } catch (_) {
+        iframe.src = 'data:text/html;charset=utf-8,' + encodeURIComponent(String(PAYLOAD.previewHtml || ''));
+      }
+    }
+    window.__setSalesProformaPayload = function(next) {
+      PAYLOAD = Object.assign({}, PAYLOAD, (next && typeof next === 'object') ? next : {});
+      mountPreview();
+    };
+    window.addEventListener('message', function(event) {
+      const data = event && event.data ? event.data : null;
+      if (!data || data.type !== 'sales_proforma_payload') return;
+      window.__setSalesProformaPayload(data.payload || {});
+    });
+
+    async function downloadPdf() {
+      try {
+        if (!PAYLOAD.html) throw new Error('Belge verisi bulunamadi');
+        const res = await fetch(String(PAYLOAD.apiEndpoint || '/api/dispatch-pdf'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ html: String(PAYLOAD.html || ''), fileName: String(PAYLOAD.fileName || 'proforma') })
+        });
+        if (!res.ok) {
+          let detail = '';
+          try {
+            const raw = await res.text();
+            if (raw) {
+              try {
+                const parsed = JSON.parse(raw);
+                detail = String(parsed?.message || parsed?.error || raw);
+              } catch (_) {
+                detail = String(raw);
+              }
+            }
+          } catch (_) {}
+          throw new Error(detail || ('HTTP ' + res.status));
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = String(PAYLOAD.fileName || 'proforma') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      } catch (e) {
+        const msg = String(e && e.message ? e.message : 'PDF indirilemedi');
+        alert('PDF indirilemedi.\\n' + msg + '\\n\\nNot: Sunucuyu RUN_DEMO.ps1 ile yeniden baslatman gerekebilir.');
+      }
+    }
+    function printPdf() {
+      const iframe = document.getElementById('pdf_preview_frame');
+      if (iframe && iframe.contentWindow) {
+        try {
+          if (iframe.contentDocument && iframe.contentDocument.readyState !== 'complete') {
+            iframe.addEventListener('load', function onceLoaded() {
+              iframe.removeEventListener('load', onceLoaded);
+              try {
+                iframe.contentWindow.focus();
+                iframe.contentWindow.print();
+              } catch (_) {
+                window.print();
+              }
+            }, { once: true });
+            return;
+          }
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          return;
+        } catch (_) {}
+      }
+      window.print();
+    }
+    window.downloadPdf = downloadPdf;
+    window.printPdf = printPdf;
+  </script>
+</body>
+</html>`;
+        const win = window.open('', '_blank');
+        if (!win) return alert('Pop-up engellendi. Lutfen tarayici izinlerini kontrol edin.');
+        win.document.open();
+        win.document.write(pageHtml);
+        win.document.close();
+        const payload = {
+            previewHtml: String(html || ''),
+            html: String(html || ''),
+            fileName: String(fileBase || 'proforma'),
+            apiEndpoint: String(apiEndpoint || '/api/dispatch-pdf')
+        };
+        let injectAttempts = 0;
+        const injectPayload = () => {
+            if (!win || win.closed) return;
+            try { win.postMessage({ type: 'sales_proforma_payload', payload }, '*'); } catch (_) { }
+            if (typeof win.__setSalesProformaPayload === 'function') {
+                try {
+                    win.__setSalesProformaPayload(payload);
+                    return;
+                } catch (_) { }
+            }
+            injectAttempts += 1;
+            if (injectAttempts < 60) setTimeout(injectPayload, 50);
+        };
+        injectPayload();
+        try { win.focus(); } catch (_) { }
+    },
+
     previewCurrentSalesOrderProforma: () => {
         const payload = SalesModule.buildSalesOrderPreviewPayloadFromDraft();
         if (!payload) return alert('Onizleme icin once musteri secmelisin.');
-        const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), payload);
-        Modal.open('Proforma goruntule', html, { maxWidth: '1260px', closeExisting: false });
+        SalesModule.openSalesOrderProformaPdfPreview(payload);
     },
 
     previewSavedSalesOrderProforma: (orderId) => {
@@ -2528,8 +2709,7 @@
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         const order = rows.find((row) => String(row?.id || '').trim() === targetId);
         if (!order) return alert('Kayit bulunamadi.');
-        const html = SalesModule.buildProformaPreviewDocumentHtml(SalesModule.getProformaSettings(), order);
-        Modal.open('Proforma goruntule', html, { maxWidth: '1260px' });
+        SalesModule.openSalesOrderProformaPdfPreview(order);
     },
 
     convertSalesOrderPlaceholder: () => {

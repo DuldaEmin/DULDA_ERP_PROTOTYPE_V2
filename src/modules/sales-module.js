@@ -515,6 +515,30 @@
         return ['USD', 'EUR', 'TL'].includes(normalized) ? normalized : 'USD';
     },
 
+    normalizeSalesVatRate: (value) => {
+        const parsed = Number(String(value ?? 20).replace(',', '.'));
+        if (!Number.isFinite(parsed)) return 20;
+        return parsed === 0 ? 0 : 20;
+    },
+
+    buildSalesOrderDefaultDeliveryAddress: (customer = null) => {
+        const row = customer && typeof customer === 'object' ? customer : null;
+        if (!row) return '';
+        const customerName = String(row.name || '').trim();
+        const customerAddress = String(row.address || '').trim();
+        return [customerName, customerAddress].filter(Boolean).join('\n').trim();
+    },
+
+    resolveSalesOrderDeliveryAddress: (source = {}) => {
+        const row = source && typeof source === 'object' ? source : {};
+        const manualAddress = String(row.deliveryAddress || '').trim();
+        if (manualAddress) return manualAddress;
+        const customerId = String(row.customerId || '').trim();
+        if (!customerId) return '';
+        const customer = SalesModule.getCustomerById(customerId);
+        return SalesModule.buildSalesOrderDefaultDeliveryAddress(customer);
+    },
+
     parseSalesQuantity: (value, fallback = 1) => {
         const parsed = Number(String(value ?? '').replace(',', '.'));
         if (!Number.isFinite(parsed)) return Number(fallback || 1);
@@ -662,8 +686,7 @@
     buildSalesOrderDraft: (seed = {}) => {
         const source = seed && typeof seed === 'object' ? seed : {};
         const orderDate = String(source.orderDate || new Date().toISOString().slice(0, 10)).trim();
-        const rawVatRate = Number(String(source.vatRate ?? 20).replace(',', '.'));
-        const vatRate = rawVatRate === 0 ? 0 : 20;
+        const vatRate = SalesModule.normalizeSalesVatRate(source.vatRate);
         const discountRaw = source.globalDiscountRate ?? source.discountRate ?? 0;
         const hasLineArray = Array.isArray(source.lines);
         const lines = (hasLineArray ? source.lines : [])
@@ -680,7 +703,7 @@
             globalDiscountRate: SalesModule.parsePercent(discountRaw),
             vatRate,
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
-            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            deliveryAddress: SalesModule.resolveSalesOrderDeliveryAddress(source),
             paymentMethod: String(source.paymentMethod || source.deliveryMethod || 'Nakit').trim() || 'Nakit',
             note: String(source.note || '').trim(),
             revisionNo: Math.max(1, Number(source.revisionNo || 1)),
@@ -1608,8 +1631,7 @@
             return;
         }
         if (key === 'vatRate') {
-            const numeric = Number(String(value || '').replace(',', '.'));
-            draft.vatRate = numeric === 0 ? 0 : 20;
+            draft.vatRate = SalesModule.normalizeSalesVatRate(value);
             SalesModule.refreshSalesOrderUi();
             return;
         }
@@ -1626,7 +1648,7 @@
         draft[key] = String(value || '').trim();
         if (key === 'customerId') {
             const customer = SalesModule.getCustomerById(draft.customerId);
-            draft.deliveryAddress = customer ? String(customer.address || '').trim() : '';
+            draft.deliveryAddress = SalesModule.buildSalesOrderDefaultDeliveryAddress(customer);
             if (customer) {
                 draft.currency = SalesModule.normalizeSalesCurrency(customer.preferredCurrency || draft.currency || 'USD');
                 if (draft.currency === 'TL') draft.exchangeRate = 0;
@@ -2193,7 +2215,7 @@
         if (SalesModule.normalizeSalesCurrency(source.currency || 'USD') !== 'USD') return true;
         if (Number(source.exchangeRate || 0) > 0) return true;
         if (Number(source.deliveryLeadDays || 0) > 0) return true;
-        if (Number(source.vatRate || 20) === 0) return true;
+        if (SalesModule.normalizeSalesVatRate(source.vatRate) === 0) return true;
         const lines = Array.isArray(source.lines) ? source.lines : [];
         return lines.some((line) => {
             if (!line || typeof line !== 'object') return false;
@@ -2337,9 +2359,9 @@
             currency: SalesModule.normalizeSalesCurrency(source.currency || 'USD'),
             exchangeRate: Number(Number(source.exchangeRate || 0).toFixed(4)),
             globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
-            vatRate: Number(source.vatRate || 20) === 0 ? 0 : 20,
+            vatRate: SalesModule.normalizeSalesVatRate(source.vatRate),
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
-            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            deliveryAddress: SalesModule.resolveSalesOrderDeliveryAddress(source),
             paymentMethod: String(source.paymentMethod || '').trim(),
             note: String(source.note || '').trim(),
             lines: (Array.isArray(source.lines) ? source.lines : [])
@@ -2413,6 +2435,10 @@
         if (!source || typeof source !== 'object') return null;
         const customer = SalesModule.getCustomerById(source.customerId);
         if (!customer) return null;
+        const resolvedDeliveryAddress = SalesModule.resolveSalesOrderDeliveryAddress({
+            ...source,
+            customerId: String(customer.id || '').trim()
+        });
         const totals = SalesModule.computeSalesOrderTotals(source);
         const lines = SalesModule.buildSalesOrderLinePayloads(
             totals.lines.filter((line) => String(line?.productId || '').trim())
@@ -2428,9 +2454,9 @@
             exchangeRate: Number(Number(source.exchangeRate || 0).toFixed(4)),
             preparedBy: String(source.preparedBy || SalesModule.getCurrentEditorName()).trim(),
             globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
-            vatRate: Number(source.vatRate || 20) === 0 ? 0 : 20,
+            vatRate: SalesModule.normalizeSalesVatRate(source.vatRate),
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
-            deliveryAddress: String(source.deliveryAddress || '').trim(),
+            deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(source.paymentMethod || 'Nakit').trim() || 'Nakit',
             note: String(source.note || '').trim(),
             lines,
@@ -2529,6 +2555,10 @@
         const now = new Date().toISOString();
         const editorName = SalesModule.getCurrentEditorName();
         const rowPayload = SalesModule.buildSalesOrderLinePayloads(validLines);
+        const resolvedDeliveryAddress = SalesModule.resolveSalesOrderDeliveryAddress({
+            ...draft,
+            customerId: String(customer.id || '').trim()
+        });
 
         const basePayload = {
             orderType: 'PROFORMA',
@@ -2541,9 +2571,9 @@
             exchangeRate: Number(Number(draft.exchangeRate || 0).toFixed(4)),
             preparedBy: String(draft.preparedBy || editorName).trim() || editorName,
             globalDiscountRate: Number(Number(draft.globalDiscountRate || 0).toFixed(2)),
-            vatRate: Number(draft.vatRate || 20) === 0 ? 0 : 20,
+            vatRate: SalesModule.normalizeSalesVatRate(draft.vatRate),
             deliveryLeadDays: SalesModule.parseDays(draft.deliveryLeadDays || 0),
-            deliveryAddress: String(draft.deliveryAddress || '').trim(),
+            deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             deliveryMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             note: String(draft.note || '').trim(),
@@ -2614,7 +2644,7 @@
         alert(`Proforma kaydedildi: ${savedOrderNo}`);
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
             customerId: String(customer.id || '').trim(),
-            deliveryAddress: String(draft.deliveryAddress || '').trim(),
+            deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             currency: SalesModule.normalizeSalesCurrency(draft.currency || 'USD')
         });

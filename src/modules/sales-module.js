@@ -2387,6 +2387,14 @@
         const idx = rows.findIndex((row) => String(row?.id || '').trim() === targetId);
         if (idx < 0) return;
         const nextStatus = String(statusText || '').trim() || rows[idx].status || 'Onay Bekliyor';
+        const normalizedStatus = SalesModule.normalize(nextStatus);
+        const orderNo = String(rows[idx]?.orderNo || '-').trim() || '-';
+        if (normalizedStatus.includes('onaylandi')) {
+            if (!confirm(`"${orderNo}" siparisi onaylansin mi?`)) return;
+        }
+        if (normalizedStatus.includes('arsiv')) {
+            if (!confirm(`"${orderNo}" siparisi arsive alinsin mi?`)) return;
+        }
         rows[idx].status = nextStatus;
         if (SalesModule.normalize(nextStatus).includes('onay') && !String(rows[idx].approvalDate || '').trim()) {
             rows[idx].approvalDate = new Date().toISOString().slice(0, 10);
@@ -3290,12 +3298,12 @@
                             <div style="margin-top:0.45rem; font-size:0.78rem; color:#64748b;">Son duzenleme: ${SalesModule.escapeHtml(updateDateText)}</div>
                         </div>
                         <div style="min-width:270px; font-size:0.86rem;">
-                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>Ara Toplam</span><strong>${fmtMoney(subtotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(discountRate))})</span><strong>-${fmtMoney(discountTotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>KDV Matrahi</span><strong>${fmtMoney(taxBase)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>${kdvTitle}</span><strong>${fmtMoney(vatTotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.06rem; border-top:1px solid #e2e8f0; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(grandTotal)}</strong></div>
-                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0;"><span>Genel Toplam (TL)</span><strong>${fmtMoney(totalTl, 'TL')}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; border-bottom:1px solid #e2e8f0;"><span>Ara Toplam</span><strong>${fmtMoney(subtotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; color:#dc2626; border-bottom:1px solid #e2e8f0;"><span>Iskonto (%${SalesModule.escapeHtml(String(discountRate))})</span><strong>-${fmtMoney(discountTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; border-bottom:1px solid #e2e8f0;"><span>KDV Matrahi</span><strong>${fmtMoney(taxBase)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; border-bottom:1px solid #e2e8f0;"><span>${kdvTitle}</span><strong>${fmtMoney(vatTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:1.06rem; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(grandTotal)}</strong></div>
+                            <div style="display:flex; justify-content:space-between; padding:0.1rem 0; border-bottom:1px solid #e2e8f0;"><span>Genel Toplam (TL)</span><strong>${fmtMoney(totalTl, 'TL')}</strong></div>
                         </div>
                     </div>
 

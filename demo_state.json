@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-17T12:45:26.691Z",
+    "updated_at": "2026-04-17T12:51:27.889Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -47,7 +47,7 @@
         "130"
       ]
     },
-    "revision": 9011,
+    "revision": 9012,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -10439,6 +10439,75 @@
         "updated_at": "2026-04-17T11:22:46.310Z",
         "productionReady": false,
         "productionStatusReason": "Eksik: uretim plani, montaj karti, master urun bagi, parca/bilesen bagi"
+      },
+      {
+        "id": "1c1de919-afd6-4a65-ada8-3318cdc39abe",
+        "scope": "sales-library",
+        "sourceCatalogProductId": "SCP-372EC808",
+        "sourceCatalogIdCode": "SAL-9E5A7138",
+        "sourceCatalogProductCode": "0212",
+        "sourceCatalogCategoryId": "rail-aluminum-accessory",
+        "sourceCatalogName": "35 LİK SIKMALI ANKREAJ",
+        "variantCode": "0212-001",
+        "productName": "35 LİK SIKMALI ANKREAJ",
+        "bubble": "yok",
+        "selectedDiameter": "35",
+        "lowerTubeLengthMm": "standart",
+        "colors": {
+          "accessory": {
+            "category": "",
+            "color": ""
+          },
+          "tube": {
+            "category": "",
+            "color": ""
+          },
+          "plexi": {
+            "category": "",
+            "color": ""
+          }
+        },
+        "montageCard": null,
+        "masterRefs": [
+          {
+            "id": "138482d7-0b39-4280-9794-512b6dd341dd",
+            "refId": "50bbdaa7-7c0f-4b3c-a254-ff847e8e3b73",
+            "code": "VID0002",
+            "name": "ankraj gijonu galvanizli",
+            "qty": 1
+          },
+          {
+            "id": "c23d4d4a-b88d-4c4b-bfa9-823052f18597",
+            "refId": "746492ef-2cf0-4c52-96d9-b9a35031a94c",
+            "code": "VID0005",
+            "name": "M16 pul",
+            "qty": 2
+          },
+          {
+            "id": "bf466b01-7c49-4a23-898b-3602d81ab6d9",
+            "refId": "7d2619ae-dfd1-4ef7-8cc8-0ce5d70f1e5b",
+            "code": "VID0004",
+            "name": "M16normal somun",
+            "qty": 2
+          }
+        ],
+        "items": [
+          {
+            "id": "0fe751ce-e288-489a-a7db-ed5054c0bb3b",
+            "refId": "45171652-dc3b-4a00-a5ea-659e49f6e7f1",
+            "code": "PRC-000012",
+            "name": "35 mm dikme ankraj aluminyum parça",
+            "qty": 2
+          }
+        ],
+        "explodedFiles": [],
+        "note": "35 LİK DİKME SIKMALI DİKME ANKREAJ",
+        "productionPlanCompleted": false,
+        "productionPlanCompletedAt": "",
+        "created_at": "2026-04-17T12:51:27.888Z",
+        "updated_at": "2026-04-17T12:51:27.888Z",
+        "productionReady": false,
+        "productionStatusReason": "Eksik: uretim plani, montaj karti"
       }
     ],
     "salesSettings": {
@@ -10446,7 +10515,9 @@
         "logoDataUrl": "",
         "logoFileName": "",
         "bankAccounts": [],
-        "defaultNotes": ""
+        "defaultNotes": "",
+        "companyTitle": "DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.",
+        "companyInfo": "S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.\n29.SOK. 3.CADDE NO:10 KOSELER MAH. DILOVASI / KOCAELI\nTel: +90 262 502 22 11 / Fax: +90 262 502 22 11\nwww.dulda.com - sales@dulda.com"
       },
       "priceLists": [
         {

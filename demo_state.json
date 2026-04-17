@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-17T11:27:29.662Z",
+    "updated_at": "2026-04-17T12:31:28.206Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 9008,
+    "revision": 9009,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -6397,7 +6397,7 @@
         "orderDate": "2026-04-15",
         "customerId": "4ab85e0c-1c21-4930-ad30-edc669df2736",
         "customerName": "ADAB ALÜMİNYUN KORKULUK SİSTEMLERİ",
-        "status": "Taslak",
+        "status": "Arsiv",
         "currency": "USD",
         "deliveryAddress": "FATİH BULVARI KALE CAD. NO:11/C SULTANBEYLİ",
         "deliveryMethod": "",
@@ -6420,7 +6420,7 @@
         "discountTotal": 0,
         "totalAmount": 1,
         "created_at": "2026-04-15T13:26:36.364Z",
-        "updated_at": "2026-04-15T13:26:36.364Z"
+        "updated_at": "2026-04-17T12:31:28.206Z"
       },
       {
         "orderType": "PROFORMA",

@@ -1675,8 +1675,10 @@
     },
 
     setSalesOrderCustomerSearch: (value) => {
-        SalesModule.state.salesOrderCustomerSearch = String(value || '').trimStart();
-        SalesModule.refreshSalesOrderUi();
+        SalesModule.state.salesOrderCustomerSearch = String(value ?? '');
+        if (!SalesModule.renderSalesOrderCustomerFilterUi()) {
+            SalesModule.refreshSalesOrderUi();
+        }
     },
 
     openSalesPaymentMethodModal: () => {
@@ -6735,25 +6737,16 @@
         }).join('');
     },
 
-    renderSalesOrderEditorCardHtml: (options = {}) => {
-        const inModal = options?.inModal === true;
+    buildSalesOrderCustomerFilterModel: (draft = null) => {
         SalesModule.ensureSalesOrderDraft();
-        const draft = SalesModule.state.salesOrderDraft || SalesModule.buildSalesOrderDraft();
-        const totals = SalesModule.computeSalesOrderTotals(draft);
-        const customers = SalesModule.getCustomers().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
-        const catalogProducts = SalesModule.getCatalogProducts().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
-        const productMap = new Map(catalogProducts.map((row) => [String(row?.id || ''), row]));
-        const currency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
-        const fmtMoney = (value) => {
-            const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
-            if (currency === 'USD') return `$${out}`;
-            if (currency === 'EUR') return `${out} EUR`;
-            return `${out} TL`;
-        };
-        const selectedCustomerId = String(draft.customerId || '').trim();
-        const customerSearchTerm = String(SalesModule.state.salesOrderCustomerSearch || '');
-        const customerSearchQuery = SalesModule.normalizeSearchText(customerSearchTerm);
-        const filteredCustomers = customerSearchQuery
+        const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
+        const customers = SalesModule.getCustomers()
+            .slice()
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const selectedCustomerId = String(source.customerId || '').trim();
+        const searchTerm = String(SalesModule.state.salesOrderCustomerSearch || '');
+        const searchQuery = SalesModule.normalizeSearchText(searchTerm);
+        const filteredCustomers = searchQuery
             ? customers.filter((row) => {
                 const haystack = SalesModule.normalizeSearchText([
                     row?.name,
@@ -6763,22 +6756,126 @@
                     row?.city,
                     row?.district
                 ].filter(Boolean).join(' '));
-                return haystack.includes(customerSearchQuery);
+                return haystack.includes(searchQuery);
             })
             : customers.slice(0, 240);
         if (selectedCustomerId && !filteredCustomers.some((row) => String(row?.id || '').trim() === selectedCustomerId)) {
             const selectedRow = customers.find((row) => String(row?.id || '').trim() === selectedCustomerId);
             if (selectedRow) filteredCustomers.unshift(selectedRow);
         }
-        const customerOptions = filteredCustomers.map((row) => {
+        const customerOptionsHtml = filteredCustomers.map((row) => {
             const id = String(row?.id || '').trim();
             const selected = id === selectedCustomerId ? 'selected' : '';
             const extCode = String(row?.externalCode || row?.customerCode || '-').trim();
             return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(String(row?.name || '-'))} (${SalesModule.escapeHtml(extCode)})</option>`;
         }).join('');
-        const customerFilterMeta = customerSearchQuery
+        const customerFilterMeta = searchQuery
             ? `${filteredCustomers.length} eslesme / ${customers.length} musteri`
             : `${Math.min(filteredCustomers.length, customers.length)} musteri listeleniyor (ara yazarak filtrele)`;
+        const suggestionRows = searchQuery ? filteredCustomers.slice(0, 14) : [];
+        const customerSuggestionItemsHtml = suggestionRows.length
+            ? suggestionRows.map((row) => {
+                const id = String(row?.id || '').trim();
+                const extCode = String(row?.externalCode || row?.customerCode || '-').trim();
+                const cityText = [String(row?.city || '').trim(), String(row?.district || '').trim()]
+                    .filter(Boolean)
+                    .join(' / ');
+                const cityHtml = cityText ? `<span style="font-size:0.68rem; color:#64748b;">${SalesModule.escapeHtml(cityText)}</span>` : '';
+                return `
+                    <button
+                        type="button"
+                        style="display:flex; flex-direction:column; align-items:flex-start; gap:0.06rem; width:100%; border:none; border-bottom:1px solid #e2e8f0; background:#ffffff; padding:0.42rem 0.55rem; text-align:left; cursor:pointer;"
+                        onmousedown="SalesModule.selectSalesOrderCustomerFromSuggestion('${SalesModule.escapeHtml(id)}'); return false;">
+                        <span style="font-size:0.78rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(String(row?.name || '-'))}</span>
+                        <span style="font-size:0.7rem; color:#334155;">${SalesModule.escapeHtml(extCode)}</span>
+                        ${cityHtml}
+                    </button>
+                `;
+            }).join('')
+            : '<div style="padding:0.48rem 0.55rem; font-size:0.74rem; color:#94a3b8;">Eslesen musteri bulunamadi.</div>';
+        return {
+            searchTerm,
+            customerOptionsHtml,
+            customerFilterMeta,
+            suggestionRows,
+            customerSuggestionItemsHtml,
+            showCustomerSuggestionPanel: !!searchQuery
+        };
+    },
+
+    renderSalesOrderCustomerFilterUi: (draft = null) => {
+        const searchInput = document.getElementById('sales_order_customer_search');
+        const select = document.getElementById('sales_order_customer_select');
+        const meta = document.getElementById('sales_order_customer_filter_meta');
+        const suggestionPanel = document.getElementById('sales_order_customer_suggestion_panel');
+        const suggestionList = document.getElementById('sales_order_customer_suggestion_list');
+        if (!searchInput || !select || !meta) return false;
+        const wasFocused = document.activeElement === searchInput;
+        const selectionStart = typeof searchInput.selectionStart === 'number' ? searchInput.selectionStart : null;
+        const selectionEnd = typeof searchInput.selectionEnd === 'number' ? searchInput.selectionEnd : null;
+        const model = SalesModule.buildSalesOrderCustomerFilterModel(draft);
+        select.innerHTML = `<option value="">musteri sec *</option>${model.customerOptionsHtml}`;
+        meta.textContent = model.customerFilterMeta;
+        if (suggestionPanel && suggestionList) {
+            suggestionList.innerHTML = model.customerSuggestionItemsHtml;
+            suggestionPanel.style.display = model.showCustomerSuggestionPanel ? 'block' : 'none';
+        }
+        if (wasFocused && typeof searchInput.focus === 'function') {
+            searchInput.focus();
+            if (selectionStart !== null && selectionEnd !== null && typeof searchInput.setSelectionRange === 'function') {
+                searchInput.setSelectionRange(selectionStart, selectionEnd);
+            }
+        }
+        return true;
+    },
+
+    selectSalesOrderCustomerFromSuggestion: (customerId) => {
+        const id = String(customerId || '').trim();
+        if (!id) return;
+        SalesModule.state.salesOrderCustomerSearch = '';
+        SalesModule.setSalesOrderDraftField('customerId', id);
+    },
+
+    handleSalesOrderCustomerSearchKeydown: (event) => {
+        if (!event || String(event.key || '') !== 'Enter') return;
+        const model = SalesModule.buildSalesOrderCustomerFilterModel();
+        const first = Array.isArray(model?.suggestionRows) ? model.suggestionRows[0] : null;
+        if (!first) return;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        SalesModule.selectSalesOrderCustomerFromSuggestion(String(first?.id || ''));
+    },
+
+    hideSalesOrderCustomerSuggestionPanelDelayed: () => {
+        setTimeout(() => {
+            const panel = document.getElementById('sales_order_customer_suggestion_panel');
+            const wrap = document.getElementById('sales_order_customer_search_wrap');
+            if (!panel || !wrap) return;
+            const active = document.activeElement;
+            if (active && wrap.contains(active)) return;
+            panel.style.display = 'none';
+        }, 120);
+    },
+
+    renderSalesOrderEditorCardHtml: (options = {}) => {
+        const inModal = options?.inModal === true;
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft || SalesModule.buildSalesOrderDraft();
+        const totals = SalesModule.computeSalesOrderTotals(draft);
+        const customerFilterModel = SalesModule.buildSalesOrderCustomerFilterModel(draft);
+        const customerSearchTerm = customerFilterModel.searchTerm;
+        const customerOptions = customerFilterModel.customerOptionsHtml;
+        const customerFilterMeta = customerFilterModel.customerFilterMeta;
+        const customerSuggestionItemsHtml = customerFilterModel.customerSuggestionItemsHtml;
+        const customerSuggestionPanelDisplay = customerFilterModel.showCustomerSuggestionPanel ? 'block' : 'none';
+        const catalogProducts = SalesModule.getCatalogProducts().slice().sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+        const productMap = new Map(catalogProducts.map((row) => [String(row?.id || ''), row]));
+        const currency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
+        const fmtMoney = (value) => {
+            const out = new Intl.NumberFormat('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0));
+            if (currency === 'USD') return `$${out}`;
+            if (currency === 'EUR') return `${out} EUR`;
+            return `${out} TL`;
+        };
         const paymentMethodSuggestions = SalesModule.getSalesPaymentMethodSuggestions(draft);
         const paymentMethodOptionsHtml = paymentMethodSuggestions
             .map((item) => `<option value="${SalesModule.escapeHtml(String(item || ''))}"></option>`)
@@ -6797,7 +6894,7 @@
                             <span>tarih: <strong>${SalesModule.escapeHtml(String(draft.orderDate || '-'))}</strong></span>
                         </div>
                         ${inModal
-                ? `<button class="btn-sm" type="button" style="height:38px; min-width:82px; padding:0 0.95rem; border-color:#ef4444; background:#ef4444; color:#ffffff; font-weight:800; box-shadow:0 2px 8px rgba(239,68,68,0.25);" onclick="SalesModule.closeSalesOrderEditorModal()">Kapat</button>`
+                ? `<button class="btn-sm" type="button" style="height:38px; min-width:123px; padding:0 0.95rem; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800; box-shadow:0 2px 8px rgba(15,23,42,0.3);" onclick="SalesModule.closeSalesOrderEditorModal()">Kapat</button>`
                 : ''}
                     </div>
                 </div>
@@ -6806,9 +6903,14 @@
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label>
                         <div style="display:flex; flex-direction:column; gap:0.22rem;">
-                            <input class="stock-input" type="text" value="${SalesModule.escapeHtml(customerSearchTerm)}" placeholder="musteri ara (or: hançerli)" oninput="SalesModule.setSalesOrderCustomerSearch(this.value)">
-                            <select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select>
-                            <div style="font-size:0.66rem; color:#64748b;">${SalesModule.escapeHtml(customerFilterMeta)}</div>
+                            <div id="sales_order_customer_search_wrap" style="position:relative;">
+                                <input id="sales_order_customer_search" class="stock-input" type="text" value="${SalesModule.escapeHtml(customerSearchTerm)}" placeholder="musteri ara (or: hançerli)" oninput="SalesModule.setSalesOrderCustomerSearch(this.value)" onfocus="SalesModule.setSalesOrderCustomerSearch(this.value)" onkeydown="SalesModule.handleSalesOrderCustomerSearchKeydown(event)" onblur="SalesModule.hideSalesOrderCustomerSuggestionPanelDelayed()">
+                                <div id="sales_order_customer_suggestion_panel" style="display:${customerSuggestionPanelDisplay}; position:absolute; top:calc(100% + 4px); left:0; right:0; border:1px solid #cbd5e1; border-radius:0.55rem; background:#ffffff; box-shadow:0 10px 22px rgba(15,23,42,0.12); z-index:40; overflow:hidden;">
+                                    <div id="sales_order_customer_suggestion_list" style="max-height:220px; overflow:auto;">${customerSuggestionItemsHtml}</div>
+                                </div>
+                            </div>
+                            <select id="sales_order_customer_select" class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select>
+                            <div id="sales_order_customer_filter_meta" style="font-size:0.66rem; color:#64748b;">${SalesModule.escapeHtml(customerFilterMeta)}</div>
                         </div>
                     </div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>

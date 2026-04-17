@@ -199,6 +199,7 @@
         const bankAccounts = (Array.isArray(source.bankAccounts) ? source.bankAccounts : [])
             .map((row) => SalesModule.normalizeProformaBankAccount(row))
             .filter((row) => row.bankName || row.branchCode || row.accountNo || row.iban);
+        const customTemplateHtml = String(source.customTemplateHtml || '').trim();
         const companyInfoText = Array.isArray(source.companyInfoLines)
             ? source.companyInfoLines.map((line) => String(line || '').trim()).filter(Boolean).join('\n')
             : String(source.companyInfo || '').trim();
@@ -207,8 +208,9 @@
             logoFileName: String(source.logoFileName || '').trim(),
             bankAccounts,
             defaultNotes: String(source.defaultNotes || '').trim(),
-            templateMode: String(source.templateMode || '').trim().toLowerCase() === 'custom' ? 'custom' : 'default',
-            customTemplateHtml: String(source.customTemplateHtml || '').trim(),
+            // Kayıtlı özel şablon varsa her zaman özel şablon aktif olur.
+            templateMode: customTemplateHtml ? 'custom' : 'default',
+            customTemplateHtml,
             companyTitle: String(source.companyTitle ?? defaults.companyTitle).trim() || defaults.companyTitle,
             companyInfo: companyInfoText || defaults.companyInfo
         };
@@ -2785,6 +2787,14 @@
         UI.renderCurrentPage();
     },
 
+    clearProformaCustomTemplate: () => {
+        const draft = SalesModule.state.proformaSettingsDraft;
+        if (!draft || typeof draft !== 'object') return;
+        draft.customTemplateHtml = '';
+        draft.templateMode = 'default';
+        UI.renderCurrentPage();
+    },
+
     cancelProformaSettings: () => {
         if (SalesModule.hasProformaSettingsChanges()) {
             const proceed = confirm('Kaydedilmemis degisiklikler var. Ayarlar sayfasina donulsun mu?');
@@ -3034,12 +3044,17 @@
                 </div>
             </div>
         `;
-        const customTemplateEnabled = String(settings.templateMode || '').trim().toLowerCase() === 'custom';
         const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
-        if (!customTemplateEnabled || !customTemplateHtml) return defaultHtml;
+        const hasSavedCustomTemplate = customTemplateHtml.length > 0;
+        const sourceBadgeHtml = hasSavedCustomTemplate
+            ? `<div style="display:flex; justify-content:flex-end; margin-bottom:0.4rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">Kaynak: Kayitli Sablon</span></div>`
+            : `<div style="display:flex; justify-content:flex-end; margin-bottom:0.4rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">Kaynak: Standart Dulda Formati</span></div>`;
+        if (!hasSavedCustomTemplate) return `${sourceBadgeHtml}${defaultHtml}`;
 
         const tokenMap = {
             DEFAULT_PROFORMA_HTML: defaultHtml,
+            ACTIVE_TEMPLATE_SOURCE: hasSavedCustomTemplate ? 'Kayitli Sablon' : 'Standart Dulda Formati',
+            ACTIVE_TEMPLATE_SOURCE_BADGE: sourceBadgeHtml,
             LOGO_HTML: logoHtml,
             COMPANY_TITLE: SalesModule.escapeHtml(companyTitle || '-'),
             COMPANY_INFO_HTML: companyInfoHtml || '<div>-</div>',
@@ -3073,7 +3088,7 @@
             BANK_ROWS_HTML: bankRowsHtml
         };
         const renderedCustomHtml = SalesModule.applyProformaTemplateTokens(customTemplateHtml, tokenMap).trim();
-        return renderedCustomHtml || defaultHtml;
+        return renderedCustomHtml ? `${sourceBadgeHtml}${renderedCustomHtml}` : `${sourceBadgeHtml}${defaultHtml}`;
     },
 
     renderProformaSettingsPreview: () => {
@@ -7362,6 +7377,8 @@
             : { bankName: '', branchCode: '', accountNo: '', iban: '' };
         const bankAccounts = Array.isArray(draft.bankAccounts) ? draft.bankAccounts : [];
         const templateMode = String(draft.templateMode || '').trim().toLowerCase() === 'custom' ? 'custom' : 'default';
+        const hasSavedCustomTemplate = String(draft.customTemplateHtml || '').trim().length > 0;
+        const activeTemplateLabel = hasSavedCustomTemplate ? 'Kayitli Sablon' : 'Standart Dulda Formati';
         const hasChanges = SalesModule.hasProformaSettingsChanges();
 
         return `
@@ -7418,12 +7435,20 @@
 
                         <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
                             <div style="font-size:1rem; font-weight:800; color:#1e293b;">Format Kaynagi</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Proforma onizleme ve cikti bu secimden gelir.</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Kayıtlı özel şablon varsa önizleme ve çıktı otomatik o şablondan üretilir.</div>
+                            <div style="margin-top:0.45rem; display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                                <span style="display:inline-flex; align-items:center; padding:0.17rem 0.55rem; border:1px solid ${hasSavedCustomTemplate ? '#86efac' : '#cbd5e1'}; border-radius:999px; background:${hasSavedCustomTemplate ? '#f0fdf4' : '#f8fafc'}; color:${hasSavedCustomTemplate ? '#166534' : '#475569'}; font-size:0.72rem; font-weight:800;">
+                                    ${hasSavedCustomTemplate ? 'kayitli sablon var' : 'kayitli sablon yok'}
+                                </span>
+                                <span style="display:inline-flex; align-items:center; padding:0.17rem 0.55rem; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:0.72rem; font-weight:800;">
+                                    aktif kaynak: ${activeTemplateLabel}
+                                </span>
+                            </div>
                             <div style="margin-top:0.55rem; display:grid; grid-template-columns:220px 1fr; gap:0.65rem;">
                                 <div>
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Sablon Tipi</label>
                                     <select class="stock-input stock-input-tall" onchange="SalesModule.setProformaSettingsDraftField('templateMode', this.value); SalesModule.renderProformaSettingsPreview(); UI.renderCurrentPage();">
-                                        <option value="default" ${templateMode === 'default' ? 'selected' : ''}>Standart Dulda Formati</option>
+                                        <option value="default" ${templateMode === 'default' ? 'selected' : ''} ${hasSavedCustomTemplate ? 'disabled' : ''}>Standart Dulda Formati</option>
                                         <option value="custom" ${templateMode === 'custom' ? 'selected' : ''}>Ayarlar / Ozel HTML</option>
                                     </select>
                                 </div>
@@ -7438,10 +7463,16 @@
                                     <code style="color:#0f172a; font-size:0.74rem;">{{BANK_ROWS_HTML}}</code>
                                 </div>
                             </div>
+                            ${hasSavedCustomTemplate
+                ? `<div style="font-size:0.76rem; color:#64748b; margin-top:0.45rem;">Standart moda donmek icin ozel HTML sablonunu temizleyebilirsin.</div>`
+                : ''}
                             ${templateMode === 'custom'
                 ? `<div style="margin-top:0.6rem;">
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Ozel HTML Sablonu</label>
                                     <textarea class="stock-textarea" style="min-height:210px; font-family:Consolas,monospace;" oninput="SalesModule.setProformaSettingsDraftField('customTemplateHtml', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="<div>{{DEFAULT_PROFORMA_HTML}}</div>">${SalesModule.escapeHtml(String(draft.customTemplateHtml || ''))}</textarea>
+                                    <div style="display:flex; justify-content:flex-end; margin-top:0.45rem;">
+                                        <button class="btn-sm" type="button" onclick="SalesModule.clearProformaCustomTemplate()" ${hasSavedCustomTemplate ? '' : 'disabled'}>ozel sablonu temizle</button>
+                                    </div>
                                 </div>`
                 : ''}
                         </div>

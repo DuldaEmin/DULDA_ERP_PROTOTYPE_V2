@@ -54,7 +54,8 @@
             accountNo: '',
             iban: ''
         },
-        proformaSettingsSnapshot: ''
+        proformaSettingsSnapshot: '',
+        proformaSettingsMode: 'preview'
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -953,6 +954,7 @@
             SalesModule.state.proformaSettingsDraft = null;
             SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
             SalesModule.state.proformaSettingsSnapshot = '';
+            SalesModule.state.proformaSettingsMode = 'preview';
         }
         if (SalesModule.state.workspaceView !== 'settings-price-lists') {
             SalesModule.state.priceListDraft = null;
@@ -973,6 +975,7 @@
         SalesModule.state.proformaSettingsDraft = draft;
         SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
         SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(draft);
+        SalesModule.state.proformaSettingsMode = 'preview';
         SalesModule.state.workspaceView = 'settings-proforma';
         UI.renderCurrentPage();
     },
@@ -2697,12 +2700,22 @@
         UI.renderCurrentPage();
     },
 
+    hasPendingProformaBankDraft: () => {
+        const bankDraft = (SalesModule.state.proformaBankDraft && typeof SalesModule.state.proformaBankDraft === 'object')
+            ? SalesModule.state.proformaBankDraft
+            : null;
+        if (!bankDraft) return false;
+        return ['bankName', 'branchCode', 'accountNo', 'iban']
+            .some((key) => String(bankDraft?.[key] || '').trim().length > 0);
+    },
+
     hasProformaSettingsChanges: () => {
+        const hasPendingBankDraft = SalesModule.hasPendingProformaBankDraft();
         const draft = SalesModule.state.proformaSettingsDraft;
-        if (!draft) return false;
+        if (!draft) return hasPendingBankDraft;
         const baseline = String(SalesModule.state.proformaSettingsSnapshot || '');
-        if (!baseline) return false;
-        return SalesModule.serializeProformaSettings(draft) !== baseline;
+        if (!baseline) return hasPendingBankDraft;
+        return SalesModule.serializeProformaSettings(draft) !== baseline || hasPendingBankDraft;
     },
 
     setProformaSettingsDraftField: (field, value) => {
@@ -2795,6 +2808,23 @@
         UI.renderCurrentPage();
     },
 
+    setProformaSettingsMode: (mode = 'preview') => {
+        const nextMode = String(mode || '').trim().toLowerCase() === 'edit' ? 'edit' : 'preview';
+        const currentMode = String(SalesModule.state.proformaSettingsMode || 'preview').trim().toLowerCase();
+        if (currentMode === nextMode) return;
+        if (nextMode === 'preview' && SalesModule.hasProformaSettingsChanges()) {
+            const proceed = confirm('Kaydedilmemis degisiklikler var. Sadece goruntuleme moduna donulsun mu?');
+            if (!proceed) return;
+            const settings = SalesModule.getProformaSettings();
+            const draft = SalesModule.buildProformaSettingsDraft(settings);
+            SalesModule.state.proformaSettingsDraft = draft;
+            SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
+            SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(draft);
+        }
+        SalesModule.state.proformaSettingsMode = nextMode;
+        UI.renderCurrentPage();
+    },
+
     cancelProformaSettings: () => {
         if (SalesModule.hasProformaSettingsChanges()) {
             const proceed = confirm('Kaydedilmemis degisiklikler var. Ayarlar sayfasina donulsun mu?');
@@ -2808,6 +2838,30 @@
         const draft = SalesModule.state.proformaSettingsDraft;
         if (!draft || typeof draft !== 'object') return;
         const normalized = SalesModule.normalizeProformaSettings(draft);
+        const pendingBankDraft = (SalesModule.state.proformaBankDraft && typeof SalesModule.state.proformaBankDraft === 'object')
+            ? SalesModule.state.proformaBankDraft
+            : { bankName: '', branchCode: '', accountNo: '', iban: '' };
+        const hasPendingBankDraft = ['bankName', 'branchCode', 'accountNo', 'iban']
+            .some((key) => String(pendingBankDraft?.[key] || '').trim().length > 0);
+        if (hasPendingBankDraft) {
+            const pendingBank = SalesModule.normalizeProformaBankAccount({
+                id: crypto.randomUUID(),
+                bankName: pendingBankDraft.bankName,
+                branchCode: pendingBankDraft.branchCode,
+                accountNo: pendingBankDraft.accountNo,
+                iban: pendingBankDraft.iban
+            });
+            if (!pendingBank.bankName) {
+                alert('Kaydetmeden once banka adini girin ya da bos satiri temizleyin.');
+                return;
+            }
+            if (!pendingBank.iban) {
+                alert('Kaydetmeden once IBAN girin ya da bos satiri temizleyin.');
+                return;
+            }
+            const duplicatePendingBank = normalized.bankAccounts.some((row) => row.bankName === pendingBank.bankName && row.iban === pendingBank.iban);
+            if (!duplicatePendingBank) normalized.bankAccounts.push(pendingBank);
+        }
         const invalidRow = normalized.bankAccounts.find((row) => !row.bankName || !row.iban);
         if (invalidRow) {
             alert('Banka hesaplarinda banka adi ve IBAN zorunludur.');
@@ -2816,7 +2870,9 @@
         DB.data.data.salesSettings.proforma = normalized;
         await DB.save();
         SalesModule.state.proformaSettingsDraft = SalesModule.buildProformaSettingsDraft(normalized);
+        SalesModule.state.proformaBankDraft = { bankName: '', branchCode: '', accountNo: '', iban: '' };
         SalesModule.state.proformaSettingsSnapshot = SalesModule.serializeProformaSettings(normalized);
+        SalesModule.state.proformaSettingsMode = 'preview';
         alert('Proforma ayarlari kaydedildi.');
         UI.renderCurrentPage();
     },
@@ -7380,6 +7436,49 @@
         const hasSavedCustomTemplate = String(draft.customTemplateHtml || '').trim().length > 0;
         const activeTemplateLabel = hasSavedCustomTemplate ? 'Kayitli Sablon' : 'Standart Dulda Formati';
         const hasChanges = SalesModule.hasProformaSettingsChanges();
+        const mode = String(SalesModule.state.proformaSettingsMode || 'preview').trim().toLowerCase() === 'edit' ? 'edit' : 'preview';
+        const isEditMode = mode === 'edit';
+
+        if (!isEditMode) {
+            return `
+                <section class="stock-shell">
+                    <div class="stock-subpage-shell">
+                        <div class="stock-subpage-head">
+                            <h2 class="stock-title">satis & pazarlama / proforma ayarlari</h2>
+                            <button class="btn-sm" onclick="SalesModule.cancelProformaSettings()">geri</button>
+                        </div>
+
+                        <div class="card-table" style="padding:1.15rem 1.2rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.8rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+                                <div>
+                                    <div style="font-size:1.32rem; font-weight:800; color:#1e293b;">Proforma Ayarlari</div>
+                                    <div style="font-size:0.9rem; color:#64748b; margin-top:0.2rem;">Bu ekranda sadece onizleme gorunur. Duzenlemek icin asagidaki butona tiklayin.</div>
+                                </div>
+                                <button class="btn-primary" type="button" onclick="SalesModule.setProformaSettingsMode('edit')">
+                                    <i data-lucide="file-pen-line" width="14" height="14"></i>
+                                    Goruntule / Duzenle
+                                </button>
+                            </div>
+
+                            <div style="border-top:1px solid #e2e8f0; padding-top:0.9rem;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                                    <div>
+                                        <div style="font-size:1rem; font-weight:800; color:#1e293b;">Proforma Onizleme</div>
+                                        <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Kaydedilmis ayarlarin ornek proforma gorunumu asagida yer alir.</div>
+                                    </div>
+                                    <span style="display:inline-flex; align-items:center; padding:0.17rem 0.55rem; border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#1d4ed8; font-size:0.72rem; font-weight:800;">
+                                        aktif kaynak: ${activeTemplateLabel}
+                                    </span>
+                                </div>
+                                <div id="sales_proforma_preview_container" style="margin-top:0.6rem;">
+                                    ${SalesModule.buildProformaPreviewDocumentHtml(draft)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            `;
+        }
 
         return `
             <section class="stock-shell">
@@ -7395,9 +7494,12 @@
                                 <div style="font-size:1.32rem; font-weight:800; color:#1e293b;">Proforma Ayarlari</div>
                                 <div style="font-size:0.9rem; color:#64748b; margin-top:0.2rem;">PDF ciktilarinda kullanilacak format, logo, banka hesaplari ve varsayilan notlari buradan duzenleyebilirsin.</div>
                             </div>
-                            <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border:1px solid ${hasChanges ? '#fcd34d' : '#86efac'}; border-radius:999px; background:${hasChanges ? '#fffbeb' : '#f0fdf4'}; color:${hasChanges ? '#92400e' : '#166534'}; font-size:0.74rem; font-weight:800;">
-                                ${hasChanges ? 'kaydedilmemis degisiklik var' : 'tum degisiklikler kayitli'}
-                            </span>
+                            <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                                <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border:1px solid ${hasChanges ? '#fcd34d' : '#86efac'}; border-radius:999px; background:${hasChanges ? '#fffbeb' : '#f0fdf4'}; color:${hasChanges ? '#92400e' : '#166534'}; font-size:0.74rem; font-weight:800;">
+                                    ${hasChanges ? 'kaydedilmemis degisiklik var' : 'tum degisiklikler kayitli'}
+                                </span>
+                                <button class="btn-sm" type="button" onclick="SalesModule.setProformaSettingsMode('preview')">Onizlemeye Don</button>
+                            </div>
                         </div>
 
                         <div style="border-top:1px solid #e2e8f0; padding-top:0.9rem;">

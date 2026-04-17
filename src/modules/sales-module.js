@@ -170,7 +170,14 @@
         logoDataUrl: '',
         logoFileName: '',
         bankAccounts: [],
-        defaultNotes: ''
+        defaultNotes: '',
+        companyTitle: 'DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.',
+        companyInfo: [
+            'S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.',
+            '29.SOK. 3.CADDE NO:10 KOSELER MAH. DILOVASI / KOCAELI',
+            'Tel: +90 262 502 22 11 / Fax: +90 262 502 22 11',
+            'www.dulda.com - sales@dulda.com'
+        ].join('\n')
     }),
 
     normalizeProformaBankAccount: (row = {}) => {
@@ -186,14 +193,20 @@
 
     normalizeProformaSettings: (value = {}) => {
         const source = value && typeof value === 'object' ? value : {};
+        const defaults = SalesModule.buildDefaultProformaSettings();
         const bankAccounts = (Array.isArray(source.bankAccounts) ? source.bankAccounts : [])
             .map((row) => SalesModule.normalizeProformaBankAccount(row))
             .filter((row) => row.bankName || row.branchCode || row.accountNo || row.iban);
+        const companyInfoText = Array.isArray(source.companyInfoLines)
+            ? source.companyInfoLines.map((line) => String(line || '').trim()).filter(Boolean).join('\n')
+            : String(source.companyInfo || '').trim();
         return {
             logoDataUrl: String(source.logoDataUrl || '').trim(),
             logoFileName: String(source.logoFileName || '').trim(),
             bankAccounts,
-            defaultNotes: String(source.defaultNotes || '').trim()
+            defaultNotes: String(source.defaultNotes || '').trim(),
+            companyTitle: String(source.companyTitle ?? defaults.companyTitle).trim() || defaults.companyTitle,
+            companyInfo: companyInfoText || defaults.companyInfo
         };
     },
 
@@ -203,6 +216,8 @@
             logoDataUrl: normalized.logoDataUrl,
             logoFileName: normalized.logoFileName,
             defaultNotes: normalized.defaultNotes,
+            companyTitle: normalized.companyTitle,
+            companyInfo: normalized.companyInfo,
             bankAccounts: normalized.bankAccounts.map((row) => ({
                 bankName: row.bankName,
                 branchCode: row.branchCode,
@@ -283,7 +298,9 @@
             logoDataUrl: normalized.logoDataUrl,
             logoFileName: normalized.logoFileName,
             bankAccounts: normalized.bankAccounts.map((row) => ({ ...row })),
-            defaultNotes: normalized.defaultNotes
+            defaultNotes: normalized.defaultNotes,
+            companyTitle: normalized.companyTitle,
+            companyInfo: normalized.companyInfo
         };
     },
 
@@ -2861,6 +2878,14 @@
         const notesBag = [String(settings.defaultNotes || '').trim(), String(order.note || '').trim()].filter(Boolean).join('\n');
         const notesHtml = SalesModule.escapeHtml(notesBag || 'Not girilmedi.').replace(/\n/g, '<br>');
         const statusMeta = SalesModule.getSalesOrderStatusMeta(order.status);
+        const companyTitle = String(settings.companyTitle || '').trim();
+        const companyInfoLines = String(settings.companyInfo || '')
+            .split(/\r?\n/)
+            .map((line) => String(line || '').trim())
+            .filter(Boolean);
+        const companyInfoHtml = companyInfoLines
+            .map((line) => `<div>${SalesModule.escapeHtml(line)}</div>`)
+            .join('');
         const logoHtml = logoDataUrl
             ? `<img src="${SalesModule.escapeHtml(logoDataUrl)}" alt="logo" style="max-height:72px; max-width:220px; object-fit:contain;">`
             : '<div style="font-size:2.8rem; font-style:italic; font-weight:700; color:#334155; letter-spacing:0.01em;">dulda</div>';
@@ -2905,11 +2930,8 @@
                     <div style="display:grid; grid-template-columns:1fr 1.5fr; gap:0.8rem; align-items:start;">
                         <div>${logoHtml}</div>
                         <div style="text-align:right; font-size:0.74rem; color:#0f172a; line-height:1.4;">
-                            <div style="font-weight:800;">DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.</div>
-                            <div>S.S ISTANBUL KUCUK MARMERCILER SAN.SIT.YAP.KOOP.</div>
-                            <div>29.SOK. 3.CADDE NO:10 KOSELER MAH. DILOVASI / KOCAELI</div>
-                            <div>Tel: +90 262 502 22 11 / Fax: +90 262 502 22 11</div>
-                            <div>www.dulda.com - sales@dulda.com</div>
+                            <div style="font-weight:800;">${SalesModule.escapeHtml(companyTitle || '-')}</div>
+                            ${companyInfoHtml || '<div>-</div>'}
                         </div>
                     </div>
 
@@ -7295,7 +7317,7 @@
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.8rem; flex-wrap:wrap; margin-bottom:0.85rem;">
                             <div>
                                 <div style="font-size:1.32rem; font-weight:800; color:#1e293b;">Proforma Ayarlari</div>
-                                <div style="font-size:0.9rem; color:#64748b; margin-top:0.2rem;">PDF ciktilarinda kullanilacak logo, banka hesaplari ve varsayilan notlari buradan duzenleyebilirsin.</div>
+                                <div style="font-size:0.9rem; color:#64748b; margin-top:0.2rem;">PDF ciktilarinda kullanilacak format, logo, banka hesaplari ve varsayilan notlari buradan duzenleyebilirsin.</div>
                             </div>
                             <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border:1px solid ${hasChanges ? '#fcd34d' : '#86efac'}; border-radius:999px; background:${hasChanges ? '#fffbeb' : '#f0fdf4'}; color:${hasChanges ? '#92400e' : '#166534'}; font-size:0.74rem; font-weight:800;">
                                 ${hasChanges ? 'kaydedilmemis degisiklik var' : 'tum degisiklikler kayitli'}
@@ -7318,6 +7340,21 @@
                                 </div>
                             </div>
                             <div style="font-size:0.82rem; color:#64748b; margin-top:0.35rem;">En iyi sonuc icin PNG veya JPG formatinda bir logo yukleyin.</div>
+                        </div>
+
+                        <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">
+                            <div style="font-size:1rem; font-weight:800; color:#1e293b;">Belge Ust Bilgisi (Format)</div>
+                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.2rem;">Proforma olusturulurken bu blok aynen kullanilir.</div>
+                            <div style="margin-top:0.55rem; display:grid; grid-template-columns:1fr 1fr; gap:0.65rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Sirket Basligi</label>
+                                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(draft.companyTitle || ''))}" oninput="SalesModule.setProformaSettingsDraftField('companyTitle', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="or: DULDA MERDIVEN SISTEMLERI INS.SAN.TIC.LTD.STI.">
+                                </div>
+                                <div>
+                                    <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.22rem;">Sirket Bilgi Satirlari</label>
+                                    <textarea class="stock-textarea" style="min-height:98px;" oninput="SalesModule.setProformaSettingsDraftField('companyInfo', this.value); SalesModule.renderProformaSettingsPreview();" placeholder="Her satiri alt alta yazin.">${SalesModule.escapeHtml(String(draft.companyInfo || ''))}</textarea>
+                                </div>
+                            </div>
                         </div>
 
                         <div style="border-top:1px solid #e2e8f0; margin-top:0.95rem; padding-top:0.9rem;">

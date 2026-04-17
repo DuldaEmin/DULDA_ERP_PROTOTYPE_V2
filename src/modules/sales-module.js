@@ -2808,7 +2808,8 @@
         const currency = SalesModule.normalizeSalesCurrency(order.currency || 'USD');
         const exchangeRate = Number(order.exchangeRate || 0);
         const discountRate = SalesModule.parsePercent(order.globalDiscountRate ?? order.discountRate ?? 0);
-        const vatRate = Number(order.vatRate || 20) === 0 ? 0 : 20;
+        const vatRate = SalesModule.normalizeSalesVatRate(order.vatRate);
+        const deliveryAddress = SalesModule.resolveSalesOrderDeliveryAddress(order) || '-';
         const rawLines = Array.isArray(order.lines) ? order.lines : [];
         const lines = rawLines.map((line) => {
             const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
@@ -2903,7 +2904,7 @@
                         <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
                             <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF ALAN</div>
                             <div style="font-weight:700; margin-top:0.25rem;">${SalesModule.escapeHtml(String(order.customerName || '-'))}</div>
-                            <div style="margin-top:0.2rem; color:#334155;">${SalesModule.escapeHtml(String(order.deliveryAddress || '-'))}</div>
+                            <div style="margin-top:0.2rem; color:#334155; white-space:pre-wrap;">${SalesModule.escapeHtml(String(deliveryAddress))}</div>
                         </div>
                         <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
                             <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF DETAYLARI</div>
@@ -2958,7 +2959,7 @@
 
                     <div style="margin-top:0.8rem; font-size:0.9rem; color:#0f172a;">
                         <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>ODEME SEKLI</strong><span>${SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit'))}</span></div>
-                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(order.deliveryAddress || '-'))}</span></div>
+                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}</span></div>
                     </div>
 
                     <div style="margin-top:0.7rem;">
@@ -6747,6 +6748,9 @@
             .map((item) => `<option value="${SalesModule.escapeHtml(String(item || ''))}"></option>`)
             .join('');
         const lineRowsHtml = SalesModule.renderSalesWorkspaceDraftLineRowsHtml(draft, catalogProducts, productMap, currency);
+        const normalizedVatRate = SalesModule.normalizeSalesVatRate(draft.vatRate);
+        const exchangeRateNumeric = Number(draft.exchangeRate || 0);
+        const exchangeRateInputValue = exchangeRateNumeric > 0 ? String(exchangeRateNumeric) : '';
         return `
             <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
@@ -6765,9 +6769,9 @@
                 <div style="display:grid; grid-template-columns:minmax(220px,1.4fr) repeat(6,minmax(110px,1fr)); gap:0.55rem; margin-top:0.68rem;">
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Musteri sec <span style="color:#e11d48;">*</span></label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('customerId', this.value)"><option value="">musteri sec *</option>${customerOptions}</select></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(String(Number(draft.exchangeRate || 0).toFixed(4)))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(exchangeRateInputValue)}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${Number(draft.vatRate || 20) === 20 ? 'selected' : ''}>%20</option><option value="0" ${Number(draft.vatRate || 20) === 0 ? 'selected' : ''}>%0</option></select></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${normalizedVatRate === 20 ? 'selected' : ''}>%20</option><option value="0" ${normalizedVatRate === 0 ? 'selected' : ''}>%0</option></select></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label>
@@ -6813,7 +6817,7 @@
                         <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
                         <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem; color:#dc2626;"><span>Iskonto (%${SalesModule.escapeHtml(String(totals.discountRate || 0))})</span><strong>-${fmtMoney(totals.discountTotal)}</strong></div>
                         <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>KDV Matrahi</span><strong>${fmtMoney(totals.taxBase)}</strong></div>
-                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>${Number(draft.vatRate || 20) === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${Number(draft.vatRate || 20) === 0 ? 0 : 20})`}</span><strong>${fmtMoney(totals.vatTotal)}</strong></div>
+                        <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>${normalizedVatRate === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${normalizedVatRate})`}</span><strong>${fmtMoney(totals.vatTotal)}</strong></div>
                         <div style="display:flex; justify-content:space-between; padding:0.18rem 0; font-size:1rem; border-top:1px solid #dbe2ec; margin-top:0.14rem;"><span><strong>Genel Toplam</strong></span><strong>${fmtMoney(totals.grandTotal)}</strong></div>
                     </div>
                 </div>

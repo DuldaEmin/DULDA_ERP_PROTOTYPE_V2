@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-16T17:02:28.140Z",
+    "updated_at": "2026-04-17T11:16:31.846Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -46,7 +46,7 @@
         "130"
       ]
     },
-    "revision": 9004,
+    "revision": 9005,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -10297,7 +10297,8 @@
       "paymentMethods": [
         "Nakit",
         "Havale",
-        "EFT"
+        "EFT",
+        "1 ay vadeli"
       ]
     }
   }

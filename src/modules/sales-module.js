@@ -3205,12 +3205,9 @@
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
         const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
         const hasSavedCustomTemplate = customTemplateHtml.length > 0;
-        const sourceBadgeHtml = hasSavedCustomTemplate
-            ? `<div style="display:flex; justify-content:flex-end; margin-bottom:0.35rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">Kaynak: Kayitli Sablon</span></div>`
-            : `<div style="display:flex; justify-content:flex-end; margin-bottom:0.35rem;"><span style="display:inline-flex; align-items:center; gap:0.3rem; padding:0.14rem 0.5rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">Kaynak: Standart Dulda Formati</span></div>`;
+        const sourceBadgeHtml = '';
         const defaultHtml = `
-            <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.65rem;">
-                <div style="width:100%; max-width:100%; margin:0 auto; border:1px solid #e2e8f0; background:white; padding:0.72rem 0.75rem;">
+            <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.72rem 0.75rem; width:100%; max-width:100%; box-sizing:border-box;">
                     ${sourceBadgeHtml}
                     <div style="display:grid; grid-template-columns:minmax(180px,0.9fr) minmax(0,1.8fr); gap:0.7rem; align-items:start;">
                         <div>${logoHtml}</div>
@@ -3310,7 +3307,6 @@
                             <tbody>${bankRowsHtml}</tbody>
                         </table>
                     </div>
-                </div>
             </div>
         `;
         if (!hasSavedCustomTemplate) return defaultHtml;
@@ -3353,7 +3349,7 @@
             BANK_ROWS_HTML: bankRowsHtml
         };
         const renderedCustomHtml = SalesModule.applyProformaTemplateTokens(customTemplateHtml, tokenMap).trim();
-        return renderedCustomHtml ? `${sourceBadgeHtml}${renderedCustomHtml}` : `${sourceBadgeHtml}${defaultHtml}`;
+        return renderedCustomHtml || defaultHtml;
     },
 
     renderProformaSettingsPreview: () => {

@@ -666,68 +666,81 @@ const PurchasingModule = {
 
         PurchasingModule.ensureSupplierTypeOptions();
 
-        if (DB.data.data.suppliers.length === 0) {
-            DB.data.data.suppliers = [
-                {
-                    id: 'sup1',
-                    name: 'AKPA ALUMINYUM',
-                    externalCode: '320.01.A001',
-                    entityType: 'company',
-                    supplierTypes: [],
-                    tags: ['Hammadde'],
-                    notes: '',
-                    supplierContacts: [{
-                        id: crypto.randomUUID(),
-                        name: 'Ahmet Yilmaz',
-                        position: '',
-                        phones: ['0532 111 22 33'],
-                        email: '',
-                        note: ''
-                    }],
-                    contact: {
-                        person: 'Ahmet Yilmaz',
-                        phone: '0532 111 22 33',
-                        email: '',
-                        web: '',
-                        tax: '1234567890',
-                        taxOffice: '',
-                        address: 'OSB Mah.',
-                        city: 'Istanbul',
-                        country: 'Turkiye'
+        let changed = false;
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') {
+            DB.data.meta = {};
+            changed = true;
+        }
+        if (!DB.data.meta.seedFlags || typeof DB.data.meta.seedFlags !== 'object') {
+            DB.data.meta.seedFlags = {};
+            changed = true;
+        }
+        if (!DB.data.meta.seedFlags.purchasingSuppliersSeedV1) {
+            if (DB.data.data.suppliers.length === 0) {
+                DB.data.data.suppliers = [
+                    {
+                        id: 'sup1',
+                        name: 'AKPA ALUMINYUM',
+                        externalCode: '320.01.A001',
+                        entityType: 'company',
+                        supplierTypes: [],
+                        tags: ['Hammadde'],
+                        notes: '',
+                        supplierContacts: [{
+                            id: crypto.randomUUID(),
+                            name: 'Ahmet Yilmaz',
+                            position: '',
+                            phones: ['0532 111 22 33'],
+                            email: '',
+                            note: ''
+                        }],
+                        contact: {
+                            person: 'Ahmet Yilmaz',
+                            phone: '0532 111 22 33',
+                            email: '',
+                            web: '',
+                            tax: '1234567890',
+                            taxOffice: '',
+                            address: 'OSB Mah.',
+                            city: 'Istanbul',
+                            country: 'Turkiye'
+                        }
+                    },
+                    {
+                        id: 'sup2',
+                        name: 'TEKIN ELOKSAL',
+                        externalCode: '320.01.A002',
+                        entityType: 'company',
+                        supplierTypes: [],
+                        tags: ['Kaplama'],
+                        notes: '',
+                        supplierContacts: [{
+                            id: crypto.randomUUID(),
+                            name: 'Mehmet Demir',
+                            position: '',
+                            phones: ['0555 444 55 66'],
+                            email: '',
+                            note: ''
+                        }],
+                        contact: {
+                            person: 'Mehmet Demir',
+                            phone: '0555 444 55 66',
+                            email: '',
+                            web: '',
+                            tax: '0987654321',
+                            taxOffice: '',
+                            address: 'Sanayi Sit.',
+                            city: 'Istanbul',
+                            country: 'Turkiye'
+                        }
                     }
-                },
-                {
-                    id: 'sup2',
-                    name: 'TEKIN ELOKSAL',
-                    externalCode: '320.01.A002',
-                    entityType: 'company',
-                    supplierTypes: [],
-                    tags: ['Kaplama'],
-                    notes: '',
-                    supplierContacts: [{
-                        id: crypto.randomUUID(),
-                        name: 'Mehmet Demir',
-                        position: '',
-                        phones: ['0555 444 55 66'],
-                        email: '',
-                        note: ''
-                    }],
-                    contact: {
-                        person: 'Mehmet Demir',
-                        phone: '0555 444 55 66',
-                        email: '',
-                        web: '',
-                        tax: '0987654321',
-                        taxOffice: '',
-                        address: 'Sanayi Sit.',
-                        city: 'Istanbul',
-                        country: 'Turkiye'
-                    }
-                }
-            ];
+                ];
+                changed = true;
+            }
+            DB.data.meta.seedFlags.purchasingSuppliersSeedV1 = true;
+            changed = true;
         }
 
-        let changed = false;
         DB.data.data.suppliers = (DB.data.data.suppliers || []).map((supplier, index) => {
             const normalized = PurchasingModule.normalizeSupplierRecord(supplier, index);
             if (
@@ -1986,13 +1999,102 @@ const PurchasingModule = {
         UI.renderCurrentPage();
     },
 
+    unlinkSupplierReferences: (supplier = {}) => {
+        const target = (supplier && typeof supplier === 'object') ? supplier : {};
+        const targetId = String(target?.id || '').trim();
+        const targetName = String(target?.name || '').trim();
+        if (!targetId && !targetName) {
+            return { productsTouched: 0, profilesTouched: 0, linksRemoved: 0 };
+        }
+
+        const matchesByName = (value) => {
+            if (!targetName) return false;
+            return PurchasingModule.normalizeText(value) === PurchasingModule.normalizeText(targetName);
+        };
+        const matchesById = (value) => {
+            if (!targetId) return false;
+            return String(value || '').trim() === targetId;
+        };
+        const isSupplierLinkMatch = (link) => {
+            const linkId = String(link?.supplierId || link?.id || '').trim();
+            const linkName = String(link?.supplierName || link?.name || '').trim();
+            return matchesById(linkId) || matchesByName(linkName);
+        };
+        const removeFromArrayField = (container, key, matcher) => {
+            if (!container || typeof container !== 'object' || !Array.isArray(container[key])) return 0;
+            const before = container[key].length;
+            container[key] = container[key].filter((item) => !matcher(item));
+            return Math.max(0, before - container[key].length);
+        };
+        const clearScalarField = (container, key, matcher) => {
+            if (!container || typeof container !== 'object') return 0;
+            if (!Object.prototype.hasOwnProperty.call(container, key)) return 0;
+            const current = container[key];
+            if (current === undefined || current === null || current === '') return 0;
+            if (matcher(current)) {
+                container[key] = '';
+                return 1;
+            }
+            return 0;
+        };
+
+        let productsTouched = 0;
+        let profilesTouched = 0;
+        let linksRemoved = 0;
+
+        const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        products.forEach((product) => {
+            if (!product || typeof product !== 'object') return;
+            let removedCount = 0;
+            removedCount += removeFromArrayField(product, 'suppliers', (ref) => PurchasingModule.supplierMatchesRef(target, ref));
+            removedCount += removeFromArrayField(product, 'supplierIds', (ref) => matchesById(ref) || matchesByName(ref));
+            removedCount += removeFromArrayField(product, 'supplierNames', (ref) => matchesByName(ref) || matchesById(ref));
+            removedCount += removeFromArrayField(product, 'supplierLinks', (link) => isSupplierLinkMatch(link));
+
+            removedCount += clearScalarField(product, 'supplierId', (value) => matchesById(value) || matchesByName(value));
+            removedCount += clearScalarField(product, 'supplierName', (value) => matchesByName(value) || matchesById(value));
+
+            const specs = (product.specs && typeof product.specs === 'object') ? product.specs : null;
+            removedCount += removeFromArrayField(specs, 'suppliers', (ref) => PurchasingModule.supplierMatchesRef(target, ref));
+            removedCount += removeFromArrayField(specs, 'supplierIds', (ref) => matchesById(ref) || matchesByName(ref));
+            removedCount += removeFromArrayField(specs, 'supplierNames', (ref) => matchesByName(ref) || matchesById(ref));
+            removedCount += removeFromArrayField(specs, 'supplierLinks', (link) => isSupplierLinkMatch(link));
+            removedCount += clearScalarField(specs, 'supplierId', (value) => matchesById(value) || matchesByName(value));
+            removedCount += clearScalarField(specs, 'supplierName', (value) => matchesByName(value) || matchesById(value));
+
+            if (removedCount > 0) {
+                productsTouched += 1;
+                linksRemoved += removedCount;
+            }
+        });
+
+        const profiles = Array.isArray(DB.data?.data?.aluminumProfiles) ? DB.data.data.aluminumProfiles : [];
+        profiles.forEach((profile) => {
+            if (!profile || typeof profile !== 'object') return;
+            const removedCount = removeFromArrayField(profile, 'suppliers', (ref) => PurchasingModule.supplierMatchesRef(target, ref));
+            if (removedCount > 0) {
+                profilesTouched += 1;
+                linksRemoved += removedCount;
+            }
+        });
+
+        return { productsTouched, profilesTouched, linksRemoved };
+    },
+
     deleteSupplier: async (id) => {
         const targetId = String(id || '').trim();
         if (!targetId) return;
-        if (confirm('Silmek istediginize emin misiniz?')) {
-            DB.data.data.suppliers = (DB.data.data.suppliers || []).filter(s => String(s?.id || '').trim() !== targetId);
-            await DB.save();
-            UI.renderCurrentPage();
+        const suppliers = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
+        const supplier = suppliers.find((row) => String(row?.id || '').trim() === targetId) || null;
+        const supplierLabel = String(supplier?.name || targetId).trim() || targetId;
+        if (!confirm(`${supplierLabel} kaydi silinsin mi? Bagli urun referanslari da otomatik temizlenecek.`)) return;
+
+        const cleanup = supplier ? PurchasingModule.unlinkSupplierReferences(supplier) : { productsTouched: 0, profilesTouched: 0, linksRemoved: 0 };
+        DB.data.data.suppliers = suppliers.filter((row) => String(row?.id || '').trim() !== targetId);
+        await DB.save();
+        UI.renderCurrentPage();
+        if (cleanup.linksRemoved > 0) {
+            alert(`Tedarikci silindi. ${cleanup.linksRemoved} bag temizlendi (${cleanup.productsTouched} urun, ${cleanup.profilesTouched} profil).`);
         }
     }
 };

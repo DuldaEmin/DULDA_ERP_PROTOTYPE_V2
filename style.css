@@ -1735,50 +1735,6 @@ tr:hover {
     gap: 0.55rem;
 }
 
-.sales-catalog-anchor-tools {
-    margin-top: auto;
-    padding-top: 0.55rem;
-    border-top: 1px dashed #cfd8e3;
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-}
-
-.sales-catalog-anchor-btn {
-    border: 1px solid #cbd5e1;
-    border-radius: 0.7rem;
-    background: #ffffff;
-    color: #334155;
-    font-size: 0.92rem;
-    font-weight: 800;
-    text-align: left;
-    padding: 0.58rem 0.66rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    cursor: pointer;
-    transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
-}
-
-.sales-catalog-anchor-btn:hover {
-    border-color: #93c5fd;
-    background: #eff6ff;
-    color: #1d4ed8;
-}
-
-.sales-catalog-anchor-btn.is-active {
-    border-color: #16a34a;
-    background: #16a34a;
-    color: #ffffff;
-}
-
-.sales-catalog-anchor-note {
-    font-size: 0.72rem;
-    color: #64748b;
-    line-height: 1.4;
-}
-
 .sales-catalog-tree-main,
 .sales-catalog-tree-group {
     display: flex;

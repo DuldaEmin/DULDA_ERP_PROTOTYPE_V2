@@ -5142,6 +5142,13 @@
                         { id: 'rail-stainless-dikme', label: 'Paslanmaz dikmeleri' },
                         { id: 'rail-stainless-accessory', label: 'Aksesuarlar' }
                     ]
+                },
+                {
+                    id: 'rail-anchorage',
+                    label: 'Ankrajlar',
+                    children: [
+                        { id: 'ankrajlar', label: 'Ankrajlar' }
+                    ]
                 }
             ]
         },
@@ -5424,6 +5431,7 @@
 
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (leaf && String(leaf.id || '') === 'ankrajlar') return 'Korkuluk / Ankrajlar';
         if (leaf && String(leaf.id || '') === 'boru') return 'Pleksi boru';
         if (leaf && String(leaf.id || '') === 'cubuk') return 'Pleksi cubuk';
         if (leaf && String(leaf.id || '') === 'ozel-profiller') return 'Ozel profiller';
@@ -5943,12 +5951,7 @@
         const expandedMainId = String(SalesModule.state.catalogExpandedMainId || '').trim();
         const expandedGroupId = String(SalesModule.state.catalogExpandedGroupId || '').trim();
         const highlightKey = String(SalesModule.state.catalogHighlightKey || '').trim();
-        const showAnchorageButton = options?.showAnchorageButton !== false;
-        const anchorageActive = SalesModule.state.catalogAnchorageMode === true;
-        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
-        const anchorageScopeText = activeMain
-            ? `${String(activeMain.label || '').trim()} icin`
-            : 'Secili urun grubu icin';
+        void options;
         return `
             <div class="sales-catalog-tree-wrap">
                 <div class="sales-catalog-tree">
@@ -6034,13 +6037,6 @@
                     `;
             }).join('')}
                 </div>
-                ${showAnchorageButton ? `<div class="sales-catalog-anchor-tools">
-                    <button class="sales-catalog-anchor-btn ${anchorageActive ? 'is-active' : ''}" type="button" onclick="SalesModule.openCatalogAnchorageSection()">
-                        <span>ankrajlar</span>
-                        <span class="sales-catalog-tree-arrow">${anchorageActive ? 'v' : '>'}</span>
-                    </button>
-                    <div class="sales-catalog-anchor-note">${SalesModule.escapeHtml(String(anchorageScopeText || ''))} ankraj listesi.</div>
-                </div>` : ''}
             </div>
         `;
     },
@@ -6219,41 +6215,30 @@
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
-        const anchorageMode = SalesModule.state.catalogAnchorageMode === true;
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         const isPipeLeaf = SalesModule.isPipeFamilyCategory(activeCategoryId);
         const searchText = String(SalesModule.state.catalogSearchText || '');
         const supportsCatalogCrud = isCatalogMain || isPipeLeaf;
-        const supportsCrud = anchorageMode || supportsCatalogCrud;
-        const pathText = anchorageMode
-            ? `${String(activeMain?.label || 'Urun gruplari')} / Ankrajlar`
-            : SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const totalCategoryCount = anchorageMode
-            ? SalesModule.getAnchorageProducts().length
-            : ((supportsCatalogCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0);
-        const filteredRows = anchorageMode
-            ? SalesModule.getFilteredAnchorageProducts(searchText)
-            : ((supportsCatalogCrud && activeLeaf)
-                ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
-                : []);
+        const supportsCrud = supportsCatalogCrud;
+        const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
+        const totalCategoryCount = (supportsCatalogCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
+        const filteredRows = (supportsCatalogCrud && activeLeaf)
+            ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
+            : [];
         const filteredCount = filteredRows.length;
-        const createButtonHtml = anchorageMode
-            ? '<button class="btn-primary" onclick="SalesModule.openCreateAnchorageModal()">yeni urun ekle +</button>'
-            : ((supportsCatalogCrud && activeGroup && activeLeaf)
-                ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>'
-                : '');
-        const contentClass = (supportsCatalogCrud && !anchorageMode && isPipeLeaf) ? 'sales-catalog-list' : 'sales-catalog-grid';
-        const listHtml = anchorageMode
-            ? SalesModule.renderAnchorageCardsHtml(filteredRows, searchText)
-            : ((supportsCatalogCrud && activeLeaf)
-                ? (isPipeLeaf
-                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
-                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
-                : `<div class="sales-catalog-empty">
+        const createButtonHtml = (supportsCatalogCrud && activeGroup && activeLeaf)
+            ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>'
+            : '';
+        const contentClass = (supportsCatalogCrud && isPipeLeaf) ? 'sales-catalog-list' : 'sales-catalog-grid';
+        const listHtml = (supportsCatalogCrud && activeLeaf)
+            ? (isPipeLeaf
+                ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
+                : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
+            : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
                                         <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
-                                   </div>`);
+                                   </div>`;
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">

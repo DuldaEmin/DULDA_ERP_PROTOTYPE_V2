@@ -1684,7 +1684,35 @@ const PurchasingModule = {
                                                 ${linkedPreview ? `<div style="font-size:0.75rem; color:#94a3b8; margin-top:0.2rem">${PurchasingModule.escapeHtml(linkedPreview)}${linkedCount > 2 ? ', ...' : ''}</div>` : ''}
                                             </td>
                                             <td style="padding:0.9rem 1rem; text-align:right">
-                                                <button onclick="event.stopPropagation(); PurchasingModule.deleteSupplier('${PurchasingModule.escapeHtml(String(s.id || ''))}')" style="border:none; background:none; color:#cbd5e1; cursor:pointer"><i data-lucide="trash-2" width="18"></i></button>
+                                                <div style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                                    <button
+                                                        type="button"
+                                                        title="Kalem duzenle"
+                                                        aria-label="Kalem duzenle"
+                                                        onclick="event.stopPropagation(); PurchasingModule.editSupplier('${PurchasingModule.escapeHtml(String(s.id || ''))}')"
+                                                        onmouseover="this.style.background='#dbeafe'; this.style.borderColor='#93c5fd'; this.style.boxShadow='0 4px 10px rgba(59,130,246,0.18)'"
+                                                        onmouseout="this.style.background='#eff6ff'; this.style.borderColor='#bfdbfe'; this.style.boxShadow='none'; this.style.transform='translateY(0) scale(1)'"
+                                                        onmousedown="this.style.transform='translateY(1px) scale(0.97)'; this.style.boxShadow='inset 0 1px 2px rgba(30,64,175,0.22)'"
+                                                        onmouseup="this.style.transform='translateY(0) scale(1)'"
+                                                        style="display:inline-flex; align-items:center; gap:0.28rem; height:30px; padding:0 0.58rem; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:0.55rem; font-size:0.74rem; font-weight:800; cursor:pointer; transition:all 0.12s ease;"
+                                                    >
+                                                        <i data-lucide="pencil" width="14"></i>
+                                                        duzenle
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title="Sil"
+                                                        aria-label="Sil"
+                                                        onclick="event.stopPropagation(); PurchasingModule.deleteSupplier('${PurchasingModule.escapeHtml(String(s.id || ''))}')"
+                                                        onmouseover="this.style.background='#fee2e2'; this.style.borderColor='#fca5a5'; this.style.boxShadow='0 4px 10px rgba(220,38,38,0.2)'"
+                                                        onmouseout="this.style.background='#fef2f2'; this.style.borderColor='#fecaca'; this.style.boxShadow='none'; this.style.transform='translateY(0) scale(1)'"
+                                                        onmousedown="this.style.transform='translateY(1px) scale(0.97)'; this.style.boxShadow='inset 0 1px 2px rgba(153,27,27,0.24)'"
+                                                        onmouseup="this.style.transform='translateY(0) scale(1)'"
+                                                        style="display:inline-flex; align-items:center; justify-content:center; height:30px; min-width:30px; padding:0 0.5rem; border:1px solid #fecaca; background:#fef2f2; color:#b91c1c; border-radius:0.55rem; cursor:pointer; transition:all 0.12s ease;"
+                                                    >
+                                                        <i data-lucide="trash-2" width="16"></i>
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     `;

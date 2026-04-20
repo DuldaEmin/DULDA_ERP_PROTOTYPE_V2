@@ -3224,6 +3224,12 @@
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
         const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
         const hasSavedCustomTemplate = customTemplateHtml.length > 0;
+        const shipmentAddressHtml = [
+            'İmes San. Sit. B Blok 206 No:1 Y.Dudullu, 34776',
+            'SANCAKTEPE/İstanbul'
+        ]
+            .map((line) => SalesModule.escapeHtml(line))
+            .join('<br>');
         const sourceBadgeHtml = '';
         const defaultHtml = `
             <div style="background:#fff; border:1px solid #cbd5e1; border-radius:0.9rem; padding:0.72rem 0.75rem; width:100%; max-width:100%; box-sizing:border-box;">
@@ -3242,7 +3248,10 @@
                         <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
                             <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF ALAN</div>
                             <div style="font-weight:700; margin-top:0.25rem;">${SalesModule.escapeHtml(String(order.customerName || '-'))}</div>
-                            <div style="margin-top:0.2rem; color:#334155; white-space:pre-wrap;">${SalesModule.escapeHtml(String(deliveryAddress))}</div>
+                            <div style="margin-top:0.32rem; border-top:1px solid #cbd5e1; padding-top:0.3rem;">
+                                <div style="font-size:0.78rem; font-weight:800; color:#0f172a;">SEVKİYAT ADRESİ ;</div>
+                                <div style="margin-top:0.18rem; color:#334155; line-height:1.42;">${shipmentAddressHtml}</div>
+                            </div>
                         </div>
                         <div style="background:#f1f5f9; border:1px solid #e2e8f0; padding:0.55rem 0.7rem;">
                             <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">TEKLIF DETAYLARI</div>

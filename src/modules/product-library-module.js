@@ -41,6 +41,7 @@
         masterDraftCategoryId: 'cat1',
         masterDraftName: '',
         masterDraftUnit: 'adet',
+        masterDraftConsumptionUnit: '',
         masterDraftUnitAmount: '',
         masterDraftBrand: '',
         masterDraftPack: '',
@@ -6658,8 +6659,25 @@
         if (!Array.isArray(DB.data.data.products)) DB.data.data.products = [];
         if (!Array.isArray(DB.data.data.suppliers)) DB.data.data.suppliers = [];
         if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
+        const defaultMasterUnits = ProductLibraryModule.getDefaultMasterUnitOptions();
         if (!Array.isArray(DB.data.meta.options.masterUnits) || DB.data.meta.options.masterUnits.length === 0) {
-            DB.data.meta.options.masterUnits = ['adet', 'kg', 'mt', 'koli'];
+            DB.data.meta.options.masterUnits = [...defaultMasterUnits];
+        } else {
+            const normalizedDefaultOrder = defaultMasterUnits.map((item) => String(item || '').trim()).filter(Boolean);
+            const existing = DB.data.meta.options.masterUnits.map((item) => String(item || '').trim()).filter(Boolean);
+            const existingSet = new Set(existing.map((item) => item.toLocaleLowerCase('tr-TR')));
+            const merged = [...normalizedDefaultOrder];
+            existing.forEach((item) => {
+                const key = item.toLocaleLowerCase('tr-TR');
+                if (!key || merged.some((v) => String(v || '').toLocaleLowerCase('tr-TR') === key)) return;
+                merged.push(item);
+            });
+            normalizedDefaultOrder.forEach((item) => {
+                const key = item.toLocaleLowerCase('tr-TR');
+                if (existingSet.has(key)) return;
+                if (!merged.some((v) => String(v || '').toLocaleLowerCase('tr-TR') === key)) merged.push(item);
+            });
+            DB.data.meta.options.masterUnits = merged;
         }
         if (!Array.isArray(DB.data.meta.options.masterColors) || DB.data.meta.options.masterColors.length === 0) {
             DB.data.meta.options.masterColors = ['Siyah', 'Beyaz', 'Antrasit', 'Fume'];
@@ -6673,6 +6691,10 @@
         const unitOptions = ProductLibraryModule.getMasterUnitOptions();
         if (!unitOptions.includes(ProductLibraryModule.state.masterDraftUnit)) {
             ProductLibraryModule.state.masterDraftUnit = unitOptions[0] || '';
+        }
+        if (ProductLibraryModule.state.masterDraftConsumptionUnit
+            && !unitOptions.includes(ProductLibraryModule.state.masterDraftConsumptionUnit)) {
+            ProductLibraryModule.state.masterDraftConsumptionUnit = '';
         }
         ProductLibraryModule.state.masterDraftColorType = ProductLibraryModule.normalizeColorType(ProductLibraryModule.state.masterDraftColorType || '');
         if (!ProductLibraryModule.state.masterDraftColorType) {
@@ -6776,6 +6798,9 @@
             type: 'MASTER',
             name: String(salesRow?.name || previous?.name || '').trim() || 'Adsiz urun',
             code: mirrorCode,
+            unit: 'adet',
+            alisBirimi: 'adet',
+            tuketimBirimi: '',
             unitAmount: '1',
             unitAmountType: 'adet',
             suppliers: [],
@@ -6791,6 +6816,8 @@
             specs: {
                 ...((previous?.specs && typeof previous.specs === 'object') ? previous.specs : {}),
                 unit: 'adet',
+                alisBirimi: 'adet',
+                tuketimBirimi: '',
                 unitAmount: '1',
                 unitAmountType: 'adet',
                 brandModel: String(salesRow?.productCode || '').trim(),
@@ -6937,9 +6964,42 @@
         });
     },
 
+    getDefaultMasterUnitOptions: () => ([
+        'adet',
+        'kg',
+        'mt',
+        'mm',
+        'cm',
+        'm2',
+        'm3',
+        'lt',
+        'koli',
+        'paket',
+        'set',
+        'takim',
+        'palet'
+    ]),
+
     getMasterUnitOptions: () => {
         if (!DB.data.meta.options || typeof DB.data.meta.options !== 'object') DB.data.meta.options = {};
-        if (!Array.isArray(DB.data.meta.options.masterUnits)) DB.data.meta.options.masterUnits = ['adet'];
+        const defaults = ProductLibraryModule.getDefaultMasterUnitOptions();
+        if (!Array.isArray(DB.data.meta.options.masterUnits) || DB.data.meta.options.masterUnits.length === 0) {
+            DB.data.meta.options.masterUnits = [...defaults];
+            return DB.data.meta.options.masterUnits;
+        }
+        const current = DB.data.meta.options.masterUnits
+            .map((item) => String(item || '').trim())
+            .filter(Boolean);
+        const seen = new Set(current.map((item) => item.toLocaleLowerCase('tr-TR')));
+        let changed = false;
+        defaults.forEach((item) => {
+            const key = String(item || '').toLocaleLowerCase('tr-TR');
+            if (seen.has(key)) return;
+            current.push(item);
+            seen.add(key);
+            changed = true;
+        });
+        if (changed) DB.data.meta.options.masterUnits = current;
         return DB.data.meta.options.masterUnits;
     },
 

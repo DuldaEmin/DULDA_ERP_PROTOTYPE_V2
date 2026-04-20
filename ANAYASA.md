@@ -84,3 +84,28 @@ Degismez kurallar:
 Arama ve yonlendirme ilkesi:
 - ana ekrandaki ID aramasi tek bir kaynaga gitmelidir
 - bu nedenle global kod benzersizligi zorunludur
+
+## 8) Master Urun Kutuphanesi Yasasi
+Master Urun Kutuphanesi, fabrikaya giren tum fiziksel malzemelerin ilk kabul kimliginin tutuldugu ana referans katalogdur.
+
+Kapsam:
+- dogrudan kullanilan malzemeler (vida, hirdavat, koli, zimpara vb.)
+- proseste sekil degistiren girdiler (PMMA granul vb.)
+- yardimci tuketimler, ambalajlar ve satin alma ile gelen diger fiziksel urunler
+
+Temel ilke:
+- malzeme sisteme hangi formda giriyorsa, master kaydi o ilk formu temsil eder
+- master kayit "ilk kimlik"tir; uretim sonrasi olusan ara form/mamul bu kaydin yerine gecmez
+
+Zorunlu kullanim:
+- satin alma talebi ve siparis acarken urun secimi master urun kutuphanesi kaydi uzerinden yapilir
+- depo mal kabul, ilk stok girisi ve envantere alma islemlerinde secim master kayittan yapilir
+- moduller arasi baglanti urun adi ile degil master kaydin ID kodu ile kurulur
+
+Omurga kurali:
+- master urun kutuphanesi, fabrikadaki tum malzeme varliginin tek ve merkezi referans omurgasidir
+- ayni malzeme icin modul bazli tekrar kart acilmaz; tum akis ayni master kimlige baglanir
+
+Sinir kurali:
+- islem sonrasi varyantlar, yari mamuller, montaj kartlari ve satisa ozel urunler kendi kutuphanelerinde yonetilir
+- bu kayitlar master kimligi silemez, degistiremez veya ikame edemez; sadece ona baglanir

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-17T16:52:20.725Z",
+    "updated_at": "2026-04-20T11:34:55.118Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -45,9 +45,161 @@
         "65",
         "100",
         "130"
+      ],
+      "supplierTypes": [
+        {
+          "id": "sup_type_3200101",
+          "code": "320.01.01",
+          "name": "AKSESUAR SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200102",
+          "code": "320.01.02",
+          "name": "ALUMINYUM SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200103",
+          "code": "320.01.03",
+          "name": "ALUMINYUM-DEMIR-CELIK-PASLANMAZ",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200104",
+          "code": "320.01.04",
+          "name": "AMBALAJ SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200105",
+          "code": "320.01.05",
+          "name": "ARAC BAKIM",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200106",
+          "code": "320.01.06",
+          "name": "BAKIM",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200107",
+          "code": "320.01.07",
+          "name": "CAM SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200108",
+          "code": "320.01.08",
+          "name": "CIVATA-SOMUN-SAPLAMA",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200109",
+          "code": "320.01.09",
+          "name": "DIGER SATICILAR",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200110",
+          "code": "320.01.10",
+          "name": "GAZ SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200111",
+          "code": "320.01.11",
+          "name": "GONUL SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200112",
+          "code": "320.01.12",
+          "name": "HIRDAVAT SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200113",
+          "code": "320.01.13",
+          "name": "HIZMET SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200114",
+          "code": "320.01.14",
+          "name": "KAPLAMA CARILERI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200115",
+          "code": "320.01.15",
+          "name": "MAKINA VE DEMIRBAS SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200116",
+          "code": "320.01.16",
+          "name": "NAKLIYE-KARGO-LOJISTIK",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200117",
+          "code": "320.01.17",
+          "name": "OTEL",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200118",
+          "code": "320.01.18",
+          "name": "PALET-AHSAP-SANDIK SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200119",
+          "code": "320.01.19",
+          "name": "SIGORTA",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200120",
+          "code": "320.01.20",
+          "name": "TEKNOLOJI-YAZILIM-BILISIM",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200121",
+          "code": "320.01.21",
+          "name": "TEKSTIL SATICILARI",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200122",
+          "code": "320.01.22",
+          "name": "TEMIZLIK",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200123",
+          "code": "320.01.23",
+          "name": "UC VE BILEME",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200124",
+          "code": "320.01.24",
+          "name": "YAG",
+          "aliases": []
+        },
+        {
+          "id": "sup_type_3200125",
+          "code": "320.01.25",
+          "name": "YEMEK",
+          "aliases": []
+        }
       ]
     },
-    "revision": 9028,
+    "revision": 9033,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -4704,46 +4856,7 @@
         "updated_at": "2026-04-15T21:10:06.910+03:00"
       }
     ],
-    "suppliers": [
-      {
-        "id": "sup1",
-        "name": "AKPA ALUMINYUM",
-        "entityType": "company",
-        "tags": [
-          "Hammadde"
-        ],
-        "notes": "",
-        "contact": {
-          "person": "Ahmet Yilmaz",
-          "phone": "0532 111 22 33",
-          "email": "",
-          "web": "",
-          "tax": "1234567890",
-          "address": "OSB Mah.",
-          "city": "Istanbul",
-          "country": "Turkiye"
-        }
-      },
-      {
-        "id": "sup2",
-        "name": "TEKIN ELOKSAL",
-        "entityType": "company",
-        "tags": [
-          "Kaplama"
-        ],
-        "notes": "",
-        "contact": {
-          "person": "Mehmet Demir",
-          "phone": "0555 444 55 66",
-          "email": "",
-          "web": "",
-          "tax": "0987654321",
-          "address": "Sanayi Sit.",
-          "city": "Istanbul",
-          "country": "Turkiye"
-        }
-      }
-    ],
+    "suppliers": [],
     "personnel": [
       {
         "id": "0710f02a-955c-4873-9852-7d7536a059d7",

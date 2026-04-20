@@ -142,6 +142,7 @@
         if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
         if (!Array.isArray(DB.data.data.salesAnchorageProducts)) DB.data.data.salesAnchorageProducts = [];
         SalesModule.ensureCatalogPublicIds();
+        SalesModule.ensureAnchoragePublicIds();
         SalesModule.ensureSettingsData();
     },
 
@@ -936,6 +937,16 @@
             const current = String(row.idCode || '').trim();
             if (current) return;
             row.idCode = SalesModule.generateCatalogPublicId({ rowId: String(row.id || '').trim() });
+        });
+    },
+
+    ensureAnchoragePublicIds: () => {
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        rows.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const current = String(row.idCode || '').trim();
+            if (current) return;
+            row.idCode = SalesModule.generateAnchoragePublicId({ rowId: String(row.id || '').trim() });
         });
     },
 
@@ -5927,14 +5938,21 @@
         `;
     },
 
-    renderCatalogTreeHtml: () => {
+    renderCatalogTreeHtml: (options = {}) => {
         const mains = SalesModule.getCatalogTree();
         const expandedMainId = String(SalesModule.state.catalogExpandedMainId || '').trim();
         const expandedGroupId = String(SalesModule.state.catalogExpandedGroupId || '').trim();
         const highlightKey = String(SalesModule.state.catalogHighlightKey || '').trim();
+        const showAnchorageButton = options?.showAnchorageButton !== false;
+        const anchorageActive = SalesModule.state.catalogAnchorageMode === true;
+        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
+        const anchorageScopeText = activeMain
+            ? `${String(activeMain.label || '').trim()} icin`
+            : 'Secili urun grubu icin';
         return `
-            <div class="sales-catalog-tree">
-                ${mains.map((main) => {
+            <div class="sales-catalog-tree-wrap">
+                <div class="sales-catalog-tree">
+                    ${mains.map((main) => {
                 const mainId = String(main.id || '');
                 const mainLabel = String(main.label || '-');
                 const isMainOpen = mainId === expandedMainId;
@@ -6015,6 +6033,14 @@
                         </div>
                     `;
             }).join('')}
+                </div>
+                ${showAnchorageButton ? `<div class="sales-catalog-anchor-tools">
+                    <button class="sales-catalog-anchor-btn ${anchorageActive ? 'is-active' : ''}" type="button" onclick="SalesModule.openCatalogAnchorageSection()">
+                        <span>ankrajlar</span>
+                        <span class="sales-catalog-tree-arrow">${anchorageActive ? 'v' : '>'}</span>
+                    </button>
+                    <div class="sales-catalog-anchor-note">${SalesModule.escapeHtml(String(anchorageScopeText || ''))} ankraj listesi.</div>
+                </div>` : ''}
             </div>
         `;
     },
@@ -6068,6 +6094,44 @@
                         <div class="sales-catalog-card-actions">
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
                             <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditCatalogModal('${id}')">duzenle</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    renderAnchorageCardsHtml: (rows, searchText = '') => {
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+            return `
+                <div class="sales-catalog-empty">
+                    <div class="sales-catalog-empty-title">${String(searchText || '').trim() ? 'Sonuc bulunamadi' : 'Bu alanda ankraj yok'}</div>
+                    <div class="sales-catalog-empty-text">${String(searchText || '').trim()
+                ? `"${SalesModule.escapeHtml(String(searchText || '').trim())}" ile eslesen ankraj yok.`
+                : 'Yeni urun ekle butonuyla ankraj karti olusturabilirsiniz.'}</div>
+                </div>
+            `;
+        }
+        return list.map((row) => {
+            const image = String(row?.images?.product || '').trim();
+            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            return `
+                <div class="sales-catalog-card" role="button" tabindex="0" onclick="SalesModule.openAnchorageDetailModal('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); SalesModule.openAnchorageDetailModal('${id}');}">
+                    <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
+                        ${image
+                    ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row?.name || 'Ankraj')}" class="sales-catalog-card-image">`
+                    : '<div class="sales-catalog-card-placeholder">Gorsel yok</div>'}
+                    </div>
+                    <div class="sales-catalog-card-body">
+                        <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row?.name || '-')}</div>
+                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row?.productCode || row?.idCode || '-')}</div>
+                        <div class="sales-catalog-card-meta-row">
+                            <span class="sales-catalog-pill">ID: ${SalesModule.escapeHtml(row?.idCode || '-')}</span>
+                        </div>
+                        <div class="sales-catalog-card-actions">
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openAnchorageDetailModal('${id}')">goruntule</button>
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditAnchorageModal('${id}')">duzenle</button>
                         </div>
                     </div>
                 </div>
@@ -6155,21 +6219,41 @@
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
+        const anchorageMode = SalesModule.state.catalogAnchorageMode === true;
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         const isPipeLeaf = SalesModule.isPipeFamilyCategory(activeCategoryId);
-        const supportsCrud = isCatalogMain || isPipeLeaf;
         const searchText = String(SalesModule.state.catalogSearchText || '');
-        const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const totalCategoryCount = (supportsCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
-        const filteredRows = (supportsCrud && activeLeaf)
-            ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
-            : [];
+        const supportsCatalogCrud = isCatalogMain || isPipeLeaf;
+        const supportsCrud = anchorageMode || supportsCatalogCrud;
+        const pathText = anchorageMode
+            ? `${String(activeMain?.label || 'Urun gruplari')} / Ankrajlar`
+            : SalesModule.getCatalogCategoryPathText(activeCategoryId);
+        const totalCategoryCount = anchorageMode
+            ? SalesModule.getAnchorageProducts().length
+            : ((supportsCatalogCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0);
+        const filteredRows = anchorageMode
+            ? SalesModule.getFilteredAnchorageProducts(searchText)
+            : ((supportsCatalogCrud && activeLeaf)
+                ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
+                : []);
         const filteredCount = filteredRows.length;
-        const createButtonHtml = (() => {
-            if (!(supportsCrud && activeGroup && activeLeaf)) return '';
-            return '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>';
-        })();
+        const createButtonHtml = anchorageMode
+            ? '<button class="btn-primary" onclick="SalesModule.openCreateAnchorageModal()">yeni urun ekle +</button>'
+            : ((supportsCatalogCrud && activeGroup && activeLeaf)
+                ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>'
+                : '');
+        const contentClass = (supportsCatalogCrud && !anchorageMode && isPipeLeaf) ? 'sales-catalog-list' : 'sales-catalog-grid';
+        const listHtml = anchorageMode
+            ? SalesModule.renderAnchorageCardsHtml(filteredRows, searchText)
+            : ((supportsCatalogCrud && activeLeaf)
+                ? (isPipeLeaf
+                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
+                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
+                : `<div class="sales-catalog-empty">
+                                        <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
+                                        <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
+                                   </div>`);
         return `
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
@@ -6195,7 +6279,7 @@
                                     <div class="sales-catalog-sub">${supportsCrud
                 ? `${SalesModule.escapeHtml(String(filteredCount))}${String(searchText || '').trim() ? ` sonuc / ${SalesModule.escapeHtml(String(totalCategoryCount))} kayit` : ' kayitli urun'}`
                 : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
-                                    ${(supportsCrud && activeLeaf) ? `
+                                    ${supportsCrud ? `
                                         <div class="sales-catalog-search-row">
                                             <input id="sales_catalog_search_input" class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
                                             ${String(searchText || '').trim() ? '<button class="btn-sm" type="button" onclick="SalesModule.clearCatalogSearch()">temizle</button>' : ''}
@@ -6205,15 +6289,8 @@
                                 ${createButtonHtml}
                             </div>
 
-                            <div class="${isPipeLeaf ? 'sales-catalog-list' : 'sales-catalog-grid'}">
-                                ${(supportsCrud && activeLeaf)
-                ? (isPipeLeaf
-                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
-                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
-                : `<div class="sales-catalog-empty">
-                                        <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
-                                        <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
-                                   </div>`}
+                            <div class="${contentClass}">
+                                ${listHtml}
                             </div>
                         </section>
                     </div>
@@ -6285,6 +6362,265 @@
         Modal.close();
         UI.renderCurrentPage();
         alert('Urun silindi.');
+    },
+
+    openCreateAnchorageModal: () => {
+        SalesModule.ensureData();
+        SalesModule.state.anchorageEditingProductId = '';
+        SalesModule.state.anchorageDraft = SalesModule.buildAnchorageDraft();
+        Modal.open('Yeni urun ekle', SalesModule.renderAnchorageModalHtml(), { maxWidth: '860px' });
+    },
+
+    openEditAnchorageModal: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        const row = SalesModule.getAnchorageProducts().find((item) => String(item?.id || '') === id);
+        if (!row) return alert('Ankraj urunu bulunamadi.');
+        SalesModule.state.anchorageEditingProductId = id;
+        SalesModule.state.anchorageDraft = SalesModule.buildAnchorageDraft(row);
+        Modal.open('Urunu duzenle', SalesModule.renderAnchorageModalHtml(), { maxWidth: '860px' });
+    },
+
+    openAnchorageDetailModal: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        const row = SalesModule.getAnchorageProducts().find((item) => String(item?.id || '') === id);
+        if (!row) return alert('Ankraj urunu bulunamadi.');
+        Modal.open('Ankraj karti detay', SalesModule.renderAnchorageDetailModalHtml(row), { maxWidth: '980px' });
+    },
+
+    deleteAnchorageProduct: async (productId = '') => {
+        const id = String(productId || SalesModule.state.anchorageEditingProductId || '').trim();
+        if (!id) return;
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        const idx = rows.findIndex((item) => String(item?.id || '').trim() === id);
+        if (idx < 0) return alert('Silinecek ankraj urunu bulunamadi.');
+        if (!confirm('Bu ankraj urunu silinsin mi?')) return;
+        rows.splice(idx, 1);
+        await DB.save();
+        SalesModule.state.anchorageEditingProductId = '';
+        SalesModule.state.anchorageDraft = null;
+        Modal.close();
+        UI.renderCurrentPage();
+        alert('Ankraj urunu silindi.');
+    },
+
+    renderAnchorageModalHtml: () => {
+        const draft = SalesModule.state.anchorageDraft || SalesModule.buildAnchorageDraft();
+        const isEdit = !!String(SalesModule.state.anchorageEditingProductId || '').trim();
+        const imageData = String(draft?.images?.product || '').trim();
+        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
+        const sectionText = `${String(activeMain?.label || 'Secili urun grubu')} / Ankrajlar`;
+        return `
+            <div class="sales-catalog-create-wrap">
+                <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(sectionText)}</div>
+                <div class="sales-catalog-create-grid-top">
+                    <div>
+                        <label class="sales-catalog-label">Urun adi *</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.name || '')}" oninput="SalesModule.setAnchorageDraftField('name', this.value)" placeholder="or: 35 lik sikmali ankraj">
+                    </div>
+                    <div>
+                        <label class="sales-catalog-label">Urun kodu</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.productCode || '')}" oninput="SalesModule.setAnchorageDraftField('productCode', this.value)" placeholder="or: ANK-2035">
+                    </div>
+                    <div>
+                        <label class="sales-catalog-label">ID kodu</label>
+                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
+                    </div>
+                </div>
+
+                <div class="sales-catalog-upload-grid">
+                    <button type="button" class="sales-catalog-upload-card" onclick="document.getElementById('sales_anchorage_file_product').click()">
+                        <input type="file" id="sales_anchorage_file_product" accept="image/*" style="display:none;" onchange="SalesModule.setAnchorageImageFromInput(this)">
+                        <div class="sales-catalog-upload-inner">
+                            ${SalesModule.renderAnchorageUploadPreviewHtml(imageData)}
+                        </div>
+                    </button>
+                </div>
+
+                <div>
+                    <label class="sales-catalog-label">Not</label>
+                    <textarea class="sales-catalog-textarea" oninput="SalesModule.setAnchorageDraftField('note', this.value)">${SalesModule.escapeHtml(draft.note || '')}</textarea>
+                </div>
+
+                <div class="sales-catalog-modal-actions">
+                    <button class="btn-sm" onclick="Modal.close()">iptal</button>
+                    ${isEdit
+                ? '<button class="btn-sm" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteAnchorageProduct()">sil</button><button class="btn-primary" onclick="SalesModule.saveAnchorageProduct()">guncelle</button>'
+                : '<button class="btn-primary" onclick="SalesModule.saveAnchorageProduct()">listeye ekle</button>'}
+                </div>
+            </div>
+        `;
+    },
+
+    renderAnchorageUploadPreviewHtml: (imageData) => {
+        const image = String(imageData || '').trim();
+        if (!image) return '<div class="sales-catalog-upload-empty">Urun gorseli ekle +</div>';
+        return `
+            <div class="sales-catalog-upload-preview">
+                <div class="sales-catalog-upload-image-wrap">
+                    <img src="${SalesModule.escapeHtml(image)}" alt="Ankraj urun gorseli" class="sales-catalog-upload-image">
+                </div>
+                <div class="sales-catalog-upload-actions">
+                    <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearAnchorageImage()">kaldir</button>
+                </div>
+            </div>
+        `;
+    },
+
+    renderAnchorageDetailModalHtml: (row = {}) => {
+        const image = String(row?.images?.product || '').trim();
+        return `
+            <div class="sales-catalog-detail-wrap">
+                <div class="sales-catalog-modal-kicker">Ankraj karti</div>
+                <div class="sales-catalog-detail-grid">
+                    <div class="sales-catalog-detail-left">
+                        <div class="sales-catalog-preview-combo">
+                            <div class="sales-catalog-preview-panel is-dark">
+                                ${image
+                ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row?.name || 'Ankraj')}" class="sales-catalog-preview-image">`
+                : '<div class="sales-catalog-preview-placeholder">Urun gorseli yok</div>'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sales-catalog-detail-right">
+                        <div class="sales-catalog-detail-head">
+                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(row?.name || '-')}</div>
+                            <div class="sales-catalog-detail-codes">
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(row?.productCode || '-')}</span>
+                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(row?.idCode || '-')}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="sales-catalog-label">Not</label>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(String(row?.note || ''))}</textarea>
+                        </div>
+                        <div class="sales-catalog-modal-actions">
+                            <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                            <button class="btn-primary" onclick="Modal.close(); SalesModule.openEditAnchorageModal('${SalesModule.escapeHtml(String(row?.id || ''))}')">duzenle</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    setAnchorageDraftField: (field, value) => {
+        const key = String(field || '').trim();
+        if (!key) return;
+        if (!SalesModule.state.anchorageDraft || typeof SalesModule.state.anchorageDraft !== 'object') return;
+        SalesModule.state.anchorageDraft[key] = String(value || '');
+    },
+
+    setAnchorageImageFromInput: (input) => {
+        if (!SalesModule.state.anchorageDraft || typeof SalesModule.state.anchorageDraft !== 'object') return;
+        const file = input?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (!SalesModule.state.anchorageDraft.images || typeof SalesModule.state.anchorageDraft.images !== 'object') {
+                SalesModule.state.anchorageDraft.images = {};
+            }
+            SalesModule.state.anchorageDraft.images.product = String(reader.result || '');
+            const previewHost = document.querySelector('#sales_anchorage_file_product')?.parentElement?.querySelector('.sales-catalog-upload-inner');
+            if (previewHost) {
+                previewHost.innerHTML = SalesModule.renderAnchorageUploadPreviewHtml(SalesModule.state.anchorageDraft.images.product);
+            }
+        };
+        reader.readAsDataURL(file);
+    },
+
+    clearAnchorageImage: () => {
+        if (!SalesModule.state.anchorageDraft || typeof SalesModule.state.anchorageDraft !== 'object') return;
+        if (!SalesModule.state.anchorageDraft.images || typeof SalesModule.state.anchorageDraft.images !== 'object') {
+            SalesModule.state.anchorageDraft.images = {};
+        }
+        SalesModule.state.anchorageDraft.images.product = '';
+        const input = document.getElementById('sales_anchorage_file_product');
+        if (input) input.value = '';
+        const previewHost = input?.parentElement?.querySelector('.sales-catalog-upload-inner');
+        if (previewHost) previewHost.innerHTML = SalesModule.renderAnchorageUploadPreviewHtml('');
+    },
+
+    saveAnchorageProduct: async () => {
+        SalesModule.ensureData();
+        const draft = SalesModule.state.anchorageDraft;
+        if (!draft || typeof draft !== 'object') return;
+
+        const name = String(draft.name || '').trim();
+        if (!name) return alert('Urun adi zorunlu.');
+
+        const normalizeIdCode = (value) => {
+            if (typeof IdentityPolicy !== 'undefined'
+                && IdentityPolicy
+                && typeof IdentityPolicy.normalizeCode === 'function') {
+                return IdentityPolicy.normalizeCode(value);
+            }
+            return String(value || '').trim().replace(/\s+/g, '-').toUpperCase();
+        };
+
+        const editingId = String(SalesModule.state.anchorageEditingProductId || '').trim();
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        const idx = editingId
+            ? rows.findIndex((item) => String(item?.id || '').trim() === editingId)
+            : -1;
+        const existing = idx >= 0 ? (rows[idx] || {}) : {};
+        let normalizedIdCode = normalizeIdCode(
+            String(draft.idCode || '').trim()
+            || String(existing.idCode || '').trim()
+            || SalesModule.generateAnchoragePublicId({ rowId: editingId })
+        );
+        if (!normalizedIdCode) return alert('Urun ID zorunlu.');
+
+        const isIdCodeTaken = (candidateCode) => ((typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.isGlobalCodeTaken === 'function')
+            ? IdentityPolicy.isGlobalCodeTaken(DB.data, candidateCode, editingId ? { collection: 'salesAnchorageProducts', id: editingId, field: 'idCode' } : null)
+            : rows.some((item) => {
+                const rowId = String(item?.id || '').trim();
+                const rowCode = normalizeIdCode(item?.idCode || '');
+                if (!rowCode) return false;
+                if (editingId && rowId === editingId) return false;
+                return rowCode === candidateCode;
+            }));
+
+        if (isIdCodeTaken(normalizedIdCode)) {
+            if (editingId) return alert(`Bu Urun ID zaten kullaniliyor: ${normalizedIdCode}`);
+            let regenerated = '';
+            for (let i = 0; i < 5; i += 1) {
+                const nextCode = normalizeIdCode(SalesModule.generateAnchoragePublicId());
+                if (!nextCode || isIdCodeTaken(nextCode)) continue;
+                regenerated = nextCode;
+                break;
+            }
+            if (!regenerated) return alert('Urun ID benzersiz olusturulamadi. Lutfen tekrar deneyiniz.');
+            normalizedIdCode = regenerated;
+            SalesModule.state.anchorageDraft.idCode = normalizedIdCode;
+        }
+
+        const nowIso = new Date().toISOString();
+        const row = {
+            id: editingId || SalesModule.generateAnchorageRowId(),
+            name,
+            productCode: String(draft.productCode || '').trim(),
+            idCode: normalizedIdCode,
+            note: String(draft.note || '').trim(),
+            images: {
+                product: String(draft.images?.product || '').trim()
+            },
+            created_at: String(existing.created_at || nowIso),
+            updated_at: nowIso
+        };
+
+        if (idx >= 0) rows[idx] = row;
+        else rows.push(row);
+
+        await DB.save();
+        Modal.close();
+        SalesModule.state.anchorageEditingProductId = '';
+        SalesModule.state.anchorageDraft = null;
+        UI.renderCurrentPage();
+        alert(editingId ? 'Ankraj urunu guncellendi.' : 'Ankraj urunu kataloga eklendi.');
     },
 
     renderCreateCatalogModalHtml: () => {
@@ -7617,7 +7953,7 @@
                         <aside class="sales-catalog-left">
                             <div class="sales-catalog-root">Urun gruplari</div>
                             <div class="sales-catalog-root-note">Fiyat girmek istedigin urun grubunu soldan sec.</div>
-                            ${SalesModule.renderCatalogTreeHtml()}
+                            ${SalesModule.renderCatalogTreeHtml({ showAnchorageButton: false })}
                         </aside>
 
                         <section class="sales-catalog-right">

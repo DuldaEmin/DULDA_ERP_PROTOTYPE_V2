@@ -7272,6 +7272,8 @@
         return (DB.data.data.products || []).map((raw, index) => {
             const category = ProductLibraryModule.resolveCategoryForProduct(raw);
             const specs = (raw?.specs && typeof raw.specs === 'object') ? raw.specs : {};
+            const purchaseUnit = String(specs?.alisBirimi || raw?.alisBirimi || specs?.unit || raw?.unit || '').trim();
+            const consumptionUnit = String(specs?.tuketimBirimi || raw?.tuketimBirimi || '').trim();
             const isSalesMirror = ProductLibraryModule.isSalesCatalogMirrorProduct(raw);
             const resolvedColor = ProductLibraryModule.resolveLinkedColorInfo({
                 colorType: specs?.colorType || raw?.colorType || '',
@@ -7296,9 +7298,11 @@
                 categoryName: String(category?.name || raw?.category || 'Diger'),
                 categoryPrefix: String(category?.prefix || ProductLibraryModule.buildCategoryPrefix(category?.name || raw?.category)),
                 code: String(raw?.code || ''),
-                unit: String(specs?.unit || raw?.unit || '').trim(),
+                unit: purchaseUnit,
+                alisBirimi: purchaseUnit,
+                tuketimBirimi: consumptionUnit,
                 unitAmount: String(specs?.unitAmount ?? raw?.unitAmount ?? '').trim(),
-                unitAmountType: String(specs?.unitAmountType || raw?.unitAmountType || ProductLibraryModule.getUnitAmountType(specs?.unit || raw?.unit || '')).trim(),
+                unitAmountType: String(specs?.unitAmountType || raw?.unitAmountType || ProductLibraryModule.getUnitAmountType(purchaseUnit)).trim(),
                 brand: String(specs?.brandModel || specs?.brand || raw?.brandModel || '').trim(),
                 pack: String(specs?.packageInfo || specs?.packaging || raw?.packageInfo || '').trim(),
                 length: String(specs?.lengthMm ?? specs?.length ?? raw?.length ?? '').trim(),
@@ -7628,12 +7632,19 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 220px 220px 340px 1fr; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+                <div style="display:grid; grid-template-columns: 210px 210px 220px 340px minmax(180px,1fr); gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('unit')">+ YONET (EKLE-SIL)</div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Birim *</label>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">alis birimi *</label>
                         <select onchange="ProductLibraryModule.setMasterDraft('unit', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                             ${unitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftUnit === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tuketim birimi</label>
+                        <select onchange="ProductLibraryModule.setMasterDraft('consumptionUnit', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
+                            <option value="" ${state.masterDraftConsumptionUnit ? '' : 'selected'}>alis birimi ile ayni</option>
+                            ${unitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftConsumptionUnit === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                         </select>
                     </div>
                     <div>
@@ -8135,10 +8146,13 @@
     },
 
     buildMasterDuplicateSignature: (row = {}) => {
+        const purchaseUnit = String(row?.alisBirimi || row?.unit || '').trim();
+        const consumptionUnit = String(row?.tuketimBirimi || '').trim();
         return [
             ProductLibraryModule.normalizeAsciiUpper(row?.categoryId || ''),
             ProductLibraryModule.normalizeAsciiUpper(row?.name || ''),
-            ProductLibraryModule.normalizeAsciiUpper(row?.unit || ''),
+            ProductLibraryModule.normalizeAsciiUpper(purchaseUnit),
+            ProductLibraryModule.normalizeAsciiUpper(consumptionUnit),
             ProductLibraryModule.normalizeAsciiUpper(row?.unitAmount || ''),
             ProductLibraryModule.normalizeAsciiUpper(row?.brand || ''),
             ProductLibraryModule.normalizeAsciiUpper(row?.pack || ''),
@@ -8185,12 +8199,17 @@
         }
         if (!finalCategory) return alert('Kategori seciniz.');
 
-        const unit = String(s.masterDraftUnit || '').trim();
-        if (!unit) return alert('Birim zorunlu.');
-        if (!unitOptions.includes(unit)) return alert('Birim listeden secilmelidir.');
+        const purchaseUnit = String(s.masterDraftUnit || '').trim();
+        if (!purchaseUnit) return alert('Alis birimi zorunlu.');
+        if (!unitOptions.includes(purchaseUnit)) return alert('Alis birimi listeden secilmelidir.');
+        const consumptionUnitRaw = String(s.masterDraftConsumptionUnit || '').trim();
+        if (consumptionUnitRaw && !unitOptions.includes(consumptionUnitRaw)) {
+            return alert('Tuketim birimi listeden secilmelidir.');
+        }
+        const consumptionUnit = (consumptionUnitRaw && consumptionUnitRaw !== purchaseUnit) ? consumptionUnitRaw : '';
 
         const unitAmount = String(s.masterDraftUnitAmount || '').trim();
-        const unitAmountType = ProductLibraryModule.getUnitAmountType(unit);
+        const unitAmountType = ProductLibraryModule.getUnitAmountType(purchaseUnit);
         const brand = String(s.masterDraftBrand || '').trim();
         const pack = String(s.masterDraftPack || '').trim();
         const length = String(s.masterDraftLength || '').trim();
@@ -8217,7 +8236,8 @@
         const duplicateMaster = ProductLibraryModule.findDuplicateMasterProduct({
             categoryId: finalCategory.id,
             name,
-            unit,
+            alisBirimi: purchaseUnit,
+            tuketimBirimi: consumptionUnit,
             unitAmount,
             brand,
             pack,

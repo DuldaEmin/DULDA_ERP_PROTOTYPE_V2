@@ -1087,12 +1087,37 @@ const PurchasingModule = {
         return -1;
     },
 
+    buildImportAddress: (...parts) => parts
+        .map((part) => String(part || '').trim())
+        .filter(Boolean)
+        .join(' '),
+
     toImportRowValue: (row, idx) => String(Array.isArray(row) ? (row[idx] ?? '') : '').trim(),
 
     parseSupplierTypeTokensFromRow: (row = [], headerMap = {}) => {
-        const idxType = PurchasingModule.findImportColumnIndex(headerMap, ['tedarikci tipi', 'tedarikci turu', 'tip', 'grup', 'kategori']);
-        const idxTypeCode = PurchasingModule.findImportColumnIndex(headerMap, ['tedarikci tipi kodu', 'tip kodu', 'grup kodu']);
-        const idxTypeName = PurchasingModule.findImportColumnIndex(headerMap, ['tedarikci tipi adi', 'tip adi', 'grup adi']);
+        const idxType = PurchasingModule.findImportColumnIndex(headerMap, [
+            'tedarikci tipi',
+            'tedarikci turu',
+            'tip',
+            'grup',
+            'kategori',
+            'musteri tipi',
+            'musteri turu',
+            'musteri türü',
+            'urun grubu'
+        ]);
+        const idxTypeCode = PurchasingModule.findImportColumnIndex(headerMap, [
+            'tedarikci tipi kodu',
+            'tip kodu',
+            'grup kodu',
+            'musteri tipi kodu'
+        ]);
+        const idxTypeName = PurchasingModule.findImportColumnIndex(headerMap, [
+            'tedarikci tipi adi',
+            'tip adi',
+            'grup adi',
+            'musteri tipi adi'
+        ]);
 
         const bag = [];
         const pushBag = (value) => {
@@ -1119,16 +1144,18 @@ const PurchasingModule = {
         }
         const headerRaw = Array.isArray(sheetRows[0]) ? sheetRows[0] : [];
         const headerMap = {};
+        const addressColumnIndexes = [];
         headerRaw.forEach((cell, index) => {
             const key = PurchasingModule.normalizeImportToken(cell);
             if (!key) return;
+            if (key.startsWith('adres')) addressColumnIndexes.push(index);
             if (!Object.prototype.hasOwnProperty.call(headerMap, key)) headerMap[key] = index;
         });
 
         const idxExternalCode = PurchasingModule.findImportColumnIndex(headerMap, ['cari kodu', 'cari kod', 'tedarikci kodu', 'tedarikci cari kodu']);
-        const idxName = PurchasingModule.findImportColumnIndex(headerMap, ['tedarikci unvani', 'tedarikci adi', 'firma adi', 'cari unvani', 'unvan']);
-        const idxPerson = PurchasingModule.findImportColumnIndex(headerMap, ['yetkili', 'yetkili kisi', 'yetkili ad']);
-        const idxPhone = PurchasingModule.findImportColumnIndex(headerMap, ['telefon', 'gsm tel', 'sabit tel', 'tel no']);
+        const idxName = PurchasingModule.findImportColumnIndex(headerMap, ['tedarikci unvani', 'tedarikci adi', 'firma adi', 'cari unvani', 'cari adi', 'unvan', 'cari adı']);
+        const idxPerson = PurchasingModule.findImportColumnIndex(headerMap, ['yetkili', 'yetkili kisi', 'yetkili ad', 'firma yetkilisi', 'firma yetkisi̇li', 'firma yetkisi']);
+        const idxPhone = PurchasingModule.findImportColumnIndex(headerMap, ['telefon', 'gsm tel', 'sabit tel', 'tel no', 'firma telefon', 'firma telefonu']);
         const idxEmail = PurchasingModule.findImportColumnIndex(headerMap, ['eposta', 'e posta', 'mail']);
         const idxWeb = PurchasingModule.findImportColumnIndex(headerMap, ['web', 'internet adresi', 'website']);
         const idxTaxNo = PurchasingModule.findImportColumnIndex(headerMap, ['vergi no', 'vkn', 'tc kimlik no', 'tc']);
@@ -1158,6 +1185,10 @@ const PurchasingModule = {
             const person = PurchasingModule.toImportRowValue(row, idxPerson);
             const phone = PurchasingModule.toImportRowValue(row, idxPhone);
             const email = PurchasingModule.toImportRowValue(row, idxEmail);
+            const addressParts = (addressColumnIndexes.length ? addressColumnIndexes : [idxAddress])
+                .filter((colIdx) => Number.isInteger(colIdx) && colIdx >= 0)
+                .map((colIdx) => PurchasingModule.toImportRowValue(row, colIdx));
+            const address = PurchasingModule.buildImportAddress(...addressParts);
             const supplierTypeTokens = PurchasingModule.parseSupplierTypeTokensFromRow(row, headerMap);
             const contacts = PurchasingModule.normalizeSupplierContactList([{
                 id: crypto.randomUUID(),
@@ -1179,7 +1210,7 @@ const PurchasingModule = {
                 web: PurchasingModule.toImportRowValue(row, idxWeb),
                 taxNo: PurchasingModule.toImportRowValue(row, idxTaxNo),
                 taxOffice: PurchasingModule.toImportRowValue(row, idxTaxOffice),
-                address: PurchasingModule.toImportRowValue(row, idxAddress),
+                address,
                 city: PurchasingModule.toImportRowValue(row, idxCity),
                 country: PurchasingModule.toImportRowValue(row, idxCountry),
                 notes: PurchasingModule.toImportRowValue(row, idxNote),
@@ -1729,7 +1760,7 @@ const PurchasingModule = {
 
     editSupplier: (id) => PurchasingModule.openSupplierModal(id || null),
 
-    renderSupplierModalFormHtml: (supplier = null, linkedProductsText = '') => {
+    renderSupplierModalFormHtml: (supplier = null) => {
         const src = supplier || {};
         const selectedTypeIds = Array.isArray(src?.supplierTypes) ? src.supplierTypes : [];
         const contacts = PurchasingModule.normalizeSupplierContactList(
@@ -1848,35 +1879,6 @@ const PurchasingModule = {
                     </div>
                 </div>
 
-                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
-                    <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:0.8rem; padding-bottom:0.5rem; border-bottom:1px solid #e2e8f0;">
-                        <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:0.74rem; font-weight:800; border:1px solid #e2e8f0;">4</span>
-                        <span>Finansal ve Ozel Notlar</span>
-                    </div>
-                    <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.65rem;">
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Genel iskonto (%)</label>
-                            <input id="new_sup_discount" type="number" min="0" max="100" step="0.01" class="stock-input stock-input-tall" value="${PurchasingModule.escapeHtml(String(src?.discountRate || 0))}">
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Odeme vadesi (gun)</label>
-                            <input id="new_sup_term_days" type="number" min="0" step="1" class="stock-input stock-input-tall" value="${PurchasingModule.escapeHtml(String(src?.paymentTermDays || 0))}">
-                        </div>
-                        <div>
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Risk limiti</label>
-                            <input id="new_sup_risk_limit" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${PurchasingModule.escapeHtml(String(src?.riskLimit || 0))}">
-                        </div>
-                        <div style="grid-column:span 3;">
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Bagli urunler (otomatik)</label>
-                            <div style="border:1px solid #cbd5e1; border-radius:0.65rem; min-height:52px; padding:0.55rem; background:#f8fafc; color:#334155; font-size:0.83rem; line-height:1.45;">${PurchasingModule.escapeHtml(String(linkedProductsText || 'Urun kartinda bu tedarikci secildikce burada otomatik gorunur.'))}</div>
-                        </div>
-                        <div style="grid-column:span 3;">
-                            <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Not</label>
-                            <textarea id="new_sup_notes" class="stock-textarea" style="min-height:72px;">${PurchasingModule.escapeHtml(String(src?.notes || ''))}</textarea>
-                        </div>
-                    </div>
-                </div>
-
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
                     <button class="btn-sm" onclick="PurchasingModule.closeSupplierModal()">iptal</button>
                     <button id="new_sup_save_btn" class="btn-primary">kaydet</button>
@@ -1889,10 +1891,6 @@ const PurchasingModule = {
         const supplier = editId
             ? PurchasingModule.normalizeSupplierRecord((DB.data.data.suppliers || []).find(x => String(x?.id || '').trim() === String(editId || '').trim()) || {}, 0)
             : null;
-        const linkedProducts = supplier ? PurchasingModule.getLinkedProductsForSupplier(supplier) : [];
-        const linkedProductsText = linkedProducts.length > 0
-            ? linkedProducts.join(', ')
-            : 'Urun kartinda bu tedarikci secildikce burada otomatik gorunur.';
 
         PurchasingModule.state.supplierModalEditId = String(editId || '').trim();
         PurchasingModule.state.supplierTypePanelOpen = false;
@@ -1900,7 +1898,7 @@ const PurchasingModule = {
         PurchasingModule.state.supplierContactModal = null;
         PurchasingModule.state.supplierContactRowsDraft = PurchasingModule.buildSupplierContactsFromSupplier(supplier || {});
 
-        const modalContent = PurchasingModule.renderSupplierModalFormHtml(supplier, linkedProductsText);
+        const modalContent = PurchasingModule.renderSupplierModalFormHtml(supplier);
         Modal.open('', modalContent, { maxWidth: '980px', showHeader: false });
 
         const saveBtn = document.getElementById('new_sup_save_btn');
@@ -1942,10 +1940,6 @@ const PurchasingModule = {
             externalCode: String(read('new_sup_external_code')).trim(),
             entityType: String(read('new_sup_entity_type')).trim() || 'company',
             supplierTypes,
-            notes: String(read('new_sup_notes')).trim(),
-            discountRate: PurchasingModule.parsePercent(read('new_sup_discount')),
-            paymentTermDays: PurchasingModule.parseDays(read('new_sup_term_days')),
-            riskLimit: PurchasingModule.parseMoney(read('new_sup_risk_limit')),
             supplierContacts,
             contact: {
                 person: firstName || String(read('new_sup_person')).trim(),

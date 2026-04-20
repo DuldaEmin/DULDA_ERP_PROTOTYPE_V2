@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-20T12:04:56.942Z",
+    "updated_at": "2026-04-20T12:04:51.030Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -200,7 +200,7 @@
         }
       ]
     },
-    "revision": 9055,
+    "revision": 9051,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -4858,6 +4858,182 @@
       }
     ],
     "suppliers": [
+      {
+        "id": "7e3de997-a3c8-4aec-ad88-b266f37e123a",
+        "name": "FATİH NİŞANCI - GEBZE TESİSAT",
+        "externalCode": "320.01.F.037",
+        "entityType": "company",
+        "supplierTypes": [
+          "sup_type_3200113"
+        ],
+        "tags": [
+          "HIZMET SATICILARI"
+        ],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "01f783bc-d5d4-47ba-9041-e534efe0cb6f",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "262 743 60 75"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "262 743 60 75",
+          "email": "",
+          "web": "",
+          "tax": "13859097282",
+          "taxOffice": "İLYASBEY VERGİ DAİRESİ MÜDÜRLÜĞÜ",
+          "address": "ÖZGÜRLÜK MAH. AŞIK VEYSEL CAD. NO.48 D 1",
+          "city": "KOCAELİ",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T12:00:54.707Z",
+        "updated_at": "2026-04-20T12:00:54.707Z",
+        "supplierTypeNames": [
+          "HIZMET SATICILARI"
+        ]
+      },
+      {
+        "id": "8339a3a1-7ba6-4a5f-be8a-8ecbf93c293f",
+        "name": "ONUR ISI REZİSTANS A.Ş.",
+        "externalCode": "320.01.O.051",
+        "entityType": "company",
+        "supplierTypes": [
+          "sup_type_3200106"
+        ],
+        "tags": [
+          "BAKIM"
+        ],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "51a69f8e-bd33-4637-be25-0e1d8dd58254",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "",
+          "taxOffice": "",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T12:00:54.707Z",
+        "updated_at": "2026-04-20T12:00:54.707Z",
+        "supplierTypeNames": [
+          "BAKIM"
+        ]
+      },
+      {
+        "id": "2c4e4734-5356-48aa-971b-57c13491c364",
+        "name": "BEST KALE CİVATA MAK.TİC. VE SAN.A.Ş.",
+        "externalCode": "320.01.B.009",
+        "entityType": "company",
+        "supplierTypes": [
+          "sup_type_3200108"
+        ],
+        "tags": [
+          "CIVATA-SOMUN-SAPLAMA"
+        ],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "a85eff1a-a7e2-4e2f-8bd5-04f5d28b3e22",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "212 625 62 62"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "212 625 62 62",
+          "email": "",
+          "web": "",
+          "tax": "1660225022",
+          "taxOffice": "ESENYURT VERGİ DAİRESİ MÜDÜRLÜĞÜ",
+          "address": "YENİBARAJ YOLU ÇOBANÇEŞME MEVKİKİ NO:12 ALİBEYKÖY",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T12:00:54.707Z",
+        "updated_at": "2026-04-20T12:00:54.707Z",
+        "supplierTypeNames": [
+          "CIVATA-SOMUN-SAPLAMA"
+        ]
+      },
+      {
+        "id": "b09a5b3e-aa05-4577-bec7-668f5673aae5",
+        "name": "DURU AMBALAJ SAN. VE TİC. LTD. ŞTİ.",
+        "externalCode": "320.01.D.083",
+        "entityType": "company",
+        "supplierTypes": [
+          "sup_type_3200104"
+        ],
+        "tags": [
+          "AMBALAJ SATICILARI"
+        ],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "05bbef4e-ae7c-44f2-be90-20769c0b81d5",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "3190201604",
+          "taxOffice": "İKİTELLİ VERGİ DAİRESİ",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T12:00:54.707Z",
+        "updated_at": "2026-04-20T12:00:54.707Z",
+        "supplierTypeNames": [
+          "AMBALAJ SATICILARI"
+        ]
+      },
       {
         "id": "2fe5efeb-f33e-4f9c-ad7b-ce4e1541d4a7",
         "name": "ERDEN ZIMPARA KİMYA İNŞ. GIDA. TİC. LTD. ŞTİ.",

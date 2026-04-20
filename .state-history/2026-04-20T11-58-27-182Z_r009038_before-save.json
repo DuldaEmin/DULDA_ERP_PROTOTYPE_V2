@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-20T12:04:56.942Z",
+    "updated_at": "2026-04-20T11:58:22.635Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -200,7 +200,7 @@
         }
       ]
     },
-    "revision": 9055,
+    "revision": 9038,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -4859,23 +4859,285 @@
     ],
     "suppliers": [
       {
-        "id": "2fe5efeb-f33e-4f9c-ad7b-ce4e1541d4a7",
-        "name": "ERDEN ZIMPARA KİMYA İNŞ. GIDA. TİC. LTD. ŞTİ.",
-        "externalCode": "320.01.E.129",
+        "id": "e8d87456-a22c-4d95-ba0a-3bc3bd9b4534",
+        "name": "TÜRKYAĞ PETROKİMYA SAN. VE TİC.LTD.ŞTİ.",
+        "externalCode": "320.01.T.050",
         "entityType": "company",
-        "supplierTypes": [
-          "sup_type_3200112"
-        ],
-        "tags": [
-          "HIRDAVAT SATICILARI"
-        ],
+        "supplierTypes": [],
+        "tags": [],
         "notes": "",
         "discountRate": 0,
         "paymentTermDays": 0,
         "riskLimit": 0,
         "supplierContacts": [
           {
-            "id": "8ce43175-82ba-4387-a1b4-cc2556ff164b",
+            "id": "f804317d-9e94-4d33-9f43-9f0f3e013e55",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0216 634 46 80"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0216 634 46 80",
+          "email": "",
+          "web": "",
+          "tax": "881 032 4730",
+          "taxOffice": "ALEMDAĞ VERGİ DAİRESİ MÜDÜRLÜĞÜ",
+          "address": "SARAY MAH. SANAYİ CAD. ÖZENTAŞ SAN.SİT. F BLOK NO:4-5-12",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "417df188-5a5f-4614-a7b6-bdb47b5226cb",
+        "name": "PİKSAN CNC METAL İŞLEME SAN. VE TİC. LTD. ŞTİ.",
+        "externalCode": "320.01.P.048",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "284313d7-a230-4bb2-9df6-d703cbf0e87a",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "7290307728",
+          "taxOffice": "SARIGAZİ VERGİ DAİRESİ",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "17c3d214-617a-46cd-953f-88d3e8933242",
+        "name": "YEDA CAM SANAYİ VE TİCARET LTD.ŞTİ.",
+        "externalCode": "320.01.Y.086",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "7d67a96d-7a38-4046-b65b-47a4463aee6f",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "",
+          "taxOffice": "",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "91c1bad7-fd00-4039-92aa-305234f442ef",
+        "name": "FATİH NİŞANCI - GEBZE TESİSAT",
+        "externalCode": "320.01.F.037",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "7b1a97d5-3b26-4c69-8ac6-515761b17e45",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "262 743 60 75"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "262 743 60 75",
+          "email": "",
+          "web": "",
+          "tax": "13859097282",
+          "taxOffice": "İLYASBEY VERGİ DAİRESİ MÜDÜRLÜĞÜ",
+          "address": "ÖZGÜRLÜK MAH. AŞIK VEYSEL CAD. NO.48 D 1",
+          "city": "KOCAELİ",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "358e9f0f-7ccd-4ae9-9be1-5822ea3c86ad",
+        "name": "ONUR ISI REZİSTANS A.Ş.",
+        "externalCode": "320.01.O.051",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "6cce19f7-1eb9-4b08-a445-fe21108160f5",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "",
+          "taxOffice": "",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "418555b2-c34f-44fe-af9d-67dc61cf05da",
+        "name": "BEST KALE CİVATA MAK.TİC. VE SAN.A.Ş.",
+        "externalCode": "320.01.B.009",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "885fa58f-b63a-4b05-a4f9-e074bfe4af0b",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "212 625 62 62"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "212 625 62 62",
+          "email": "",
+          "web": "",
+          "tax": "1660225022",
+          "taxOffice": "ESENYURT VERGİ DAİRESİ MÜDÜRLÜĞÜ",
+          "address": "YENİBARAJ YOLU ÇOBANÇEŞME MEVKİKİ NO:12 ALİBEYKÖY",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "331a2d6c-a330-4cce-9d9a-7108bc26dbf5",
+        "name": "DURU AMBALAJ SAN. VE TİC. LTD. ŞTİ.",
+        "externalCode": "320.01.D.083",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "9f125b11-69d0-4229-8e77-746fba3c270e",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "3190201604",
+          "taxOffice": "İKİTELLİ VERGİ DAİRESİ",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
+      },
+      {
+        "id": "b29f2837-6cf4-45c9-8ef8-f2419c8dd707",
+        "name": "ERDEN ZIMPARA KİMYA İNŞ. GIDA. TİC. LTD. ŞTİ.",
+        "externalCode": "320.01.E.129",
+        "entityType": "company",
+        "supplierTypes": [],
+        "tags": [],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "9cce8137-eec1-4071-8a53-1a7c6dd911b9",
             "name": "OZAN KIZILIRMAK",
             "position": "",
             "phones": [
@@ -4896,11 +5158,9 @@
           "city": "İSTANBUL",
           "country": ""
         },
-        "created_at": "2026-04-20T12:00:54.707Z",
-        "updated_at": "2026-04-20T12:00:54.707Z",
-        "supplierTypeNames": [
-          "HIRDAVAT SATICILARI"
-        ]
+        "created_at": "2026-04-20T11:55:04.217Z",
+        "updated_at": "2026-04-20T11:55:04.217Z",
+        "supplierTypeNames": []
       }
     ],
     "personnel": [

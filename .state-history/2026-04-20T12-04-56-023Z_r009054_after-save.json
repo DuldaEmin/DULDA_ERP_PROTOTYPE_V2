@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-20T12:04:56.942Z",
+    "updated_at": "2026-04-20T12:04:55.790Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -200,7 +200,7 @@
         }
       ]
     },
-    "revision": 9055,
+    "revision": 9054,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -4858,6 +4858,50 @@
       }
     ],
     "suppliers": [
+      {
+        "id": "b09a5b3e-aa05-4577-bec7-668f5673aae5",
+        "name": "DURU AMBALAJ SAN. VE TİC. LTD. ŞTİ.",
+        "externalCode": "320.01.D.083",
+        "entityType": "company",
+        "supplierTypes": [
+          "sup_type_3200104"
+        ],
+        "tags": [
+          "AMBALAJ SATICILARI"
+        ],
+        "notes": "",
+        "discountRate": 0,
+        "paymentTermDays": 0,
+        "riskLimit": 0,
+        "supplierContacts": [
+          {
+            "id": "05bbef4e-ae7c-44f2-be90-20769c0b81d5",
+            "name": "OZAN KIZILIRMAK",
+            "position": "",
+            "phones": [
+              "0212 212 22 22"
+            ],
+            "email": "",
+            "note": ""
+          }
+        ],
+        "contact": {
+          "person": "OZAN KIZILIRMAK",
+          "phone": "0212 212 22 22",
+          "email": "",
+          "web": "",
+          "tax": "3190201604",
+          "taxOffice": "İKİTELLİ VERGİ DAİRESİ",
+          "address": "DENEME DENEME",
+          "city": "İSTANBUL",
+          "country": "TÜRKİYE"
+        },
+        "created_at": "2026-04-20T12:00:54.707Z",
+        "updated_at": "2026-04-20T12:00:54.707Z",
+        "supplierTypeNames": [
+          "AMBALAJ SATICILARI"
+        ]
+      },
       {
         "id": "2fe5efeb-f33e-4f9c-ad7b-ce4e1541d4a7",
         "name": "ERDEN ZIMPARA KİMYA İNŞ. GIDA. TİC. LTD. ŞTİ.",

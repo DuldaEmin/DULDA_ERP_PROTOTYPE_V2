@@ -20,9 +20,12 @@
         catalogExpandedMainId: 'korkuluk',
         catalogExpandedGroupId: '',
         catalogHighlightKey: 'group:rail-aluminum',
+        catalogAnchorageMode: false,
         catalogSearchText: '',
         catalogEditingProductId: '',
         catalogDraft: null,
+        anchorageEditingProductId: '',
+        anchorageDraft: null,
         salesOrderDraft: null,
         salesOrderCustomerSearch: '',
         salesOrderHistoryFilters: {
@@ -137,6 +140,7 @@
         if (!Array.isArray(DB.data.data.orders)) DB.data.data.orders = [];
         if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
         if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
+        if (!Array.isArray(DB.data.data.salesAnchorageProducts)) DB.data.data.salesAnchorageProducts = [];
         SalesModule.ensureCatalogPublicIds();
         SalesModule.ensureSettingsData();
     },
@@ -5355,6 +5359,58 @@
         });
     },
 
+    getAnchorageProducts: () => {
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        return rows
+            .map((row) => {
+                const item = row && typeof row === 'object' ? row : {};
+                const images = item.images && typeof item.images === 'object' ? item.images : {};
+                return {
+                    id: String(item.id || '').trim(),
+                    name: String(item.name || '').trim(),
+                    productCode: String(item.productCode || '').trim(),
+                    idCode: String(item.idCode || '').trim(),
+                    note: String(item.note || '').trim(),
+                    images: {
+                        product: String(images.product || '').trim()
+                    },
+                    created_at: String(item.created_at || '').trim(),
+                    updated_at: String(item.updated_at || '').trim()
+                };
+            })
+            .filter((row) => row.id && row.name)
+            .sort((a, b) => String(b.updated_at || b.created_at || '').localeCompare(String(a.updated_at || a.created_at || '')));
+    },
+
+    getFilteredAnchorageProducts: (searchText = '') => {
+        const rows = SalesModule.getAnchorageProducts();
+        const query = SalesModule.normalize(searchText || '');
+        if (!query) return rows;
+        return rows.filter((row) => {
+            const fields = [
+                String(row?.name || ''),
+                String(row?.productCode || ''),
+                String(row?.idCode || ''),
+                String(row?.id || '')
+            ];
+            return fields.some((value) => SalesModule.normalize(value).includes(query));
+        });
+    },
+
+    buildAnchorageDraft: (source = null) => {
+        const row = source && typeof source === 'object' ? source : {};
+        const now = SalesModule.getAnchorageProducts().length + 1;
+        return {
+            name: String(row.name || '').trim(),
+            productCode: String(row.productCode || `ANK-${String(now).padStart(4, '0')}`).trim(),
+            idCode: String(row.idCode || SalesModule.generateAnchoragePublicId({ rowId: String(row.id || '').trim() })).trim(),
+            note: String(row.note || '').trim(),
+            images: {
+                product: String(row.images?.product || '').trim()
+            }
+        };
+    },
+
     getCatalogCategoryPathText: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
         if (leaf && String(leaf.id || '') === 'boru') return 'Pleksi boru';
@@ -5677,11 +5733,50 @@
         return candidate;
     },
 
+    generateAnchorageRowId: () => {
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        const used = new Set(rows.map((row) => String(row?.id || '').trim()).filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined' && IdentityPolicy && typeof IdentityPolicy.makeId === 'function') {
+            return IdentityPolicy.makeId('SAP', used);
+        }
+        let seq = rows.length + 1;
+        while (used.has(`SAP-${String(seq).padStart(6, '0')}`)) seq += 1;
+        return `SAP-${String(seq).padStart(6, '0')}`;
+    },
+
+    generateAnchoragePublicId: (options = {}) => {
+        const rowId = String(options?.rowId || '').trim();
+        const exclude = rowId
+            ? { collection: 'salesAnchorageProducts', id: rowId, field: 'idCode' }
+            : null;
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'ANK', digits: 6, exclude });
+        }
+        const rows = Array.isArray(DB.data?.data?.salesAnchorageProducts) ? DB.data.data.salesAnchorageProducts : [];
+        const normalizeCode = (value) => String(value ?? '').trim().toUpperCase().replace(/[\s_]+/g, '-').replace(/-+/g, '-');
+        const used = new Set(
+            rows
+                .filter((row) => !rowId || String(row?.id || '').trim() !== rowId)
+                .map((row) => normalizeCode(row?.idCode || ''))
+                .filter(Boolean)
+        );
+        let seq = rows.length + 1;
+        let candidate = normalizeCode(`ANK-${String(seq).padStart(6, '0')}`);
+        while (used.has(candidate)) {
+            seq += 1;
+            candidate = normalizeCode(`ANK-${String(seq).padStart(6, '0')}`);
+        }
+        return candidate;
+    },
+
     setCatalogActiveMain: (mainId) => {
         const id = String(mainId || '').trim();
         if (!id) return;
         const main = SalesModule.getCatalogMainById(id);
         if (!main) return;
+        SalesModule.state.catalogAnchorageMode = false;
         const isExpanded = String(SalesModule.state.catalogExpandedMainId || '') === id;
         if (isExpanded) {
             SalesModule.state.catalogExpandedMainId = '';
@@ -5708,6 +5803,7 @@
         if (!id) return;
         const group = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId, id);
         if (!group) return;
+        SalesModule.state.catalogAnchorageMode = false;
         const isExpanded = String(SalesModule.state.catalogExpandedGroupId || '') === id;
         SalesModule.state.catalogHighlightKey = `group:${id}`;
         if (isExpanded) {
@@ -5725,12 +5821,24 @@
     setCatalogActiveCategory: (categoryId) => {
         const leaf = SalesModule.getCatalogLeafById(categoryId);
         if (!leaf) return;
+        SalesModule.state.catalogAnchorageMode = false;
         SalesModule.state.catalogActiveMainId = String(leaf.mainId || '');
         SalesModule.state.catalogActiveGroupId = String(leaf.groupId || '');
         SalesModule.state.catalogActiveCategoryId = String(leaf.id || '');
         SalesModule.state.catalogExpandedMainId = String(leaf.mainId || '');
         SalesModule.state.catalogExpandedGroupId = String(leaf.groupId || '');
         SalesModule.state.catalogHighlightKey = `leaf:${String(leaf.id || '')}`;
+        UI.renderCurrentPage();
+    },
+
+    openCatalogAnchorageSection: () => {
+        SalesModule.ensureCatalogState();
+        SalesModule.state.catalogAnchorageMode = true;
+        SalesModule.state.catalogEditingProductId = '';
+        SalesModule.state.catalogDraft = null;
+        SalesModule.state.anchorageEditingProductId = '';
+        SalesModule.state.anchorageDraft = null;
+        SalesModule.state.catalogSearchText = '';
         UI.renderCurrentPage();
     },
 

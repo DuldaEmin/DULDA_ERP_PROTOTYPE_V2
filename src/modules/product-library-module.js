@@ -7541,11 +7541,8 @@
 
     renderMasterFormHtml: ({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
         const state = ProductLibraryModule.state;
-        const supplierSearch = String(state.masterDraftSupplierSearch || '');
-        const supplierSearchNorm = ProductLibraryModule.normalizeAsciiUpper(supplierSearch);
-        const filteredSuppliers = !supplierSearchNorm
-            ? suppliers
-            : suppliers.filter(s => ProductLibraryModule.normalizeAsciiUpper(s.name || '').includes(supplierSearchNorm));
+        void suppliers;
+        void selectedSupplierRowsHtml;
         return `
             <div style="background:white; border:2px solid #0f172a; border-radius:1.25rem; padding:1.2rem 1.2rem 1.45rem; font-size:1.06rem;">
                 <div style="font-weight:800; color:#1e293b; margin-bottom:0.95rem; font-size:1.62rem;">Kutuphaneye urun ekle</div>
@@ -7608,32 +7605,15 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 340px 210px 1fr 1fr; gap:0.75rem; align-items:start; margin-bottom:0.75rem;">
+                <div style="display:grid; grid-template-columns: minmax(280px, 1fr) minmax(340px, 1fr); gap:0.75rem; align-items:start; margin-bottom:0.75rem;">
                     <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci ara</label>
-                        <input id="master_supplier_search" value="${ProductLibraryModule.escapeHtml(supplierSearch)}" oninput="ProductLibraryModule.setMasterSupplierSearch(this.value)" placeholder="tedarikci ara" style="width:100%; height:38px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; margin-bottom:0.4rem;">
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikciler sec</label>
-                        <select id="master_supplier_select" multiple onchange="ProductLibraryModule.setMasterSupplierSelection(this)" style="width:100%; min-height:110px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.4rem;">
-                            ${suppliers.length === 0
-                                ? `<option value="">Kayitli tedarikci yok</option>`
-                                : filteredSuppliers.length === 0
-                                    ? `<option value="">Eslesen tedarikci yok</option>`
-                                    : filteredSuppliers.map(s => `<option value="${s.id}" ${state.masterDraftSupplierIds.includes(s.id) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(s.name)}</option>`).join('')
-                            }
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikcideki kodu</label>
-                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftSupplierCode || '')}" oninput="ProductLibraryModule.setMasterDraft('supplierCode', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                        <button type="button" onclick="ProductLibraryModule.addMasterSupplierLink()" style="width:100%; height:42px; margin-top:0.45rem; border:1px solid #0f172a; background:white; color:#0f172a; border-radius:0.6rem; font-weight:800; cursor:pointer;">ekle+</button>
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci listesi</label>
-                        <div style="width:100%; min-height:110px; max-height:170px; overflow:auto; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.35rem; background:white;">
-                            ${(selectedSupplierRowsHtml && selectedSupplierRowsHtml.length > 0)
-                                ? selectedSupplierRowsHtml.join('')
-                                : `<div style="color:#94a3b8; font-size:0.9rem; padding:0.45rem;">Kayitli tedarikci yok.</div>`
-                            }
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci baglantisi</label>
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.65rem; min-height:110px; display:flex; align-items:center; background:#f8fafc;">
+                            <div style="font-size:0.82rem; color:#475569; line-height:1.5;">
+                                Bu ekranda tedarikci baglanmaz.<br>
+                                Tedarikci ve tedarikciye ozel urun kodu eslestirmesi
+                                <strong>Tedarikciler</strong> modulunden yonetilir.
+                            </div>
                         </div>
                     </div>
                     <div>
@@ -8126,7 +8106,6 @@
 
         const categories = ProductLibraryModule.getMasterCategories();
         const unitOptions = ProductLibraryModule.getMasterUnitOptions();
-        const suppliers = ProductLibraryModule.getMasterSuppliers();
         const allProducts = DB.data.data.products || [];
         if (s.masterEditingId) {
             const editingRow = allProducts.find(x => String(x?.id || '') === String(s.masterEditingId));
@@ -8175,14 +8154,6 @@
             colorCode = strictColor.code;
         }
 
-        const supplierLinks = Array.isArray(s.masterDraftSupplierLinks)
-            ? s.masterDraftSupplierLinks.map(link => ({
-                supplierId: String(link?.supplierId || '').trim(),
-                supplierName: String(link?.supplierName || '').trim(),
-                supplierCode: String(link?.supplierCode || '').trim()
-            })).filter(link => link.supplierId || link.supplierName)
-            : [];
-
         const duplicateMaster = ProductLibraryModule.findDuplicateMasterProduct({
             categoryId: finalCategory.id,
             name,
@@ -8198,27 +8169,38 @@
         if (duplicateMaster) {
             return alert(`Bu urun zaten mevcut. ID kod: ${duplicateMaster.code || '-'}`);
         }
-
-        if (supplierLinks.length === 0 && Array.isArray(s.masterDraftSupplierIds) && s.masterDraftSupplierIds.length > 0) {
-            const fallbackCode = String(s.masterDraftSupplierCode || '').trim();
-            s.masterDraftSupplierIds.forEach(id => {
-                const found = suppliers.find(x => x.id === id);
-                if (!found) return;
-                supplierLinks.push({
-                    supplierId: found.id,
-                    supplierName: found.name,
-                    supplierCode: fallbackCode
-                });
+        const buildPreservedSupplierSnapshot = (rawRow = {}, rawSpecs = {}) => {
+            const rawLinks = ProductLibraryModule.extractSupplierLinks(rawRow)
+                .map((link) => ({
+                    supplierId: String(link?.supplierId || '').trim(),
+                    supplierName: String(link?.supplierName || '').trim(),
+                    supplierCode: String(link?.supplierCode || '').trim()
+                }))
+                .filter((link) => link.supplierId || link.supplierName);
+            const linksByKey = new Map();
+            rawLinks.forEach((link) => {
+                const key = String(link.supplierId || ProductLibraryModule.normalizeAsciiUpper(link.supplierName || '')).trim();
+                if (!key) return;
+                if (!linksByKey.has(key)) linksByKey.set(key, link);
             });
-        }
+            const links = Array.from(linksByKey.values());
 
-        const supplierRefs = Array.from(new Map(
-            supplierLinks.map(link => {
-                const key = link.supplierId || ProductLibraryModule.normalizeAsciiUpper(link.supplierName || '');
-                return [key, { id: link.supplierId, name: link.supplierName }];
-            })
-        ).values()).filter(ref => ref.id || ref.name);
-        const firstSupplierCode = supplierLinks[0]?.supplierCode || '';
+            const refsSource = links.length > 0
+                ? links.map((link) => ({ id: link.supplierId, name: link.supplierName }))
+                : ProductLibraryModule.extractSupplierRefs(rawRow).map((ref) => ({
+                    id: String(ref?.id || '').trim(),
+                    name: String(ref?.name || '').trim()
+                }));
+            const refsByKey = new Map();
+            refsSource.forEach((ref) => {
+                const key = String(ref.id || ProductLibraryModule.normalizeAsciiUpper(ref.name || '')).trim();
+                if (!key) return;
+                if (!refsByKey.has(key)) refsByKey.set(key, ref);
+            });
+            const refs = Array.from(refsByKey.values()).filter((ref) => ref.id || ref.name);
+            const code = String(rawSpecs?.supplierProductCode || rawRow?.supplierProductCode || '').trim();
+            return { links, refs, code };
+        };
 
         if (s.masterEditingId) {
             const idx = allProducts.findIndex(x => x.id === s.masterEditingId);
@@ -8229,6 +8211,7 @@
             }
             const old = allProducts[idx];
             const oldSpecs = (old?.specs && typeof old.specs === 'object') ? old.specs : {};
+            const preservedSuppliers = buildPreservedSupplierSnapshot(old, oldSpecs);
             allProducts[idx] = {
                 ...old,
                 categoryId: finalCategory.id,
@@ -8236,11 +8219,11 @@
                 name,
                 unitAmount,
                 unitAmountType,
-                suppliers: supplierRefs,
-                supplierLinks,
-                supplierIds: supplierRefs.map(x => x.id),
-                supplierNames: supplierRefs.map(x => x.name),
-                supplierProductCode: firstSupplierCode,
+                suppliers: preservedSuppliers.refs,
+                supplierLinks: preservedSuppliers.links,
+                supplierIds: preservedSuppliers.refs.map(x => x.id),
+                supplierNames: preservedSuppliers.refs.map(x => x.name),
+                supplierProductCode: preservedSuppliers.code,
                 colorType,
                 colorCode,
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : old.attachment || null,
@@ -8255,9 +8238,9 @@
                     colorType,
                     color,
                     colorCode,
-                    suppliers: supplierRefs.map(x => x.name),
-                    supplierLinks,
-                    supplierProductCode: firstSupplierCode,
+                    suppliers: preservedSuppliers.refs.map(x => x.name),
+                    supplierLinks: preservedSuppliers.links,
+                    supplierProductCode: preservedSuppliers.code,
                     note
                 },
                 updated_at: now
@@ -8275,11 +8258,11 @@
                 code,
                 unitAmount,
                 unitAmountType,
-                suppliers: supplierRefs,
-                supplierLinks,
-                supplierIds: supplierRefs.map(x => x.id),
-                supplierNames: supplierRefs.map(x => x.name),
-                supplierProductCode: firstSupplierCode,
+                suppliers: [],
+                supplierLinks: [],
+                supplierIds: [],
+                supplierNames: [],
+                supplierProductCode: '',
                 colorType,
                 colorCode,
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : null,
@@ -8293,9 +8276,9 @@
                     colorType,
                     color,
                     colorCode,
-                    suppliers: supplierRefs.map(x => x.name),
-                    supplierLinks,
-                    supplierProductCode: firstSupplierCode,
+                    suppliers: [],
+                    supplierLinks: [],
+                    supplierProductCode: '',
                     note
                 },
                 created_at: now,

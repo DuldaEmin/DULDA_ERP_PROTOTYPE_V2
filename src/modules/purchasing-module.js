@@ -1334,6 +1334,48 @@ const PurchasingModule = {
         }).join('');
     },
 
+    collectSupplierImportIssueRows: (preview = null) => {
+        const source = preview && typeof preview === 'object' ? preview : {};
+        const issueRows = [];
+        (source.rows || []).forEach((row) => {
+            if (row?.importable) return;
+            issueRows.push({
+                sourceRow: row?.sourceRow,
+                statusText: row?.status === 'duplicate' ? 'Mukerrer' : 'Atlandi',
+                externalCode: row?.externalCode || '',
+                name: row?.name || '',
+                reason: row?.reason || 'Satir iceri alinmadi.'
+            });
+        });
+        (source.skippedRows || []).forEach((item) => {
+            issueRows.push({
+                sourceRow: item?.sheetRow,
+                statusText: 'Atlandi',
+                externalCode: '',
+                name: '',
+                reason: item?.reason || 'Satir iceri alinmadi.'
+            });
+        });
+        return issueRows.sort((a, b) => Number(a?.sourceRow || 0) - Number(b?.sourceRow || 0));
+    },
+
+    renderSupplierImportIssueRowsHtml: (rows = []) => {
+        if (!Array.isArray(rows) || !rows.length) {
+            return '<tr><td colspan="5" style="padding:0.7rem; text-align:center; color:#94a3b8;">Atlanan / mukerrer satir yok.</td></tr>';
+        }
+        return rows.map((row) => `
+            <tr style="border-bottom:1px solid #eef2f7;">
+                <td style="padding:0.45rem; font-family:Consolas,monospace; color:#475569;">${PurchasingModule.escapeHtml(String(row?.sourceRow || '-'))}</td>
+                <td style="padding:0.45rem;">
+                    <span style="display:inline-flex; align-items:center; padding:0.16rem 0.45rem; border:1px solid #fecaca; border-radius:999px; background:#fef2f2; color:#991b1b; font-size:0.7rem; font-weight:800;">${PurchasingModule.escapeHtml(String(row?.statusText || 'Atlandi'))}</span>
+                </td>
+                <td style="padding:0.45rem; font-family:Consolas,monospace;">${PurchasingModule.escapeHtml(String(row?.externalCode || '-'))}</td>
+                <td style="padding:0.45rem; font-weight:600; color:#334155;">${PurchasingModule.escapeHtml(String(row?.name || '-'))}</td>
+                <td style="padding:0.45rem; color:#64748b;">${PurchasingModule.escapeHtml(String(row?.reason || '-'))}</td>
+            </tr>
+        `).join('');
+    },
+
     openSupplierExcelImportPicker: () => {
         const input = document.getElementById('purchasing_supplier_excel_import_input');
         if (!input) return alert('Dosya secme alani bulunamadi.');
@@ -1376,15 +1418,7 @@ const PurchasingModule = {
         const counters = preview.counters || { ready: 0, update: 0, warning: 0, duplicate: 0, skipped: 0 };
         const importableCount = preview.rows.filter((row) => row.importable).length;
         const skippedAndDuplicate = Number(counters.duplicate || 0) + Number(counters.skipped || 0);
-        const skippedHtml = (preview.skippedRows || []).length
-            ? `
-                <div style="margin-top:0.55rem; border:1px solid #fcd34d; background:#fffbeb; color:#92400e; border-radius:0.6rem; padding:0.55rem; font-size:0.82rem;">
-                    <strong>Atlanan satirlar:</strong>
-                    ${(preview.skippedRows || []).slice(0, 8).map((item) => `Satir ${PurchasingModule.escapeHtml(String(item?.sheetRow || '-'))}: ${PurchasingModule.escapeHtml(String(item?.reason || '-'))}`).join(' | ')}
-                    ${(preview.skippedRows || []).length > 8 ? ` | +${(preview.skippedRows || []).length - 8} satir daha` : ''}
-                </div>
-            `
-            : '';
+        const issueRows = PurchasingModule.collectSupplierImportIssueRows(preview);
 
         const html = `
             <div style="display:flex; flex-direction:column; gap:0.65rem;">
@@ -1413,7 +1447,21 @@ const PurchasingModule = {
                         <tbody>${PurchasingModule.renderSupplierImportPreviewRowsHtml(preview.rows)}</tbody>
                     </table>
                 </div>
-                ${skippedHtml}
+                <div style="border:1px solid #fecaca; border-radius:0.7rem; overflow:auto;">
+                    <div style="padding:0.48rem 0.6rem; background:#fff1f2; border-bottom:1px solid #fecaca; color:#991b1b; font-size:0.78rem; font-weight:800;">Atlanan / Mukerrer Satirlar (nedenleriyle)</div>
+                    <table style="width:100%; min-width:740px; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; background:#fff7f7; color:#64748b; font-size:0.7rem; text-transform:uppercase;">
+                                <th style="padding:0.45rem; text-align:left;">Satir</th>
+                                <th style="padding:0.45rem; text-align:left;">Durum</th>
+                                <th style="padding:0.45rem; text-align:left;">Cari kodu</th>
+                                <th style="padding:0.45rem; text-align:left;">Tedarikci</th>
+                                <th style="padding:0.45rem; text-align:left;">Neden</th>
+                            </tr>
+                        </thead>
+                        <tbody>${PurchasingModule.renderSupplierImportIssueRowsHtml(issueRows)}</tbody>
+                    </table>
+                </div>
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
                     <button class="btn-sm" onclick="Modal.close()">vazgec</button>
                     <button class="btn-primary" onclick="PurchasingModule.commitSupplierExcelImport()" ${importableCount > 0 ? '' : 'disabled'}>${importableCount} kaydi iceri al</button>
@@ -1534,10 +1582,18 @@ const PurchasingModule = {
 
         DB.data.data.suppliers = supplierRows.map((row, index) => PurchasingModule.normalizeSupplierRecord(row, index));
         await DB.save();
+        const counters = preview.counters || { warning: 0, duplicate: 0, skipped: 0 };
+        const warningCount = Number(counters.warning || 0);
+        const duplicateCount = Number(counters.duplicate || 0);
+        const skippedCount = Number(counters.skipped || 0);
+        const issueRows = PurchasingModule.collectSupplierImportIssueRows(preview);
+        const issueLine = issueRows.length
+            ? `\nSorunlu satirlar: ${issueRows.slice(0, 6).map((item) => `#${String(item?.sourceRow || '-')} ${String(item?.reason || '-')}`).join(' | ')}${issueRows.length > 6 ? ` | +${issueRows.length - 6} satir daha` : ''}`
+            : '';
         PurchasingModule.state.supplierImportPreview = null;
         Modal.close();
         UI.renderCurrentPage();
-        alert(`Excel aktarimi tamamlandi. Yeni: ${added}, Guncellenen: ${updated}.`);
+        alert(`Excel aktarimi tamamlandi.\nDosya satiri: ${preview.fileRowCount || 0}\nYeni: ${added}\nGuncellenen: ${updated}\nAtlanan/Mukerrer: ${duplicateCount + skippedCount} (Mukerrer: ${duplicateCount}, Atlanan: ${skippedCount})\nEksik bilgi ile islenen: ${warningCount}${issueLine}`);
     },
 
     render: (container) => {
@@ -1907,6 +1963,17 @@ const PurchasingModule = {
                     </div>
                 </div>
 
+                <div style="border:1px solid #e2e8f0; border-radius:0.95rem; padding:0.9rem; background:#ffffff;">
+                    <div style="display:flex; align-items:center; gap:0.55rem; font-size:0.95rem; font-weight:800; color:#1e293b; margin-bottom:0.8rem; padding-bottom:0.5rem; border-bottom:1px solid #e2e8f0;">
+                        <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:999px; background:#f1f5f9; color:#334155; font-size:0.74rem; font-weight:800; border:1px solid #dbe2ea;">4</span>
+                        <span>Musteri Notu</span>
+                    </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri notu</label>
+                        <textarea id="new_sup_notes" class="stock-textarea" style="min-height:88px;" placeholder="Musteri hakkinda not ekleyin...">${PurchasingModule.escapeHtml(String(src?.notes || ''))}</textarea>
+                    </div>
+                </div>
+
                 <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
                     <button class="btn-sm" onclick="PurchasingModule.closeSupplierModal()">iptal</button>
                     <button id="new_sup_save_btn" class="btn-primary">kaydet</button>
@@ -1969,6 +2036,7 @@ const PurchasingModule = {
             entityType: String(read('new_sup_entity_type')).trim() || 'company',
             supplierTypes,
             supplierContacts,
+            notes: String(read('new_sup_notes')).trim(),
             contact: {
                 person: firstName || String(read('new_sup_person')).trim(),
                 phone: String(read('new_sup_phone')).trim() || firstPhone,

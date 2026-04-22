@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-22T13:59:46.252Z",
+    "updated_at": "2026-04-22T13:56:19.329Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -209,7 +209,7 @@
         }
       ]
     },
-    "revision": 9068,
+    "revision": 9067,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -7001,76 +7001,7 @@
         "updated_at": "2026-04-15T14:57:07.547Z"
       }
     ],
-    "orders": [
-      {
-        "orderType": "PROFORMA",
-        "orderDate": "2026-04-22",
-        "customerId": "5fc7f1da-8a56-4bdd-8e17-6e5b50de7c0e",
-        "customerName": "ACCENT ALUMİNİUM CONSTRUCTIONS & HANDRAİL",
-        "customerDisplayId": "120.02.A.017",
-        "status": "Onay Bekliyor",
-        "currency": "USD",
-        "exchangeRate": 45,
-        "preparedBy": "Yerel Kullanici",
-        "globalDiscountRate": 0,
-        "vatRate": 20,
-        "deliveryLeadDays": 15,
-        "deliveryAddress": "ACCENT ALUMİNİUM CONSTRUCTIONS & HANDRAİL\nPOSLANNIKOV PER., 3 BLD, 2 105005 MOSCOW",
-        "paymentMethod": "Nakit",
-        "deliveryMethod": "Nakit",
-        "note": "deneme",
-        "manualNote": "deneme",
-        "lines": [
-          {
-            "id": "ff6890a5-e0f0-4558-9546-01f40e9568ac",
-            "productId": "SCP-FCA68185",
-            "variationId": "073e8728-99c9-482b-8748-0e927119c0a0",
-            "variantCode": "2015-002",
-            "productName": "Dekorlu 2015",
-            "productCode": "2015",
-            "idCode": "SAL-000001",
-            "selectedDiameter": "40",
-            "accessoryColor": "eloksal / P3 Sarı Eloksal",
-            "tubeColor": "eloksal / P3 Sarı Eloksal",
-            "plexiColor": "pleksi / şeffaf",
-            "bubble": "var",
-            "lowerTubeLength": "200",
-            "unit": "adet",
-            "quantityUnit": "adet",
-            "qty": 5,
-            "unitPrice": 22,
-            "lineSubtotal": 110,
-            "lineTotal": 110,
-            "defaultAnchorageCatalogIdCode": "SAL-1DD4BDB2",
-            "defaultAnchorageVariantCode": "12002-001",
-            "anchorageCatalogIdCode": "SAL-1DD4BDB2",
-            "anchorageVariantCode": "12002-001",
-            "anchorageOverride": false,
-            "anchorageName": "35 LİK SIKMALI ANKREAJ",
-            "defaultAnchorageName": "35 LİK SIKMALI ANKREAJ"
-          }
-        ],
-        "subtotal": 110,
-        "discountRate": 0,
-        "discountTotal": 0,
-        "taxBase": 110,
-        "vatTotal": 22,
-        "totalAmount": 132,
-        "grandTotal": 132,
-        "updated_at": "2026-04-22T13:59:46.251Z",
-        "id": "8d029031-d5cc-4ddb-ba9e-b4a8af443797",
-        "orderNo": "SOR-000001",
-        "created_at": "2026-04-22T13:59:46.251Z",
-        "revisionNo": 1,
-        "revisionHistory": [
-          {
-            "version": "v1",
-            "editor": "Yerel Kullanici",
-            "at": "2026-04-22T13:59:46.251Z"
-          }
-        ]
-      }
-    ],
+    "orders": [],
     "units": [
       {
         "id": "u1",

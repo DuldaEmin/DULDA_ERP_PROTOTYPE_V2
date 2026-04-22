@@ -7863,13 +7863,6 @@
                         </div>
                     </div>
 
-                    <div class="card-table" style="padding:1rem;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                            <div style="font-size:0.96rem; font-weight:800; color:#0f172a;">Siparis formu buyuk popup modal olarak acilir.</div>
-                            <button class="btn-primary" type="button" onclick="SalesModule.openNewOrderModal()">Yeni Siparis +</button>
-                        </div>
-                        <div style="font-size:0.84rem; color:#64748b; margin-top:0.35rem;">Duzenle butonuna bastiginda da ayni modal editor acilir.</div>
-                    </div>
                 </div>
             </section>
         `;

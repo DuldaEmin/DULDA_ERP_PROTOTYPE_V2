@@ -1,0 +1,22 @@
+{
+  "schema": "dulda-usb-note/v1",
+  "project": "DULDA_ERP_PROTOTYPE_V2",
+  "rules": {
+    "anayasa_check_before_change": true,
+    "auto_stop": [
+      "merkezi kod kuralini bozan oneri",
+      "referans kirma riski olan silme/tasima",
+      "dry-run ve yedek olmadan toplu import"
+    ],
+    "ask_if_unclear": true
+  },
+  "cnc_import_defaults": {
+    "mode": "dry-run-first",
+    "dedupe": "content-fingerprint",
+    "unique_code_source": "main-program",
+    "backup_required": true,
+    "report_required": true
+  },
+  "notes": "Bu dosyayi USB kokune DULDA_USB_NOTU.json adi ile kopyalayin."
+}
+

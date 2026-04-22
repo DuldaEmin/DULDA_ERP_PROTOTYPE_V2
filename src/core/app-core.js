@@ -752,6 +752,17 @@ const App = {
         await DB.loadState();
         ActionGuard.install();
         NavigationGuard.installLinkClickGuard();
+        if (typeof document !== 'undefined' && !document.documentElement.dataset.visibilityBound) {
+            document.documentElement.dataset.visibilityBound = 'true';
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) return;
+                if (!DB.saveTimeout) return;
+                clearTimeout(DB.saveTimeout);
+                DB.saveTimeout = setTimeout(() => {
+                    void DB.save();
+                }, 300);
+            });
+        }
 
         // Initialize Router and UI
         Router.init();
@@ -804,6 +815,8 @@ const DB = {
         }
     },
     saveTimeout: null,
+    saveDebounceMsForeground: 1000,
+    saveDebounceMsBackground: 8000,
     storageMode: "localStorage",
     saveInProgress: false,
     saveQueued: false,
@@ -811,6 +824,13 @@ const DB = {
     clientSessionId: (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
         ? globalThis.crypto.randomUUID()
         : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+
+    shouldShowSavingUi: () => !(typeof document !== "undefined" && document.hidden),
+
+    getMarkDirtyDelayMs: () => {
+        const hidden = typeof document !== "undefined" && document.hidden;
+        return hidden ? DB.saveDebounceMsBackground : DB.saveDebounceMsForeground;
+    },
 
     mirrorStateToLocalStorage: (state = DB.data) => {
         try {
@@ -1106,7 +1126,7 @@ const DB = {
     },
 
     save: async () => {
-        UI.showSavingIndicator(true);
+        if (DB.shouldShowSavingUi()) UI.showSavingIndicator(true);
         DB.data.meta.updated_at = new Date().toISOString();
         DB.normalizeData();
 
@@ -1159,7 +1179,7 @@ const DB = {
             } while (DB.saveQueued);
         } finally {
             DB.saveInProgress = false;
-            UI.showSavingIndicator(false);
+            if (DB.shouldShowSavingUi()) UI.showSavingIndicator(false);
         }
     },
 
@@ -1168,7 +1188,7 @@ const DB = {
             clearTimeout(DB.saveTimeout);
             DB.saveTimeout = null;
         }
-        UI.showSavingIndicator(true);
+        if (DB.shouldShowSavingUi()) UI.showSavingIndicator(true);
         await DB.save();
     },
 
@@ -1177,11 +1197,12 @@ const DB = {
     },
 
     markDirty: () => {
-        UI.showSavingIndicator(true);
+        if (DB.shouldShowSavingUi()) UI.showSavingIndicator(true);
         if (DB.saveTimeout) clearTimeout(DB.saveTimeout);
+        const delayMs = DB.getMarkDirtyDelayMs();
         DB.saveTimeout = setTimeout(() => {
             void DB.save();
-        }, 1000); // 1-second debounce
+        }, delayMs);
     }
 };
 
@@ -1395,6 +1416,11 @@ const Router = {
 };
 
 const UI = {
+    refreshIcons: () => {
+        if (!window.lucide) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+        window.lucide.createIcons();
+    },
     init: () => {
         const manualSaveButton = document.getElementById('manualSaveButton');
         if (manualSaveButton && !manualSaveButton.dataset.bound) {
@@ -1412,13 +1438,13 @@ const UI = {
         button.innerHTML = isSaving
             ? '<i data-lucide="loader-2" class="spin" width="16" height="16"></i> Kaydediliyor...'
             : '<i data-lucide="save" width="16" height="16"></i> Degisiklikleri Kaydet';
-        if (window.lucide) window.lucide.createIcons();
+        UI.refreshIcons();
     },
     updateStatus: (msg) => {
         const ind = document.getElementById('dbStatusIndicator');
         if (ind) ind.innerHTML = `<i data-lucide="database" width="16" height="16"></i> ${msg}`;
         UI.updateManualSaveButton(false);
-        if (window.lucide) window.lucide.createIcons();
+        UI.refreshIcons();
     },
     showSavingIndicator: (show) => {
         const ind = document.getElementById('dbStatusIndicator');
@@ -1426,7 +1452,7 @@ const UI = {
             ? '<i data-lucide="loader-2" class="spin" width="16" height="16"></i> Kaydediliyor...'
             : `<i data-lucide="database" width="16" height="16"></i> ${DB.storageMode === "disk" ? "Dosyaya Otomatik Kayıt" : "Tarayıcı Kaydı (Yedek)"}`;
         UI.updateManualSaveButton(show);
-        if (window.lucide) window.lucide.createIcons();
+        UI.refreshIcons();
     },
     showConnectionScreen: (type) => {
         const main = document.getElementById('main-content');
@@ -1487,7 +1513,7 @@ const UI = {
         else container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8;"><h3>🚧 Modül Hazırlanıyor: ${page}</h3></div>`;
 
         MojibakeFix.sanitizeTree(container);
-        if (window.lucide) window.lucide.createIcons();
+        UI.refreshIcons();
     },
 
     renderDashboard: (container) => {

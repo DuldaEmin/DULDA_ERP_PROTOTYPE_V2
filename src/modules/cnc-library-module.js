@@ -13,7 +13,10 @@ const CncLibraryModule = {
         draftCategoryId: '',
         draftCategoryName: '',
         draftOperations: [],
-        draftDrawing: null
+        draftDrawing: null,
+        importSession: null,
+        lastImportResult: null,
+        importBusy: false
     },
 
     ensureData: () => {
@@ -76,7 +79,14 @@ const CncLibraryModule = {
                             <div style="font-size:0.82rem; color:#64748b; font-weight:700;">${CncLibraryModule.escape(unit?.name || '')}</div>
                         </div>
                     </div>
-                    <button onclick="CncLibraryModule.startCreate()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">Islem ekle +</button>
+                    <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                        <button onclick="CncLibraryModule.openImportModal()" style="border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:0.75rem; padding:0.55rem 0.9rem; font-weight:700; cursor:pointer;">Dry-run import</button>
+                        ${CncLibraryModule.state.lastImportResult
+                            ? `<button onclick="CncLibraryModule.openImportResultModal()" style="border:1px solid #cbd5e1; background:white; color:#334155; border-radius:0.75rem; padding:0.55rem 0.9rem; font-weight:700; cursor:pointer;">Son import raporu</button>`
+                            : ''
+                        }
+                        <button onclick="CncLibraryModule.startCreate()" class="btn-primary" style="padding:0.55rem 1.15rem; border-radius:0.75rem;">Islem ekle +</button>
+                    </div>
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
@@ -418,6 +428,274 @@ const CncLibraryModule = {
         await DB.save();
         CncLibraryModule.state.selectedId = payload.id;
         CncLibraryModule.cancelForm();
+    },
+
+    openImportModal: () => {
+        const activeUnitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        if (!activeUnitId) return alert('Once birim secilmelidir.');
+        Modal.open('CNC Kart Import (Dry-Run)', `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="font-size:0.82rem; color:#475569; line-height:1.5;">
+                    Kaynak JSON secildiginde once dry-run calisir. Icerik eslesen kartlar otomatik atlanir.
+                    Sadece benzersiz kartlar import edilir ve resmi kod ana programdan yeni uretilir.
+                </div>
+                <input id="cnc_import_file" type="file" accept=".json,application/json" style="border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.45rem;">
+                <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                    <button onclick="CncLibraryModule.runImportDryRun()" class="btn-primary">Dry-run yap</button>
+                    ${CncLibraryModule.state.importSession
+                        ? '<button onclick="CncLibraryModule.openImportDryRunModal()" style="border:1px solid #cbd5e1; background:white; border-radius:0.5rem; padding:0.42rem 0.7rem; cursor:pointer;">Son dry-run sonucunu ac</button>'
+                        : ''
+                    }
+                </div>
+                <div style="font-size:0.76rem; color:#64748b; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    Not: Import kaydi yapildiginda, kayit oncesi durum .state-history klasorune otomatik snapshot olarak yazilir.
+                </div>
+            </div>
+        `, { maxWidth: '640px' });
+    },
+
+    runImportDryRun: async () => {
+        if (CncLibraryModule.state.importBusy) return;
+        if (typeof CncImportService === 'undefined' || !CncImportService) {
+            return alert('Import servisi yuklenemedi.');
+        }
+        const fileInput = document.getElementById('cnc_import_file');
+        const file = fileInput?.files?.[0];
+        if (!file) return alert('Once bir JSON dosyasi secin.');
+
+        let parsed = null;
+        try {
+            const rawText = await CncLibraryModule.readAsText(file);
+            parsed = JSON.parse(String(rawText || '{}'));
+        } catch (error) {
+            return alert('JSON dosyasi okunamadi veya bozuk.');
+        }
+
+        const activeUnitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+        const dryRun = CncImportService.buildDryRun({
+            targetState: DB.data,
+            sourceState: parsed,
+            unitId: activeUnitId
+        });
+        if (Number(dryRun?.sourceStats?.selectedForUnitCount || 0) <= 0) {
+            return alert('Kaynak dosyada bu birim icin import edilecek CNC karti bulunamadi.');
+        }
+
+        CncLibraryModule.state.importSession = {
+            sourceFileName: String(file.name || '').trim(),
+            sourceState: parsed,
+            dryRun,
+            generatedAt: new Date().toISOString()
+        };
+        CncLibraryModule.openImportDryRunModal();
+    },
+
+    openImportDryRunModal: () => {
+        const session = CncLibraryModule.state.importSession;
+        if (!session?.dryRun) return;
+        const dryRun = session.dryRun;
+        const addRows = (dryRun.toAdd || []).slice(0, 60);
+        const skipRows = (dryRun.skipped || []).slice(0, 60);
+        const addTruncated = Number(dryRun.toAdd?.length || 0) > addRows.length;
+        const skipTruncated = Number(dryRun.skipped?.length || 0) > skipRows.length;
+        const canCommit = Number(dryRun.summary?.addable || 0) > 0 && !CncLibraryModule.state.importBusy;
+
+        Modal.open('CNC Import Dry-Run Sonucu', `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.45rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Gelen</div><div style="font-weight:800; font-size:1.1rem; color:#0f172a;">${Number(dryRun.summary?.incoming || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Eklenecek</div><div style="font-weight:800; font-size:1.1rem; color:#047857;">${Number(dryRun.summary?.addable || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Atlanacak</div><div style="font-weight:800; font-size:1.1rem; color:#b45309;">${Number(dryRun.summary?.skipped || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Yeni kategori</div><div style="font-weight:800; font-size:1.1rem; color:#1d4ed8;">${Number(dryRun.summary?.categoriesToCreate || 0)}</div></div>
+                </div>
+
+                <div style="font-size:0.78rem; color:#475569; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    Kaynak dosya: <strong>${CncLibraryModule.escape(session.sourceFileName || '-')}</strong><br>
+                    Kaynak secim: ${Number(dryRun.sourceStats?.selectedForUnitCount || 0)} kart / toplam ${Number(dryRun.sourceStats?.sourceCardCount || 0)} kart
+                </div>
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.5rem;">
+                    <div style="font-size:0.82rem; font-weight:700; color:#0f172a; margin-bottom:0.35rem;">Eklenecek kartlar (benzersiz)</div>
+                    <div style="max-height:180px; overflow:auto; border:1px solid #f1f5f9; border-radius:0.45rem;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b;">
+                                    <th style="padding:0.35rem; text-align:left;">Kaynak ID</th>
+                                    <th style="padding:0.35rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.35rem; text-align:left;">Kategori</th>
+                                    <th style="padding:0.35rem; text-align:left;">Yeni kod</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${addRows.length === 0
+                                    ? '<tr><td colspan="4" style="padding:0.5rem; text-align:center; color:#94a3b8;">Eklenecek kart yok.</td></tr>'
+                                    : addRows.map((row) => `
+                                        <tr style="border-bottom:1px solid #f8fafc;">
+                                            <td style="padding:0.35rem; font-family:monospace;">${CncLibraryModule.escape(row.sourceCncId || '-')}</td>
+                                            <td style="padding:0.35rem; font-weight:700;">${CncLibraryModule.escape(row.productName || '-')}</td>
+                                            <td style="padding:0.35rem;">${CncLibraryModule.escape(row.categoryName || '-')}</td>
+                                            <td style="padding:0.35rem; font-family:monospace; color:#047857;">${CncLibraryModule.escape(row.proposedCncId || '-')}</td>
+                                        </tr>
+                                    `).join('')
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    ${addTruncated ? `<div style="font-size:0.74rem; color:#64748b; margin-top:0.3rem;">Liste ilk ${addRows.length} kayitla sinirlandi.</div>` : ''}
+                </div>
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.5rem;">
+                    <div style="font-size:0.82rem; font-weight:700; color:#0f172a; margin-bottom:0.35rem;">Atlanan kartlar</div>
+                    <div style="max-height:180px; overflow:auto; border:1px solid #f1f5f9; border-radius:0.45rem;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b;">
+                                    <th style="padding:0.35rem; text-align:left;">Kaynak ID</th>
+                                    <th style="padding:0.35rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.35rem; text-align:left;">Neden</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${skipRows.length === 0
+                                    ? '<tr><td colspan="3" style="padding:0.5rem; text-align:center; color:#94a3b8;">Atlanan kart yok.</td></tr>'
+                                    : skipRows.map((row) => `
+                                        <tr style="border-bottom:1px solid #f8fafc;">
+                                            <td style="padding:0.35rem; font-family:monospace;">${CncLibraryModule.escape(row.sourceCncId || '-')}</td>
+                                            <td style="padding:0.35rem; font-weight:700;">${CncLibraryModule.escape(row.productName || '-')}</td>
+                                            <td style="padding:0.35rem;">${CncLibraryModule.escape(row.reasonLabel || row.reason || '-')}</td>
+                                        </tr>
+                                    `).join('')
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    ${skipTruncated ? `<div style="font-size:0.74rem; color:#64748b; margin-top:0.3rem;">Liste ilk ${skipRows.length} kayitla sinirlandi.</div>` : ''}
+                </div>
+
+                <div style="display:flex; gap:0.45rem; flex-wrap:wrap; justify-content:flex-end;">
+                    <button onclick="CncLibraryModule.openImportModal()" style="border:1px solid #cbd5e1; background:white; border-radius:0.5rem; padding:0.42rem 0.75rem; cursor:pointer;">Kaynak degistir</button>
+                    <button onclick="CncLibraryModule.commitImportSession()" ${canCommit ? '' : 'disabled'} class="btn-primary" style="${canCommit ? '' : 'opacity:0.5; cursor:not-allowed;'}">${CncLibraryModule.state.importBusy ? 'Import suruyor...' : 'Iceri aktar'}</button>
+                </div>
+            </div>
+        `, { maxWidth: '920px' });
+    },
+
+    ensureImportLogBag: () => {
+        if (!DB.data.meta || typeof DB.data.meta !== 'object') DB.data.meta = {};
+        if (!Array.isArray(DB.data.meta.cncImportLogs)) DB.data.meta.cncImportLogs = [];
+    },
+
+    commitImportSession: async () => {
+        const session = CncLibraryModule.state.importSession;
+        if (!session?.sourceState || !session?.dryRun) return;
+        if (CncLibraryModule.state.importBusy) return;
+        if (typeof CncImportService === 'undefined' || !CncImportService) {
+            return alert('Import servisi yuklenemedi.');
+        }
+        if (!confirm('Dry-run sonucuna gore import uygulansin mi?')) return;
+
+        CncLibraryModule.state.importBusy = true;
+        try {
+            const activeUnitId = String(CncLibraryModule.state.activeUnitId || '').trim();
+            const result = CncImportService.commitImport({
+                targetState: DB.data,
+                sourceState: session.sourceState,
+                unitId: activeUnitId,
+                sourceFileName: session.sourceFileName || ''
+            });
+
+            CncLibraryModule.ensureImportLogBag();
+            DB.data.meta.cncImportLogs.push({
+                id: (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
+                    ? globalThis.crypto.randomUUID()
+                    : `cnc_import_${Date.now()}`,
+                at: String(result.executedAt || new Date().toISOString()),
+                sourceFileName: String(result.sourceFileName || ''),
+                unitId: String(result.unitId || ''),
+                summary: { ...(result.summary || {}) },
+                added: Array.isArray(result.added) ? result.added.map(row => ({ ...row })) : [],
+                skipped: Array.isArray(result.skipped) ? result.skipped.map(row => ({ ...row })) : [],
+                createdCategories: Array.isArray(result.createdCategories) ? result.createdCategories.map(row => ({ ...row })) : []
+            });
+
+            await DB.save();
+            CncLibraryModule.state.lastImportResult = result;
+            CncLibraryModule.state.importSession = null;
+            if (Array.isArray(result.added) && result.added.length > 0) {
+                const last = result.added[result.added.length - 1];
+                CncLibraryModule.state.selectedId = String(last?.id || '');
+            }
+            UI.renderCurrentPage();
+            CncLibraryModule.openImportResultModal();
+        } catch (error) {
+            alert('Import islemi basarisiz oldu.');
+        } finally {
+            CncLibraryModule.state.importBusy = false;
+        }
+    },
+
+    openImportResultModal: () => {
+        const result = CncLibraryModule.state.lastImportResult;
+        if (!result) return;
+        const addedRows = (result.added || []).slice(0, 80);
+        const addedTruncated = Number(result.added?.length || 0) > addedRows.length;
+        Modal.open('CNC Import Raporu', `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="font-size:0.8rem; color:#475569; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;">
+                    Kaynak dosya: <strong>${CncLibraryModule.escape(result.sourceFileName || '-')}</strong><br>
+                    Islem zamani: ${CncLibraryModule.escape(result.executedAt || '-')}
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.45rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Gelen</div><div style="font-weight:800; font-size:1.1rem; color:#0f172a;">${Number(result.summary?.incoming || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Eklenen</div><div style="font-weight:800; font-size:1.1rem; color:#047857;">${Number(result.summary?.added || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Atlanan</div><div style="font-weight:800; font-size:1.1rem; color:#b45309;">${Number(result.summary?.skipped || 0)}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.55rem; padding:0.45rem;"><div style="font-size:0.72rem; color:#64748b;">Yeni kategori</div><div style="font-weight:800; font-size:1.1rem; color:#1d4ed8;">${Number(result.summary?.createdCategories || 0)}</div></div>
+                </div>
+
+                <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.5rem;">
+                    <div style="font-size:0.82rem; font-weight:700; color:#0f172a; margin-bottom:0.35rem;">Eklenen yeni kodlar</div>
+                    <div style="max-height:220px; overflow:auto; border:1px solid #f1f5f9; border-radius:0.45rem;">
+                        <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b;">
+                                    <th style="padding:0.35rem; text-align:left;">Yeni kod</th>
+                                    <th style="padding:0.35rem; text-align:left;">Urun</th>
+                                    <th style="padding:0.35rem; text-align:left;">Kaynak kod</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${addedRows.length === 0
+                                    ? '<tr><td colspan="3" style="padding:0.5rem; text-align:center; color:#94a3b8;">Eklenen kart yok.</td></tr>'
+                                    : addedRows.map((row) => `
+                                        <tr style="border-bottom:1px solid #f8fafc;">
+                                            <td style="padding:0.35rem; font-family:monospace; color:#047857;">${CncLibraryModule.escape(row.cncId || '-')}</td>
+                                            <td style="padding:0.35rem; font-weight:700;">${CncLibraryModule.escape(row.productName || '-')}</td>
+                                            <td style="padding:0.35rem; font-family:monospace;">${CncLibraryModule.escape(row.sourceCncId || '-')}</td>
+                                        </tr>
+                                    `).join('')
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    ${addedTruncated ? `<div style="font-size:0.74rem; color:#64748b; margin-top:0.3rem;">Liste ilk ${addedRows.length} kayitla sinirlandi.</div>` : ''}
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
+                    <button onclick="CncLibraryModule.downloadLastImportReport()" style="border:1px solid #cbd5e1; background:white; border-radius:0.5rem; padding:0.42rem 0.75rem; cursor:pointer;">Raporu indir</button>
+                    <button onclick="Modal.close()" class="btn-primary">Kapat</button>
+                </div>
+            </div>
+        `, { maxWidth: '860px' });
+    },
+
+    downloadLastImportReport: () => {
+        const result = CncLibraryModule.state.lastImportResult;
+        if (!result?.reportText) return alert('Indirilecek import raporu bulunamadi.');
+        const stamp = String(result.executedAt || new Date().toISOString())
+            .replace(/[:.]/g, '-')
+            .replace('T', '_')
+            .slice(0, 19);
+        CncLibraryModule.downloadText(result.reportText, `cnc-import-raporu-${stamp}.txt`);
     },
 
     openCategoryManager: () => {

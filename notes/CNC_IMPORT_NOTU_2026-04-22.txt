@@ -1,0 +1,22 @@
+CNC IMPORT GUNCELLEME NOTU - 2026-04-22
+
+KONU
+- CNC import akisina dry-run eklendi.
+- Kart eslesmesi artik sadece ID ile degil icerik parmak izi ile yapiliyor.
+- Icerik eslesen kartlar import edilmeden otomatik atlaniyor.
+
+YENI AKIS
+1) CNC Islem Kutuphanesi ekraninda "Dry-run import" butonu kullanilir.
+2) Kaynak JSON secilir ve dry-run sonucu gorulur:
+   - eklenecek benzersiz kartlar
+   - atlanacak kartlar ve nedenleri
+3) Onayla import yapildiginda:
+   - benzersiz kartlara ana program yeni resmi CNC-xxxxxx kodu verir
+   - gerekiyorsa yeni kategori kartlari acilir
+   - import raporu olusur ve indirilebilir
+
+YEDEK VE RAPOR
+- Kayit oncesi durum .state-history klasorune otomatik "before-save" snapshot olarak yazilir.
+- Import sonucu ekran raporu ve indirilebilir metin raporu vardir.
+- Ozet log DB.data.meta.cncImportLogs alanina kaydedilir.
+

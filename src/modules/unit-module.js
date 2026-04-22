@@ -430,12 +430,15 @@ const UnitModule = {
         if (typeof CncLibraryModule !== 'undefined') {
             CncLibraryModule.state.searchName = '';
             CncLibraryModule.state.searchId = '';
+            CncLibraryModule.state.searchCategory = '';
             CncLibraryModule.state.selectedId = null;
             CncLibraryModule.state.formOpen = false;
             CncLibraryModule.state.editingId = null;
             CncLibraryModule.state.draftId = null;
             CncLibraryModule.state.draftOperations = [];
             CncLibraryModule.state.draftDrawing = null;
+            CncLibraryModule.state.importSession = null;
+            CncLibraryModule.state.importBusy = false;
         }
         UI.renderCurrentPage();
     },

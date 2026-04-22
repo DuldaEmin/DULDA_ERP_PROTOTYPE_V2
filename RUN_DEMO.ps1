@@ -1,6 +1,7 @@
 $preferredPort = 5500
 $maxPort = 5520
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$backupScript = Join-Path $root "AUTO_BACKUP_GITHUB.ps1"
 
 function Test-PortInUse {
     param([int]$Port)
@@ -12,6 +13,30 @@ function Test-PortInUse {
     catch {
         return $false
     }
+}
+
+function Invoke-ExitBackupPrompt {
+    if (-not (Test-Path -LiteralPath $backupScript)) {
+        Write-Host "Backup script bulunamadi: $backupScript" -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host ""
+    $answer = Read-Host "Backup almak istiyor musun? (E/H)"
+    $normalized = ($answer | ForEach-Object { $_.ToString().Trim().ToLowerInvariant() })
+
+    if ($normalized -in @("e", "evet", "y", "yes")) {
+        Write-Host "Backup calistiriliyor..." -ForegroundColor Cyan
+        try {
+            & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $backupScript
+        }
+        catch {
+            Write-Host "Backup calisirken hata olustu: $($_.Exception.Message)" -ForegroundColor Red
+        }
+        return
+    }
+
+    Write-Host "Backup atlandi." -ForegroundColor Yellow
 }
 
 $port = $preferredPort
@@ -39,4 +64,7 @@ try {
 }
 catch {
     Write-Host "Node.js bulunamadi. Lutfen Node.js kurup tekrar deneyin." -ForegroundColor Red
+}
+finally {
+    Invoke-ExitBackupPrompt
 }

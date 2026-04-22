@@ -7,14 +7,28 @@ if (-not (Test-Path $backupScript)) {
     throw "AUTO_BACKUP_GITHUB.ps1 bulunamadi: $backupScript"
 }
 
-$taskName = "DULDA_GitAutoBackup_15Min"
-$taskCommand = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$backupScript`""
+$dailyTaskName = "DULDA_GitAutoBackup_Daily"
+$taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`""
+$triggerAt = (Get-Date).AddMinutes(2)
+$startTime = $triggerAt.ToString("HH:mm")
 
-schtasks /Create /TN $taskName /SC MINUTE /MO 30 /TR $taskCommand /F | Out-Null
-if ($LASTEXITCODE -ne 0) {
-    throw "Zamanlanmis gorev olusturulamadi."
+function Invoke-Schtasks {
+    param([string[]]$ArgumentList)
+    $proc = Start-Process -FilePath "schtasks.exe" -ArgumentList $ArgumentList -NoNewWindow -Wait -PassThru
+    return $proc.ExitCode
 }
 
-Write-Output "Olusturuldu: $taskName"
-Write-Output "Komut: $taskCommand"
-Write-Output "Periyot: 30 dakika"
+foreach ($legacyTask in @("DULDA_GitAutoBackup_15Min", "DULDA_ERP_AutoBackup_15Min", "DULDA_ProjectCheck_Hourly")) {
+    Invoke-Schtasks @("/End", "/TN", $legacyTask) | Out-Null
+    Invoke-Schtasks @("/Change", "/TN", $legacyTask, "/DISABLE") | Out-Null
+}
+
+Unregister-ScheduledTask -TaskName $dailyTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $taskArguments
+$trigger = New-ScheduledTaskTrigger -Daily -At $triggerAt
+Register-ScheduledTask -TaskName $dailyTaskName -Action $action -Trigger $trigger -Force | Out-Null
+
+Write-Output "Olusturuldu: $dailyTaskName"
+Write-Output "Komut: powershell.exe $taskArguments"
+Write-Output "Periyot: 24 saat"
+Write-Output "Baslangic saati: $startTime"

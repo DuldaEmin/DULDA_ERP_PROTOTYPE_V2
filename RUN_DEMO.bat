@@ -25,7 +25,24 @@ echo.
 echo Yedek mod adresi: http://localhost:%PORT%/index.html
 start "" "http://localhost:%PORT%/index.html"
 node "%~dp0serve.js" %PORT%
+call :AskBackupPrompt
 
 echo.
 echo Demo kapandi veya hata verdi.
 pause
+goto :eof
+
+:AskBackupPrompt
+set /p backupAns=Backup almak istiyor musun? (E/H): 
+if /I "%backupAns%"=="E" goto :RunBackup
+if /I "%backupAns%"=="EVET" goto :RunBackup
+echo Backup atlandi.
+goto :eof
+
+:RunBackup
+if not exist "%~dp0AUTO_BACKUP_GITHUB.ps1" (
+  echo Backup script bulunamadi.
+  goto :eof
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0AUTO_BACKUP_GITHUB.ps1"
+goto :eof

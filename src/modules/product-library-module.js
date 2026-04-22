@@ -7608,9 +7608,13 @@
         void suppliers;
         void selectedSupplierRowsHtml;
         return `
-            <div style="background:white; border:2px solid #0f172a; border-radius:1.25rem; padding:1.2rem 1.2rem 1.45rem; font-size:1.06rem;">
-                <div style="font-weight:800; color:#1e293b; margin-bottom:0.95rem; font-size:1.62rem;">Kutuphaneye urun ekle</div>
-                <div style="display:grid; grid-template-columns: 220px 1fr 230px 220px; gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+            <div style="background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%); border:1px solid #cbd5e1; border-radius:1.2rem; padding:1rem 1rem 1.2rem; font-size:1.01rem; box-shadow:0 8px 24px rgba(15,23,42,0.06);">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.85rem;">
+                    <div style="font-weight:800; color:#1e293b; font-size:1.45rem; letter-spacing:0.01em;">Kutuphaneye urun ekle</div>
+                    <div style="font-size:0.76rem; color:#64748b; font-weight:700;">Master urunun ilk kimligini tanimla</div>
+                </div>
+
+                <div style="display:grid; grid-template-columns: 220px minmax(360px,1fr) 180px 180px 220px; gap:0.7rem; align-items:end; margin-bottom:0.72rem;">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('category')">+ YONET (EKLE-SIL)</div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kategori *</label>
@@ -7630,9 +7634,13 @@
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">ambalaj icerik</label>
                         <input value="${ProductLibraryModule.escapeHtml(state.masterDraftPack || '')}" oninput="ProductLibraryModule.setMasterDraft('pack', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
                     </div>
+                    <div>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">ID Kod</label>
+                        <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:45px; border:1px solid #d6e0ee; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:Consolas,monospace; font-weight:800; color:#0f172a; letter-spacing:0.01em;">
+                    </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 210px 210px 220px 340px minmax(180px,1fr); gap:0.75rem; align-items:end; margin-bottom:0.75rem;">
+                <div style="display:grid; grid-template-columns: 210px 210px minmax(320px,1fr); gap:0.7rem; align-items:end; margin-bottom:0.72rem;">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('unit')">+ YONET (EKLE-SIL)</div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">alis birimi *</label>
@@ -7648,10 +7656,6 @@
                         </select>
                     </div>
                     <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">birim miktar (${ProductLibraryModule.escapeHtml(ProductLibraryModule.getUnitAmountType(state.masterDraftUnit || 'adet'))})</label>
-                        <input value="${ProductLibraryModule.escapeHtml(state.masterDraftUnitAmount || '')}" oninput="ProductLibraryModule.setMasterDraft('unitAmount', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                    </div>
-                    <div style="width:100%; max-width:440px;">
                         <div style="margin-bottom:0.2rem;">
                             <label style="display:block; font-size:0.72rem; color:#64748b;">kategori / renk</label>
                         </div>
@@ -7670,16 +7674,12 @@
                             </div>
                         </div>
                     </div>
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kod</label>
-                        <input disabled value="${ProductLibraryModule.escapeHtml(draftCode)}" style="width:100%; height:45px; border:1px solid #e2e8f0; border-radius:0.55rem; padding:0 0.65rem; background:#f8fafc; font-family:monospace; font-weight:700;">
-                    </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: minmax(280px, 1fr) minmax(340px, 1fr); gap:0.75rem; align-items:start; margin-bottom:0.75rem;">
+                <div style="display:grid; grid-template-columns: minmax(280px, 1fr) minmax(340px, 1fr); gap:0.7rem; align-items:start; margin-bottom:0.72rem;">
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci baglantisi</label>
-                        <div style="border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.65rem; min-height:110px; display:flex; align-items:center; background:#f8fafc;">
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.62rem; padding:0.7rem; min-height:110px; display:flex; align-items:center; background:#f8fafc;">
                             <div style="font-size:0.82rem; color:#475569; line-height:1.5;">
                                 Bu ekranda tedarikci baglanmaz.<br>
                                 Tedarikci ve tedarikciye ozel urun kodu eslestirmesi
@@ -7689,7 +7689,7 @@
                     </div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">resim / pdf dosya + ekle (opsiyonel)</label>
-                        <div style="border:1px dashed #cbd5e1; border-radius:0.55rem; padding:0.55rem;">
+                        <div style="border:1px dashed #cbd5e1; border-radius:0.62rem; padding:0.6rem; min-height:110px;">
                             <input type="file" accept=".pdf,image/*" onchange="ProductLibraryModule.handleMasterAttachment(this)" style="font-size:0.82rem;">
                             <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(state.masterDraftAttachment?.name || 'Dosya secilmedi')}</div>
                             <div style="display:flex; gap:0.4rem; margin-top:0.45rem;">
@@ -7700,7 +7700,7 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 1fr auto; gap:0.75rem; align-items:end;">
+                <div style="display:grid; grid-template-columns: 1fr auto; gap:0.7rem; align-items:end;">
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">not ekle</label>
                         <textarea rows="3" oninput="ProductLibraryModule.setMasterDraft('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.masterDraftNote || '')}</textarea>
@@ -7785,7 +7785,13 @@
     setMasterDraft: (key, value) => {
         if (key === 'categoryId') ProductLibraryModule.state.masterDraftCategoryId = value || '';
         if (key === 'name') ProductLibraryModule.state.masterDraftName = value || '';
-        if (key === 'unit') ProductLibraryModule.state.masterDraftUnit = value || '';
+        if (key === 'unit') {
+            ProductLibraryModule.state.masterDraftUnit = value || '';
+            if (String(ProductLibraryModule.state.masterDraftConsumptionUnit || '').trim() === String(ProductLibraryModule.state.masterDraftUnit || '').trim()) {
+                ProductLibraryModule.state.masterDraftConsumptionUnit = '';
+            }
+        }
+        if (key === 'consumptionUnit') ProductLibraryModule.state.masterDraftConsumptionUnit = value || '';
         if (key === 'unitAmount') ProductLibraryModule.state.masterDraftUnitAmount = value || '';
         if (key === 'brand') ProductLibraryModule.state.masterDraftBrand = value || '';
         if (key === 'pack') ProductLibraryModule.state.masterDraftPack = value || '';
@@ -7806,6 +7812,7 @@
         ProductLibraryModule.state.masterDraftCategoryId = cats[0]?.id || '';
         ProductLibraryModule.state.masterDraftName = '';
         ProductLibraryModule.state.masterDraftUnit = ProductLibraryModule.getMasterUnitOptions()[0] || 'adet';
+        ProductLibraryModule.state.masterDraftConsumptionUnit = '';
         ProductLibraryModule.state.masterDraftUnitAmount = '';
         ProductLibraryModule.state.masterDraftBrand = '';
         ProductLibraryModule.state.masterDraftPack = '';
@@ -8071,7 +8078,8 @@
         ProductLibraryModule.state.masterSelectedId = record.id;
         ProductLibraryModule.state.masterDraftCategoryId = record.categoryId || ProductLibraryModule.state.masterDraftCategoryId;
         ProductLibraryModule.state.masterDraftName = record.name || '';
-        ProductLibraryModule.state.masterDraftUnit = record.unit || ProductLibraryModule.getMasterUnitOptions()[0] || 'adet';
+        ProductLibraryModule.state.masterDraftUnit = record.alisBirimi || record.unit || ProductLibraryModule.getMasterUnitOptions()[0] || 'adet';
+        ProductLibraryModule.state.masterDraftConsumptionUnit = record.tuketimBirimi || '';
         ProductLibraryModule.state.masterDraftUnitAmount = record.unitAmount || '';
         ProductLibraryModule.state.masterDraftBrand = record.brand || '';
         ProductLibraryModule.state.masterDraftPack = record.pack || '';
@@ -8297,6 +8305,9 @@
                 categoryId: finalCategory.id,
                 category: finalCategory.name,
                 name,
+                unit: purchaseUnit,
+                alisBirimi: purchaseUnit,
+                tuketimBirimi: consumptionUnit,
                 unitAmount,
                 unitAmountType,
                 suppliers: preservedSuppliers.refs,
@@ -8309,7 +8320,9 @@
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : old.attachment || null,
                 specs: {
                     ...oldSpecs,
-                    unit,
+                    unit: purchaseUnit,
+                    alisBirimi: purchaseUnit,
+                    tuketimBirimi: consumptionUnit,
                     unitAmount,
                     unitAmountType,
                     brandModel: brand,
@@ -8336,6 +8349,9 @@
                 type: 'MASTER',
                 name,
                 code,
+                unit: purchaseUnit,
+                alisBirimi: purchaseUnit,
+                tuketimBirimi: consumptionUnit,
                 unitAmount,
                 unitAmountType,
                 suppliers: [],
@@ -8347,7 +8363,9 @@
                 colorCode,
                 attachment: s.masterDraftAttachment?.data ? s.masterDraftAttachment : null,
                 specs: {
-                    unit,
+                    unit: purchaseUnit,
+                    alisBirimi: purchaseUnit,
+                    tuketimBirimi: consumptionUnit,
                     unitAmount,
                     unitAmountType,
                     brandModel: brand,

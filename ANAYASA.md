@@ -109,3 +109,14 @@ Omurga kurali:
 Sinir kurali:
 - islem sonrasi varyantlar, yari mamuller, montaj kartlari ve satisa ozel urunler kendi kutuphanelerinde yonetilir
 - bu kayitlar master kimligi silemez, degistiremez veya ikame edemez; sadece ona baglanir
+
+## 9) Asistan Calisma ve Dur Kurallari
+Bu proje akisinda asistanin (Codex) uygulama disiplini asagidaki kurallara baglidir.
+
+Zorunlu kurallar:
+- her degisiklikte once "anayasa/akis uyumu" kontrolu yapacagim
+- su 3 durumda otomatik hayir/dur diyecegim:
+- merkezi kod kuralini bozan oneri
+- referans kirma riski olan silme/tasima
+- dry-run ve yedek olmadan toplu import
+- bir seyi anlamadiysam sormadan uygulamaya gecmeyecegim

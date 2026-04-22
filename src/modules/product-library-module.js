@@ -1641,7 +1641,7 @@
                     .svx-chip{height:30px; border:1px solid #cbd5e1; border-radius:999px; padding:0 0.62rem; background:white; font-size:0.78rem; font-weight:800;}
                     .svx-chip.is-active{border-color:#16a34a; background:#dcfce7; color:#166534;}
                     .svx-row{display:grid; gap:0.35rem; align-items:center;}
-                    .svx-row.master{grid-template-columns:28px 1fr 68px 56px 56px;}
+                    .svx-row.master{grid-template-columns:28px minmax(0,1fr) 96px 62px 62px;}
                     .svx-row.comp{grid-template-columns:28px 1fr 72px 56px 56px;}
                     .svx-mini{height:30px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.3rem; background:white; font-size:0.75rem; text-align:center; font-weight:700; -moz-appearance:textfield; appearance:textfield;}
                     .svx-mini::-webkit-outer-spin-button,
@@ -1764,7 +1764,7 @@
                                                     <button type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="font-size:0.74rem; font-weight:800; color:#1d4ed8; font-family:monospace; background:none; border:none; padding:0; cursor:pointer; text-align:left;">${ProductLibraryModule.escapeHtml(item?.code || '-')}</button>
                                                     <div style="font-size:0.71rem; color:#64748b;">${ProductLibraryModule.escapeHtml(item?.name || '-')}</div>
                                                 </div>
-                                                <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px;">goruntule</button>
+                                                <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('master', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')" style="height:30px; min-width:92px; padding:0 0.45rem; white-space:nowrap;">goruntule</button>
                                                 <input ${readOnly ? 'readonly' : ''} class="svx-mini" type="number" min="1" value="${ProductLibraryModule.escapeHtml(String(item?.qty || 1))}" oninput="ProductLibraryModule.setSalesVariationMasterQty('${ProductLibraryModule.escapeHtml(item?.id || '')}', this.value)">
                                                 ${readOnly ? '<button class="btn-sm" type="button" disabled style="height:30px;">sil</button>' : `<button class="btn-sm" type="button" onclick="ProductLibraryModule.removeSalesVariationMasterRef('${ProductLibraryModule.escapeHtml(item?.id || '')}')" style="height:30px;">sil</button>`}
                                             </div>

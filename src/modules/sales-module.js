@@ -579,6 +579,19 @@
         return Math.max(0.01, Number(parsed.toFixed(2)));
     },
 
+    formatEditableNumberInput: (value, options = {}) => {
+        const maxFractionDigits = Number(options?.maxFractionDigits ?? 4);
+        const emptyWhenZero = options?.emptyWhenZero === true;
+        const text = String(value ?? '').trim();
+        if (!text) return '';
+        const normalized = Number(text.replace(',', '.'));
+        if (!Number.isFinite(normalized)) return '';
+        const fixedDigits = Number.isFinite(maxFractionDigits) ? Math.max(0, Math.floor(maxFractionDigits)) : 4;
+        const rounded = Number(normalized.toFixed(fixedDigits));
+        if (rounded === 0 && emptyWhenZero) return '';
+        return String(rounded).replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1');
+    },
+
     normalizeSalesLineUnit: (value = 'adet') => {
         const normalized = SalesModule.normalize(String(value || 'adet'));
         if (['metre', 'meter', 'm'].includes(normalized)) return 'metre';
@@ -2092,7 +2105,7 @@
                         <div>
                             <div style="font-size:0.76rem; color:#64748b;">Secilen satir</div>
                             <div style="font-size:0.86rem; font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(`${(Array.isArray(draft.lines) ? draft.lines : []).findIndex((row) => String(row?.id || '').trim() === targetLineId) + 1}. satir`)}</div>
-                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.22rem;">${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(targetLine?.unit || 'adet'))}: ${SalesModule.escapeHtml(String(Number(targetLine?.qty || 1).toFixed(2)))}</div>
+                            <div style="font-size:0.75rem; color:#64748b; margin-top:0.22rem;">${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(targetLine?.unit || 'adet'))}: ${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(targetLine?.qty || 1, { maxFractionDigits: 2 }))}</div>
                         </div>
                         ${selectedProduct
                 ? `<button class="btn-sm" type="button" onclick="SalesModule.openSalesCatalogVariationPage('${SalesModule.escapeHtml(String(selectedProduct.id || ''))}')">urun karti</button>`
@@ -7539,10 +7552,10 @@
                     <td style="padding:0.34rem; min-width:166px;">
                         <div style="display:grid; grid-template-columns:74px 82px; gap:0.24rem; justify-content:start;">
                             <select class="stock-input stock-input-tall" style="width:74px;" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unit', this.value)">${unitOptionsHtml}</select>
-                            <input class="stock-input stock-input-tall" type="number" min="0.01" step="0.01" value="${SalesModule.escapeHtml(String(Number(qty).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)" style="text-align:right; width:82px;" placeholder="miktar">
+                            <input class="stock-input stock-input-tall" type="text" inputmode="decimal" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(qty, { maxFractionDigits: 2 }))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','qty', this.value)" style="text-align:right; width:82px;" placeholder="miktar">
                         </div>
                     </td>
-                    <td style="padding:0.34rem; min-width:96px;"><input class="stock-input stock-input-tall" type="number" min="0" step="0.01" value="${SalesModule.escapeHtml(String(Number(unitPrice || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)" style="text-align:right; width:96px;"></td>
+                    <td style="padding:0.34rem; min-width:96px;"><input class="stock-input stock-input-tall" type="text" inputmode="decimal" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(unitPrice || 0, { maxFractionDigits: 2 }))}" onchange="SalesModule.setSalesOrderLineField('${SalesModule.escapeHtml(lineId)}','unitPrice', this.value)" style="text-align:right; width:96px;"></td>
                     <td style="padding:0.34rem; text-align:right; font-weight:800; min-width:88px;">${fmtMoney(lineTotal)}</td>
                     <td style="padding:0.34rem; text-align:center; min-width:52px;"><button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.removeSalesOrderLine('${SalesModule.escapeHtml(lineId)}')">sil</button></td>
                 </tr>
@@ -7727,10 +7740,10 @@
                         </div>
                     </div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Para Birimi</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('currency', this.value)"><option value="USD" ${currency === 'USD' ? 'selected' : ''}>USD</option><option value="EUR" ${currency === 'EUR' ? 'selected' : ''}>EUR</option><option value="TL" ${currency === 'TL' ? 'selected' : ''}>TL</option></select></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="number" min="0" step="0.0001" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(exchangeRateInputValue)}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="number" min="0" max="100" step="0.01" value="${SalesModule.escapeHtml(String(Number(draft.globalDiscountRate || 0).toFixed(2)))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="text" inputmode="decimal" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(exchangeRateInputValue, { maxFractionDigits: 4, emptyWhenZero: true }))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="text" inputmode="decimal" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(draft.globalDiscountRate || 0, { maxFractionDigits: 2 }))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${normalizedVatRate === 20 ? 'selected' : ''}>%20</option><option value="0" ${normalizedVatRate === 0 ? 'selected' : ''}>%0</option></select></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="number" min="1" step="1" value="${SalesModule.escapeHtml(String(draft.deliveryLeadDays || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="text" inputmode="numeric" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(draft.deliveryLeadDays || '', { maxFractionDigits: 0, emptyWhenZero: true }))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label>
                         <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.35rem;">

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-22T13:49:59.747Z",
+    "updated_at": "2026-04-22T13:49:47.003Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -209,7 +209,7 @@
         }
       ]
     },
-    "revision": 9065,
+    "revision": 9061,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -6948,7 +6948,273 @@
         "updated_at": "2026-04-15T14:57:07.547Z"
       }
     ],
-    "orders": [],
+    "orders": [
+      {
+        "id": "998b109f-4b1a-401b-b023-9fe96bd7b463",
+        "orderNo": "SOR-000001",
+        "orderDate": "2026-04-15",
+        "customerId": "8423a0e8-4909-4f72-bc8c-bf82d1462e2c",
+        "customerName": "ACAR SANAYİ METAL PASLANMAZ",
+        "status": "Taslak",
+        "currency": "USD",
+        "deliveryAddress": "KOPÇA SOKAK NO:47/A SİTELER",
+        "deliveryMethod": "",
+        "note": "",
+        "lines": [
+          {
+            "id": "cb68fabd-425b-454d-89e2-f85a4071a7a0",
+            "productId": "SCP-BA5C9FEA",
+            "productName": "40X40 profil",
+            "productCode": "ID-00007",
+            "qty": 1,
+            "unitPrice": 2,
+            "discountRate": 0,
+            "lineSubtotal": 2,
+            "lineDiscount": 0,
+            "lineTotal": 2
+          },
+          {
+            "id": "4ad3683a-eb28-497e-a183-6c429926e786",
+            "productId": "SCP-F2D9F025",
+            "productName": "Boru Ø 50",
+            "productCode": "ID-00008",
+            "qty": 1,
+            "unitPrice": 2,
+            "discountRate": 0,
+            "lineSubtotal": 2,
+            "lineDiscount": 0,
+            "lineTotal": 2
+          },
+          {
+            "id": "19632c1d-a1c4-46ae-855e-8273898cad2f",
+            "productId": "SCP-2E556979",
+            "productName": "Cubuk Ø 50",
+            "productCode": "ID-00006",
+            "qty": 1,
+            "unitPrice": 5,
+            "discountRate": 0,
+            "lineSubtotal": 5,
+            "lineDiscount": 0,
+            "lineTotal": 5
+          }
+        ],
+        "subtotal": 9,
+        "discountTotal": 0,
+        "totalAmount": 9,
+        "created_at": "2026-04-15T12:43:24.548Z",
+        "updated_at": "2026-04-15T12:43:24.548Z"
+      },
+      {
+        "id": "795ec3d2-8562-484f-ae02-2819db2c2102",
+        "orderNo": "SOR-000002",
+        "orderDate": "2026-04-15",
+        "customerId": "4ab85e0c-1c21-4930-ad30-edc669df2736",
+        "customerName": "ADAB ALÜMİNYUN KORKULUK SİSTEMLERİ",
+        "status": "Onay Bekliyor",
+        "currency": "USD",
+        "deliveryAddress": "FATİH BULVARI KALE CAD. NO:11/C SULTANBEYLİ",
+        "deliveryMethod": "",
+        "note": "",
+        "lines": [
+          {
+            "id": "7a706570-3a36-4973-b4e8-834747931977",
+            "productId": "SCP-2E556979",
+            "productName": "Cubuk Ø 50",
+            "productCode": "ID-00006",
+            "qty": 1,
+            "unitPrice": 1,
+            "discountRate": 0,
+            "lineSubtotal": 1,
+            "lineDiscount": 0,
+            "lineTotal": 1
+          }
+        ],
+        "subtotal": 1,
+        "discountTotal": 0,
+        "totalAmount": 1,
+        "created_at": "2026-04-15T13:26:36.364Z",
+        "updated_at": "2026-04-17T15:29:50.973Z",
+        "approvalDate": "2026-04-17"
+      },
+      {
+        "orderType": "PROFORMA",
+        "orderDate": "2026-04-17",
+        "customerId": "9cd28297-f382-40d6-8e32-5c977f9c1e1b",
+        "customerName": "ABDULKADİR HANÇERLİ - HANÇERLİ MOBİLYA",
+        "customerDisplayId": "120.01.A.221",
+        "status": "Onaylandi",
+        "currency": "USD",
+        "exchangeRate": 45,
+        "preparedBy": "Yerel Kullanici",
+        "globalDiscountRate": 0,
+        "vatRate": 20,
+        "deliveryLeadDays": 20,
+        "deliveryAddress": "Önder, Demirhendek Cd. No:134, 06160 Altındağ/Ankara",
+        "paymentMethod": "1 ay vadeli",
+        "deliveryMethod": "1 ay vadeli",
+        "note": "deneme  deneme",
+        "lines": [
+          {
+            "id": "507dedc5-64d3-4b90-a6c8-ec5799abf8fb",
+            "productId": "SCP-022FF89B",
+            "variationId": "e75e0dfe-9d2d-4836-8eed-e076ea6c222b",
+            "variantCode": "2034-001",
+            "productName": "Kral",
+            "productCode": "2034",
+            "idCode": "ID-00001",
+            "selectedDiameter": "100",
+            "accessoryColor": "eloksal / P3 Sarı Eloksal",
+            "tubeColor": "eloksal / P3 Sarı Eloksal",
+            "plexiColor": "pleksi / şeffaf",
+            "bubble": "var",
+            "lowerTubeLength": "standart",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 5,
+            "unitPrice": 55,
+            "lineSubtotal": 275,
+            "lineTotal": 275
+          },
+          {
+            "id": "e76c0254-b14c-4489-ba04-710d80f41004",
+            "productId": "SCP-FCA68185",
+            "variationId": "073e8728-99c9-482b-8748-0e927119c0a0",
+            "variantCode": "2015-002",
+            "productName": "Dekorlu 2015",
+            "productCode": "2015",
+            "idCode": "SAL-000001",
+            "selectedDiameter": "40",
+            "accessoryColor": "eloksal / P3 Sarı Eloksal",
+            "tubeColor": "eloksal / P3 Sarı Eloksal",
+            "plexiColor": "pleksi / şeffaf",
+            "bubble": "var",
+            "lowerTubeLength": "200",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 50,
+            "unitPrice": 22,
+            "lineSubtotal": 1100,
+            "lineTotal": 1100
+          }
+        ],
+        "subtotal": 1375,
+        "discountRate": 0,
+        "discountTotal": 0,
+        "taxBase": 1375,
+        "vatTotal": 275,
+        "totalAmount": 1650,
+        "grandTotal": 1650,
+        "updated_at": "2026-04-17T15:19:43.453Z",
+        "id": "ad136ec3-5d52-431a-9b89-a86721475401",
+        "orderNo": "SOR-000003",
+        "created_at": "2026-04-17T11:25:51.306Z",
+        "revisionNo": 2,
+        "revisionHistory": [
+          {
+            "version": "v1",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T11:25:51.306Z"
+          },
+          {
+            "version": "v2",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T15:19:43.453Z"
+          }
+        ],
+        "approvalDate": "2026-04-17"
+      },
+      {
+        "orderType": "PROFORMA",
+        "orderDate": "2026-04-17",
+        "customerId": "e61aeaf7-a119-47df-ab38-e7f33adb44c6",
+        "customerName": "ALTINORAN DIZAYN VE MIMARLIK LTD.ŞTİ.",
+        "customerDisplayId": "120.04.A.018",
+        "status": "Onay Bekliyor",
+        "currency": "USD",
+        "exchangeRate": 45,
+        "preparedBy": "Yerel Kullanici",
+        "globalDiscountRate": 0,
+        "vatRate": 0,
+        "deliveryLeadDays": 25,
+        "deliveryAddress": "İmes San. Sit. B Blok 206 No:1 Y.Dudullu, 34776 SANCAKTEPE/İstanbul",
+        "paymentMethod": "3 AY VADELİ",
+        "deliveryMethod": "3 AY VADELİ",
+        "note": "DENEME 1 2 3",
+        "lines": [
+          {
+            "id": "3e0c7be6-e9e1-4ec1-9d63-66020cc4d50c",
+            "productId": "SCP-FCA68185",
+            "variationId": "073e8728-99c9-482b-8748-0e927119c0a0",
+            "variantCode": "2015-002",
+            "productName": "Dekorlu 2015",
+            "productCode": "2015",
+            "idCode": "SAL-000001",
+            "selectedDiameter": "40",
+            "accessoryColor": "eloksal / P3 Sarı Eloksal",
+            "tubeColor": "eloksal / P3 Sarı Eloksal",
+            "plexiColor": "pleksi / şeffaf",
+            "bubble": "var",
+            "lowerTubeLength": "200",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 5,
+            "unitPrice": 22,
+            "lineSubtotal": 110,
+            "lineTotal": 110
+          },
+          {
+            "id": "70df15ea-14c7-4c29-b565-d7fb67e098b5",
+            "productId": "SCP-372EC808",
+            "variationId": "1c1de919-afd6-4a65-ada8-3318cdc39abe",
+            "variantCode": "0212-001",
+            "productName": "35 LİK SIKMALI ANKREAJ",
+            "productCode": "0212",
+            "idCode": "SAL-9E5A7138",
+            "selectedDiameter": "35",
+            "accessoryColor": "-",
+            "tubeColor": "-",
+            "plexiColor": "-",
+            "bubble": "yok",
+            "lowerTubeLength": "standart",
+            "unit": "adet",
+            "quantityUnit": "adet",
+            "qty": 5,
+            "unitPrice": 5,
+            "lineSubtotal": 25,
+            "lineTotal": 25
+          }
+        ],
+        "subtotal": 135,
+        "discountRate": 0,
+        "discountTotal": 0,
+        "taxBase": 135,
+        "vatTotal": 0,
+        "totalAmount": 135,
+        "grandTotal": 135,
+        "updated_at": "2026-04-17T16:52:20.724Z",
+        "id": "16d2dfee-e11c-4537-9310-e13649a9bc47",
+        "orderNo": "SOR-000004",
+        "created_at": "2026-04-17T16:50:22.495Z",
+        "revisionNo": 3,
+        "revisionHistory": [
+          {
+            "version": "v1",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T16:50:22.495Z"
+          },
+          {
+            "version": "v2",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T16:51:26.021Z"
+          },
+          {
+            "version": "v3",
+            "editor": "Yerel Kullanici",
+            "at": "2026-04-17T16:52:20.724Z"
+          }
+        ]
+      }
+    ],
     "units": [
       {
         "id": "u1",

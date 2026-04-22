@@ -39,6 +39,8 @@
         salesOrderLinePicker: null,
         salesOrderLineLibraryPickerPending: false,
         salesOrderLineLibraryPickerContext: null,
+        salesOrderAnchoragePickerPending: false,
+        salesOrderAnchoragePickerContext: null,
         salesPaymentMethodDraft: '',
         priceListDraft: null,
         priceListLineDraft: {
@@ -143,6 +145,7 @@
         if (!Array.isArray(DB.data.data.salesAnchorageProducts)) DB.data.data.salesAnchorageProducts = [];
         SalesModule.ensureCatalogPublicIds();
         SalesModule.ensureAnchoragePublicIds();
+        SalesModule.ensureAnchorageBindingsForLegacyRecords();
         SalesModule.ensureSettingsData();
     },
 
@@ -720,15 +723,25 @@
         return null;
     },
 
-    createSalesOrderLineDraft: (seed = {}) => ({
-        id: String(seed.id || crypto.randomUUID()).trim(),
-        productId: String(seed.productId || '').trim(),
-        variationId: String(seed.variationId || '').trim(),
-        unit: SalesModule.normalizeSalesLineUnit(seed.unit || seed.quantityUnit || 'adet'),
-        qty: SalesModule.parseSalesQuantity(seed.qty, 1),
-        unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
-        isManualPrice: !!seed.isManualPrice
-    }),
+    createSalesOrderLineDraft: (seed = {}) => {
+        const line = {
+            id: String(seed.id || crypto.randomUUID()).trim(),
+            productId: String(seed.productId || '').trim(),
+            variationId: String(seed.variationId || '').trim(),
+            unit: SalesModule.normalizeSalesLineUnit(seed.unit || seed.quantityUnit || 'adet'),
+            qty: SalesModule.parseSalesQuantity(seed.qty, 1),
+            unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
+            isManualPrice: !!seed.isManualPrice,
+            defaultAnchorageCatalogIdCode: String(seed.defaultAnchorageCatalogIdCode || '').trim(),
+            defaultAnchorageVariantCode: String(seed.defaultAnchorageVariantCode || '').trim(),
+            anchorageCatalogIdCode: String(seed.anchorageCatalogIdCode || '').trim(),
+            anchorageVariantCode: String(seed.anchorageVariantCode || '').trim(),
+            anchorageOverride: !!seed.anchorageOverride
+        };
+        const hasExplicitSelection = !!(line.anchorageCatalogIdCode || line.anchorageVariantCode);
+        SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: !hasExplicitSelection });
+        return line;
+    },
 
     buildSalesOrderDraft: (seed = {}) => {
         const source = seed && typeof seed === 'object' ? seed : {};
@@ -752,7 +765,8 @@
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
             deliveryAddress: SalesModule.resolveSalesOrderDeliveryAddress(source),
             paymentMethod: String(source.paymentMethod || source.deliveryMethod || 'Nakit').trim() || 'Nakit',
-            note: String(source.note || '').trim(),
+            note: String(source.manualNote || source.note || '').trim(),
+            manualNote: String(source.manualNote || source.note || '').trim(),
             revisionNo: Math.max(1, Number(source.revisionNo || 1)),
             approvalDate: String(source.approvalDate || '').trim(),
             lines
@@ -961,6 +975,250 @@
             if (current) return;
             row.idCode = SalesModule.generateAnchoragePublicId({ rowId: String(row.id || '').trim() });
         });
+    },
+
+    normalizeAnchorageCode: (value) => String(value || '').trim().toUpperCase(),
+
+    isRailingCatalogCategory: (categoryId) => {
+        const leaf = SalesModule.getCatalogLeafById(categoryId);
+        if (!leaf) return false;
+        const mainId = String(leaf.mainId || '').trim();
+        const leafId = String(leaf.id || '').trim();
+        return mainId === 'korkuluk' && leafId !== 'ankrajlar';
+    },
+
+    getSalesVariantRowRawById: (variationId) => {
+        const key = String(variationId || '').trim();
+        if (!key) return null;
+        const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        return rows.find((row) => String(row?.id || '').trim() === key) || null;
+    },
+
+    getAnchorageVariantRows: () => {
+        const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        return rows
+            .filter((row) => {
+                const categoryId = String(row?.sourceCatalogCategoryId || '').trim();
+                if (categoryId === 'ankrajlar') return true;
+                const sourceId = String(row?.sourceCatalogProductId || '').trim();
+                if (!sourceId) return false;
+                const sourceProduct = SalesModule.getCatalogProducts().find((item) => String(item?.id || '').trim() === sourceId);
+                return String(sourceProduct?.categoryId || '').trim() === 'ankrajlar';
+            })
+            .map((row) => ({
+                id: String(row?.id || '').trim(),
+                sourceCatalogProductId: String(row?.sourceCatalogProductId || '').trim(),
+                sourceCatalogIdCode: SalesModule.normalizeAnchorageCode(row?.sourceCatalogIdCode || ''),
+                variantCode: SalesModule.normalizeAnchorageCode(row?.variantCode || ''),
+                productName: String(row?.productName || row?.sourceCatalogName || '').trim(),
+                productCode: String(row?.sourceCatalogProductCode || '').trim()
+            }))
+            .filter((row) => row.id && row.variantCode);
+    },
+
+    getAnchorageSelectionByCodes: (catalogIdCode, variantCode) => {
+        const catalogCode = SalesModule.normalizeAnchorageCode(catalogIdCode || '');
+        const variant = SalesModule.normalizeAnchorageCode(variantCode || '');
+        const rows = SalesModule.getAnchorageVariantRows();
+        let hit = null;
+        if (variant) {
+            hit = rows.find((row) => row.variantCode === variant) || null;
+        }
+        if (!hit && catalogCode) {
+            hit = rows.find((row) => row.sourceCatalogIdCode === catalogCode) || null;
+        }
+        if (!hit) return null;
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(hit.sourceCatalogProductId || '').trim()) || null;
+        return {
+            variationId: String(hit.id || '').trim(),
+            catalogProductId: String(hit.sourceCatalogProductId || '').trim(),
+            catalogIdCode: SalesModule.normalizeAnchorageCode(hit.sourceCatalogIdCode || product?.idCode || ''),
+            variantCode: SalesModule.normalizeAnchorageCode(hit.variantCode || ''),
+            name: String(hit.productName || product?.name || '').trim(),
+            productCode: String(hit.productCode || product?.productCode || '').trim()
+        };
+    },
+
+    areAnchorageSelectionsEqual: (left, right) => {
+        const leftCatalog = SalesModule.normalizeAnchorageCode(left?.catalogIdCode || left?.sourceCatalogIdCode || '');
+        const rightCatalog = SalesModule.normalizeAnchorageCode(right?.catalogIdCode || right?.sourceCatalogIdCode || '');
+        const leftVariant = SalesModule.normalizeAnchorageCode(left?.variantCode || '');
+        const rightVariant = SalesModule.normalizeAnchorageCode(right?.variantCode || '');
+        return leftCatalog === rightCatalog && leftVariant === rightVariant;
+    },
+
+    getDefaultAnchorageSelectionForLine: (line = {}, productRow = null, variationRow = null) => {
+        const product = productRow && typeof productRow === 'object'
+            ? productRow
+            : SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(line?.productId || '').trim());
+        if (!product || !SalesModule.isRailingCatalogCategory(product.categoryId)) return null;
+        const variation = variationRow && typeof variationRow === 'object'
+            ? variationRow
+            : SalesModule.getSalesVariantRowRawById(line?.variationId || '');
+        const variantCode = SalesModule.normalizeAnchorageCode(
+            variation?.defaultAnchorageVariantCode
+            || variation?.defaultAnchorageVariant
+            || ''
+        );
+        const variantCatalogCode = SalesModule.normalizeAnchorageCode(
+            variation?.defaultAnchorageCatalogIdCode
+            || variation?.defaultAnchorageCatalogCode
+            || ''
+        );
+        const productCode = SalesModule.normalizeAnchorageCode(
+            product?.defaultAnchorageVariantCode
+            || product?.defaultAnchorageVariant
+            || ''
+        );
+        const productCatalogCode = SalesModule.normalizeAnchorageCode(
+            product?.defaultAnchorageCatalogIdCode
+            || product?.defaultAnchorageCatalogCode
+            || ''
+        );
+        const resolved = SalesModule.getAnchorageSelectionByCodes(
+            variantCatalogCode || productCatalogCode,
+            variantCode || productCode
+        );
+        return resolved || null;
+    },
+
+    applyAnchorageDefaultsToOrderLine: (line, options = {}) => {
+        if (!line || typeof line !== 'object') return null;
+        const forceDefault = options?.forceDefault === true;
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(line?.productId || '').trim()) || null;
+        const variationRaw = SalesModule.getSalesVariantRowRawById(line?.variationId || '');
+        const defaultSelection = SalesModule.getDefaultAnchorageSelectionForLine(line, product, variationRaw);
+        const selectedSelection = SalesModule.getAnchorageSelectionByCodes(
+            line?.anchorageCatalogIdCode || '',
+            line?.anchorageVariantCode || ''
+        );
+        const shouldClear = !product || !SalesModule.isRailingCatalogCategory(product.categoryId);
+        if (shouldClear) {
+            line.defaultAnchorageCatalogIdCode = '';
+            line.defaultAnchorageVariantCode = '';
+            line.anchorageCatalogIdCode = '';
+            line.anchorageVariantCode = '';
+            line.anchorageOverride = false;
+            return line;
+        }
+
+        line.defaultAnchorageCatalogIdCode = String(defaultSelection?.catalogIdCode || '').trim();
+        line.defaultAnchorageVariantCode = String(defaultSelection?.variantCode || '').trim();
+
+        const hasManualSelection = !!(selectedSelection?.variantCode && selectedSelection?.catalogIdCode);
+        const shouldUseDefault = forceDefault || !hasManualSelection || !line.anchorageOverride;
+        if (shouldUseDefault) {
+            line.anchorageCatalogIdCode = String(defaultSelection?.catalogIdCode || '').trim();
+            line.anchorageVariantCode = String(defaultSelection?.variantCode || '').trim();
+            line.anchorageOverride = false;
+            return line;
+        }
+        line.anchorageCatalogIdCode = String(selectedSelection?.catalogIdCode || '').trim();
+        line.anchorageVariantCode = String(selectedSelection?.variantCode || '').trim();
+        line.anchorageOverride = defaultSelection
+            ? !SalesModule.areAnchorageSelectionsEqual(selectedSelection, defaultSelection)
+            : true;
+        return line;
+    },
+
+    resolveSalesOrderLineAnchorage: (line = {}) => {
+        const source = line && typeof line === 'object' ? line : {};
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(source?.productId || '').trim()) || null;
+        if (!product || !SalesModule.isRailingCatalogCategory(product.categoryId)) {
+            return { eligible: false, selected: null, defaultSelection: null, isOverride: false };
+        }
+        const defaultSelection = SalesModule.getAnchorageSelectionByCodes(
+            source?.defaultAnchorageCatalogIdCode || '',
+            source?.defaultAnchorageVariantCode || ''
+        ) || SalesModule.getDefaultAnchorageSelectionForLine(source, product, SalesModule.getSalesVariantRowRawById(source?.variationId || ''));
+        const selectedSelection = SalesModule.getAnchorageSelectionByCodes(
+            source?.anchorageCatalogIdCode || '',
+            source?.anchorageVariantCode || ''
+        ) || defaultSelection;
+        const isOverride = !!(defaultSelection && selectedSelection && !SalesModule.areAnchorageSelectionsEqual(defaultSelection, selectedSelection));
+        return {
+            eligible: true,
+            selected: selectedSelection,
+            defaultSelection,
+            isOverride
+        };
+    },
+
+    formatSalesOrderAnchorageQtyText: (value) => {
+        const qty = SalesModule.parseSalesQuantity(value, 1);
+        if (Math.abs(qty - Math.round(qty)) < 0.000001) return String(Math.round(qty));
+        return SalesModule.formatEditableNumberInput(qty, { maxFractionDigits: 2 });
+    },
+
+    buildSalesOrderAnchorageOverrideNotes: (lines = []) => {
+        const rows = Array.isArray(lines) ? lines : [];
+        const notes = [];
+        rows.forEach((line) => {
+            const state = SalesModule.resolveSalesOrderLineAnchorage(line);
+            if (!state.eligible || !state.isOverride || !state.selected) return;
+            const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(line?.productId || '').trim()) || {};
+            const variation = SalesModule.getSalesVariationRowById(String(line?.productId || ''), String(line?.variationId || '')) || {};
+            const qtyText = SalesModule.formatSalesOrderAnchorageQtyText(line?.qty);
+            const productName = String(line?.productName || product?.name || variation?.productName || '').trim() || '-';
+            const variantCode = String(line?.variantCode || variation?.variantCode || '').trim();
+            const variantLabel = variantCode ? ` ${variantCode}` : '';
+            const anchorageName = String(state.selected?.name || state.selected?.variantCode || '').trim() || '-';
+            notes.push(`${qtyText} adet ${productName}${variantLabel} ankrajlari ${anchorageName} olacaktir.`);
+        });
+        return notes;
+    },
+
+    composeSalesOrderNoteWithAnchorageOverrides: (draft = null, linePayloads = []) => {
+        const source = draft && typeof draft === 'object' ? draft : (SalesModule.state.salesOrderDraft || {});
+        const manualNote = String(source?.manualNote || source?.note || '').trim();
+        const autoNotes = SalesModule.buildSalesOrderAnchorageOverrideNotes(linePayloads);
+        if (!autoNotes.length) return manualNote;
+        if (!manualNote) return autoNotes.join('\n');
+        return `${manualNote}\n${autoNotes.join('\n')}`;
+    },
+
+    ensureAnchorageBindingsForLegacyRecords: () => {
+        if (!Array.isArray(DB.data?.data?.salesCatalogProducts)) return;
+        if (!Array.isArray(DB.data?.data?.salesProductVariants)) return;
+        const catalogRows = DB.data.data.salesCatalogProducts;
+        const variantRows = DB.data.data.salesProductVariants;
+
+        const targetVariant = variantRows.find((row) => SalesModule.normalizeAnchorageCode(row?.variantCode || '') === '2015-002');
+        const anchorVariant = variantRows.find((row) =>
+            SalesModule.normalizeAnchorageCode(row?.variantCode || '') === '12002-001'
+            && SalesModule.normalizeAnchorageCode(row?.sourceCatalogIdCode || '') === 'SAL-1DD4BDB2'
+        );
+        if (!targetVariant || !anchorVariant) return;
+
+        let changed = false;
+        const anchorCatalogCode = SalesModule.normalizeAnchorageCode(anchorVariant?.sourceCatalogIdCode || 'SAL-1DD4BDB2');
+        const anchorVariantCode = SalesModule.normalizeAnchorageCode(anchorVariant?.variantCode || '12002-001');
+
+        if (SalesModule.normalizeAnchorageCode(targetVariant?.defaultAnchorageCatalogIdCode || '') !== anchorCatalogCode) {
+            targetVariant.defaultAnchorageCatalogIdCode = anchorCatalogCode;
+            changed = true;
+        }
+        if (SalesModule.normalizeAnchorageCode(targetVariant?.defaultAnchorageVariantCode || '') !== anchorVariantCode) {
+            targetVariant.defaultAnchorageVariantCode = anchorVariantCode;
+            changed = true;
+        }
+
+        const sourceProductId = String(targetVariant?.sourceCatalogProductId || '').trim();
+        const targetProduct = catalogRows.find((row) => String(row?.id || '').trim() === sourceProductId)
+            || catalogRows.find((row) => SalesModule.normalizeAnchorageCode(row?.idCode || '') === 'SAL-000001')
+            || catalogRows.find((row) => String(row?.productCode || '').trim() === '2015');
+        if (targetProduct) {
+            if (SalesModule.normalizeAnchorageCode(targetProduct?.defaultAnchorageCatalogIdCode || '') !== anchorCatalogCode) {
+                targetProduct.defaultAnchorageCatalogIdCode = anchorCatalogCode;
+                changed = true;
+            }
+            if (SalesModule.normalizeAnchorageCode(targetProduct?.defaultAnchorageVariantCode || '') !== anchorVariantCode) {
+                targetProduct.defaultAnchorageVariantCode = anchorVariantCode;
+                changed = true;
+            }
+        }
+
+        if (changed && typeof DB.markDirty === 'function') DB.markDirty();
     },
 
     openWorkspace: (viewId) => {
@@ -1704,8 +1962,13 @@
             SalesModule.refreshSalesOrderUi();
             return;
         }
-        if (key === 'deliveryAddress' || key === 'note') {
+        if (key === 'deliveryAddress') {
             draft[key] = String(value ?? '');
+            return;
+        }
+        if (key === 'note') {
+            draft.note = String(value ?? '');
+            draft.manualNote = String(value ?? '');
             return;
         }
         draft[key] = String(value || '').trim();
@@ -1932,6 +2195,7 @@
         line.productId = String(resolved.productId || '').trim();
         line.variationId = String(resolved.variationId || '').trim();
         line.isManualPrice = false;
+        SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: true });
         SalesModule.applyPriceSuggestionToOrderLine(line, draft);
         SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.restoreSalesOrderAfterLibraryPicker(context.reopenModal !== false);
@@ -1944,6 +2208,124 @@
             : {};
         SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.restoreSalesOrderAfterLibraryPicker(context.reopenModal !== false);
+    },
+
+    clearSalesOrderAnchoragePickerState: () => {
+        SalesModule.state.salesOrderAnchoragePickerPending = false;
+        SalesModule.state.salesOrderAnchoragePickerContext = null;
+    },
+
+    restoreSalesOrderAfterAnchoragePicker: (reopenModal = true) => {
+        const shouldReopenModal = reopenModal !== false;
+        if (typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('sales', { fromBack: true });
+            if (shouldReopenModal) {
+                setTimeout(() => {
+                    SalesModule.openSalesOrderEditorModal({ reset: false });
+                }, 0);
+            }
+            return;
+        }
+        if (shouldReopenModal) {
+            SalesModule.openSalesOrderEditorModal({ reset: false });
+            return;
+        }
+        SalesModule.openWorkspace('sales');
+    },
+
+    openSalesOrderLineAnchoragePicker: (lineId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetLineId = String(lineId || '').trim();
+        if (!draft || !targetLineId) return;
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '').trim() === targetLineId);
+        if (!line) return;
+
+        const product = SalesModule.getCatalogProducts().find((row) => String(row?.id || '').trim() === String(line.productId || '').trim()) || null;
+        if (!product || !String(line?.variationId || '').trim()) {
+            alert('Once urun ve varyasyon secmelisiniz.');
+            return;
+        }
+        if (!SalesModule.isRailingCatalogCategory(product.categoryId)) {
+            alert('Ankraj secimi sadece korkuluk urunlerinde kullanilir.');
+            return;
+        }
+        if (!SalesModule.getAnchorageVariantRows().length) {
+            alert('Secilebilir ankraj kaydi bulunamadi.');
+            return;
+        }
+
+        SalesModule.state.salesOrderAnchoragePickerPending = true;
+        SalesModule.state.salesOrderAnchoragePickerContext = {
+            lineId: targetLineId,
+            reopenModal: !!SalesModule.state.salesOrderEditorModalOpen
+        };
+
+        if (SalesModule.state.salesOrderEditorModalOpen) {
+            SalesModule.state.salesOrderEditorModalOpen = false;
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        }
+
+        SalesModule.state.catalogSearchText = '';
+        SalesModule.state.catalogActiveMainId = 'korkuluk';
+        SalesModule.state.catalogExpandedMainId = 'korkuluk';
+        SalesModule.state.catalogActiveGroupId = 'rail-anchorage';
+        SalesModule.state.catalogExpandedGroupId = 'rail-anchorage';
+        SalesModule.state.catalogActiveCategoryId = 'ankrajlar';
+        SalesModule.state.catalogHighlightKey = 'leaf:ankrajlar';
+        SalesModule.openWorkspace('products');
+    },
+
+    selectSalesOrderAnchorageFromCatalog: (anchorageProductId) => {
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const isPending = !!SalesModule.state.salesOrderAnchoragePickerPending;
+        if (!draft || !isPending) return false;
+        const context = SalesModule.state.salesOrderAnchoragePickerContext && typeof SalesModule.state.salesOrderAnchoragePickerContext === 'object'
+            ? SalesModule.state.salesOrderAnchoragePickerContext
+            : {};
+        const targetLineId = String(context.lineId || '').trim();
+        if (!targetLineId) {
+            SalesModule.clearSalesOrderAnchoragePickerState();
+            return false;
+        }
+        const line = (Array.isArray(draft.lines) ? draft.lines : []).find((row) => String(row?.id || '').trim() === targetLineId);
+        if (!line) {
+            alert('Hedef siparis satiri bulunamadi.');
+            SalesModule.clearSalesOrderAnchoragePickerState();
+            SalesModule.restoreSalesOrderAfterAnchoragePicker(context.reopenModal !== false);
+            return false;
+        }
+        const anchorageRow = SalesModule.getAnchorageProducts()
+            .find((row) => String(row?.id || '').trim() === String(anchorageProductId || '').trim());
+        if (!anchorageRow) {
+            alert('Secilen ankraj kaydi bulunamadi.');
+            return false;
+        }
+        const selection = SalesModule.getAnchorageSelectionByCodes(
+            anchorageRow.idCode || '',
+            ''
+        );
+        if (!selection) {
+            alert('Secilen ankrajin varyasyon kaydi bulunamadi.');
+            return false;
+        }
+        SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: false });
+        line.anchorageCatalogIdCode = String(selection.catalogIdCode || '').trim();
+        line.anchorageVariantCode = String(selection.variantCode || '').trim();
+        const resolved = SalesModule.resolveSalesOrderLineAnchorage(line);
+        line.anchorageOverride = !!resolved?.isOverride;
+        SalesModule.clearSalesOrderAnchoragePickerState();
+        SalesModule.restoreSalesOrderAfterAnchoragePicker(context.reopenModal !== false);
+        return true;
+    },
+
+    cancelSalesOrderAnchoragePicker: () => {
+        const context = SalesModule.state.salesOrderAnchoragePickerContext && typeof SalesModule.state.salesOrderAnchoragePickerContext === 'object'
+            ? SalesModule.state.salesOrderAnchoragePickerContext
+            : {};
+        SalesModule.clearSalesOrderAnchoragePickerState();
+        SalesModule.restoreSalesOrderAfterAnchoragePicker(context.reopenModal !== false);
     },
 
     openSalesOrderLineProductPicker: (lineId) => {
@@ -2187,6 +2569,7 @@
         line.productId = targetProductId;
         line.variationId = targetVariationId;
         line.isManualPrice = false;
+        SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: true });
         SalesModule.applyPriceSuggestionToOrderLine(line, draft);
         SalesModule.state.salesOrderLinePicker = null;
         Modal.close();
@@ -2236,6 +2619,7 @@
             line.productId = String(value || '').trim();
             line.variationId = '';
             line.isManualPrice = false;
+            SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: true });
             SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             SalesModule.refreshSalesOrderUi();
             return;
@@ -2243,6 +2627,7 @@
         if (key === 'variationId') {
             line.variationId = String(value || '').trim();
             line.isManualPrice = false;
+            SalesModule.applyAnchorageDefaultsToOrderLine(line, { forceDefault: true });
             SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             SalesModule.refreshSalesOrderUi();
             return;
@@ -2386,7 +2771,12 @@
                 unit: SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet'),
                 qty: Number(line?.qty || 1),
                 unitPrice: Number(line?.unitPrice || 0),
-                isManualPrice: true
+                isManualPrice: true,
+                defaultAnchorageCatalogIdCode: String(line?.defaultAnchorageCatalogIdCode || '').trim(),
+                defaultAnchorageVariantCode: String(line?.defaultAnchorageVariantCode || '').trim(),
+                anchorageCatalogIdCode: String(line?.anchorageCatalogIdCode || '').trim(),
+                anchorageVariantCode: String(line?.anchorageVariantCode || '').trim(),
+                anchorageOverride: !!line?.anchorageOverride
             }))
         });
         if (!Array.isArray(SalesModule.state.salesOrderDraft.lines) || !SalesModule.state.salesOrderDraft.lines.length) {
@@ -2451,11 +2841,15 @@
                     variationId: String(line?.variationId || '').trim(),
                     unit: SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet'),
                     qty: SalesModule.parseSalesQuantity(line?.qty, 1),
-                    unitPrice: Number(Number(line?.unitPrice || 0).toFixed(2))
+                    unitPrice: Number(Number(line?.unitPrice || 0).toFixed(2)),
+                    defaultAnchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(line?.defaultAnchorageCatalogIdCode || ''),
+                    defaultAnchorageVariantCode: SalesModule.normalizeAnchorageCode(line?.defaultAnchorageVariantCode || ''),
+                    anchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(line?.anchorageCatalogIdCode || ''),
+                    anchorageVariantCode: SalesModule.normalizeAnchorageCode(line?.anchorageVariantCode || '')
                 }))
                 .sort((a, b) => {
-                    const aKey = `${a.productId}|${a.variationId}|${a.unit}|${a.qty}|${a.unitPrice}`;
-                    const bKey = `${b.productId}|${b.variationId}|${b.unit}|${b.qty}|${b.unitPrice}`;
+                    const aKey = `${a.productId}|${a.variationId}|${a.unit}|${a.qty}|${a.unitPrice}|${a.defaultAnchorageCatalogIdCode}|${a.defaultAnchorageVariantCode}|${a.anchorageCatalogIdCode}|${a.anchorageVariantCode}`;
+                    const bKey = `${b.productId}|${b.variationId}|${b.unit}|${b.qty}|${b.unitPrice}|${b.defaultAnchorageCatalogIdCode}|${b.defaultAnchorageVariantCode}|${b.anchorageCatalogIdCode}|${b.anchorageVariantCode}`;
                     return aKey.localeCompare(bKey, 'tr');
                 })
         };
@@ -2486,6 +2880,9 @@
                 ? variation.colors.plexi
                 : (product?.colors?.plexi || {});
             const normalizedUnit = SalesModule.normalizeSalesLineUnit(line.unit || line.quantityUnit || 'adet');
+            const anchorageState = SalesModule.resolveSalesOrderLineAnchorage(line);
+            const defaultAnchorage = anchorageState?.defaultSelection || null;
+            const selectedAnchorage = anchorageState?.selected || defaultAnchorage;
             return {
                 id: String(line.id || crypto.randomUUID()),
                 productId: String(line.productId || '').trim(),
@@ -2505,7 +2902,14 @@
                 qty: SalesModule.parseSalesQuantity(line.qty, 1),
                 unitPrice: Number(Number(line.unitPrice || 0).toFixed(2)),
                 lineSubtotal: Number(Number(line.lineSubtotal || 0).toFixed(2)),
-                lineTotal: Number(Number(line.lineTotal || 0).toFixed(2))
+                lineTotal: Number(Number(line.lineTotal || 0).toFixed(2)),
+                defaultAnchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(line?.defaultAnchorageCatalogIdCode || defaultAnchorage?.catalogIdCode || ''),
+                defaultAnchorageVariantCode: SalesModule.normalizeAnchorageCode(line?.defaultAnchorageVariantCode || defaultAnchorage?.variantCode || ''),
+                anchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(line?.anchorageCatalogIdCode || selectedAnchorage?.catalogIdCode || ''),
+                anchorageVariantCode: SalesModule.normalizeAnchorageCode(line?.anchorageVariantCode || selectedAnchorage?.variantCode || ''),
+                anchorageOverride: !!anchorageState?.isOverride,
+                anchorageName: String(selectedAnchorage?.name || '').trim(),
+                defaultAnchorageName: String(defaultAnchorage?.name || '').trim()
             };
         });
     },
@@ -2524,6 +2928,7 @@
         const lines = SalesModule.buildSalesOrderLinePayloads(
             totals.lines.filter((line) => String(line?.productId || '').trim())
         );
+        const composedNote = SalesModule.composeSalesOrderNoteWithAnchorageOverrides(source, lines);
         return {
             orderNo: String(source.orderNo || source.orderCode || 'ONIZLEME').trim(),
             orderDate: String(source.orderDate || new Date().toISOString().slice(0, 10)).trim(),
@@ -2539,7 +2944,7 @@
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
             deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(source.paymentMethod || 'Nakit').trim() || 'Nakit',
-            note: String(source.note || '').trim(),
+            note: composedNote,
             lines,
             subtotal: totals.subtotal,
             discountTotal: totals.discountTotal,
@@ -2771,11 +3176,11 @@
     addSalesOrderLineAnchoragePlaceholder: (lineId) => {
         const targetId = String(lineId || '').trim();
         if (!targetId) return;
-        alert('Ankraj ekleme akisini bir sonraki adimda birlikte tamamlayacagiz.');
+        SalesModule.openSalesOrderLineAnchoragePicker(targetId);
     },
 
     addSalesOrderAnchoragePlaceholder: () => {
-        alert('Ankraj ekle butonu hazir. Detay akisina bir sonraki adimda gececegiz.');
+        SalesModule.openCatalogAnchorageSection();
     },
 
     generateSalesOrderNo: () => {
@@ -2832,6 +3237,7 @@
         const now = new Date().toISOString();
         const editorName = SalesModule.getCurrentEditorName();
         const rowPayload = SalesModule.buildSalesOrderLinePayloads(validLines);
+        const composedNote = SalesModule.composeSalesOrderNoteWithAnchorageOverrides(draft, rowPayload);
         const resolvedDeliveryAddress = SalesModule.resolveSalesOrderDeliveryAddress({
             ...draft,
             customerId: String(customer.id || '').trim()
@@ -2853,7 +3259,8 @@
             deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             deliveryMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
-            note: String(draft.note || '').trim(),
+            note: composedNote,
+            manualNote: String(draft.manualNote || draft.note || '').trim(),
             lines: rowPayload,
             subtotal: totals.subtotal,
             discountRate: totals.discountRate,
@@ -5327,6 +5734,16 @@
                         thickness: String(pipe.thickness || item.pipeThickness || '').trim(),
                         lengthMm: String(pipe.lengthMm || item.pipeLengthMm || '').trim()
                     },
+                    defaultAnchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(
+                        item.defaultAnchorageCatalogIdCode
+                        || item.defaultAnchorageCatalogCode
+                        || ''
+                    ),
+                    defaultAnchorageVariantCode: SalesModule.normalizeAnchorageCode(
+                        item.defaultAnchorageVariantCode
+                        || item.defaultAnchorageVariant
+                        || ''
+                    ),
                     note: String(item.note || '').trim(),
                     images: {
                         product: String(images.product || '').trim(),
@@ -5625,6 +6042,10 @@
             ? row.diameters.map((v) => SalesModule.normalizeCatalogDiameterValue(v)).filter(Boolean)
             : SalesModule.getCatalogDiameterLibrary().slice(0, 3);
         const draftSelectedDiameter = SalesModule.normalizeCatalogDiameterValue(String(row.selectedDiameter || '').trim());
+        const defaultAnchorageSelection = SalesModule.getAnchorageSelectionByCodes(
+            row.defaultAnchorageCatalogIdCode || row.defaultAnchorageCatalogCode || '',
+            row.defaultAnchorageVariantCode || row.defaultAnchorageVariant || ''
+        );
         return {
             categoryId: String(categoryId || '').trim(),
             name: String(row.name || '').trim(),
@@ -5634,6 +6055,8 @@
             selectedDiameter: draftDiameters.includes(draftSelectedDiameter) ? draftSelectedDiameter : String(draftDiameters[0] || ''),
             lowerTubeLength: String(row.lowerTubeLength || 'standart').trim() || 'standart',
             bubble: String(row.bubble || 'yok').trim() === 'var' ? 'var' : 'yok',
+            defaultAnchorageCatalogIdCode: String(defaultAnchorageSelection?.catalogIdCode || '').trim(),
+            defaultAnchorageVariantCode: String(defaultAnchorageSelection?.variantCode || '').trim(),
             note: String(row.note || '').trim(),
             colors: {
                 accessory: colorDefaults('accessory', row.colors?.accessory),
@@ -5866,11 +6289,21 @@
     openCatalogAnchorageSection: () => {
         SalesModule.ensureCatalogState();
         SalesModule.state.catalogAnchorageMode = true;
+        SalesModule.state.catalogActiveMainId = 'korkuluk';
+        SalesModule.state.catalogExpandedMainId = 'korkuluk';
+        SalesModule.state.catalogActiveGroupId = 'rail-anchorage';
+        SalesModule.state.catalogExpandedGroupId = 'rail-anchorage';
+        SalesModule.state.catalogActiveCategoryId = 'ankrajlar';
+        SalesModule.state.catalogHighlightKey = 'leaf:ankrajlar';
         SalesModule.state.catalogEditingProductId = '';
         SalesModule.state.catalogDraft = null;
         SalesModule.state.anchorageEditingProductId = '';
         SalesModule.state.anchorageDraft = null;
         SalesModule.state.catalogSearchText = '';
+        if (String(SalesModule.state.workspaceView || '') !== 'products') {
+            SalesModule.openWorkspace('products');
+            return;
+        }
         UI.renderCurrentPage();
     },
 
@@ -5921,6 +6354,42 @@
             .join('');
         const placeholder = `<option value="" ${selected ? '' : 'selected'}>renk sec</option>`;
         return `${placeholder}${options}`;
+    },
+
+    getAnchorageSelectionOptions: () => {
+        const rows = SalesModule.getAnchorageVariantRows();
+        const byVariant = new Map();
+        rows.forEach((row) => {
+            const variantCode = SalesModule.normalizeAnchorageCode(row?.variantCode || '');
+            if (!variantCode || byVariant.has(variantCode)) return;
+            byVariant.set(variantCode, {
+                variantCode,
+                catalogIdCode: SalesModule.normalizeAnchorageCode(row?.sourceCatalogIdCode || ''),
+                name: String(row?.productName || '').trim(),
+                productCode: String(row?.productCode || '').trim()
+            });
+        });
+        return Array.from(byVariant.values()).sort((a, b) => {
+            const byName = String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
+            if (byName !== 0) return byName;
+            return String(a?.variantCode || '').localeCompare(String(b?.variantCode || ''), 'tr');
+        });
+    },
+
+    renderCatalogAnchorageOptionsHtml: (selectedVariantCode = '') => {
+        const selected = SalesModule.normalizeAnchorageCode(selectedVariantCode || '');
+        const options = SalesModule.getAnchorageSelectionOptions();
+        const placeholder = `<option value="" ${selected ? '' : 'selected'}>ankraj sec *</option>`;
+        const list = options
+            .map((item) => {
+                const value = SalesModule.escapeHtml(item.variantCode || '');
+                const selectedAttr = item.variantCode === selected ? 'selected' : '';
+                const name = String(item.name || item.productCode || item.variantCode || '-').trim();
+                const label = `${name} (${item.variantCode || '-'})`;
+                return `<option value="${value}" ${selectedAttr}>${SalesModule.escapeHtml(label)}</option>`;
+            })
+            .join('');
+        return `${placeholder}${list}`;
     },
 
     renderCatalogDiameterButtonsHtml: (diameters, selectedDiameter, clickHandlerName, removeHandlerName = '') => {
@@ -6110,8 +6579,12 @@
         }).join('');
     },
 
-    renderAnchorageCardsHtml: (rows, searchText = '') => {
+    renderAnchorageCardsHtml: (rows, searchText = '', options = {}) => {
         const list = Array.isArray(rows) ? rows : [];
+        const requestedSelectAction = String(options?.onSelectAction || '').trim();
+        const hasCustomSelectAction = /^[A-Za-z_$][A-Za-z0-9_$.]*$/.test(requestedSelectAction);
+        const viewButtonLabel = String(options?.viewButtonLabel || '').trim() || 'goruntule';
+        const showEditButton = options?.showEditButton !== false;
         if (!list.length) {
             return `
                 <div class="sales-catalog-empty">
@@ -6125,8 +6598,11 @@
         return list.map((row) => {
             const image = String(row?.images?.product || '').trim();
             const id = SalesModule.escapeHtml(String(row?.id || ''));
+            const selectAction = hasCustomSelectAction
+                ? `${requestedSelectAction}('${id}')`
+                : `SalesModule.openAnchorageDetailModal('${id}')`;
             return `
-                <div class="sales-catalog-card" role="button" tabindex="0" onclick="SalesModule.openAnchorageDetailModal('${id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); SalesModule.openAnchorageDetailModal('${id}');}">
+                <div class="sales-catalog-card" role="button" tabindex="0" onclick="${selectAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${selectAction};}">
                     <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
                         ${image
                     ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row?.name || 'Ankraj')}" class="sales-catalog-card-image">`
@@ -6139,8 +6615,8 @@
                             <span class="sales-catalog-pill">ID: ${SalesModule.escapeHtml(row?.idCode || '-')}</span>
                         </div>
                         <div class="sales-catalog-card-actions">
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openAnchorageDetailModal('${id}')">goruntule</button>
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditAnchorageModal('${id}')">duzenle</button>
+                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
+                            ${showEditButton ? `<button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditAnchorageModal('${id}')">duzenle</button>` : ''}
                         </div>
                     </div>
                 </div>
@@ -6218,36 +6694,56 @@
         SalesModule.ensureCatalogState();
         const host = String(options?.host || 'sales').trim();
         const isEmbeddedInProducts = host === 'product-library';
-        const backAction = isEmbeddedInProducts
-            ? 'ProductLibraryModule.goWorkspaceMenu()'
-            : "SalesModule.openWorkspace('menu')";
+        const isAnchoragePickerPending = !!SalesModule.state.salesOrderAnchoragePickerPending;
+        const backAction = isAnchoragePickerPending
+            ? 'SalesModule.cancelSalesOrderAnchoragePicker()'
+            : (isEmbeddedInProducts
+                ? 'ProductLibraryModule.goWorkspaceMenu()'
+                : "SalesModule.openWorkspace('menu')");
         const titleText = isEmbeddedInProducts ? 'urun ve parca olusturma / satilan urun kutuphanesi' : 'satis urun kutuphanesi';
-        const subtitleText = isEmbeddedInProducts
+        const subtitleText = isAnchoragePickerPending
+            ? 'ankraj secim modundasin. secimden sonra siparis satirina otomatik doneceksin.'
+            : (isEmbeddedInProducts
             ? 'bu ekran master tarafinda referans icin gorunur. urun ekleme ve duzenleme bu ekrandan da yapilabilir.'
-            : 'burada sadece satilan urunler eklenir.';
+            : 'burada sadece satilan urunler eklenir.');
         const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         const isPipeLeaf = SalesModule.isPipeFamilyCategory(activeCategoryId);
+        const isAnchorageLeaf = activeCategoryId === 'ankrajlar';
         const searchText = String(SalesModule.state.catalogSearchText || '');
         const supportsCatalogCrud = isCatalogMain || isPipeLeaf;
         const supportsCrud = supportsCatalogCrud;
         const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const totalCategoryCount = (supportsCatalogCrud && activeLeaf) ? SalesModule.getCatalogProductsByCategory(activeCategoryId).length : 0;
+        const totalCategoryCount = (supportsCatalogCrud && activeLeaf)
+            ? (isAnchorageLeaf ? SalesModule.getAnchorageProducts().length : SalesModule.getCatalogProductsByCategory(activeCategoryId).length)
+            : 0;
         const filteredRows = (supportsCatalogCrud && activeLeaf)
-            ? SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText)
+            ? (isAnchorageLeaf
+                ? SalesModule.getFilteredAnchorageProducts(searchText)
+                : SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText))
             : [];
         const filteredCount = filteredRows.length;
         const createButtonHtml = (supportsCatalogCrud && activeGroup && activeLeaf)
-            ? '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>'
+            ? (isAnchorageLeaf
+                ? (isAnchoragePickerPending ? '' : '<button class="btn-primary" onclick="SalesModule.openCreateAnchorageModal()">yeni urun ekle +</button>')
+                : '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>')
             : '';
         const contentClass = (supportsCatalogCrud && isPipeLeaf) ? 'sales-catalog-list' : 'sales-catalog-grid';
         const listHtml = (supportsCatalogCrud && activeLeaf)
-            ? (isPipeLeaf
-                ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
-                : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options))
+            ? (isAnchorageLeaf
+                ? SalesModule.renderAnchorageCardsHtml(filteredRows, searchText, isAnchoragePickerPending
+                    ? {
+                        onSelectAction: 'SalesModule.selectSalesOrderAnchorageFromCatalog',
+                        viewButtonLabel: 'sec',
+                        showEditButton: false
+                    }
+                    : options)
+                : (isPipeLeaf
+                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
+                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options)))
             : `<div class="sales-catalog-empty">
                                         <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
                                         <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
@@ -6624,6 +7120,12 @@
     renderCreateCatalogModalHtml: () => {
         const draft = SalesModule.state.catalogDraft || SalesModule.buildCatalogDraft(SalesModule.state.catalogActiveCategoryId || '');
         const categoryText = SalesModule.getCatalogCategoryPathText(draft.categoryId || SalesModule.state.catalogActiveCategoryId || '');
+        const isRailingProduct = SalesModule.isRailingCatalogCategory(draft.categoryId || SalesModule.state.catalogActiveCategoryId || '');
+        const selectedAnchorage = SalesModule.getAnchorageSelectionByCodes(
+            draft.defaultAnchorageCatalogIdCode || '',
+            draft.defaultAnchorageVariantCode || ''
+        );
+        const selectedAnchorageVariant = String(selectedAnchorage?.variantCode || draft.defaultAnchorageVariantCode || '').trim();
         return `
             <div class="sales-catalog-create-wrap">
                 <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(categoryText)}</div>
@@ -6669,6 +7171,14 @@
                         <label class="sales-catalog-label">Alt boru uzunlugu</label>
                         <input id="sales_catalog_lower_tube" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.lowerTubeLength || 'standart')}" oninput="SalesModule.setCatalogDraftField('lowerTubeLength', this.value)" placeholder="standart veya ozel olcu">
                     </div>
+                    ${isRailingProduct ? `
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Varsayilan ankraj *</label>
+                        <select id="sales_catalog_default_anchorage" class="sales-catalog-select" onchange="SalesModule.setCatalogDraftAnchorageVariant(this.value)">
+                            ${SalesModule.renderCatalogAnchorageOptionsHtml(selectedAnchorageVariant)}
+                        </select>
+                    </div>
+                    ` : ''}
                 </div>
 
                 <div class="sales-catalog-color-grid">
@@ -6798,6 +7308,19 @@
         if (!key) return;
         if (!SalesModule.state.catalogDraft || typeof SalesModule.state.catalogDraft !== 'object') return;
         SalesModule.state.catalogDraft[key] = String(value || '');
+    },
+
+    setCatalogDraftAnchorageVariant: (variantCode) => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const resolved = SalesModule.getAnchorageSelectionByCodes('', variantCode || '');
+        if (!resolved) {
+            draft.defaultAnchorageCatalogIdCode = '';
+            draft.defaultAnchorageVariantCode = '';
+            return;
+        }
+        draft.defaultAnchorageCatalogIdCode = String(resolved.catalogIdCode || '').trim();
+        draft.defaultAnchorageVariantCode = String(resolved.variantCode || '').trim();
     },
 
     setPipeDraftField: (field, value) => {
@@ -7093,6 +7616,7 @@
         const isCubuk = SalesModule.isRodCategory(categoryId);
         const isOzel = SalesModule.isSpecialProfileCategory(categoryId);
         const isPipeFamily = SalesModule.isPipeFamilyCategory(categoryId);
+        const isRailingProduct = SalesModule.isRailingCatalogCategory(categoryId);
 
         const normalizedDiameter = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
         const normalizedThickness = SalesModule.normalizeCatalogDiameterValue(draft.pipe?.thickness || '');
@@ -7124,6 +7648,13 @@
 
         const selectedDiameterRaw = SalesModule.normalizeCatalogDiameterValue(draft.selectedDiameter || '');
         const selectedDiameter = diameters.includes(selectedDiameterRaw) ? selectedDiameterRaw : String(diameters[0] || '');
+        const defaultAnchorageSelection = SalesModule.getAnchorageSelectionByCodes(
+            draft.defaultAnchorageCatalogIdCode || '',
+            draft.defaultAnchorageVariantCode || ''
+        );
+        if (isRailingProduct && !defaultAnchorageSelection) {
+            return alert('Korkuluk urunleri icin varsayilan ankraj secimi zorunludur.');
+        }
 
         const editingId = String(SalesModule.state.catalogEditingProductId || '').trim();
         const existingIdx = editingId
@@ -7190,6 +7721,8 @@
                 ? (isBoru ? 'yok' : (String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok'))
                 : (String(draft.bubble || 'yok').trim() === 'var' ? 'var' : 'yok'),
             lowerTubeLength: String(draft.lowerTubeLength || 'standart').trim() || 'standart',
+            defaultAnchorageCatalogIdCode: SalesModule.normalizeAnchorageCode(defaultAnchorageSelection?.catalogIdCode || ''),
+            defaultAnchorageVariantCode: SalesModule.normalizeAnchorageCode(defaultAnchorageSelection?.variantCode || ''),
             pipe: {
                 thickness: isBoru ? normalizedThickness : '',
                 lengthMm: normalizedLength
@@ -7254,6 +7787,10 @@
 
     renderCatalogDetailModalHtml: (row) => {
         const pathText = SalesModule.getCatalogCategoryPathText(row.categoryId);
+        const defaultAnchorage = SalesModule.getAnchorageSelectionByCodes(
+            row?.defaultAnchorageCatalogIdCode || '',
+            row?.defaultAnchorageVariantCode || ''
+        );
         if (SalesModule.isPipeFamilyCategory(row.categoryId)) {
             const isBoru = SalesModule.isPipeCategory(row.categoryId);
             const isCubuk = SalesModule.isRodCategory(row.categoryId);
@@ -7360,6 +7897,12 @@
                                 <label class="sales-catalog-label">Alt boru uzunlugu</label>
                                 <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.lowerTubeLength || 'standart')}" readonly>
                             </div>
+                            ${SalesModule.isRailingCatalogCategory(row?.categoryId || '') ? `
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Varsayilan ankraj</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(String(defaultAnchorage?.name || defaultAnchorage?.variantCode || '-'))}" readonly>
+                            </div>
+                            ` : ''}
                         </div>
 
                         <div>
@@ -7537,6 +8080,14 @@
             ]
                 .map((item) => `<option value="${SalesModule.escapeHtml(item.value)}" ${item.value === lineUnit ? 'selected' : ''}>${SalesModule.escapeHtml(item.label)}</option>`)
                 .join('');
+            const anchorageState = SalesModule.resolveSalesOrderLineAnchorage(line);
+            const canPickAnchorage = !!(productId && variationId && anchorageState.eligible);
+            const anchorageButtonLabel = canPickAnchorage
+                ? (anchorageState?.isOverride ? 'ankraj degistir' : 'ankraj sec +')
+                : '-';
+            const anchorageButtonTitle = !canPickAnchorage
+                ? 'Bu satirda ankraj secimi kullanilamaz.'
+                : String(anchorageState?.selected?.name || 'Ankraj sec');
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.34rem; text-align:center; color:#64748b; min-width:42px;">${index + 1}</td>
@@ -7547,7 +8098,7 @@
                         </div>
                     </td>
                     <td style="padding:0.34rem; min-width:106px; text-align:center;">
-                        <button class="btn-sm" type="button" style="height:30px; padding:0 0.5rem;" onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">ankraj ekle +</button>
+                        <button class="btn-sm" type="button" style="height:30px; padding:0 0.72rem; min-width:112px;" title="${SalesModule.escapeHtml(anchorageButtonTitle)}" ${canPickAnchorage ? '' : 'disabled'} onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">${SalesModule.escapeHtml(anchorageButtonLabel)}</button>
                     </td>
                     <td style="padding:0.34rem; min-width:166px;">
                         <div style="display:grid; grid-template-columns:74px 82px; gap:0.24rem; justify-content:start;">

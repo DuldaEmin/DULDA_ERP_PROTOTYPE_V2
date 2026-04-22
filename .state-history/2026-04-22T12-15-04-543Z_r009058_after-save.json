@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "created_at": "2026-03-10T12:37:15.197Z",
-    "updated_at": "2026-04-22T12:16:44.165Z",
+    "updated_at": "2026-04-22T12:15:04.227Z",
     "seedFlags": {
       "stockDepotsSeededV4": true,
       "personnelModuleSeedV1": true,
@@ -209,7 +209,7 @@
         }
       ]
     },
-    "revision": 9060,
+    "revision": 9058,
     "updatedAt": "2026-04-15T18:10:07.090Z"
   },
   "data": {
@@ -11774,86 +11774,6 @@
         "productionPlanCompletedAt": "2026-04-17T12:52:56.928Z",
         "created_at": "2026-04-17T12:51:27.888Z",
         "updated_at": "2026-04-17T12:52:56.928Z",
-        "productionReady": true,
-        "productionStatusReason": ""
-      },
-      {
-        "id": "5a5f996c-528a-48e1-a931-73d8c8884265",
-        "scope": "sales-library",
-        "sourceCatalogProductId": "SCP-04DDB900",
-        "sourceCatalogIdCode": "SAL-1DD4BDB2",
-        "sourceCatalogProductCode": "12002",
-        "sourceCatalogCategoryId": "ankrajlar",
-        "sourceCatalogName": "35 LİK SIKMALI ANKREAJ",
-        "variantCode": "12002-001",
-        "productName": "35 LİK SIKMALI ANKREAJ",
-        "bubble": "yok",
-        "selectedDiameter": "35",
-        "lowerTubeLengthMm": "standart",
-        "colors": {
-          "accessory": {
-            "category": "",
-            "color": ""
-          },
-          "tube": {
-            "category": "",
-            "color": ""
-          },
-          "plexi": {
-            "category": "",
-            "color": ""
-          }
-        },
-        "montageCard": {
-          "cardCode": "MON-000002",
-          "productCode": "",
-          "productName": ""
-        },
-        "masterRefs": [
-          {
-            "id": "dba0f617-d46c-4315-be1e-47ba3b1f851b",
-            "refId": "746492ef-2cf0-4c52-96d9-b9a35031a94c",
-            "code": "VID0005",
-            "name": "M16 pul",
-            "qty": 2
-          },
-          {
-            "id": "6ec3cb18-2aa2-4ba1-b5dd-cfed189afc35",
-            "refId": "7d2619ae-dfd1-4ef7-8cc8-0ce5d70f1e5b",
-            "code": "VID0004",
-            "name": "M16normal somun",
-            "qty": 1
-          },
-          {
-            "id": "757b7390-c2dc-4a12-9f01-d89ad1950beb",
-            "refId": "0070a95c-5e4a-4322-bc04-000ef2acbeee",
-            "code": "VID0003",
-            "name": "M16 ankraj somunu",
-            "qty": 1
-          },
-          {
-            "id": "102b875a-2828-464b-9df8-fa0ca46b1844",
-            "refId": "50bbdaa7-7c0f-4b3c-a254-ff847e8e3b73",
-            "code": "VID0002",
-            "name": "ankraj gijonu galvanizli",
-            "qty": 1
-          }
-        ],
-        "items": [
-          {
-            "id": "d4e5dbb7-31e3-4b8d-8cf8-d0ce9d8ef4a6",
-            "refId": "45171652-dc3b-4a00-a5ea-659e49f6e7f1",
-            "code": "PRC-000012",
-            "name": "35 mm dikme ankraj aluminyum parça",
-            "qty": 2
-          }
-        ],
-        "explodedFiles": [],
-        "note": "",
-        "productionPlanCompleted": true,
-        "productionPlanCompletedAt": "2026-04-22T12:16:44.165Z",
-        "created_at": "2026-04-22T12:16:33.694Z",
-        "updated_at": "2026-04-22T12:16:44.165Z",
         "productionReady": true,
         "productionStatusReason": ""
       }

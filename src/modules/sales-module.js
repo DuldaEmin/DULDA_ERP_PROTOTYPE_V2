@@ -42,6 +42,7 @@
         salesOrderAnchoragePickerPending: false,
         salesOrderAnchoragePickerContext: null,
         salesPaymentMethodDraft: '',
+        salesStockAnalysisModal: null,
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -2634,6 +2635,638 @@
         }
     },
 
+    parseIsoDayToMs: (dateIso = '') => {
+        const raw = String(dateIso || '').trim();
+        const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return NaN;
+        const year = Number(match[1]);
+        const monthIndex = Number(match[2]) - 1;
+        const day = Number(match[3]);
+        const dayMs = new Date(year, monthIndex, day).getTime();
+        return Number.isFinite(dayMs) ? dayMs : NaN;
+    },
+
+    formatDayIsoForInput: (value = new Date()) => {
+        const date = value instanceof Date && !Number.isNaN(value.getTime()) ? value : new Date();
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    getSalesReservationTodayIso: () => SalesModule.formatDayIsoForInput(new Date()),
+
+    getSalesReservationMaxIso: () => {
+        const maxDate = new Date();
+        maxDate.setDate(maxDate.getDate() + 7);
+        return SalesModule.formatDayIsoForInput(maxDate);
+    },
+
+    normalizeSalesReservationType: (value = '') => {
+        const raw = String(value || '').trim().toUpperCase();
+        return raw === 'CONFIRMED' ? 'CONFIRMED' : 'TEMP';
+    },
+
+    isSalesOrderApprovedStatus: (statusText = '') => {
+        const group = SalesModule.normalizeSalesOrderStatusGroup(statusText);
+        return group === 'APPROVED';
+    },
+
+    normalizeSalesReservationDateInput: (value = '') => {
+        const dateIso = String(value || '').trim();
+        const dateMs = SalesModule.parseIsoDayToMs(dateIso);
+        if (!Number.isFinite(dateMs)) {
+            return { ok: false, reason: 'Tarih gecersiz.' };
+        }
+        const minIso = SalesModule.getSalesReservationTodayIso();
+        const maxIso = SalesModule.getSalesReservationMaxIso();
+        const minMs = SalesModule.parseIsoDayToMs(minIso);
+        const maxMs = SalesModule.parseIsoDayToMs(maxIso);
+        if (!Number.isFinite(minMs) || !Number.isFinite(maxMs)) {
+            return { ok: false, reason: 'Tarih siniri hesaplanamadi.' };
+        }
+        if (dateMs < minMs) {
+            return { ok: false, reason: 'Rezerv bitis tarihi bugunden once olamaz.' };
+        }
+        if (dateMs > maxMs) {
+            return { ok: false, reason: 'Rezerv suresi en fazla 7 gun olabilir.' };
+        }
+        return { ok: true, value: dateIso, minIso, maxIso };
+    },
+
+    getSalesOrderReservationsByLine: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        if (!source) return {};
+        const sourceOrderId = String(source?.id || source?.orderId || '').trim();
+        const liveOrder = sourceOrderId && typeof SalesModule.getSavedSalesOrderById === 'function'
+            ? SalesModule.getSavedSalesOrderById(sourceOrderId)
+            : null;
+        const resolved = liveOrder && typeof liveOrder === 'object' ? liveOrder : source;
+        const map = resolved.salesStockReservationsByLine;
+        return map && typeof map === 'object' && !Array.isArray(map) ? map : {};
+    },
+
+    getSalesOrderLineReservationState: (order = null, lineId = '') => {
+        const key = String(lineId || '').trim();
+        if (!order || !key) return { status: 'NONE', record: null };
+        const reservationMap = SalesModule.getSalesOrderReservationsByLine(order);
+        const record = reservationMap[key] && typeof reservationMap[key] === 'object' ? reservationMap[key] : null;
+        if (!record) return { status: 'NONE', record: null };
+        const reservationType = SalesModule.normalizeSalesReservationType(record?.reservationType || '');
+        const reservedQty = Number(record?.reservedQty || 0);
+        if (!(reservedQty > 0)) return { status: 'NONE', record };
+        if (reservationType === 'CONFIRMED') {
+            return { status: 'CONFIRMED', record };
+        }
+        if (SalesModule.isSalesOrderApprovedStatus(order?.status || '')) {
+            return { status: 'NONE', record };
+        }
+        const reservedUntil = String(record?.reservedUntil || '').trim();
+        const untilMs = SalesModule.parseIsoDayToMs(reservedUntil);
+        if (!Number.isFinite(untilMs)) return { status: 'EXPIRED', record };
+        const todayMs = SalesModule.parseIsoDayToMs(SalesModule.getSalesReservationTodayIso());
+        if (!Number.isFinite(todayMs)) return { status: 'EXPIRED', record };
+        if (untilMs < todayMs) return { status: 'EXPIRED', record };
+        return { status: 'TEMP_ACTIVE', record };
+    },
+
+    getSalesOrderReservationSummaryStatus: (order = null) => {
+        const reservationMap = SalesModule.getSalesOrderReservationsByLine(order);
+        const lineIds = Object.keys(reservationMap);
+        if (!lineIds.length) return 'NONE';
+        let hasTempActive = false;
+        let hasExpired = false;
+        for (let i = 0; i < lineIds.length; i += 1) {
+            const state = SalesModule.getSalesOrderLineReservationState(order, lineIds[i]);
+            if (state.status === 'CONFIRMED') return 'CONFIRMED';
+            if (state.status === 'TEMP_ACTIVE') hasTempActive = true;
+            if (state.status === 'EXPIRED') hasExpired = true;
+        }
+        if (hasTempActive) return 'TEMP_ACTIVE';
+        return hasExpired ? 'EXPIRED' : 'NONE';
+    },
+
+    getSavedSalesOrderStockAnalysisCandidates: (orderId) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return [];
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const order = orders.find((row) => String(row?.id || '').trim() === targetOrderId) || null;
+        if (!order) return [];
+        const lines = Array.isArray(order?.lines) ? order.lines : [];
+        return lines
+            .map((line, index) => {
+                const lineId = String(line?.id || '').trim();
+                const productId = String(line?.productId || '').trim();
+                const variationId = String(line?.variationId || '').trim();
+                const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+                if (!lineId || !productId || !variationId || !(qty > 0)) return null;
+                return {
+                    index,
+                    lineId,
+                    productId,
+                    variationId,
+                    qty,
+                    unit: SalesModule.normalizeSalesLineUnit(line?.unit || line?.quantityUnit || 'adet'),
+                    productName: String(line?.productName || '').trim() || '-',
+                    variantCode: String(line?.variantCode || '').trim() || '-'
+                };
+            })
+            .filter(Boolean);
+    },
+
+    getSavedSalesOrderById: (orderId) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return null;
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        return orders.find((row) => String(row?.id || '').trim() === targetOrderId) || null;
+    },
+
+    buildSalesOrderStockAnalysisPayload: (order, candidate) => {
+        const orderId = String(order?.id || '').trim();
+        const lineId = String(candidate?.lineId || '').trim();
+        const variationId = String(candidate?.variationId || '').trim();
+        const productId = String(candidate?.productId || '').trim();
+        const qty = SalesModule.parseSalesQuantity(candidate?.qty, 1);
+        if (!orderId || !lineId || !variationId || !productId || !(qty > 0)) {
+            return { ok: false, message: 'Analiz acmak icin satir bilgisi eksik veya gecersiz.' };
+        }
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule) {
+            return { ok: false, message: 'Urun kutuphanesi modulu bulunamadi. Analiz acilamadi.' };
+        }
+        const planningModelId = (typeof ProductLibraryModule.getPlanningModelIdFromSalesVariationId === 'function'
+            ? ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId)
+            : '') || '';
+        const normalizedPlanningModelId = String(planningModelId || '').trim();
+        if (!normalizedPlanningModelId) {
+            return { ok: false, message: `Varyasyon-planlama modeli eslesmesi bulunamadi (variationId: ${variationId}).` };
+        }
+        const planningModel = typeof ProductLibraryModule.getPlanningModelById === 'function'
+            ? ProductLibraryModule.getPlanningModelById(normalizedPlanningModelId)
+            : null;
+        if (!planningModel) {
+            return { ok: false, message: `Varyasyon-planlama modeli bulunamadi (planningModelId: ${normalizedPlanningModelId}).` };
+        }
+        return {
+            ok: true,
+            payload: {
+                orderId,
+                orderNo: String(order?.orderNo || order?.orderCode || '').trim(),
+                orderDate: String(order?.orderDate || '').trim(),
+                lineId,
+                productId,
+                salesVariationId: variationId,
+                planningModelId: normalizedPlanningModelId,
+                productName: String(candidate?.productName || '').trim(),
+                variantCode: String(candidate?.variantCode || '').trim(),
+                qty
+            }
+        };
+    },
+
+    getSalesOrderLineStockCoveredQty: (order, candidate) => {
+        const payloadResult = SalesModule.buildSalesOrderStockAnalysisPayload(order, candidate);
+        if (!payloadResult.ok) return { ok: false, message: payloadResult.message || 'Stok kapsami hesaplanamadi.', qty: 0 };
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openSalesReadonlyAnalysis !== 'function'
+            || typeof PlanningModule.getPlanningPoolRows !== 'function') {
+            return { ok: false, message: 'Planlama analiz modulu hazir degil.', qty: 0 };
+        }
+        const opened = PlanningModule.openSalesReadonlyAnalysis(payloadResult.payload, {
+            navigate: false,
+            activateWorkspace: false,
+            render: false
+        });
+        if (!opened) {
+            if (typeof PlanningModule.clearSalesReadonlyContext === 'function') {
+                PlanningModule.clearSalesReadonlyContext();
+            }
+            return { ok: false, message: 'Stok kapsami analizi acilamadi.', qty: 0 };
+        }
+        const demandId = typeof PlanningModule.buildSalesReadonlyDemandId === 'function'
+            ? PlanningModule.buildSalesReadonlyDemandId(payloadResult.payload.orderId, payloadResult.payload.lineId)
+            : `sales-preview:${payloadResult.payload.orderId}:${payloadResult.payload.lineId}`;
+        const poolRows = PlanningModule.getPlanningPoolRows(demandId);
+        const qty = Number((Array.isArray(poolRows) ? poolRows : [])
+            .reduce((sum, row) => sum + Number(row?.useStockQty || 0), 0)
+            .toFixed(2));
+        if (typeof PlanningModule.clearSalesReadonlyContext === 'function') {
+            PlanningModule.clearSalesReadonlyContext();
+        }
+        return { ok: true, message: '', qty: qty > 0 ? qty : 0 };
+    },
+
+    promoteSalesOrderReservationsOnApproval: (order) => {
+        const source = order && typeof order === 'object' ? order : null;
+        if (!source) return { ok: false, message: 'Siparis kaydi bulunamadi.' };
+        const orderId = String(source?.id || '').trim();
+        if (!orderId) return { ok: false, message: 'Siparis kimligi bulunamadi.' };
+        const candidates = SalesModule.getSavedSalesOrderStockAnalysisCandidates(orderId);
+        if (!source.salesStockReservationsByLine || typeof source.salesStockReservationsByLine !== 'object') {
+            source.salesStockReservationsByLine = {};
+        }
+        const reservationMap = source.salesStockReservationsByLine;
+        const nowIso = new Date().toISOString();
+        const candidateLineIds = new Set();
+        for (let i = 0; i < candidates.length; i += 1) {
+            const candidate = candidates[i] || {};
+            const lineId = String(candidate?.lineId || '').trim();
+            if (!lineId) continue;
+            candidateLineIds.add(lineId);
+            const stockCoverage = SalesModule.getSalesOrderLineStockCoveredQty(source, candidate);
+            if (!stockCoverage.ok) {
+                return { ok: false, message: stockCoverage.message || 'Onay oncesi stok kapsami hesaplanamadi.' };
+            }
+            const coveredQty = Number(stockCoverage.qty || 0);
+            const prev = reservationMap[lineId];
+            if (coveredQty > 0) {
+                reservationMap[lineId] = {
+                    ...(prev && typeof prev === 'object' ? prev : {}),
+                    orderId,
+                    lineId,
+                    productId: String(candidate?.productId || '').trim(),
+                    variationId: String(candidate?.variationId || '').trim(),
+                    reservedQty: coveredQty,
+                    reservedUntil: '',
+                    reservationType: 'CONFIRMED',
+                    isActive: true,
+                    confirmedAt: String(prev?.confirmedAt || nowIso),
+                    createdAt: String(prev?.createdAt || nowIso),
+                    updatedAt: nowIso
+                };
+            } else if (prev && typeof prev === 'object') {
+                delete reservationMap[lineId];
+            }
+        }
+        const staleLineIds = Object.keys(reservationMap)
+            .filter((lineId) => !candidateLineIds.has(String(lineId || '').trim()));
+        for (let i = 0; i < staleLineIds.length; i += 1) {
+            const lineId = staleLineIds[i];
+            const record = reservationMap[lineId];
+            if (!record || typeof record !== 'object') continue;
+            const reservationType = SalesModule.normalizeSalesReservationType(record?.reservationType || '');
+            if (reservationType !== 'CONFIRMED') {
+                delete reservationMap[lineId];
+            }
+        }
+        return { ok: true, message: '' };
+    },
+
+    setSalesStockAnalysisModalSelection: (lineId) => {
+        const targetLineId = String(lineId || '').trim();
+        if (!targetLineId) return;
+        const current = SalesModule.state.salesStockAnalysisModal;
+        if (!current || typeof current !== 'object') return;
+        current.selectedLineId = targetLineId;
+        if (!current.reservationDateByLine || typeof current.reservationDateByLine !== 'object') {
+            current.reservationDateByLine = {};
+        }
+        if (Object.prototype.hasOwnProperty.call(current.reservationDateByLine, targetLineId) === false) {
+            current.reservationDateByLine[targetLineId] = '';
+        }
+        SalesModule.state.salesStockAnalysisModal = current;
+        SalesModule.renderSalesStockAnalysisModal();
+    },
+
+    setSalesStockReservationDateInput: (lineId, value) => {
+        const targetLineId = String(lineId || '').trim();
+        if (!targetLineId) return;
+        const current = SalesModule.state.salesStockAnalysisModal;
+        if (!current || typeof current !== 'object') return;
+        if (!current.reservationDateByLine || typeof current.reservationDateByLine !== 'object') {
+            current.reservationDateByLine = {};
+        }
+        current.reservationDateByLine[targetLineId] = String(value || '').trim();
+        SalesModule.state.salesStockAnalysisModal = current;
+    },
+
+    saveSalesStockReservationFromModal: async (orderId, lineId, stockCoveredQty) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        const targetLineId = String(lineId || '').trim();
+        if (!targetOrderId || !targetLineId) return;
+        const current = SalesModule.state.salesStockAnalysisModal;
+        if (!current || typeof current !== 'object') return;
+        const reservationDateByLine = current.reservationDateByLine && typeof current.reservationDateByLine === 'object'
+            ? current.reservationDateByLine
+            : {};
+        const dateInput = String(reservationDateByLine[targetLineId] || '').trim();
+        const order = SalesModule.getSavedSalesOrderById(targetOrderId);
+        if (!order) {
+            alert('Kaydedilmis siparis bulunamadi.');
+            return;
+        }
+        if (SalesModule.isSalesOrderApprovedStatus(order?.status || '')) {
+            alert('Onayli sipariste gecici rezerv islemi kullanilamaz. Stok ayrimi otomatik olarak onayli ayirmaya donusur.');
+            return;
+        }
+        const normalizedDate = SalesModule.normalizeSalesReservationDateInput(dateInput);
+        if (!normalizedDate.ok) {
+            alert(normalizedDate.reason || 'Rezerv tarihi gecersiz.');
+            return;
+        }
+        const reserveQty = Number(Number(stockCoveredQty || 0).toFixed(2));
+        if (!(reserveQty > 0)) {
+            alert('Bu satirda stoktan karsilanan miktar 0 oldugu icin rezerv olusturulamaz.');
+            return;
+        }
+        const line = (Array.isArray(order?.lines) ? order.lines : [])
+            .find((row) => String(row?.id || '').trim() === targetLineId) || null;
+        if (!line) {
+            alert('Siparis satiri bulunamadi.');
+            return;
+        }
+        if (!order.salesStockReservationsByLine || typeof order.salesStockReservationsByLine !== 'object') {
+            order.salesStockReservationsByLine = {};
+        }
+        const prev = order.salesStockReservationsByLine[targetLineId];
+        const nowIso = new Date().toISOString();
+        order.salesStockReservationsByLine[targetLineId] = {
+            ...(prev && typeof prev === 'object' ? prev : {}),
+            orderId: targetOrderId,
+            lineId: targetLineId,
+            productId: String(line?.productId || '').trim(),
+            variationId: String(line?.variationId || '').trim(),
+            reservedQty: reserveQty,
+            reservedUntil: normalizedDate.value,
+            reservationType: 'TEMP',
+            isActive: true,
+            confirmedAt: '',
+            createdAt: String(prev?.createdAt || nowIso),
+            updatedAt: nowIso
+        };
+        order.updated_at = nowIso;
+        await DB.save();
+        if (!current.reservationDateByLine || typeof current.reservationDateByLine !== 'object') {
+            current.reservationDateByLine = {};
+        }
+        current.reservationDateByLine[targetLineId] = normalizedDate.value;
+        SalesModule.state.salesStockAnalysisModal = current;
+        SalesModule.renderSalesStockAnalysisModal();
+    },
+
+    closeSalesStockAnalysisModal: () => {
+        SalesModule.state.salesStockAnalysisModal = null;
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.clearSalesReadonlyContext === 'function') {
+            PlanningModule.clearSalesReadonlyContext();
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') UI.renderCurrentPage();
+    },
+
+    renderSalesStockAnalysisModal: () => {
+        const modalState = SalesModule.state.salesStockAnalysisModal;
+        if (!modalState || typeof modalState !== 'object') return;
+        const orderId = String(modalState.orderId || '').trim();
+        if (!orderId) return;
+        const order = SalesModule.getSavedSalesOrderById(orderId);
+        if (!order) {
+            SalesModule.closeSalesStockAnalysisModal();
+            alert('Kaydedilmis siparis bulunamadi. Lutfen listeyi yenileyip tekrar deneyin.');
+            return;
+        }
+        const candidates = SalesModule.getSavedSalesOrderStockAnalysisCandidates(orderId);
+        if (!candidates.length) {
+            SalesModule.closeSalesStockAnalysisModal();
+            alert('Bu sipariste stok analizi acilabilecek uygun urun satiri bulunamadi.');
+            return;
+        }
+        const selectedLineId = String(modalState.selectedLineId || '').trim();
+        const selectedCandidate = candidates.find((item) => String(item?.lineId || '') === selectedLineId) || candidates[0];
+        const reservationDateByLine = modalState.reservationDateByLine && typeof modalState.reservationDateByLine === 'object'
+            ? modalState.reservationDateByLine
+            : {};
+        SalesModule.state.salesStockAnalysisModal = {
+            orderId,
+            selectedLineId: String(selectedCandidate?.lineId || '').trim(),
+            reservationDateByLine
+        };
+        const lineTabsHtml = candidates.map((item) => {
+            const isActive = String(item?.lineId || '') === String(selectedCandidate?.lineId || '');
+            const qtyText = SalesModule.formatEditableNumberInput(item?.qty || 0, { maxFractionDigits: 2 });
+            const unitText = SalesModule.getSalesLineUnitLabel(item?.unit || 'adet');
+            const label = `${(item?.index || 0) + 1}. satir`;
+            return `
+                <button class="btn-sm" type="button" onclick="SalesModule.setSalesStockAnalysisModalSelection('${SalesModule.escapeHtml(String(item?.lineId || ''))}')" style="display:flex; flex-direction:column; align-items:flex-start; justify-content:center; gap:0.12rem; min-width:230px; min-height:54px; height:auto; padding:0.45rem 0.65rem; ${isActive ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:800;' : ''}">
+                    <span style="font-size:0.72rem; color:${isActive ? '#1d4ed8' : '#64748b'}; font-weight:700;">${SalesModule.escapeHtml(label)}</span>
+                    <span style="font-size:0.8rem; font-weight:800; color:${isActive ? '#0f172a' : '#334155'}; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">${SalesModule.escapeHtml(String(item?.productName || '-'))} / ${SalesModule.escapeHtml(String(item?.variantCode || '-'))}</span>
+                    <span style="font-size:0.72rem; color:${isActive ? '#1d4ed8' : '#475569'}; font-weight:700;">${SalesModule.escapeHtml(qtyText)} ${SalesModule.escapeHtml(unitText)}</span>
+                </button>
+            `;
+        }).join('');
+        let analysisHtml = '<div style="border:1px solid #e2e8f0; border-radius:0.8rem; background:#ffffff; padding:0.85rem; color:#64748b;">Analiz hazirlaniyor...</div>';
+        let stockCoveredQty = 0;
+        let demandId = '';
+        const payloadResult = SalesModule.buildSalesOrderStockAnalysisPayload(order, selectedCandidate);
+        if (!payloadResult.ok) {
+            analysisHtml = `<div style="border:1px solid #fecaca; border-radius:0.8rem; background:#fff1f2; padding:0.85rem; color:#b91c1c;">${SalesModule.escapeHtml(String(payloadResult.message || 'Analiz acilamadi.'))}</div>`;
+        } else if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openSalesReadonlyAnalysis !== 'function'
+            || typeof PlanningModule.renderSalesReadonlyAnalysisHtml !== 'function') {
+            analysisHtml = '<div style="border:1px solid #fecaca; border-radius:0.8rem; background:#fff1f2; padding:0.85rem; color:#b91c1c;">Planlama analiz modulu hazir degil.</div>';
+        } else {
+            const opened = PlanningModule.openSalesReadonlyAnalysis(payloadResult.payload, {
+                navigate: false,
+                activateWorkspace: false,
+                render: false
+            });
+            if (!opened) {
+                analysisHtml = '<div style="border:1px solid #fecaca; border-radius:0.8rem; background:#fff1f2; padding:0.85rem; color:#b91c1c;">Planlama analizi acilamadi.</div>';
+            } else {
+                demandId = typeof PlanningModule.buildSalesReadonlyDemandId === 'function'
+                    ? PlanningModule.buildSalesReadonlyDemandId(payloadResult.payload.orderId, payloadResult.payload.lineId)
+                    : `sales-preview:${payloadResult.payload.orderId}:${payloadResult.payload.lineId}`;
+                if (typeof PlanningModule.getPlanningPoolRows === 'function') {
+                    const poolRows = PlanningModule.getPlanningPoolRows(demandId);
+                    stockCoveredQty = Number((Array.isArray(poolRows) ? poolRows : [])
+                        .reduce((sum, row) => sum + Number(row?.useStockQty || 0), 0)
+                        .toFixed(2));
+                }
+                analysisHtml = PlanningModule.renderSalesReadonlyAnalysisHtml(demandId);
+            }
+        }
+        const reservationState = SalesModule.getSalesOrderLineReservationState(order, selectedCandidate?.lineId || '');
+        const reservationRecord = reservationState.record;
+        const isApprovedOrder = SalesModule.isSalesOrderApprovedStatus(order?.status || '');
+        const reservationStatusText = reservationState.status === 'CONFIRMED'
+            ? 'Onayli siparis icin ayrildi.'
+            : (reservationState.status === 'TEMP_ACTIVE'
+                ? `Gecici rezerv: ${SalesModule.escapeHtml(String(reservationRecord?.reservedUntil || '-'))}`
+                : (reservationState.status === 'EXPIRED'
+                    ? 'Gecici rezerv suresi doldu'
+                    : (isApprovedOrder ? 'Onayli sipariste bu satir icin ayrilan stok yok.' : 'Rezerve edilmedi')));
+        const todayIso = SalesModule.getSalesReservationTodayIso();
+        const maxIso = SalesModule.getSalesReservationMaxIso();
+        const rawReservationInput = String(reservationDateByLine[String(selectedCandidate?.lineId || '').trim()] || '').trim();
+        let reservationDateInput = rawReservationInput || String(reservationRecord?.reservedUntil || '').trim() || todayIso;
+        const normalizedInput = SalesModule.normalizeSalesReservationDateInput(reservationDateInput);
+        if (!normalizedInput.ok) reservationDateInput = todayIso;
+        SalesModule.setSalesStockReservationDateInput(String(selectedCandidate?.lineId || ''), reservationDateInput);
+        const reserveButtonLabel = reservationState.status === 'TEMP_ACTIVE' ? 'Rezervi guncelle' : 'Rezerve et';
+        const reserveQtyText = SalesModule.formatEditableNumberInput(stockCoveredQty, { maxFractionDigits: 2 });
+        const canReserveQty = stockCoveredQty > 0;
+        const allowTempReserve = canReserveQty && !isApprovedOrder && reservationState.status !== 'CONFIRMED';
+        const reservationHintText = reservationState.status === 'CONFIRMED'
+            ? 'Bu satirdaki stok miktari onayli siparis icin kesin ayrilmistir.'
+            : (isApprovedOrder
+                ? 'Onayli sipariste gecici rezerv kapatilir; ayrim onay sirasinda otomatik hesaplanir.'
+                : 'Rezerv sadece stoktan karsilanan miktar icin gecerlidir. Uretilecek net miktar rezerve edilmez.');
+        const orderNo = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Stok Durumu Goruntule</div>
+                        <div style="font-size:0.78rem; color:#64748b; margin-top:0.12rem;">Siparis: <strong style="font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(orderNo)}</strong> | Satir secimini ustten yapabilirsin.</div>
+                    </div>
+                    <button class="btn-sm" type="button" style="height:36px; min-width:92px; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800;" onclick="SalesModule.closeSalesStockAnalysisModal()">kapat</button>
+                </div>
+                <div style="display:flex; gap:0.42rem; flex-wrap:wrap; max-height:180px; overflow:auto; border:1px solid #e2e8f0; border-radius:0.78rem; background:#f8fafc; padding:0.5rem;">
+                    ${lineTabsHtml}
+                </div>
+                <div style="border:1px solid #dbeafe; border-radius:0.78rem; background:#eff6ff; padding:0.65rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.6rem; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:0.78rem; color:#475569;">Rezerv durumu</div>
+                            <div style="font-size:0.86rem; font-weight:800; color:#0f172a; margin-top:0.1rem;">${reservationStatusText}</div>
+                            <div style="font-size:0.74rem; color:#475569; margin-top:0.16rem;">Stoktan karsilanan miktar: <strong>${SalesModule.escapeHtml(reserveQtyText)}</strong> (${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(selectedCandidate?.unit || 'adet'))})</div>
+                        </div>
+                        <div style="display:flex; align-items:flex-end; gap:0.35rem; flex-wrap:wrap;">
+                            <div>
+                                <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.16rem;">Rezerv bitis tarihi (gecici, max 7 gun)</label>
+                                <input class="stock-input stock-input-tall" type="date" min="${SalesModule.escapeHtml(todayIso)}" max="${SalesModule.escapeHtml(maxIso)}" value="${SalesModule.escapeHtml(reservationDateInput)}" onchange="SalesModule.setSalesStockReservationDateInput('${SalesModule.escapeHtml(String(selectedCandidate?.lineId || ''))}', this.value)" ${allowTempReserve ? '' : 'disabled'} style="${allowTempReserve ? 'height:36px; min-width:170px;' : 'height:36px; min-width:170px; opacity:0.6; cursor:not-allowed;'}">
+                            </div>
+                            <button class="btn-sm" type="button" ${allowTempReserve ? '' : 'disabled'} style="${allowTempReserve ? 'height:36px; min-width:132px; border-color:#1d4ed8; background:#1d4ed8; color:#ffffff; font-weight:800;' : 'height:36px; min-width:132px; opacity:0.55; cursor:not-allowed;'}" onclick="SalesModule.saveSalesStockReservationFromModal('${SalesModule.escapeHtml(orderId)}','${SalesModule.escapeHtml(String(selectedCandidate?.lineId || ''))}','${SalesModule.escapeHtml(String(stockCoveredQty))}')">${SalesModule.escapeHtml(reserveButtonLabel)}</button>
+                        </div>
+                    </div>
+                    <div style="font-size:0.72rem; color:#64748b; margin-top:0.36rem;">${SalesModule.escapeHtml(reservationHintText)}</div>
+                </div>
+                <div>
+                    ${analysisHtml}
+                </div>
+            </div>
+        `;
+        Modal.open('Stok Durumu Goruntule', html, { maxWidth: '1680px', showHeader: false });
+    },
+
+    openSalesOrderStockAnalysisFromList: (orderId) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return;
+        const order = SalesModule.getSavedSalesOrderById(targetOrderId);
+        if (!order) {
+            alert('Kaydedilmis siparis bulunamadi. Lutfen listeyi yenileyip tekrar deneyin.');
+            return;
+        }
+        const candidates = SalesModule.getSavedSalesOrderStockAnalysisCandidates(targetOrderId);
+        if (!candidates.length) {
+            alert('Bu sipariste stok analizi acilabilecek uygun urun satiri bulunamadi.');
+            return;
+        }
+        if (typeof Modal === 'undefined' || !Modal || typeof Modal.open !== 'function') {
+            alert('Stok analiz modal penceresi hazir degil. Lutfen tekrar deneyin.');
+            return;
+        }
+        SalesModule.state.salesStockAnalysisModal = {
+            orderId: targetOrderId,
+            selectedLineId: String(candidates[0]?.lineId || '').trim(),
+            reservationDateByLine: {}
+        };
+        SalesModule.renderSalesStockAnalysisModal();
+    },
+
+    openSavedSalesOrderLineStockAnalysis: (lineId, orderId = '') => {
+        SalesModule.ensureData();
+        SalesModule.ensureSalesOrderDraft();
+        const draft = SalesModule.state.salesOrderDraft;
+        const targetLineId = String(lineId || '').trim();
+        if (!targetLineId) return;
+
+        const explicitOrderId = String(orderId || '').trim();
+        const draftOrderId = String(draft?.editingOrderId || '').trim();
+        const resolvedOrderId = explicitOrderId || draftOrderId;
+        if (!resolvedOrderId) {
+            alert('Stok durumu analizi sadece kaydedilmis siparis satirinda acilir. Once siparisi kaydedin.');
+            return;
+        }
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const order = orders.find((row) => String(row?.id || '').trim() === resolvedOrderId) || null;
+        if (!order) {
+            alert('Kaydedilmis siparis bulunamadi. Lutfen listeyi yenileyip tekrar deneyin.');
+            return;
+        }
+        const savedLine = (Array.isArray(order?.lines) ? order.lines : [])
+            .find((row) => String(row?.id || '').trim() === targetLineId) || null;
+        const draftLine = (resolvedOrderId && draftOrderId === resolvedOrderId && Array.isArray(draft?.lines))
+            ? draft.lines.find((row) => String(row?.id || '').trim() === targetLineId) || null
+            : null;
+        const line = savedLine || draftLine;
+        if (!line) {
+            alert('Siparis satiri bulunamadi.');
+            return;
+        }
+        const productId = String(line?.productId || '').trim();
+        const variationId = String(line?.variationId || '').trim();
+        const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+        if (!productId || !variationId) {
+            alert('Bu siparis satirinda urun/varyasyon eksik. Analiz acilamadi.');
+            return;
+        }
+        if (!(qty > 0)) {
+            alert('Bu siparis satirinda miktar gecersiz. Analiz acilamadi.');
+            return;
+        }
+        if (typeof ProductLibraryModule === 'undefined' || !ProductLibraryModule) {
+            alert('Urun kutuphanesi modulu bulunamadi. Analiz acilamadi.');
+            return;
+        }
+        const planningModelId = (typeof ProductLibraryModule.getPlanningModelIdFromSalesVariationId === 'function'
+            ? ProductLibraryModule.getPlanningModelIdFromSalesVariationId(variationId)
+            : '') || '';
+        const normalizedPlanningModelId = String(planningModelId || '').trim();
+        if (!normalizedPlanningModelId) {
+            alert(`Varyasyon-planlama modeli eslesmesi bulunamadi (variationId: ${variationId}). Analiz ekrani acilmadi.`);
+            return;
+        }
+        const planningModel = typeof ProductLibraryModule.getPlanningModelById === 'function'
+            ? ProductLibraryModule.getPlanningModelById(normalizedPlanningModelId)
+            : null;
+        if (!planningModel) {
+            alert(`Varyasyon-planlama modeli eslesmesi bulunamadi (variationId: ${variationId}, planningModelId: ${normalizedPlanningModelId}). Analiz ekrani acilmadi.`);
+            return;
+        }
+        if (typeof PlanningModule === 'undefined' || !PlanningModule || typeof PlanningModule.openSalesReadonlyAnalysis !== 'function') {
+            alert('Planlama analiz modulu hazir degil.');
+            return;
+        }
+
+        const shouldCloseEditor = !!SalesModule.state.salesOrderEditorModalOpen && draftOrderId === resolvedOrderId;
+        if (shouldCloseEditor) {
+            SalesModule.state.salesOrderEditorModalOpen = false;
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        }
+        const opened = PlanningModule.openSalesReadonlyAnalysis({
+            orderId: resolvedOrderId,
+            orderNo: String(order?.orderNo || order?.orderCode || '').trim(),
+            orderDate: String(order?.orderDate || '').trim(),
+            lineId: targetLineId,
+            productId,
+            salesVariationId: variationId,
+            planningModelId: normalizedPlanningModelId,
+            productName: String(line?.productName || '').trim(),
+            variantCode: String(line?.variantCode || '').trim(),
+            qty
+        });
+        if (!opened && shouldCloseEditor) {
+            SalesModule.openSalesOrderEditorModal({ reset: false });
+        }
+    },
+
     applyRecommendedPriceToLine: (lineId) => {
         SalesModule.ensureSalesOrderDraft();
         const draft = SalesModule.state.salesOrderDraft;
@@ -2790,10 +3423,17 @@
         const targetId = String(orderId || '').trim();
         if (!targetId) return;
         if (!confirm('Siparis kaydi kalici olarak silinsin mi?')) return;
+        const editingOrderId = String(SalesModule.state?.salesOrderDraft?.editingOrderId || '').trim();
+        const shouldCloseEditor = !!SalesModule.state.salesOrderEditorModalOpen && editingOrderId === targetId;
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
         DB.data.data.orders = next;
         await DB.save();
+        if (shouldCloseEditor) {
+            SalesModule.state.salesOrderEditorModalOpen = false;
+            SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
+            if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        }
         UI.renderCurrentPage();
     },
 
@@ -2806,6 +3446,7 @@
         if (idx < 0) return;
         const nextStatus = String(statusText || '').trim() || rows[idx].status || 'Onay Bekliyor';
         const normalizedStatus = SalesModule.normalize(nextStatus);
+        const nextStatusGroup = SalesModule.normalizeSalesOrderStatusGroup(nextStatus);
         const orderNo = String(rows[idx]?.orderNo || '-').trim() || '-';
         if (normalizedStatus.includes('onaylandi')) {
             if (!confirm(`"${orderNo}" siparisi onaylansin mi?`)) return;
@@ -2814,8 +3455,15 @@
             if (!confirm(`"${orderNo}" siparisi arsive alinsin mi?`)) return;
         }
         rows[idx].status = nextStatus;
-        if (SalesModule.normalize(nextStatus).includes('onay') && !String(rows[idx].approvalDate || '').trim()) {
+        if (nextStatusGroup === 'APPROVED' && !String(rows[idx].approvalDate || '').trim()) {
             rows[idx].approvalDate = new Date().toISOString().slice(0, 10);
+        }
+        if (nextStatusGroup === 'APPROVED') {
+            const promoteResult = SalesModule.promoteSalesOrderReservationsOnApproval(rows[idx]);
+            if (!promoteResult.ok) {
+                alert(promoteResult.message || 'Siparis onayi icin rezerv ayrimi hesaplanamadi.');
+                return;
+            }
         }
         rows[idx].updated_at = new Date().toISOString();
         await DB.save();
@@ -7995,7 +8643,29 @@
             const revisionNo = Math.max(1, Number(source?.revisionNo || 1));
             const statusGroup = String(row?.statusGroup || '');
             const canApprove = statusGroup === 'WAITING';
-            const canArchive = statusGroup !== 'ARCHIVED';
+            const orderLines = Array.isArray(source?.lines) ? source.lines : [];
+            const hasStockAnalysisLine = orderLines.some((line) => {
+                const productId = String(line?.productId || '').trim();
+                const variationId = String(line?.variationId || '').trim();
+                const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+                return !!(productId && variationId && qty > 0);
+            });
+            const stockButtonTitle = hasStockAnalysisLine
+                ? 'Kayitli siparis satiri stok analizini goruntule.'
+                : 'Bu sipariste stok analizi acilabilecek satir bulunamadi.';
+            const reservationSummaryStatus = SalesModule.getSalesOrderReservationSummaryStatus(source);
+            const reservationSummaryText = reservationSummaryStatus === 'CONFIRMED'
+                ? 'Onayli siparise ayrildi'
+                : (reservationSummaryStatus === 'TEMP_ACTIVE'
+                    ? 'Gecici rezerv var'
+                    : (reservationSummaryStatus === 'EXPIRED' ? 'Rezerv suresi doldu' : 'Rezerv yok'));
+            const reservationSummaryStyle = reservationSummaryStatus === 'CONFIRMED'
+                ? 'color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe;'
+                : (reservationSummaryStatus === 'TEMP_ACTIVE'
+                    ? 'color:#047857; background:#ecfdf5; border:1px solid #a7f3d0;'
+                : (reservationSummaryStatus === 'EXPIRED'
+                    ? 'color:#b91c1c; background:#fff1f2; border:1px solid #fecaca;'
+                    : 'color:#475569; background:#f8fafc; border:1px solid #e2e8f0;'));
             const id = SalesModule.escapeHtml(String(row?.id || ''));
             return `
                 <tr style="border-bottom:1px solid #f1f5f9;">
@@ -8009,13 +8679,11 @@
                     <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(daysPassed))}</td>
                     <td style="padding:0.42rem; text-align:right;">
                         <div style="display:flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <span style="display:inline-flex; align-items:center; padding:0 0.52rem; height:30px; border-radius:999px; font-size:0.7rem; font-weight:800; ${reservationSummaryStyle}">${SalesModule.escapeHtml(reservationSummaryText)}</span>
                             <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
                             <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
+                            <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" title="${SalesModule.escapeHtml(stockButtonTitle)}" ${hasStockAnalysisLine ? '' : 'disabled'} onclick="SalesModule.openSalesOrderStockAnalysisFromList('${id}')">stok durumu goruntule</button>
                             ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
-                            ${canArchive
-                    ? `<button class="btn-sm" type="button" onclick="SalesModule.setSalesOrderStatus('${id}','Arsiv')">arsive al</button>`
-                    : `<button class="btn-sm" type="button" onclick="SalesModule.setSalesOrderStatus('${id}','Onay Bekliyor')">arsivden cikar</button>`}
-                            <button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.deleteSalesOrder('${id}')">sil</button>
                         </div>
                     </td>
                 </tr>
@@ -8098,7 +8766,9 @@
                         </div>
                     </td>
                     <td style="padding:0.34rem; min-width:106px; text-align:center;">
-                        <button class="btn-sm" type="button" style="height:30px; padding:0 0.72rem; min-width:112px;" title="${SalesModule.escapeHtml(anchorageButtonTitle)}" ${canPickAnchorage ? '' : 'disabled'} onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">${SalesModule.escapeHtml(anchorageButtonLabel)}</button>
+                        <div style="display:flex; flex-direction:column; gap:0.24rem; align-items:center;">
+                            <button class="btn-sm" type="button" style="height:30px; padding:0 0.72rem; min-width:132px;" title="${SalesModule.escapeHtml(anchorageButtonTitle)}" ${canPickAnchorage ? '' : 'disabled'} onclick="SalesModule.addSalesOrderLineAnchoragePlaceholder('${SalesModule.escapeHtml(lineId)}')">${SalesModule.escapeHtml(anchorageButtonLabel)}</button>
+                        </div>
                     </td>
                     <td style="padding:0.34rem; min-width:166px;">
                         <div style="display:grid; grid-template-columns:74px 82px; gap:0.24rem; justify-content:start;">
@@ -8261,6 +8931,19 @@
         const normalizedVatRate = SalesModule.normalizeSalesVatRate(draft.vatRate);
         const exchangeRateNumeric = Number(draft.exchangeRate || 0);
         const exchangeRateInputValue = exchangeRateNumeric > 0 ? String(exchangeRateNumeric) : '';
+        const editingOrderId = String(draft?.editingOrderId || '').trim();
+        const isSavedOrder = !!editingOrderId;
+        const statusGroup = SalesModule.normalizeSalesOrderStatusGroup(draft?.status || '');
+        const canArchiveOrder = isSavedOrder && statusGroup !== 'ARCHIVED';
+        const destructiveActionsHtml = isSavedOrder
+            ? `
+                <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
+                    <button class="btn-sm" type="button" ${canArchiveOrder ? '' : 'disabled'} style="${canArchiveOrder ? '' : 'opacity:0.6; cursor:not-allowed;'}" title="${canArchiveOrder ? 'Siparisi arsive al' : 'Bu siparis zaten arsivde.'}" onclick="SalesModule.setSalesOrderStatus('${SalesModule.escapeHtml(editingOrderId)}','Arsiv')">arsive al</button>
+                    <button class="btn-sm" type="button" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" onclick="SalesModule.deleteSalesOrder('${SalesModule.escapeHtml(editingOrderId)}')">sil</button>
+                </div>
+            `
+            : '';
+        const actionJustify = isSavedOrder ? 'space-between' : 'flex-end';
         return `
             <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
@@ -8344,10 +9027,13 @@
                     </div>
                 </div>
 
-                <div style="display:flex; justify-content:flex-end; gap:0.42rem; margin-top:0.72rem;">
-                    <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">PDF Goruntule</button>
-                    <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
-                    <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
+                <div style="display:flex; justify-content:${actionJustify}; align-items:center; gap:0.42rem; margin-top:0.72rem; flex-wrap:wrap;">
+                    ${destructiveActionsHtml}
+                    <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
+                        <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">PDF Goruntule</button>
+                        <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
+                        <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
+                    </div>
                 </div>
             </div>
         `;

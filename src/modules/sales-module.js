@@ -14,15 +14,17 @@
         customerEditDraft: null,
         customerModalEditId: '',
         customerImportPreview: null,
-        catalogActiveMainId: 'korkuluk',
+        catalogActiveMainId: '',
         catalogActiveGroupId: '',
         catalogActiveCategoryId: '',
-        catalogExpandedMainId: 'korkuluk',
+        catalogExpandedMainId: '',
         catalogExpandedGroupId: '',
-        catalogHighlightKey: 'group:rail-aluminum',
+        catalogHighlightKey: '',
         catalogAnchorageMode: false,
         catalogSearchText: '',
         catalogEditingProductId: '',
+        catalogDetailResumeProductId: '',
+        catalogDetailResumeSource: '',
         catalogDraft: null,
         anchorageEditingProductId: '',
         anchorageDraft: null,
@@ -62,6 +64,74 @@
         },
         proformaSettingsSnapshot: '',
         proformaSettingsMode: 'preview'
+    },
+
+    resetWorkspaceEntryUiState: () => {
+        SalesModule.state.workspaceView = 'menu';
+        SalesModule.state.customerFilters = {
+            name: '',
+            city: '',
+            status: 'ALL',
+            editor: 'ALL'
+        };
+        SalesModule.state.customerContactRowsDraft = [];
+        SalesModule.state.customerContactModal = null;
+        SalesModule.state.customerDetailId = null;
+        SalesModule.state.customerDetailMode = 'view';
+        SalesModule.state.customerEditDraft = null;
+        SalesModule.state.customerModalEditId = '';
+        SalesModule.state.customerImportPreview = null;
+
+        SalesModule.state.catalogActiveMainId = '';
+        SalesModule.state.catalogActiveGroupId = '';
+        SalesModule.state.catalogActiveCategoryId = '';
+        SalesModule.state.catalogExpandedMainId = '';
+        SalesModule.state.catalogExpandedGroupId = '';
+        SalesModule.state.catalogHighlightKey = '';
+        SalesModule.state.catalogAnchorageMode = false;
+        SalesModule.state.catalogSearchText = '';
+        SalesModule.state.catalogEditingProductId = '';
+        SalesModule.state.catalogDetailResumeProductId = '';
+        SalesModule.state.catalogDetailResumeSource = '';
+        SalesModule.state.catalogDraft = null;
+        SalesModule.state.anchorageEditingProductId = '';
+        SalesModule.state.anchorageDraft = null;
+
+        SalesModule.state.salesOrderDraft = null;
+        SalesModule.state.salesOrderCustomerSearch = '';
+        SalesModule.state.salesOrderHistoryFilters = SalesModule.buildSalesOrderHistoryFilters();
+        SalesModule.state.salesWorkspaceTab = 'ORDERS';
+        SalesModule.state.salesOrderEditorModalOpen = false;
+        SalesModule.state.salesPendingFocusLineId = '';
+        SalesModule.clearSalesOrderLineLibraryPickerState();
+        SalesModule.state.salesOrderLinePicker = null;
+        SalesModule.state.salesPaymentMethodDraft = '';
+        SalesModule.state.salesStockAnalysisModal = null;
+
+        SalesModule.state.priceListDraft = null;
+        SalesModule.state.priceListLineDraft = {
+            productId: '',
+            unitPrice: '',
+            minQty: '1',
+            note: ''
+        };
+        SalesModule.state.priceListEditingId = '';
+        SalesModule.state.priceListActiveId = '';
+        SalesModule.state.priceListExpandedProducts = {};
+
+        SalesModule.state.proformaSettingsDraft = null;
+        SalesModule.state.proformaBankDraft = {
+            bankName: '',
+            branchCode: '',
+            accountNo: '',
+            iban: ''
+        };
+        SalesModule.state.proformaSettingsSnapshot = '';
+        SalesModule.state.proformaSettingsMode = 'preview';
+
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') {
+            Modal.close();
+        }
     },
 
     escapeHtml: (value) => String(value ?? '')
@@ -114,6 +184,7 @@
         const tagText = Array.isArray(row?.tags) ? row.tags.join(' ') : '';
         const bag = [
             row?.name,
+            row?.customerRefId,
             row?.customerCode,
             row?.externalCode,
             row?.taxNo,
@@ -144,6 +215,7 @@
         if (!Array.isArray(DB.data.data.personnel)) DB.data.data.personnel = [];
         if (!Array.isArray(DB.data.data.salesCatalogProducts)) DB.data.data.salesCatalogProducts = [];
         if (!Array.isArray(DB.data.data.salesAnchorageProducts)) DB.data.data.salesAnchorageProducts = [];
+        SalesModule.ensureCustomerRefIds();
         SalesModule.ensureCatalogPublicIds();
         SalesModule.ensureAnchoragePublicIds();
         SalesModule.ensureAnchorageBindingsForLegacyRecords();
@@ -1222,6 +1294,29 @@
         if (changed && typeof DB.markDirty === 'function') DB.markDirty();
     },
 
+    isCatalogPickerContext: (options = {}) => {
+        const host = String(options?.host || '').trim();
+        const isPlanningPicker = host === 'product-library'
+            && typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && String(ProductLibraryModule?.state?.planningPickerSource || '').trim().toLowerCase() === 'model';
+        return !!(
+            SalesModule.state.salesOrderAnchoragePickerPending
+            || SalesModule.state.salesOrderLineLibraryPickerPending
+            || isPlanningPicker
+        );
+    },
+
+    resetCatalogLibraryEntryState: () => {
+        SalesModule.state.catalogActiveMainId = '';
+        SalesModule.state.catalogActiveGroupId = '';
+        SalesModule.state.catalogActiveCategoryId = '';
+        SalesModule.state.catalogExpandedMainId = '';
+        SalesModule.state.catalogExpandedGroupId = '';
+        SalesModule.state.catalogHighlightKey = '';
+        SalesModule.state.catalogSearchText = '';
+    },
+
     openWorkspace: (viewId) => {
         SalesModule.ensureData();
         SalesModule.state.workspaceView = String(viewId || 'menu');
@@ -1231,7 +1326,12 @@
             SalesModule.state.customerEditDraft = null;
         }
         if (SalesModule.state.workspaceView === 'products') {
-            SalesModule.ensureCatalogState();
+            if (SalesModule.isCatalogPickerContext()) {
+                SalesModule.ensureCatalogState();
+            } else {
+                SalesModule.resetCatalogLibraryEntryState();
+                SalesModule.ensureCatalogState({ mode: 'library-entry' });
+            }
         }
         if (SalesModule.state.workspaceView === 'sales') {
             SalesModule.ensureSalesOrderDraft();
@@ -3427,8 +3527,17 @@
         const shouldCloseEditor = !!SalesModule.state.salesOrderEditorModalOpen && editingOrderId === targetId;
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
+        let removedPlanningDemandCount = 0;
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.cleanupOpenSalesOrderPlanningDemands === 'function') {
+            removedPlanningDemandCount = Number(PlanningModule.cleanupOpenSalesOrderPlanningDemands(targetId) || 0);
+        }
         DB.data.data.orders = next;
         await DB.save();
+        if (removedPlanningDemandCount > 0) {
+            alert('Silinen siparise bagli acik planlama talepleri temizlendi.');
+        }
         if (shouldCloseEditor) {
             SalesModule.state.salesOrderEditorModalOpen = false;
             SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft();
@@ -4529,6 +4638,74 @@
         return `MUS-${String(maxSeq + 1).padStart(6, '0')}`;
     },
 
+    normalizeCustomerRefId: (value) => String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-'),
+
+    isValidCustomerRefId: (value) => /^MREF-\d{6}$/i.test(String(value || '').trim()),
+
+    collectUsedCustomerRefIds: (excludeCustomerId = '') => {
+        const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const excludedId = String(excludeCustomerId || '').trim();
+        const used = new Set();
+        rows.forEach((row) => {
+            const rowId = String(row?.id || '').trim();
+            if (excludedId && rowId && rowId === excludedId) return;
+            const normalized = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
+            if (!SalesModule.isValidCustomerRefId(normalized)) return;
+            used.add(normalized);
+        });
+        return used;
+    },
+
+    generateCustomerRefId: (options = {}) => {
+        const excludeCustomerId = String(options?.excludeCustomerId || '').trim();
+        const usedIds = options?.usedIds instanceof Set
+            ? options.usedIds
+            : SalesModule.collectUsedCustomerRefIds(excludeCustomerId);
+
+        let maxSeq = 0;
+        usedIds.forEach((code) => {
+            const match = String(code || '').trim().toUpperCase().match(/^MREF-(\d{6})$/);
+            if (!match) return;
+            const seq = Number(match[1] || 0);
+            if (seq > maxSeq) maxSeq = seq;
+        });
+
+        let seq = maxSeq + 1;
+        let candidate = `MREF-${String(seq).padStart(6, '0')}`;
+        while (usedIds.has(candidate)) {
+            seq += 1;
+            candidate = `MREF-${String(seq).padStart(6, '0')}`;
+        }
+        usedIds.add(candidate);
+        return candidate;
+    },
+
+    ensureCustomerRefIds: () => {
+        const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const used = new Set();
+
+        rows.forEach((row) => {
+            const current = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
+            if (!SalesModule.isValidCustomerRefId(current)) return;
+            if (used.has(current)) return;
+            used.add(current);
+        });
+
+        rows.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const current = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
+            if (SalesModule.isValidCustomerRefId(current) && used.has(current)) {
+                row.customerRefId = current;
+                return;
+            }
+            row.customerRefId = SalesModule.generateCustomerRefId({ usedIds: used });
+        });
+    },
+
     getCustomerStatusMeta: (isActive) => {
         if (isActive === false) return { text: 'Pasif', bg: '#fee2e2', color: '#991b1b', border: '#fecaca' };
         return { text: 'Aktif', bg: '#dcfce7', color: '#166534', border: '#86efac' };
@@ -4611,6 +4788,7 @@
                     : '';
                 return {
                     id: String(row?.id || '').trim(),
+                    customerRefId: SalesModule.normalizeCustomerRefId(row?.customerRefId || ''),
                     customerCode: String(row?.customerCode || '').trim().toUpperCase(),
                     name: String(row?.name || '').trim(),
                     city: String(row?.city || '').trim(),
@@ -5033,6 +5211,7 @@
             ? String(firstContact.phones[0] || '').trim()
             : '';
         return {
+            customerRefId: SalesModule.normalizeCustomerRefId(row?.customerRefId || ''),
             name: String(row?.name || '').trim(),
             city: String(row?.city || '').trim(),
             district: String(row?.district || '').trim(),
@@ -5112,6 +5291,8 @@
             allowEmptyRow: false,
             keepEmptyPhoneSlot: true
         });
+        const customerRefId = SalesModule.normalizeCustomerRefId(draft?.customerRefId || '');
+        const customerRefDisplay = customerRefId || 'otomatik olusturulacak';
         const isTypeMissing = selectedTypes.length === 0;
         const isMissing = (value) => !String(value ?? '').trim();
         const missing = {
@@ -5169,6 +5350,10 @@
                         <div style="border:1px solid #e2e8f0; border-radius:0.8rem; background:#f8fafc; padding:0.65rem;">
                             <div style="font-size:0.66rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:800; color:#64748b; margin-bottom:0.45rem;">Cari ve vergi bilgileri</div>
                             <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Musteri ID</label>
+                                    <input id="sales_customer_ref_id" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(customerRefDisplay)}" readonly style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; background:#eef2ff; border-color:#bfdbfe;">
+                                </div>
                                 <div>
                                     <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Cari kodu <span style="color:#e11d48;">*</span></label>
                                     <input id="sales_customer_external_code" class="stock-input stock-input-tall" style="${fieldStyle(missing.customerCode)}" value="${SalesModule.escapeHtml(String(draft?.externalCode || ''))}" placeholder="or: 120.01.A.002">
@@ -5286,6 +5471,7 @@
         const firstPhone = String(firstContactPhones[0] || '').trim();
         const secondPhone = String(firstContactPhones[1] || '').trim();
         return {
+            customerRefId: String(read('sales_customer_ref_id')).trim(),
             name: String(read('sales_customer_name')).trim(),
             city: String(read('sales_customer_city')).trim(),
             district: String(read('sales_customer_district')).trim(),
@@ -5327,6 +5513,7 @@
         const now = new Date().toISOString();
         const row = {
             id: crypto.randomUUID(),
+            customerRefId: SalesModule.generateCustomerRefId(),
             customerCode: SalesModule.generateCustomerCode(),
             name: draft.name,
             city: draft.city,
@@ -5386,6 +5573,7 @@
         const prev = rows[idx] || {};
         rows[idx] = {
             ...prev,
+            customerRefId: SalesModule.normalizeCustomerRefId(prev?.customerRefId || '') || SalesModule.generateCustomerRefId({ excludeCustomerId: targetId }),
             name: String(draft.name || '').trim(),
             city: String(draft.city || '').trim(),
             district: String(draft.district || '').trim(),
@@ -5505,6 +5693,7 @@
         const prev = rows[idx] || {};
         rows[idx] = {
             ...prev,
+            customerRefId: SalesModule.normalizeCustomerRefId(prev?.customerRefId || '') || SalesModule.generateCustomerRefId({ excludeCustomerId: targetId }),
             name: String(draft.name || '').trim(),
             city: String(draft.city || '').trim(),
             district: String(draft.district || '').trim(),
@@ -5718,16 +5907,18 @@
         .replace(/\s+/g, ''),
 
     buildCustomerImportIdentity: (row = {}) => {
+        const customerRefIdKey = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
         const externalCodeKey = SalesModule.normalizeExternalCodeKey(row?.externalCode || '');
         const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
         const nameKey = SalesModule.normalizeCustomerNameKey(row?.name || '');
         const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || '');
         const namePhoneKey = (nameKey && phoneKey) ? `${nameKey}|${phoneKey}` : '';
-        return { externalCodeKey, taxKey, namePhoneKey };
+        return { customerRefIdKey, externalCodeKey, taxKey, namePhoneKey };
     },
 
     getCustomerImportMatchKey: (row = {}) => {
         const identity = SalesModule.buildCustomerImportIdentity(row);
+        if (SalesModule.isValidCustomerRefId(identity.customerRefIdKey)) return `customerRefId:${identity.customerRefIdKey}`;
         if (identity.externalCodeKey) return `external:${identity.externalCodeKey}`;
         if (identity.taxKey) return `tax:${identity.taxKey}`;
         if (identity.namePhoneKey) return `namePhone:${identity.namePhoneKey}`;
@@ -5753,6 +5944,7 @@
         });
 
         const idxCariCode = SalesModule.findImportColumnIndex(headerMap, ['cari kodu', 'cari kod']);
+        const idxCustomerRefId = SalesModule.findImportColumnIndex(headerMap, ['musteri id', 'musteri no', 'musteri referans id', 'customer id', 'customer ref id', 'mref']);
         const idxName = SalesModule.findImportColumnIndex(headerMap, ['musteri unvani', 'musteri adi', 'cari adi', 'unvan']);
         const idxAddressNo = SalesModule.findImportColumnIndex(headerMap, ['adres no', 'adresno']);
         const idxPostal = SalesModule.findImportColumnIndex(headerMap, ['posta kodu', 'posta kod']);
@@ -5810,6 +6002,7 @@
 
             parsedRows.push({
                 sourceRow: i + 1,
+                customerRefId: SalesModule.toImportRowValue(row, idxCustomerRefId),
                 externalCode: SalesModule.toImportRowValue(row, idxCariCode),
                 name,
                 addressNo: SalesModule.toImportRowValue(row, idxAddressNo),
@@ -5846,16 +6039,22 @@
     buildCustomerImportPreview: (parsedRows = [], skippedRows = []) => {
         const existing = SalesModule.getCustomers();
         const existingByMatchKey = new Map();
+        const existingRefIdOwnerByCode = new Map();
         existing.forEach((row) => {
             const key = SalesModule.getCustomerImportMatchKey(row);
             if (!key) return;
             if (!existingByMatchKey.has(key)) {
                 existingByMatchKey.set(key, String(row?.id || '').trim());
             }
+            const refId = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
+            if (SalesModule.isValidCustomerRefId(refId) && !existingRefIdOwnerByCode.has(refId)) {
+                existingRefIdOwnerByCode.set(refId, String(row?.id || '').trim());
+            }
         });
 
         const previewRows = [];
         const latestRowByMatchKey = new Map();
+        const importRefCodesSeen = new Set();
         parsedRows.forEach((row) => {
             const matchKey = SalesModule.getCustomerImportMatchKey(row);
             if (matchKey && latestRowByMatchKey.has(matchKey)) {
@@ -5874,18 +6073,36 @@
             }
 
             const warnings = [];
+            const normalizedRefId = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
             const taxKey = SalesModule.normalizeTaxKey(row?.taxNo || '');
             const firstContactPhone = (Array.isArray(row?.customerContacts) && row.customerContacts[0] && Array.isArray(row.customerContacts[0].phones))
                 ? String(row.customerContacts[0].phones[0] || '').trim()
                 : '';
             const phoneKey = SalesModule.normalizePhoneKey(row?.phone || row?.phoneAlt || firstContactPhone || '');
             const matchedCustomerId = matchKey ? String(existingByMatchKey.get(matchKey) || '').trim() : '';
+            let resolvedCustomerRefId = '';
             let status = 'ready';
             let reason = '';
 
             if (!phoneKey) warnings.push('Telefon eksik');
             if (!taxKey) warnings.push('Vergi no eksik');
             if (!String(row?.city || '').trim()) warnings.push('Sehir eksik');
+
+            if (normalizedRefId) {
+                if (!SalesModule.isValidCustomerRefId(normalizedRefId)) {
+                    warnings.push('Musteri ID formati gecersiz, otomatik olusturulacak');
+                } else {
+                    const existingOwnerId = String(existingRefIdOwnerByCode.get(normalizedRefId) || '').trim();
+                    if (existingOwnerId && existingOwnerId !== matchedCustomerId) {
+                        warnings.push('Musteri ID baska kayitta kullaniliyor, otomatik olusturulacak');
+                    } else if (importRefCodesSeen.has(normalizedRefId)) {
+                        warnings.push('Musteri ID dosyada tekrar ediyor, otomatik olusturulacak');
+                    } else {
+                        resolvedCustomerRefId = normalizedRefId;
+                        importRefCodesSeen.add(normalizedRefId);
+                    }
+                }
+            }
 
             if (status !== 'duplicate' && matchedCustomerId) {
                 status = 'update';
@@ -5903,6 +6120,7 @@
 
             previewRows.push({
                 ...row,
+                resolvedCustomerRefId,
                 status,
                 reason,
                 warnings,
@@ -5925,7 +6143,7 @@
 
     renderCustomerImportPreviewRowsHtml: (rows = []) => {
         if (!Array.isArray(rows) || !rows.length) {
-            return '<tr><td colspan="7" style="padding:0.9rem; text-align:center; color:#94a3b8;">Aktarilacak uygun satir bulunamadi.</td></tr>';
+            return '<tr><td colspan="8" style="padding:0.9rem; text-align:center; color:#94a3b8;">Aktarilacak uygun satir bulunamadi.</td></tr>';
         }
         return rows.map((row) => {
             const statusMeta = row.status === 'duplicate'
@@ -5941,6 +6159,7 @@
                     <td style="padding:0.5rem;">
                         <span style="display:inline-flex; align-items:center; padding:0.18rem 0.52rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span>
                     </td>
+                    <td style="padding:0.5rem; font-family:Consolas,monospace; color:#4338ca;">${SalesModule.escapeHtml(String(row?.resolvedCustomerRefId || row?.customerRefId || '-'))}</td>
                     <td style="padding:0.5rem; font-family:Consolas,monospace;">${SalesModule.escapeHtml(String(row?.externalCode || '-'))}</td>
                     <td style="padding:0.5rem; font-weight:700; color:#334155;">${SalesModule.escapeHtml(String(row?.name || '-'))}</td>
                     <td style="padding:0.5rem;">${SalesModule.escapeHtml(String(row?.phone || '-'))}</td>
@@ -6019,6 +6238,7 @@
                             <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
                                 <th style="padding:0.5rem; text-align:left;">Satir</th>
                                 <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                <th style="padding:0.5rem; text-align:left;">Musteri ID</th>
                                 <th style="padding:0.5rem; text-align:left;">Cari kodu</th>
                                 <th style="padding:0.5rem; text-align:left;">Musteri</th>
                                 <th style="padding:0.5rem; text-align:left;">Telefon</th>
@@ -6060,6 +6280,7 @@
             return parser(incomingText);
         };
         const now = new Date().toISOString();
+        const usedCustomerRefIds = SalesModule.collectUsedCustomerRefIds();
         let added = 0;
         let updated = 0;
         importableRows.forEach((item) => {
@@ -6089,9 +6310,23 @@
                 const preservedCustomerCode = SalesModule.isValidCustomerCode(rawCustomerCode)
                     ? rawCustomerCode
                     : SalesModule.generateCustomerCode();
+                const existingRefId = SalesModule.normalizeCustomerRefId(prev?.customerRefId || '');
+                let preservedCustomerRefId = existingRefId;
+                if (!SalesModule.isValidCustomerRefId(preservedCustomerRefId)) {
+                    const incomingRefId = SalesModule.normalizeCustomerRefId(item?.resolvedCustomerRefId || item?.customerRefId || '');
+                    if (SalesModule.isValidCustomerRefId(incomingRefId) && !usedCustomerRefIds.has(incomingRefId)) {
+                        preservedCustomerRefId = incomingRefId;
+                        usedCustomerRefIds.add(preservedCustomerRefId);
+                    } else {
+                        preservedCustomerRefId = SalesModule.generateCustomerRefId({ usedIds: usedCustomerRefIds });
+                    }
+                } else {
+                    usedCustomerRefIds.add(preservedCustomerRefId);
+                }
                 customerRows[targetIndex] = {
                     ...prev,
                     id: preservedId,
+                    customerRefId: preservedCustomerRefId,
                     customerCode: preservedCustomerCode,
                     name,
                     city: pickText(item?.city, prev?.city),
@@ -6131,8 +6366,14 @@
                 return;
             }
 
+            const incomingRefId = SalesModule.normalizeCustomerRefId(item?.resolvedCustomerRefId || item?.customerRefId || '');
+            const customerRefId = (SalesModule.isValidCustomerRefId(incomingRefId) && !usedCustomerRefIds.has(incomingRefId))
+                ? (usedCustomerRefIds.add(incomingRefId), incomingRefId)
+                : SalesModule.generateCustomerRefId({ usedIds: usedCustomerRefIds });
+
             const row = {
                 id: crypto.randomUUID(),
+                customerRefId,
                 customerCode: SalesModule.generateCustomerCode(),
                 name,
                 city: String(item?.city || '').trim(),
@@ -6292,18 +6533,20 @@
         return SalesModule.getCatalogLeafNodes().find((leaf) => leaf.id === id) || null;
     },
 
-    ensureCatalogState: () => {
+    ensureCatalogState: (options = {}) => {
+        const mode = String(options?.mode || 'default').trim().toLowerCase();
+        const isLibraryEntryMode = mode === 'library-entry';
         const mains = SalesModule.getCatalogTree();
         const mainIds = mains.map((item) => String(item.id || '')).filter(Boolean);
         const activeMain = String(SalesModule.state.catalogActiveMainId || '').trim();
         if (!activeMain || !mainIds.includes(activeMain)) {
-            SalesModule.state.catalogActiveMainId = String(mainIds[0] || 'korkuluk');
+            SalesModule.state.catalogActiveMainId = isLibraryEntryMode ? '' : String(mainIds[0] || 'korkuluk');
         }
         const groups = SalesModule.getCatalogGroupsByMain(SalesModule.state.catalogActiveMainId);
         const groupIds = groups.map((item) => String(item.id || '')).filter(Boolean);
         const activeGroup = String(SalesModule.state.catalogActiveGroupId || '').trim();
         if (!activeGroup || !groupIds.includes(activeGroup)) {
-            SalesModule.state.catalogActiveGroupId = String(groupIds[0] || '');
+            SalesModule.state.catalogActiveGroupId = isLibraryEntryMode ? '' : String(groupIds[0] || '');
         }
 
         const activeGroupNode = SalesModule.getCatalogGroupById(
@@ -6314,7 +6557,7 @@
         const leafIds = leaves.map((item) => String(item.id || '')).filter(Boolean);
         const activeLeaf = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         if (!activeLeaf || !leafIds.includes(activeLeaf)) {
-            SalesModule.state.catalogActiveCategoryId = String(leafIds[0] || '');
+            SalesModule.state.catalogActiveCategoryId = isLibraryEntryMode ? '' : String(leafIds[0] || '');
         }
 
         const expandedMain = String(SalesModule.state.catalogExpandedMainId || '').trim();
@@ -6332,7 +6575,9 @@
 
         const highlight = String(SalesModule.state.catalogHighlightKey || '').trim();
         if (!highlight) {
-            if (String(SalesModule.state.catalogActiveGroupId || '').trim()) {
+            if (isLibraryEntryMode) {
+                SalesModule.state.catalogHighlightKey = '';
+            } else if (String(SalesModule.state.catalogActiveGroupId || '').trim()) {
                 SalesModule.state.catalogHighlightKey = `group:${String(SalesModule.state.catalogActiveGroupId || '')}`;
             } else if (String(SalesModule.state.catalogActiveMainId || '').trim()) {
                 SalesModule.state.catalogHighlightKey = `main:${String(SalesModule.state.catalogActiveMainId || '')}`;
@@ -6354,6 +6599,7 @@
                 const colors = item.colors && typeof item.colors === 'object' ? item.colors : {};
                 const images = item.images && typeof item.images === 'object' ? item.images : {};
                 const pipe = item.pipe && typeof item.pipe === 'object' ? item.pipe : {};
+                const packagingBox = SalesModule.normalizeCatalogPackagingBox(item.packagingBox || null);
                 return {
                     id: String(item.id || '').trim(),
                     categoryId: String(item.categoryId || '').trim(),
@@ -6398,6 +6644,7 @@
                         technical: String(images.technical || '').trim(),
                         application: String(images.application || '').trim()
                     },
+                    packagingBox,
                     created_at: String(item.created_at || ''),
                     updated_at: String(item.updated_at || '')
                 };
@@ -6453,6 +6700,133 @@
             ];
             return fields.some((value) => SalesModule.normalize(value).includes(query));
         });
+    },
+
+    normalizeCatalogUnitsPerBox: (value) => {
+        const raw = String(value ?? '').trim().replace(',', '.');
+        if (!raw) return '';
+        const num = Number(raw);
+        if (!Number.isFinite(num)) return '';
+        const normalized = Math.floor(num);
+        if (!Number.isFinite(normalized) || normalized <= 0) return '';
+        return normalized;
+    },
+
+    createEmptyCatalogPackagingBox: () => ({
+        productId: '',
+        code: '',
+        name: '',
+        unitsPerBoxForProduct: '',
+        capacity: ''
+    }),
+
+    normalizeCatalogPackagingBox: (value) => {
+        const source = value && typeof value === 'object' ? value : null;
+        if (!source) return null;
+        const productId = String(source.productId || source.id || source.boxProductId || '').trim();
+        const code = String(source.code || source.productCode || source.boxCode || '').trim();
+        const name = String(source.name || source.productName || source.boxName || '').trim();
+        if (!productId && !code && !name) return null;
+        const unitsPerBoxForProduct = SalesModule.normalizeCatalogUnitsPerBox(
+            source.unitsPerBoxForProduct ?? source.unitsPerBox ?? source.capacity ?? source.qtyPerBox ?? ''
+        );
+        const capacity = SalesModule.normalizeCatalogUnitsPerBox(
+            source.capacity ?? source.unitsPerBoxForProduct ?? source.unitsPerBox ?? source.qtyPerBox ?? ''
+        );
+        return {
+            productId,
+            code,
+            name,
+            unitsPerBoxForProduct: unitsPerBoxForProduct || '',
+            capacity: capacity || unitsPerBoxForProduct || ''
+        };
+    },
+
+    getCatalogBoxProducts: () => {
+        const rows = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
+        return rows
+            .map((row) => {
+                const item = row && typeof row === 'object' ? row : {};
+                const categoryId = String(item.categoryId || '').trim();
+                const category = SalesModule.normalize(item.category || '');
+                if (categoryId !== 'cat_box' && category !== 'koli') return null;
+                const id = String(item.id || '').trim();
+                if (!id) return null;
+                const code = String(item.code || item.productCode || '').trim();
+                const name = String(item.name || '').trim();
+                const defaultUnits = SalesModule.normalizeCatalogUnitsPerBox(
+                    item.unitsPerBoxForProduct
+                    ?? item.unitsPerBox
+                    ?? item.capacity
+                    ?? item.specs?.unitsPerBoxForProduct
+                    ?? item.specs?.unitsPerBox
+                    ?? item.specs?.capacity
+                    ?? ''
+                );
+                return {
+                    id,
+                    code,
+                    name,
+                    defaultUnits
+                };
+            })
+            .filter(Boolean)
+            .sort((a, b) => {
+                const byName = String(a.name || '').localeCompare(String(b.name || ''), 'tr');
+                if (byName !== 0) return byName;
+                return String(a.code || '').localeCompare(String(b.code || ''), 'tr');
+            });
+    },
+
+    resolveCatalogPackagingBoxProduct: (packagingBox = null, rowsInput = null) => {
+        const current = SalesModule.normalizeCatalogPackagingBox(packagingBox || null);
+        if (!current) return null;
+        const rows = Array.isArray(rowsInput) ? rowsInput : SalesModule.getCatalogBoxProducts();
+        if (!rows.length) return null;
+
+        const currentProductId = String(current.productId || '').trim();
+        if (currentProductId) {
+            const byId = rows.find((row) => String(row.id || '').trim() === currentProductId);
+            if (byId) return byId;
+        }
+
+        const currentCode = SalesModule.normalizeSearchText(current.code || '');
+        if (currentCode) {
+            const byCode = rows.find((row) => SalesModule.normalizeSearchText(row.code || '') === currentCode);
+            if (byCode) return byCode;
+        }
+
+        const currentName = SalesModule.normalizeSearchText(current.name || '');
+        if (currentName) {
+            const byName = rows.find((row) => SalesModule.normalizeSearchText(row.name || '') === currentName);
+            if (byName) return byName;
+        }
+        return null;
+    },
+
+    renderCatalogPackagingBoxOptionsHtml: (selectedProductId = '', currentPackagingBox = null) => {
+        const selectedId = String(selectedProductId || '').trim();
+        const current = SalesModule.normalizeCatalogPackagingBox(currentPackagingBox || null);
+        const rows = SalesModule.getCatalogBoxProducts();
+        const matchedRow = SalesModule.resolveCatalogPackagingBoxProduct(current, rows);
+        const resolvedSelectedId = (selectedId && rows.some((row) => row.id === selectedId))
+            ? selectedId
+            : String(matchedRow?.id || '').trim();
+        const options = [
+            `<option value="" ${resolvedSelectedId ? '' : 'selected'}>koli karti sec</option>`
+        ];
+        if (current && !matchedRow) {
+            const fallbackValue = String(current.productId || '').trim() || '__catalog_packaging_box_missing__';
+            const fallbackLabel = [current?.code, current?.name].filter(Boolean).join(' - ') || fallbackValue;
+            options.push(`<option value="${SalesModule.escapeHtml(fallbackValue)}" selected>${SalesModule.escapeHtml(`Kayıtlı koli: ${fallbackLabel} (katalogda bulunamadı)`)}</option>`);
+        }
+        rows.forEach((row) => {
+            const value = String(row.id || '').trim();
+            if (!value) return;
+            const label = [row.code, row.name].filter(Boolean).join(' - ') || value;
+            options.push(`<option value="${SalesModule.escapeHtml(value)}" ${value === resolvedSelectedId ? 'selected' : ''}>${SalesModule.escapeHtml(label)}</option>`);
+        });
+        return options.join('');
     },
 
     getAnchorageProducts: () => {
@@ -6694,6 +7068,21 @@
             row.defaultAnchorageCatalogIdCode || row.defaultAnchorageCatalogCode || '',
             row.defaultAnchorageVariantCode || row.defaultAnchorageVariant || ''
         );
+        const sourcePackagingBox = SalesModule.normalizeCatalogPackagingBox(row.packagingBox || null);
+        const matchedPackagingBox = SalesModule.resolveCatalogPackagingBoxProduct(sourcePackagingBox);
+        const packagingBoxDraft = sourcePackagingBox
+            ? {
+                productId: String(matchedPackagingBox?.id || sourcePackagingBox.productId || '').trim(),
+                code: String(matchedPackagingBox?.code || sourcePackagingBox.code || '').trim(),
+                name: String(matchedPackagingBox?.name || sourcePackagingBox.name || '').trim(),
+                unitsPerBoxForProduct: SalesModule.normalizeCatalogUnitsPerBox(
+                    sourcePackagingBox.unitsPerBoxForProduct || sourcePackagingBox.capacity || ''
+                ) || '',
+                capacity: SalesModule.normalizeCatalogUnitsPerBox(
+                    sourcePackagingBox.capacity || sourcePackagingBox.unitsPerBoxForProduct || ''
+                ) || ''
+            }
+            : SalesModule.createEmptyCatalogPackagingBox();
         return {
             categoryId: String(categoryId || '').trim(),
             name: String(row.name || '').trim(),
@@ -6715,7 +7104,9 @@
                 product: String(row.images?.product || '').trim(),
                 technical: String(row.images?.technical || '').trim(),
                 application: String(row.images?.application || '').trim()
-            }
+            },
+            packagingBox: packagingBoxDraft,
+            packagingBoxClearRequested: false
         };
     },
 
@@ -6872,6 +7263,48 @@
             candidate = normalizeCode(`ANK-${String(seq).padStart(6, '0')}`);
         }
         return candidate;
+    },
+
+    setCatalogEntryMain: (mainId) => {
+        const id = String(mainId || '').trim();
+        if (!id) return;
+        const main = SalesModule.getCatalogMainById(id);
+        if (!main) return;
+        const isExpanded = String(SalesModule.state.catalogExpandedMainId || '') === id;
+        if (isExpanded) {
+            SalesModule.state.catalogExpandedMainId = '';
+            SalesModule.state.catalogExpandedGroupId = '';
+            SalesModule.state.catalogActiveMainId = '';
+            SalesModule.state.catalogActiveGroupId = '';
+            SalesModule.state.catalogActiveCategoryId = '';
+            SalesModule.state.catalogHighlightKey = '';
+            UI.renderCurrentPage();
+            return;
+        }
+        SalesModule.state.catalogAnchorageMode = false;
+        SalesModule.state.catalogActiveMainId = id;
+        SalesModule.state.catalogActiveGroupId = '';
+        SalesModule.state.catalogActiveCategoryId = '';
+        SalesModule.state.catalogExpandedMainId = id;
+        SalesModule.state.catalogExpandedGroupId = '';
+        SalesModule.state.catalogHighlightKey = `main:${id}`;
+        UI.renderCurrentPage();
+    },
+
+    setCatalogEntryGroup: (groupId) => {
+        const id = String(groupId || '').trim();
+        if (!id) return;
+        const expandedMainId = String(SalesModule.state.catalogExpandedMainId || SalesModule.state.catalogActiveMainId || '').trim();
+        const group = SalesModule.getCatalogGroupById(expandedMainId, id);
+        if (!group) return;
+        const isExpanded = String(SalesModule.state.catalogExpandedGroupId || '') === id;
+        SalesModule.state.catalogAnchorageMode = false;
+        SalesModule.state.catalogActiveMainId = expandedMainId;
+        SalesModule.state.catalogActiveGroupId = id;
+        SalesModule.state.catalogActiveCategoryId = '';
+        SalesModule.state.catalogHighlightKey = `group:${id}`;
+        SalesModule.state.catalogExpandedGroupId = isExpanded ? '' : id;
+        UI.renderCurrentPage();
     },
 
     setCatalogActiveMain: (mainId) => {
@@ -7070,7 +7503,7 @@
                     <img src="${SalesModule.escapeHtml(String(imageData || ''))}" alt="${SalesModule.escapeHtml(label)}" class="sales-catalog-upload-image">
                 </div>
                 <div class="sales-catalog-upload-actions">
-                    <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearCatalogImage('${SalesModule.escapeHtml(String(kind || ''))}')">kaldir</button>
+                    <span class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearCatalogImage('${SalesModule.escapeHtml(String(kind || ''))}')">kaldir</span>
                 </div>
             </div>
         `;
@@ -7081,7 +7514,10 @@
         const expandedMainId = String(SalesModule.state.catalogExpandedMainId || '').trim();
         const expandedGroupId = String(SalesModule.state.catalogExpandedGroupId || '').trim();
         const highlightKey = String(SalesModule.state.catalogHighlightKey || '').trim();
-        void options;
+        const selectionMode = String(options?.selectionMode || 'default').trim().toLowerCase();
+        const isLibraryEntryMode = selectionMode === 'library-entry';
+        const mainClickHandler = isLibraryEntryMode ? 'SalesModule.setCatalogEntryMain' : 'SalesModule.setCatalogActiveMain';
+        const groupClickHandler = isLibraryEntryMode ? 'SalesModule.setCatalogEntryGroup' : 'SalesModule.setCatalogActiveGroup';
         return `
             <div class="sales-catalog-tree-wrap">
                 <div class="sales-catalog-tree">
@@ -7094,12 +7530,13 @@
                 const hasSingleSameNamedGroup = hasGroups
                     && groups.length === 1
                     && SalesModule.normalize(groups[0]?.label || '') === SalesModule.normalize(mainLabel);
-                const singleGroupId = hasSingleSameNamedGroup ? String(groups[0]?.id || '') : '';
+                const useSingleGroupShortcut = hasSingleSameNamedGroup && !isLibraryEntryMode;
+                const singleGroupId = useSingleGroupShortcut ? String(groups[0]?.id || '') : '';
                 const isMainActive = highlightKey === `main:${mainId}`
-                    || (hasSingleSameNamedGroup && highlightKey === `group:${singleGroupId}`);
+                    || (useSingleGroupShortcut && highlightKey === `group:${singleGroupId}`);
                 return `
                         <div class="sales-catalog-tree-main ${isMainOpen ? 'is-open' : ''}">
-                            <button class="sales-catalog-tree-main-btn ${isMainActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveMain('${SalesModule.escapeHtml(mainId)}')">
+                            <button class="sales-catalog-tree-main-btn ${isMainActive ? 'is-active' : ''}" onclick="${mainClickHandler}('${SalesModule.escapeHtml(mainId)}')">
                                 <span>${SalesModule.escapeHtml(mainLabel)}</span>
                                 <span class="sales-catalog-tree-arrow">${isMainOpen ? 'v' : '>'}</span>
                             </button>
@@ -7108,7 +7545,7 @@
                                 <div class="sales-catalog-tree-main-panel">
                                     <div class="sales-catalog-tree-group-list">
                                     ${hasGroups
-                ? (hasSingleSameNamedGroup
+                ? (useSingleGroupShortcut
                     ? (() => {
                         const onlyGroup = groups[0] || {};
                         const leaves = Array.isArray(onlyGroup.children) ? onlyGroup.children : [];
@@ -7137,7 +7574,7 @@
                         const leaves = Array.isArray(group.children) ? group.children : [];
                         return `
                                             <div class="sales-catalog-tree-group ${isGroupOpen ? 'is-open' : ''}">
-                                                <button class="sales-catalog-tree-group-btn ${isGroupActive ? 'is-active' : ''}" onclick="SalesModule.setCatalogActiveGroup('${SalesModule.escapeHtml(groupId)}')">
+                                                <button class="sales-catalog-tree-group-btn ${isGroupActive ? 'is-active' : ''}" onclick="${groupClickHandler}('${SalesModule.escapeHtml(groupId)}')">
                                                     <span>${SalesModule.escapeHtml(groupLabel)}</span>
                                                     <span class="sales-catalog-tree-arrow">${isGroupOpen ? 'v' : '>'}</span>
                                                 </button>
@@ -7175,7 +7612,8 @@
         const list = Array.isArray(rows) ? rows : [];
         const requestedSelectAction = String(options?.onSelectAction || '').trim();
         const hasCustomSelectAction = /^[A-Za-z_$][A-Za-z0-9_$.]*$/.test(requestedSelectAction);
-        const viewButtonLabel = String(options?.viewButtonLabel || '').trim() || 'goruntule';
+        const variationButtonLabel = String(options?.variationButtonLabel || options?.viewButtonLabel || '').trim() || 'varyasyonlar';
+        const singleViewOnly = !!options?.singleViewOnly;
         if (!list.length) {
             return `
                 <div class="sales-catalog-empty">
@@ -7192,35 +7630,46 @@
             const isBoru = SalesModule.isPipeCategory(row.categoryId);
             const isCubuk = SalesModule.isRodCategory(row.categoryId);
             const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
-            const selectAction = hasCustomSelectAction
+            const variationAction = hasCustomSelectAction
                 ? `${requestedSelectAction}('${id}')`
                 : `SalesModule.openSalesCatalogVariationPage('${id}')`;
+            const viewAction = singleViewOnly
+                ? variationAction
+                : `SalesModule.openCatalogDetailModal('${id}')`;
+            const badgeHtml = isBoru
+                ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                   <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
+                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>`
+                : (isCubuk
+                    ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
+                       <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
+                       <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>`
+                    : (isOzel
+                        ? `<span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
+                           <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>`
+                        : `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
+                           <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>`));
             return `
-                <div class="sales-catalog-card" role="button" tabindex="0" onclick="${selectAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${selectAction};}">
-                    <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
-                        ${image
+                <div class="sales-catalog-card" role="button" tabindex="0" onclick="${variationAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${variationAction};}">
+                    <div class="sales-catalog-card-main">
+                        <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
+                            ${image
                     ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-card-image">`
                     : '<div class="sales-catalog-card-placeholder">Gorsel yok</div>'}
+                        </div>
+                        <div class="sales-catalog-card-body">
+                            <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
+                            <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
+                            <div class="sales-catalog-card-meta-row">
+                                ${badgeHtml}
+                            </div>
+                        </div>
                     </div>
-                    <div class="sales-catalog-card-body">
-                        <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
-                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
-                        <div class="sales-catalog-card-meta-row">
-                            ${isBoru ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
-                                   <span class="sales-catalog-pill">kalinlik ${SalesModule.escapeHtml(row.pipe?.thickness || '-')}</span>
-                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>` : ''}
-                            ${isCubuk ? `<span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>
-                                   <span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
-                                   <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>` : ''}
-                            ${isOzel ? `<span class="sales-catalog-pill">boy ${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')} mm</span>
-                                   <span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>` : ''}
-                            ${(!isBoru && !isCubuk && !isOzel) ? `<span class="sales-catalog-pill">${row.bubble === 'var' ? 'Kabarcik var' : 'Kabarcik yok'}</span>
-                                   <span class="sales-catalog-pill">Ø ${SalesModule.escapeHtml(row.selectedDiameter || '-')}</span>` : ''}
-                        </div>
-                        <div class="sales-catalog-card-actions">
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditCatalogModal('${id}')">duzenle</button>
-                        </div>
+                    <div class="sales-catalog-card-actions">
+                        <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${viewAction}">goruntule</button>
+                        ${singleViewOnly
+                ? ''
+                : `<button type="button" class="sales-catalog-card-action-btn is-strong" onclick="event.stopPropagation(); ${variationAction}">${SalesModule.escapeHtml(variationButtonLabel)}</button>`}
                     </div>
                 </div>
             `;
@@ -7251,21 +7700,23 @@
                 : `SalesModule.openAnchorageDetailModal('${id}')`;
             return `
                 <div class="sales-catalog-card" role="button" tabindex="0" onclick="${selectAction}" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault(); ${selectAction};}">
-                    <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
-                        ${image
+                    <div class="sales-catalog-card-main">
+                        <div class="sales-catalog-card-media ${image ? '' : 'is-empty'}">
+                            ${image
                     ? `<img src="${SalesModule.escapeHtml(image)}" alt="${SalesModule.escapeHtml(row?.name || 'Ankraj')}" class="sales-catalog-card-image">`
                     : '<div class="sales-catalog-card-placeholder">Gorsel yok</div>'}
+                        </div>
+                        <div class="sales-catalog-card-body">
+                            <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row?.name || '-')}</div>
+                            <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row?.productCode || row?.idCode || '-')}</div>
+                            <div class="sales-catalog-card-meta-row">
+                                <span class="sales-catalog-pill">ID: ${SalesModule.escapeHtml(row?.idCode || '-')}</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="sales-catalog-card-body">
-                        <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row?.name || '-')}</div>
-                        <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row?.productCode || row?.idCode || '-')}</div>
-                        <div class="sales-catalog-card-meta-row">
-                            <span class="sales-catalog-pill">ID: ${SalesModule.escapeHtml(row?.idCode || '-')}</span>
-                        </div>
-                        <div class="sales-catalog-card-actions">
-                            <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
-                            ${showEditButton ? `<button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); SalesModule.openEditAnchorageModal('${id}')">duzenle</button>` : ''}
-                        </div>
+                    <div class="sales-catalog-card-actions">
+                        <button type="button" class="sales-catalog-card-action-btn" onclick="event.stopPropagation(); ${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
+                        ${showEditButton ? `<button type="button" class="sales-catalog-card-action-btn is-strong" onclick="event.stopPropagation(); SalesModule.openEditAnchorageModal('${id}')">duzenle</button>` : ''}
                     </div>
                 </div>
             `;
@@ -7339,10 +7790,18 @@
     },
 
     renderProductsLayout: (options = {}) => {
-        SalesModule.ensureCatalogState();
         const host = String(options?.host || 'sales').trim();
         const isEmbeddedInProducts = host === 'product-library';
+        const isPlanningPicker = isEmbeddedInProducts
+            && typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && String(ProductLibraryModule?.state?.planningPickerSource || '').trim().toLowerCase() === 'model';
         const isAnchoragePickerPending = !!SalesModule.state.salesOrderAnchoragePickerPending;
+        const isLinePickerPending = !!SalesModule.state.salesOrderLineLibraryPickerPending;
+        const isPickerContext = isAnchoragePickerPending || isLinePickerPending || isPlanningPicker;
+        const isNormalLibraryEntryMode = !isPickerContext;
+        const isSharedCatalogEntryFlow = isNormalLibraryEntryMode && (host === 'sales' || host === 'product-library');
+        SalesModule.ensureCatalogState({ mode: isNormalLibraryEntryMode ? 'library-entry' : 'default' });
         const backAction = isAnchoragePickerPending
             ? 'SalesModule.cancelSalesOrderAnchoragePicker()'
             : (isEmbeddedInProducts
@@ -7354,21 +7813,24 @@
             : (isEmbeddedInProducts
             ? 'bu ekran master tarafinda referans icin gorunur. urun ekleme ve duzenleme bu ekrandan da yapilabilir.'
             : 'burada sadece satilan urunler eklenir.');
-        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || 'korkuluk');
+        const activeMain = SalesModule.getCatalogMainById(SalesModule.state.catalogActiveMainId || '');
         const activeGroup = SalesModule.getCatalogGroupById(SalesModule.state.catalogActiveMainId || '', SalesModule.state.catalogActiveGroupId || '');
         const activeLeaf = SalesModule.getCatalogLeafById(SalesModule.state.catalogActiveCategoryId || '');
+        const hasCategorySelection = !!activeLeaf;
         const isCatalogMain = String(activeMain?.id || '') === 'korkuluk';
         const activeCategoryId = String(SalesModule.state.catalogActiveCategoryId || '').trim();
         const isPipeLeaf = SalesModule.isPipeFamilyCategory(activeCategoryId);
         const isAnchorageLeaf = activeCategoryId === 'ankrajlar';
         const searchText = String(SalesModule.state.catalogSearchText || '');
-        const supportsCatalogCrud = isCatalogMain || isPipeLeaf;
+        const supportsCatalogCrud = hasCategorySelection && (isCatalogMain || isPipeLeaf);
         const supportsCrud = supportsCatalogCrud;
-        const pathText = SalesModule.getCatalogCategoryPathText(activeCategoryId);
-        const totalCategoryCount = (supportsCatalogCrud && activeLeaf)
+        const pathText = hasCategorySelection
+            ? SalesModule.getCatalogCategoryPathText(activeCategoryId)
+            : 'Kategori seciniz';
+        const totalCategoryCount = (supportsCatalogCrud && hasCategorySelection)
             ? (isAnchorageLeaf ? SalesModule.getAnchorageProducts().length : SalesModule.getCatalogProductsByCategory(activeCategoryId).length)
             : 0;
-        const filteredRows = (supportsCatalogCrud && activeLeaf)
+        const filteredRows = (supportsCatalogCrud && hasCategorySelection)
             ? (isAnchorageLeaf
                 ? SalesModule.getFilteredAnchorageProducts(searchText)
                 : SalesModule.getCatalogFilteredProductsByCategory(activeCategoryId, searchText))
@@ -7379,7 +7841,7 @@
                 ? (isAnchoragePickerPending ? '' : '<button class="btn-primary" onclick="SalesModule.openCreateAnchorageModal()">yeni urun ekle +</button>')
                 : '<button class="btn-primary" onclick="SalesModule.openCreateCatalogModal()">yeni urun ekle +</button>')
             : '';
-        const contentClass = (supportsCatalogCrud && isPipeLeaf) ? 'sales-catalog-list' : 'sales-catalog-grid';
+        const contentClass = supportsCatalogCrud ? 'sales-catalog-grid' : 'sales-catalog-neutral';
         const listHtml = (supportsCatalogCrud && activeLeaf)
             ? (isAnchorageLeaf
                 ? SalesModule.renderAnchorageCardsHtml(filteredRows, searchText, isAnchoragePickerPending
@@ -7389,12 +7851,13 @@
                         showEditButton: false
                     }
                     : options)
-                : (isPipeLeaf
-                    ? SalesModule.renderPipeRowsTableHtml(filteredRows, searchText, options)
-                    : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, options)))
+                : SalesModule.renderCatalogCardsHtml(filteredRows, searchText, {
+                    ...options,
+                    singleViewOnly: isSharedCatalogEntryFlow
+                }))
             : `<div class="sales-catalog-empty">
-                                        <div class="sales-catalog-empty-title">Bu sekme simdilik bos</div>
-                                        <div class="sales-catalog-empty-text">"${SalesModule.escapeHtml(String(activeMain?.label || 'Bu alan'))}" icin urun ekleme menusu sonraki adimda eklenecek.</div>
+                                        <div class="sales-catalog-empty-title">Kategori secilmedi</div>
+                                        <div class="sales-catalog-empty-text">Soldaki panelden bir alt kategori secerek urun kartlarini goruntuleyebilirsiniz.</div>
                                    </div>`;
         return `
             <section class="stock-shell">
@@ -7411,7 +7874,7 @@
                         <aside class="sales-catalog-left">
                             <div class="sales-catalog-root">Urun gruplari</div>
                             <div class="sales-catalog-root-note">Tikladikca asagi acilan menu ile urun tipine inin.</div>
-                            ${SalesModule.renderCatalogTreeHtml()}
+                            ${SalesModule.renderCatalogTreeHtml({ selectionMode: isNormalLibraryEntryMode ? 'library-entry' : 'default' })}
                         </aside>
 
                         <section class="sales-catalog-right">
@@ -7420,7 +7883,7 @@
                                     <div class="sales-catalog-path">${SalesModule.escapeHtml(pathText)}</div>
                                     <div class="sales-catalog-sub">${supportsCrud
                 ? `${SalesModule.escapeHtml(String(filteredCount))}${String(searchText || '').trim() ? ` sonuc / ${SalesModule.escapeHtml(String(totalCategoryCount))} kayit` : ' kayitli urun'}`
-                : 'Bu alan icin urun ekleme modulu ayri gelistirilecek.'}</div>
+                : 'Sag panel kategori secimi sonrasinda urun kartlarini listeler.'}</div>
                                     ${supportsCrud ? `
                                         <div class="sales-catalog-search-row">
                                             <input id="sales_catalog_search_input" class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
@@ -7468,21 +7931,31 @@
         Modal.open('Yeni urun ekle', html, { maxWidth: '1220px' });
     },
 
-    openEditCatalogModal: (productId) => {
+    openEditCatalogModal: (productId, options = {}) => {
         const id = String(productId || '').trim();
         if (!id) return;
+        const fromDetail = !!options?.fromDetail;
+        const detailSource = fromDetail ? String(options?.detailSource || 'sales-modal').trim() : '';
+        SalesModule.state.catalogDetailResumeProductId = fromDetail ? id : '';
+        SalesModule.state.catalogDetailResumeSource = fromDetail ? (detailSource || 'sales-modal') : '';
         const row = SalesModule.getCatalogProducts().find((item) => String(item.id || '') === id);
         if (!row) return alert('Urun bulunamadi.');
         SalesModule.state.catalogEditingProductId = id;
         if (SalesModule.isPipeFamilyCategory(row.categoryId)) {
             SalesModule.state.catalogDraft = SalesModule.buildPipeDraft(row.categoryId, row);
             const html = SalesModule.renderPipeCatalogModalHtml();
-            Modal.open('Urunu duzenle', html, { maxWidth: '840px' });
+            Modal.open('Urunu duzenle', html, { maxWidth: '1008px' });
             return;
         }
         SalesModule.state.catalogDraft = SalesModule.buildCatalogDraft(row.categoryId, row);
         const html = SalesModule.renderCreateCatalogModalHtml();
-        Modal.open('Urunu duzenle', html, { maxWidth: '1220px' });
+        Modal.open('Urunu duzenle', html, { maxWidth: '1464px' });
+    },
+
+    openCatalogEditFromDetail: (productId) => {
+        const id = String(productId || '').trim();
+        if (!id) return;
+        SalesModule.openEditCatalogModal(id, { fromDetail: true, detailSource: 'sales-modal' });
     },
 
     deleteCatalogProduct: async (productId = '') => {
@@ -7604,7 +8077,7 @@
                     <img src="${SalesModule.escapeHtml(image)}" alt="Ankraj urun gorseli" class="sales-catalog-upload-image">
                 </div>
                 <div class="sales-catalog-upload-actions">
-                    <button type="button" class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearAnchorageImage()">kaldir</button>
+                    <span class="sales-catalog-upload-clear" onclick="event.stopPropagation(); SalesModule.clearAnchorageImage()">kaldir</span>
                 </div>
             </div>
         `;
@@ -7774,6 +8247,15 @@
             draft.defaultAnchorageVariantCode || ''
         );
         const selectedAnchorageVariant = String(selectedAnchorage?.variantCode || draft.defaultAnchorageVariantCode || '').trim();
+        const packagingBox = SalesModule.normalizeCatalogPackagingBox(draft.packagingBox || null);
+        const packagingBoxProducts = SalesModule.getCatalogBoxProducts();
+        const packagingBoxMatch = SalesModule.resolveCatalogPackagingBoxProduct(packagingBox, packagingBoxProducts);
+        const packagingBoxProductId = String(packagingBox?.productId || '').trim();
+        const packagingBoxUnits = SalesModule.normalizeCatalogUnitsPerBox(
+            packagingBox?.unitsPerBoxForProduct || packagingBox?.capacity || ''
+        ) || '';
+        const packagingBoxMeta = [packagingBox?.code, packagingBox?.name].filter(Boolean).join(' - ');
+        const isPackagingBoxMissingInCatalog = !!(packagingBox && !packagingBoxMatch);
         return `
             <div class="sales-catalog-create-wrap">
                 <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(categoryText)}</div>
@@ -7818,6 +8300,22 @@
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Alt boru uzunlugu</label>
                         <input id="sales_catalog_lower_tube" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.lowerTubeLength || 'standart')}" oninput="SalesModule.setCatalogDraftField('lowerTubeLength', this.value)" placeholder="standart veya ozel olcu">
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Koli tipi / koli karti</label>
+                        <select id="sales_catalog_packaging_box" class="sales-catalog-select" onchange="SalesModule.setCatalogPackagingBoxProduct(this.value)">
+                            ${SalesModule.renderCatalogPackagingBoxOptionsHtml(packagingBoxProductId, packagingBox)}
+                        </select>
+                        ${packagingBoxMeta ? `<div style="margin-top:0.3rem; color:#64748b; font-size:0.74rem; font-weight:600;">mevcut: ${SalesModule.escapeHtml(packagingBoxMeta)}</div>` : ''}
+                        ${isPackagingBoxMissingInCatalog ? `<div class="sales-catalog-empty-text" style="margin-top:0.3rem;">Kayıtlı koli: ${SalesModule.escapeHtml(packagingBoxMeta || packagingBoxProductId || 'bilinmiyor')} (katalogda bulunamadı)</div>` : ''}
+                        ${!packagingBoxProducts.length ? '<div class="sales-catalog-empty-text" style="margin-top:0.3rem;">Koli kartı bulunamadı. Önce Master Ürün Kütüphanesi&#39;nde koli kartı oluşturulmalı.</div>' : ''}
+                    </div>
+                    <div class="sales-catalog-field-block">
+                        <label class="sales-catalog-label">Bir koliye kac adet sigar</label>
+                        <div class="sales-catalog-inline">
+                            <input id="sales_catalog_packaging_units" class="sales-catalog-input" inputmode="numeric" value="${SalesModule.escapeHtml(String(packagingBoxUnits || ''))}" oninput="SalesModule.setCatalogPackagingBoxUnits(this.value)" placeholder="or: 8">
+                            <button type="button" class="sales-catalog-mini-btn" onclick="SalesModule.clearCatalogPackagingBox()">koli bilgisini temizle</button>
+                        </div>
                     </div>
                     ${isRailingProduct ? `
                     <div class="sales-catalog-field-block">
@@ -7956,6 +8454,56 @@
         if (!key) return;
         if (!SalesModule.state.catalogDraft || typeof SalesModule.state.catalogDraft !== 'object') return;
         SalesModule.state.catalogDraft[key] = String(value || '');
+    },
+
+    setCatalogPackagingBoxProduct: (productId) => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const selectedId = String(productId || '').trim();
+        if (!selectedId) return;
+        if (selectedId === '__catalog_packaging_box_missing__') return;
+        const selected = SalesModule.getCatalogBoxProducts().find((row) => String(row.id || '').trim() === selectedId);
+        if (!selected) return;
+        const currentPackaging = SalesModule.normalizeCatalogPackagingBox(draft.packagingBox || null);
+        const currentUnits = SalesModule.normalizeCatalogUnitsPerBox(
+            currentPackaging?.unitsPerBoxForProduct || currentPackaging?.capacity || ''
+        );
+        const units = currentUnits || SalesModule.normalizeCatalogUnitsPerBox(selected.defaultUnits || '');
+        draft.packagingBox = {
+            productId: selected.id,
+            code: String(selected.code || '').trim(),
+            name: String(selected.name || '').trim(),
+            unitsPerBoxForProduct: units || '',
+            capacity: units || ''
+        };
+        draft.packagingBoxClearRequested = false;
+    },
+
+    setCatalogPackagingBoxUnits: (value) => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || typeof draft !== 'object') return;
+        const currentPackaging = SalesModule.normalizeCatalogPackagingBox(draft.packagingBox || null);
+        const units = SalesModule.normalizeCatalogUnitsPerBox(value);
+        const base = currentPackaging || SalesModule.createEmptyCatalogPackagingBox();
+        draft.packagingBox = {
+            productId: String(base.productId || '').trim(),
+            code: String(base.code || '').trim(),
+            name: String(base.name || '').trim(),
+            unitsPerBoxForProduct: units || '',
+            capacity: units || ''
+        };
+        draft.packagingBoxClearRequested = false;
+    },
+
+    clearCatalogPackagingBox: () => {
+        const draft = SalesModule.state.catalogDraft;
+        if (!draft || typeof draft !== 'object') return;
+        draft.packagingBox = SalesModule.createEmptyCatalogPackagingBox();
+        draft.packagingBoxClearRequested = true;
+        const selectEl = document.getElementById('sales_catalog_packaging_box');
+        if (selectEl) selectEl.value = '';
+        const unitsEl = document.getElementById('sales_catalog_packaging_units');
+        if (unitsEl) unitsEl.value = '';
     },
 
     setCatalogDraftAnchorageVariant: (variantCode) => {
@@ -8309,6 +8857,9 @@
             ? DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId)
             : -1;
         const existingRow = existingIdx >= 0 ? (DB.data.data.salesCatalogProducts[existingIdx] || {}) : {};
+        const existingPackagingBox = SalesModule.normalizeCatalogPackagingBox(existingRow.packagingBox || null);
+        const draftPackagingBox = SalesModule.normalizeCatalogPackagingBox(draft.packagingBox || null);
+        const packagingBoxClearRequested = !!draft.packagingBoxClearRequested;
         const nowIso = new Date().toISOString();
         const normalizeIdCode = (value) => {
             if (typeof IdentityPolicy !== 'undefined'
@@ -8352,6 +8903,32 @@
             if (SalesModule.state.catalogDraft && typeof SalesModule.state.catalogDraft === 'object') {
                 SalesModule.state.catalogDraft.idCode = normalizedIdCode;
             }
+        }
+        let resolvedPackagingBox = null;
+        if (packagingBoxClearRequested) {
+            resolvedPackagingBox = null;
+        } else if (draftPackagingBox) {
+            const sameBoxAsExisting = existingPackagingBox
+                && String(existingPackagingBox.productId || '').trim()
+                && String(existingPackagingBox.productId || '').trim() === String(draftPackagingBox.productId || '').trim();
+            const mergedUnits = SalesModule.normalizeCatalogUnitsPerBox(
+                draftPackagingBox.unitsPerBoxForProduct
+                || draftPackagingBox.capacity
+                || (sameBoxAsExisting ? existingPackagingBox.unitsPerBoxForProduct : '')
+                || (sameBoxAsExisting ? existingPackagingBox.capacity : '')
+            );
+            resolvedPackagingBox = {
+                productId: String(draftPackagingBox.productId || '').trim(),
+                code: String(draftPackagingBox.code || '').trim(),
+                name: String(draftPackagingBox.name || '').trim(),
+                unitsPerBoxForProduct: mergedUnits || '',
+                capacity: mergedUnits || ''
+            };
+            if (!resolvedPackagingBox.productId && !resolvedPackagingBox.code && !resolvedPackagingBox.name) {
+                resolvedPackagingBox = editingId ? existingPackagingBox : null;
+            }
+        } else {
+            resolvedPackagingBox = editingId ? existingPackagingBox : null;
         }
         const row = {
             id: SalesModule.generateCatalogRowId(),
@@ -8398,6 +8975,19 @@
             created_at: nowIso,
             updated_at: nowIso
         };
+        if (resolvedPackagingBox) {
+            row.packagingBox = {
+                productId: String(resolvedPackagingBox.productId || '').trim(),
+                code: String(resolvedPackagingBox.code || '').trim(),
+                name: String(resolvedPackagingBox.name || '').trim(),
+                unitsPerBoxForProduct: SalesModule.normalizeCatalogUnitsPerBox(
+                    resolvedPackagingBox.unitsPerBoxForProduct || resolvedPackagingBox.capacity || ''
+                ) || '',
+                capacity: SalesModule.normalizeCatalogUnitsPerBox(
+                    resolvedPackagingBox.capacity || resolvedPackagingBox.unitsPerBoxForProduct || ''
+                ) || ''
+            };
+        }
 
         if (editingId) {
             if (existingIdx >= 0) {
@@ -8418,9 +9008,19 @@
         }
         await DB.save();
         Modal.close();
+        const shouldReopenDetail = !!editingId
+            && String(SalesModule.state.catalogDetailResumeProductId || '').trim() === editingId;
+        const resumeSource = String(SalesModule.state.catalogDetailResumeSource || '').trim().toLowerCase();
+        SalesModule.state.catalogDetailResumeProductId = '';
+        SalesModule.state.catalogDetailResumeSource = '';
         SalesModule.state.catalogEditingProductId = '';
         SalesModule.state.catalogDraft = null;
         UI.renderCurrentPage();
+        if (shouldReopenDetail && resumeSource === 'sales-modal') {
+            setTimeout(() => {
+                SalesModule.openCatalogDetailModal(editingId);
+            }, 0);
+        }
         alert(editingId ? 'Urun guncellendi.' : 'Urun karti kataloga eklendi.');
     },
 
@@ -8434,68 +9034,32 @@
     },
 
     renderCatalogDetailModalHtml: (row) => {
-        const pathText = SalesModule.getCatalogCategoryPathText(row.categoryId);
+        const product = row && typeof row === 'object' ? row : {};
+        const pathText = SalesModule.getCatalogCategoryPathText(product.categoryId || '');
         const defaultAnchorage = SalesModule.getAnchorageSelectionByCodes(
-            row?.defaultAnchorageCatalogIdCode || '',
-            row?.defaultAnchorageVariantCode || ''
+            product?.defaultAnchorageCatalogIdCode || '',
+            product?.defaultAnchorageVariantCode || ''
         );
-        if (SalesModule.isPipeFamilyCategory(row.categoryId)) {
-            const isBoru = SalesModule.isPipeCategory(row.categoryId);
-            const isCubuk = SalesModule.isRodCategory(row.categoryId);
-            const isOzel = SalesModule.isSpecialProfileCategory(row.categoryId);
-            return `
-                <div class="sales-catalog-detail-wrap">
-                    <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
-                    <div class="sales-catalog-detail-fields">
-                        ${SalesModule.renderCatalogDetailColorField('Pleksi rengi', 'plexi', row.colors?.plexi || {})}
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Urun ID</label>
-                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.idCode || '-')}" readonly>
-                        </div>
-                        ${(isBoru || isCubuk) ? `
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Cap (Ø)</label>
-                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.selectedDiameter || '-')}" readonly>
-                        </div>` : ''}
-                        ${isBoru ? `
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Kalinlik</label>
-                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.thickness || '-')}" readonly>
-                        </div>` : ''}
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Boy (mm)</label>
-                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.pipe?.lengthMm || '-')}" readonly>
-                        </div>
-                        ${(isCubuk || isOzel) ? `
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Kabarcik</label>
-                            <div class="sales-catalog-toggle is-disabled">
-                                <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
-                                <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
-                            </div>
-                        </div>` : ''}
-                        ${isOzel ? `
-                        <div class="sales-catalog-field-block">
-                            <label class="sales-catalog-label">Urun ismi</label>
-                            <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.name || '-')}" readonly>
-                        </div>` : ''}
-                        <div>
-                            <label class="sales-catalog-label">Not</label>
-                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(row.note || '')}</textarea>
-                        </div>
-                    </div>
-                    <div class="sales-catalog-modal-actions">
-                        <button class="btn-sm" onclick="Modal.close()">kapat</button>
-                        <button class="btn-primary" onclick="Modal.close(); SalesModule.openEditCatalogModal('${SalesModule.escapeHtml(String(row.id || ''))}')">duzenle</button>
-                    </div>
-                </div>
-            `;
-        }
-        const accessory = row.colors?.accessory || {};
-        const tube = row.colors?.tube || {};
-        const plexi = row.colors?.plexi || {};
-        const productImage = row.images?.product || row.images?.application || '';
-        const technicalImage = row.images?.technical || '';
+        const accessory = product.colors?.accessory || {};
+        const tube = product.colors?.tube || {};
+        const plexi = product.colors?.plexi || {};
+        const productImage = product.images?.product || product.images?.application || '';
+        const technicalImage = product.images?.technical || '';
+        const diameters = Array.isArray(product?.diameters)
+            ? product.diameters.map((value) => SalesModule.normalizeCatalogDiameterValue(value)).filter(Boolean)
+            : [];
+        const diametersText = diameters.length ? diameters.map((value) => `Ø ${value}`).join(', ') : '-';
+        const bubble = String(product?.bubble || 'yok').trim() === 'var' ? 'var' : 'yok';
+        const lowerTubeLength = String(product?.lowerTubeLength || 'standart').trim() || 'standart';
+        const defaultAnchorageLabel = String(defaultAnchorage?.name || defaultAnchorage?.variantCode || '-').trim() || '-';
+        const packagingBox = SalesModule.normalizeCatalogPackagingBox(product?.packagingBox || null);
+        const packagingBoxLabel = packagingBox
+            ? ([packagingBox.code, packagingBox.name].filter(Boolean).join(' - ') || String(packagingBox.productId || '-'))
+            : '-';
+        const packagingUnits = SalesModule.normalizeCatalogUnitsPerBox(
+            packagingBox?.unitsPerBoxForProduct || packagingBox?.capacity || ''
+        );
+        const packagingUnitsLabel = packagingUnits ? String(packagingUnits) : '-';
         return `
             <div class="sales-catalog-detail-wrap">
                 <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(pathText)}</div>
@@ -8504,7 +9068,7 @@
                         <div class="sales-catalog-preview-combo">
                             <div class="sales-catalog-preview-panel is-dark">
                                 ${productImage
-                ? `<img src="${SalesModule.escapeHtml(productImage)}" alt="${SalesModule.escapeHtml(row.name || 'Urun')}" class="sales-catalog-preview-image">`
+                ? `<img src="${SalesModule.escapeHtml(productImage)}" alt="${SalesModule.escapeHtml(product.name || 'Urun')}" class="sales-catalog-preview-image">`
                 : '<div class="sales-catalog-preview-placeholder">Urun gorseli yok</div>'}
                             </div>
                             <div class="sales-catalog-preview-panel is-light">
@@ -8517,49 +9081,66 @@
 
                     <div class="sales-catalog-detail-right">
                         <div class="sales-catalog-detail-head">
-                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(row.name || '-')}</div>
+                            <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(product.name || '-')}</div>
                             <div class="sales-catalog-detail-codes">
-                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(row.productCode || '-')}</span>
-                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(row.idCode || '-')}</span>
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(product.productCode || '-')}</span>
+                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(product.idCode || '-')}</span>
                             </div>
                         </div>
 
                         <div class="sales-catalog-detail-fields">
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Urun adi</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.name || '-')}" readonly>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Urun kodu</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.productCode || '-')}" readonly>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">ID kodu</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.idCode || '-')}" readonly>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Caplar</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(diametersText)}" readonly>
+                            </div>
                             ${SalesModule.renderCatalogDetailColorField('Aksesuar rengi', 'accessory', accessory)}
                             ${SalesModule.renderCatalogDetailColorField('Boru rengi', 'tube', tube)}
                             ${SalesModule.renderCatalogDetailColorField('Pleksi rengi', 'plexi', plexi)}
                             <div class="sales-catalog-field-block">
                                 <label class="sales-catalog-label">Kabarcik</label>
                                 <div class="sales-catalog-toggle is-disabled">
-                                    <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
-                                    <button type="button" class="sales-catalog-toggle-btn ${row.bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
-                                </div>
-                            </div>
-                            <div class="sales-catalog-field-block">
-                                <label class="sales-catalog-label">Cap</label>
-                                <div class="sales-catalog-chip-row">
-                                    ${SalesModule.renderCatalogDiameterButtonsHtml(row.diameters, row.selectedDiameter, 'SalesModule.noop')}
+                                    <button type="button" class="sales-catalog-toggle-btn ${bubble === 'var' ? 'is-active' : ''}" disabled>var</button>
+                                    <button type="button" class="sales-catalog-toggle-btn ${bubble === 'yok' ? 'is-active' : ''}" disabled>yok</button>
                                 </div>
                             </div>
                             <div class="sales-catalog-field-block">
                                 <label class="sales-catalog-label">Alt boru uzunlugu</label>
-                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(row.lowerTubeLength || 'standart')}" readonly>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(lowerTubeLength)}" readonly>
                             </div>
-                            ${SalesModule.isRailingCatalogCategory(row?.categoryId || '') ? `
                             <div class="sales-catalog-field-block">
                                 <label class="sales-catalog-label">Varsayilan ankraj</label>
-                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(String(defaultAnchorage?.name || defaultAnchorage?.variantCode || '-'))}" readonly>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(defaultAnchorageLabel)}" readonly>
                             </div>
-                            ` : ''}
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Koli tipi / koli karti</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(packagingBoxLabel)}" readonly>
+                            </div>
+                            <div class="sales-catalog-field-block">
+                                <label class="sales-catalog-label">Bir koliye kac adet sigar</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(packagingUnitsLabel)}" readonly>
+                            </div>
                         </div>
 
                         <div>
                             <label class="sales-catalog-label">Not</label>
-                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(row.note || '')}</textarea>
+                            <textarea class="sales-catalog-textarea" readonly>${SalesModule.escapeHtml(product.note || '')}</textarea>
                         </div>
 
                         <div class="sales-catalog-modal-actions">
                             <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                            <button class="btn-primary" onclick="Modal.close(); SalesModule.openCatalogEditFromDetail('${SalesModule.escapeHtml(String(product.id || ''))}')">duzenle</button>
                         </div>
                     </div>
                 </div>
@@ -9802,7 +10383,7 @@
                             </div>
                             <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap;">
                                 <div style="position:relative; flex:1; min-width:280px;">
-                                    <input id="sales_customer_filter_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.name || ''))}" oninput="SalesModule.setCustomerFilter('name', this.value)" placeholder="Musteri unvani, cari kod veya vergi no ile ara..." style="padding-right:84px;">
+                                    <input id="sales_customer_filter_name" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(filters.name || ''))}" oninput="SalesModule.setCustomerFilter('name', this.value)" placeholder="Musteri unvani, musteri ID, cari kod veya vergi no ile ara..." style="padding-right:84px;">
                                     <button class="btn-sm" type="button" onclick="UI.renderCurrentPage()" style="position:absolute; right:6px; top:6px; height:30px;">ara</button>
                                 </div>
                                 <div style="display:flex; gap:0.35rem; background:#f1f5f9; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.2rem;">
@@ -9828,6 +10409,7 @@
                                     <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
                                         <th style="padding:0.55rem; text-align:left;">Durum</th>
                                         <th style="padding:0.55rem; text-align:left;">Musteri unvani</th>
+                                        <th style="padding:0.55rem; text-align:left;">Musteri ID</th>
                                         <th style="padding:0.55rem; text-align:left;">Yetkili kisi</th>
                                         <th style="padding:0.55rem; text-align:left;">GSM</th>
                                         <th style="padding:0.55rem; text-align:left;">Sehir</th>
@@ -9839,7 +10421,7 @@
                                 </thead>
                                 <tbody>
                                     ${rows.length === 0
-                ? '<tr><td colspan="9" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>'
+                ? '<tr><td colspan="10" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>'
                 : rows.map((row) => {
                     const isCompleted = String(row?.status || '') === 'COMPLETED';
                     const missing = Array.isArray(row?.missingFields) ? row.missingFields : [];
@@ -9869,6 +10451,7 @@
                                                            </div>`
                         : ''}
                                                     </td>
+                                                    <td style="padding:0.55rem; font-family:Consolas, monospace; font-weight:800; color:#4338ca;">${SalesModule.escapeHtml(String(row?.customerRefId || '-'))}</td>
                                                     <td style="padding:0.55rem; color:#334155; font-weight:700;">${SalesModule.escapeHtml(primaryName || '-')}</td>
                                                     <td style="padding:0.55rem; color:#334155;">${SalesModule.escapeHtml(primaryPhone || '-')}</td>
                                                     <td style="padding:0.55rem;">${SalesModule.escapeHtml([row?.city, row?.district].filter(Boolean).join(' / ') || '-')}</td>

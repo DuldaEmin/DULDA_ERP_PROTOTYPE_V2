@@ -20,7 +20,12 @@ const PlanningModule = {
         stockArchiveMode: false,
         releasedExpandedDemandId: '',
         releasedExpandedItemByDemand: {},
-        releasedArchiveMode: false
+        releasedArchiveMode: false,
+        salesDemandRowsByKey: {},
+        planningDemandCleanupSavePending: false,
+        salesReadonlyDemandId: '',
+        salesReadonlyRowsByDemand: {},
+        salesReadonlyMetaByDemand: {}
     },
 
     blueprints: {
@@ -106,6 +111,539 @@ const PlanningModule = {
         return DB.data.data.planningDemands;
     },
 
+    buildSalesReadonlyDemandId: (orderId, lineId) => {
+        const safeOrderId = String(orderId || '').trim() || '-';
+        const safeLineId = String(lineId || '').trim() || '-';
+        return `sales-preview:${safeOrderId}:${safeLineId}`;
+    },
+
+    clearSalesReadonlyContext: () => {
+        PlanningModule.state.salesReadonlyDemandId = '';
+        PlanningModule.state.salesReadonlyRowsByDemand = {};
+        PlanningModule.state.salesReadonlyMetaByDemand = {};
+    },
+
+    getSalesReadonlyRows: (demandId) => {
+        const key = String(demandId || '').trim();
+        if (!key) return null;
+        const map = PlanningModule.state.salesReadonlyRowsByDemand && typeof PlanningModule.state.salesReadonlyRowsByDemand === 'object'
+            ? PlanningModule.state.salesReadonlyRowsByDemand
+            : {};
+        const rows = map[key];
+        return Array.isArray(rows) ? rows : null;
+    },
+
+    openSalesReadonlyAnalysis: (payload = {}, options = {}) => {
+        const orderId = String(payload?.orderId || '').trim();
+        const lineId = String(payload?.lineId || '').trim();
+        const demandId = PlanningModule.buildSalesReadonlyDemandId(orderId, lineId);
+        const qty = PlanningModule.parseQty(payload?.qty, 0);
+        const planningModelIdRaw = String(payload?.planningModelId || '').trim();
+        const normalizedVariantId = planningModelIdRaw
+            ? PlanningModule.normalizePlanningModelVariantId(planningModelIdRaw)
+            : PlanningModule.normalizePlanningModelVariantId(String(payload?.salesVariationId || '').trim());
+        if (!orderId || !lineId || !normalizedVariantId || qty <= 0) return false;
+
+        const draftDemand = {
+            id: demandId,
+            demandCode: demandId,
+            sourceType: 'SALES_ORDER',
+            sourceLabel: 'Satis Siparisi (Readonly)',
+            sourceOrderId: orderId,
+            sourceOrderNo: String(payload?.orderNo || '-').trim() || '-',
+            sourceLineId: lineId,
+            itemType: 'MODEL',
+            variantId: normalizedVariantId,
+            productName: String(payload?.productName || '-').trim() || '-',
+            variantCode: String(payload?.variantCode || '-').trim() || '-',
+            productCode: String(payload?.variantCode || '-').trim() || '-',
+            qty,
+            dueDate: String(payload?.orderDate || '-').trim() || '-',
+            priority: 'NORMAL',
+            status: 'OPEN',
+            note: '',
+            items: [{
+                id: `${demandId}:item:1`,
+                itemType: 'MODEL',
+                qty,
+                variantId: normalizedVariantId,
+                componentId: '',
+                semiFinishedId: '',
+                productName: String(payload?.productName || '-').trim() || '-',
+                productCode: String(payload?.variantCode || '-').trim() || '-',
+                variantCode: String(payload?.variantCode || '-').trim() || '-',
+                componentCode: '',
+                semiFinishedCode: '',
+                productGroup: ''
+            }]
+        };
+
+        const rows = PlanningModule.buildPlanningPoolRowsForDemand(draftDemand);
+        if (!PlanningModule.state.salesReadonlyRowsByDemand || typeof PlanningModule.state.salesReadonlyRowsByDemand !== 'object') {
+            PlanningModule.state.salesReadonlyRowsByDemand = {};
+        }
+        if (!PlanningModule.state.salesReadonlyMetaByDemand || typeof PlanningModule.state.salesReadonlyMetaByDemand !== 'object') {
+            PlanningModule.state.salesReadonlyMetaByDemand = {};
+        }
+        PlanningModule.state.salesReadonlyRowsByDemand[demandId] = Array.isArray(rows) ? rows : [];
+        PlanningModule.state.salesReadonlyMetaByDemand[demandId] = {
+            demandId,
+            orderId,
+            lineId,
+            orderNo: String(payload?.orderNo || '-').trim() || '-',
+            productName: String(payload?.productName || '-').trim() || '-',
+            variantCode: String(payload?.variantCode || '-').trim() || '-',
+            qty,
+            variantId: normalizedVariantId
+        };
+        PlanningModule.state.salesReadonlyDemandId = demandId;
+
+        const navigate = options?.navigate !== false;
+        const activateWorkspace = options?.activateWorkspace !== false;
+        const render = options?.render !== false;
+        if (navigate && typeof Router !== 'undefined' && Router && typeof Router.navigate === 'function') {
+            Router.navigate('planlama', { fromBack: true });
+        }
+        if (activateWorkspace) {
+            PlanningModule.state.workspaceView = 'planning-pool';
+        }
+        if (render && typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') {
+            UI.renderCurrentPage();
+        }
+        return true;
+    },
+
+    renderSalesReadonlyAnalysisHtml: (demandId) => {
+        const key = String(demandId || '').trim();
+        if (!key) {
+            return '<div style="border:1px solid #fecaca; border-radius:0.8rem; background:#fff1f2; padding:0.85rem; color:#b91c1c;">Analiz kimligi bulunamadi.</div>';
+        }
+        const rowsRaw = PlanningModule.getSalesReadonlyRows(key);
+        const rows = Array.isArray(rowsRaw) ? PlanningModule.syncPlanningPoolRowsWithAvailability(rowsRaw) : [];
+        if (!rows.length) {
+            return '<div style="border:1px solid #fcd34d; border-radius:0.8rem; background:#fffbeb; padding:0.85rem; color:#92400e;">Bu satir icin patlatma analizi bulunamadi.</div>';
+        }
+        const metaMap = PlanningModule.state.salesReadonlyMetaByDemand && typeof PlanningModule.state.salesReadonlyMetaByDemand === 'object'
+            ? PlanningModule.state.salesReadonlyMetaByDemand
+            : {};
+        const meta = metaMap[key] || {};
+        const summary = PlanningModule.getPlanningPoolSummary(rows);
+        const stockAvailableQty = rows.reduce((sum, row) =>
+            sum + PlanningModule.parseQty(row?.stockAvailableQty, 0) + PlanningModule.parseQty(row?.semiAvailableQty, 0), 0);
+        const missingQty = Math.max(0, summary.requiredQty - summary.consumedQty);
+
+        const tableRows = rows.map((row) => {
+            const coveredQty = PlanningModule.parseQty(row?.useStockQty, 0) + PlanningModule.parseQty(row?.useSemiQty, 0);
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9; ${row?.missingRef ? 'background:#fff7f7;' : ''}">
+                    <td style="padding:0.45rem;">
+                        <div style="font-weight:700; color:#334155;">${PlanningModule.escapeHtml(String(row?.name || '-'))}</div>
+                        <div style="font-size:0.72rem; color:#1d4ed8; font-family:monospace;">${PlanningModule.escapeHtml(String(row?.code || '-'))}</div>
+                    </td>
+                    <td style="padding:0.45rem; text-align:center; font-weight:700;">${PlanningModule.escapeHtml(String(PlanningModule.parseQty(row?.requiredQty, 0)))}</td>
+                    <td style="padding:0.45rem; text-align:center; font-weight:700; color:#0f766e;">${PlanningModule.escapeHtml(String(PlanningModule.parseQty(row?.stockAvailableQty, 0) + PlanningModule.parseQty(row?.semiAvailableQty, 0)))}</td>
+                    <td style="padding:0.45rem; text-align:center; font-weight:700; color:#0369a1;">${PlanningModule.escapeHtml(String(coveredQty))}</td>
+                    <td style="padding:0.45rem; text-align:center; font-weight:700; color:${PlanningModule.parseQty(row?.netQty, 0) > 0 ? '#b91c1c' : '#0f172a'};">${PlanningModule.escapeHtml(String(PlanningModule.parseQty(row?.netQty, 0)))}</td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div style="display:grid; gap:0.6rem;">
+                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #dbeafe; border-radius:0.7rem; background:#eff6ff; padding:0.6rem;">
+                        <div style="font-size:0.72rem; color:#475569;">Urun</div>
+                        <div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(meta?.productName || '-'))}</div>
+                        <div style="font-size:0.72rem; color:#1d4ed8; font-family:monospace; margin-top:0.1rem;">${PlanningModule.escapeHtml(String(meta?.variantCode || '-'))}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.7rem; background:#ffffff; padding:0.6rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Siparis adedi</div>
+                        <div style="font-size:1rem; font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(meta?.qty || 0))}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.7rem; background:#ffffff; padding:0.6rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Stokta var / karsilanabilecek</div>
+                        <div style="font-size:1rem; font-weight:800; color:#0f766e;">${PlanningModule.escapeHtml(String(stockAvailableQty))} / ${PlanningModule.escapeHtml(String(summary.consumedQty))}</div>
+                    </div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.7rem; background:#ffffff; padding:0.6rem;">
+                        <div style="font-size:0.72rem; color:#64748b;">Eksik / Uretilecek net</div>
+                        <div style="font-size:1rem; font-weight:800; color:#b91c1c;">${PlanningModule.escapeHtml(String(missingQty))} / ${PlanningModule.escapeHtml(String(summary.netQty))}</div>
+                    </div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; background:#ffffff; padding:0.6rem;">
+                    <div style="font-size:0.78rem; color:#64748b; margin-bottom:0.35rem;">Parca / patlatma ozeti</div>
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.45rem; text-align:left;">Kalem</th>
+                                <th style="padding:0.45rem; text-align:center;">Gereken</th>
+                                <th style="padding:0.45rem; text-align:center;">Stokta var</th>
+                                <th style="padding:0.45rem; text-align:center;">Stoktan karsilanacak</th>
+                                <th style="padding:0.45rem; text-align:center;">Uretilecek net</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tableRows}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    },
+
+    hasDemandWorkOrderLinks: (demand) => {
+        const workOrderId = String(demand?.workOrderId || '').trim();
+        const workOrderCode = String(demand?.workOrderCode || '').trim();
+        const workOrderIds = Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : [];
+        const workOrderCodes = Array.isArray(demand?.workOrderCodes) ? demand.workOrderCodes : [];
+        if (workOrderId || workOrderCode) return true;
+        if (workOrderIds.some((id) => String(id || '').trim())) return true;
+        if (workOrderCodes.some((code) => String(code || '').trim())) return true;
+        return false;
+    },
+
+    isOpenSalesOrderDemandSafeToCleanup: (demand) => {
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        if (sourceType !== 'SALES_ORDER') return false;
+        const status = String(demand?.status || 'OPEN').trim().toUpperCase();
+        if (status !== 'OPEN') return false;
+        if (PlanningModule.hasDemandWorkOrderLinks(demand)) return false;
+        return true;
+    },
+
+    cleanupOpenSalesOrderPlanningDemands: (orderId) => {
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return 0;
+        const rows = PlanningModule.getDemands();
+        if (!rows.length) return 0;
+        const kept = [];
+        let removedCount = 0;
+        rows.forEach((demand) => {
+            const demandOrderId = String(demand?.sourceOrderId || '').trim();
+            if (demandOrderId === targetOrderId && PlanningModule.isOpenSalesOrderDemandSafeToCleanup(demand)) {
+                removedCount += 1;
+                return;
+            }
+            kept.push(demand);
+        });
+        if (removedCount > 0) DB.data.data.planningDemands = kept;
+        return removedCount;
+    },
+
+    cleanupOpenOrphanSalesOrderPlanningDemands: () => {
+        const rows = PlanningModule.getDemands();
+        if (!rows.length) return 0;
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const orderMap = new Map();
+        orders.forEach((order) => {
+            const orderId = String(order?.id || '').trim();
+            if (!orderId) return;
+            const lines = Array.isArray(order?.lines) ? order.lines : [];
+            const lineIdSet = new Set(
+                lines
+                    .map((line) => PlanningModule.getSalesOrderLineId(line))
+                    .map((lineId) => String(lineId || '').trim())
+                    .filter(Boolean)
+            );
+            orderMap.set(orderId, lineIdSet);
+        });
+
+        const kept = [];
+        let removedCount = 0;
+        rows.forEach((demand) => {
+            if (!PlanningModule.isOpenSalesOrderDemandSafeToCleanup(demand)) {
+                kept.push(demand);
+                return;
+            }
+            const demandOrderId = String(demand?.sourceOrderId || '').trim();
+            const demandLineId = String(demand?.sourceLineId || '').trim();
+            const existingLineIds = orderMap.get(demandOrderId);
+            if (!existingLineIds) {
+                removedCount += 1;
+                return;
+            }
+            if (demandLineId && !existingLineIds.has(demandLineId)) {
+                removedCount += 1;
+                return;
+            }
+            kept.push(demand);
+        });
+        if (removedCount > 0) DB.data.data.planningDemands = kept;
+        return removedCount;
+    },
+
+    schedulePlanningDemandCleanupSave: () => {
+        if (PlanningModule.state.planningDemandCleanupSavePending) return;
+        PlanningModule.state.planningDemandCleanupSavePending = true;
+        Promise.resolve()
+            .then(() => DB.save())
+            .catch(() => {})
+            .finally(() => {
+                PlanningModule.state.planningDemandCleanupSavePending = false;
+            });
+    },
+
+    normalizeStatusText: (value) => String(value || '')
+        .toLowerCase()
+        .replace(/[ç]/g, 'c')
+        .replace(/[ğ]/g, 'g')
+        .replace(/[ı]/g, 'i')
+        .replace(/[ö]/g, 'o')
+        .replace(/[ş]/g, 's')
+        .replace(/[ü]/g, 'u')
+        .trim(),
+
+    normalizeSalesOrderStatusGroup: (status) => {
+        if (typeof SalesModule !== 'undefined'
+            && SalesModule
+            && typeof SalesModule.normalizeSalesOrderStatusGroup === 'function') {
+            return String(SalesModule.normalizeSalesOrderStatusGroup(status) || 'WAITING').toUpperCase();
+        }
+        const text = PlanningModule.normalizeStatusText(status);
+        if (!text) return 'WAITING';
+        if (text.includes('arsiv')) return 'ARCHIVED';
+        if (text.includes('iptal') || text.includes('cancel')) return 'CANCELLED';
+        if (text.includes('bekliyor') || text.includes('teklif') || text.includes('taslak')) return 'WAITING';
+        if (text.includes('tamam') || text.includes('teslim') || text.includes('sevk') || text.includes('donus')) return 'APPROVED';
+        if (text.includes('onay')) return 'APPROVED';
+        return 'WAITING';
+    },
+
+    getSalesOrderLineId: (line) => {
+        const id = String(line?.id || '').trim();
+        if (id) return id;
+        const lineId = String(line?.lineId || '').trim();
+        return lineId;
+    },
+
+    normalizePlanningModelVariantId: (rawVariantId) => {
+        const raw = String(rawVariantId || '').trim();
+        if (!raw) return '';
+        if (raw.toLowerCase().startsWith('salesvar_')) return raw;
+        return `salesvar_${raw}`;
+    },
+
+    getSalesDemandDueDate: (order, line) => String(
+        line?.deliveryDate
+        || line?.dueDate
+        || order?.deliveryDate
+        || order?.dueDate
+        || order?.orderDate
+        || '-'
+    ).trim() || '-',
+
+    isSalesOrderLineAlreadyInPlanningDemands: (orderId, lineId) => {
+        const targetOrderId = String(orderId || '').trim();
+        const targetLineId = String(lineId || '').trim();
+        if (!targetOrderId || !targetLineId) return false;
+        return PlanningModule.getDemands().some((row) =>
+            String(row?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER'
+            && String(row?.sourceOrderId || '').trim() === targetOrderId
+            && String(row?.sourceLineId || '').trim() === targetLineId
+        );
+    },
+
+    resolveSalesDemandSourceByRow: (row) => {
+        const orderId = String(row?.orderId || '').trim();
+        if (!orderId) return { ok: false, reason: 'ORDER_NOT_FOUND' };
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const order = orders.find((item) => String(item?.id || '').trim() === orderId);
+        if (!order) return { ok: false, reason: 'ORDER_NOT_FOUND' };
+        const statusGroup = PlanningModule.normalizeSalesOrderStatusGroup(order?.status);
+        if (statusGroup !== 'APPROVED') return { ok: false, reason: 'ORDER_NOT_APPROVED', order };
+
+        const targetLineId = String(row?.lineId || '').trim();
+        if (!targetLineId) return { ok: false, reason: 'LINE_ID_MISSING', order };
+        const lines = Array.isArray(order?.lines) ? order.lines : [];
+        const line = lines.find((item) => PlanningModule.getSalesOrderLineId(item) === targetLineId);
+        if (!line) return { ok: false, reason: 'LINE_NOT_FOUND', order };
+        const stableLineId = PlanningModule.getSalesOrderLineId(line);
+        if (!stableLineId) return { ok: false, reason: 'LINE_ID_MISSING', order, line };
+
+        return { ok: true, order, line, lineId: stableLineId };
+    },
+
+    getSalesDemandRows: () => {
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const customers = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const sentSet = new Set(
+            PlanningModule.getDemands()
+                .filter((row) => String(row?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER')
+                .map((row) => `${String(row?.sourceOrderId || '').trim()}::${String(row?.sourceLineId || '').trim()}`)
+                .filter((key) => key !== '::')
+        );
+        const customerRefMap = new Map();
+        customers.forEach((row) => {
+            const id = String(row?.id || '').trim();
+            if (!id) return;
+            customerRefMap.set(id, String(row?.customerRefId || '').trim());
+        });
+
+        const rows = [];
+        orders.forEach((order) => {
+            const statusGroup = PlanningModule.normalizeSalesOrderStatusGroup(order?.status);
+            if (statusGroup !== 'APPROVED') return;
+
+            const orderId = String(order?.id || '').trim();
+            const orderNo = String(order?.orderNo || order?.orderCode || order?.code || '-').trim() || '-';
+            const customerId = String(order?.customerId || order?.customer?.id || '').trim();
+            const customerRefId = customerId ? (customerRefMap.get(customerId) || '') : '';
+            const displayCustomerRefId = String(customerRefId || '').trim() || '-';
+            const orderLines = Array.isArray(order?.lines) ? order.lines : [];
+
+            orderLines.forEach((line) => {
+                const lineId = PlanningModule.getSalesOrderLineId(line);
+                const hasLineId = !!lineId;
+                const productName = String(line?.productName || line?.name || '-').trim() || '-';
+                const code = String(line?.variantCode || line?.variationCode || line?.productCode || line?.code || '-').trim() || '-';
+                const qty = PlanningModule.parseQty(line?.qty ?? line?.quantity ?? line?.amount ?? 0, 0);
+                const dueDate = PlanningModule.getSalesDemandDueDate(order, line);
+                const createdAt = String(order?.updated_at || order?.created_at || order?.orderDate || '').trim();
+                const createdMs = Date.parse(createdAt);
+                const sentKey = `${orderId}::${lineId}`;
+                const alreadySent = hasLineId && sentSet.has(sentKey);
+                const displayLineId = hasLineId ? lineId : '-';
+
+                rows.push({
+                    key: `${orderId || orderNo}::${displayLineId}`,
+                    orderId,
+                    lineId: displayLineId,
+                    orderNo,
+                    customerRefId: displayCustomerRefId,
+                    productName,
+                    code,
+                    qty,
+                    dueDate,
+                    statusLabel: alreadySent ? 'Planlama Havuzuna Gonderildi' : 'Onaylandi / Planlamaya Bekliyor',
+                    createdMs: Number.isFinite(createdMs) ? createdMs : 0,
+                    canSend: hasLineId && !alreadySent,
+                    alreadySent,
+                    lineIdMissing: !hasLineId
+                });
+            });
+        });
+
+        return rows.sort((a, b) => Number(b?.createdMs || 0) - Number(a?.createdMs || 0));
+    },
+
+    sendSalesOrderLineToPlanningPool: async (rowKey) => {
+        const key = String(rowKey || '').trim();
+        const map = PlanningModule.state.salesDemandRowsByKey && typeof PlanningModule.state.salesDemandRowsByKey === 'object'
+            ? PlanningModule.state.salesDemandRowsByKey
+            : {};
+        const row = map[key];
+        if (!row) return alert('Siparis satiri bulunamadi.');
+
+        const resolved = PlanningModule.resolveSalesDemandSourceByRow(row);
+        if (!resolved.ok) {
+            if (resolved.reason === 'ORDER_NOT_APPROVED') return alert('Siparis artik onayli degil. Planlama havuzuna gonderilemedi.');
+            if (resolved.reason === 'LINE_ID_MISSING') return alert('Siparis satirinda lineId/id bulunamadi. Planlama havuzuna gonderilemedi.');
+            if (resolved.reason === 'LINE_NOT_FOUND') return alert('Siparis satiri bulunamadi veya degismis. Sayfayi yenileyip tekrar deneyin.');
+            return alert('Siparis kaydi bulunamadi. Sayfayi yenileyip tekrar deneyin.');
+        }
+
+        const order = resolved.order;
+        const line = resolved.line;
+        const stableLineId = String(resolved.lineId || '').trim();
+        const sourceOrderId = String(order?.id || '').trim();
+        if (PlanningModule.isSalesOrderLineAlreadyInPlanningDemands(sourceOrderId, stableLineId)) {
+            return alert('Bu siparis satiri zaten planlama havuzuna gonderilmis.');
+        }
+
+        const customerId = String(order?.customerId || order?.customer?.id || '').trim();
+        const customers = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const customer = customers.find((item) => String(item?.id || '').trim() === customerId) || null;
+        const sourceCustomerRefId = String(customer?.customerRefId || '').trim() || '-';
+        const code = String(line?.variantCode || line?.variationCode || line?.productCode || line?.code || '-').trim() || '-';
+        const normalizedVariantId = PlanningModule.normalizePlanningModelVariantId(String(line?.variationId || '').trim());
+        const qty = PlanningModule.parseQty(line?.qty ?? line?.quantity ?? line?.amount ?? 0, 0);
+        if (qty <= 0) return alert('Siparis satir adedi gecersiz. Planlama havuzuna gonderilemedi.');
+        const now = new Date().toISOString();
+
+        const demand = {
+            id: crypto.randomUUID(),
+            demandCode: PlanningModule.getNextDemandCode(),
+            sourceType: 'SALES_ORDER',
+            sourceLabel: 'Satis Siparisi',
+            sourceOrderId,
+            sourceOrderNo: String(order?.orderNo || order?.orderCode || order?.code || '-').trim() || '-',
+            sourceLineId: stableLineId,
+            sourceCustomerRefId,
+            itemType: 'MODEL',
+            productId: String(line?.productId || '').trim(),
+            variantId: normalizedVariantId,
+            productName: String(line?.productName || line?.name || '-').trim() || '-',
+            variantCode: code,
+            productCode: code,
+            qty,
+            dueDate: PlanningModule.getSalesDemandDueDate(order, line),
+            priority: 'NORMAL',
+            status: 'OPEN',
+            note: '',
+            items: [{
+                id: crypto.randomUUID(),
+                itemType: 'MODEL',
+                qty,
+                variantId: normalizedVariantId,
+                componentId: '',
+                semiFinishedId: '',
+                familyId: '',
+                variantCode: code,
+                componentCode: '',
+                semiFinishedCode: '',
+                productGroup: '',
+                productName: String(line?.productName || line?.name || '-').trim() || '-',
+                productCode: code,
+                montageCardId: '',
+                montageCardCode: ''
+            }],
+            workOrderId: '',
+            workOrderCode: '',
+            workOrderIds: [],
+            workOrderCodes: [],
+            created_at: now,
+            updated_at: now
+        };
+
+        PlanningModule.getDemands().push(demand);
+        await DB.save();
+        alert(`Planlama havuzuna gonderildi: ${demand.demandCode}`);
+        Modal.close();
+        UI.renderCurrentPage();
+    },
+
+    openSalesDemandDetailModal: (rowKey) => {
+        const key = String(rowKey || '').trim();
+        const map = PlanningModule.state.salesDemandRowsByKey && typeof PlanningModule.state.salesDemandRowsByKey === 'object'
+            ? PlanningModule.state.salesDemandRowsByKey
+            : {};
+        const row = map[key];
+        if (!row) {
+            alert('Siparis satiri bulunamadi.');
+            return;
+        }
+
+        const html = `
+            <div style="display:grid; gap:0.7rem;">
+                <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Siparis Kodu</div><div style="font-family:monospace; font-weight:800; color:#1d4ed8;">${PlanningModule.escapeHtml(row.orderNo || '-')}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Musteri ID</div><div style="font-family:monospace; font-weight:800; color:#4338ca;">${PlanningModule.escapeHtml(row.customerRefId || '-')}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Urun</div><div style="font-weight:700; color:#0f172a;">${PlanningModule.escapeHtml(row.productName || '-')}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Varyasyon / Kod</div><div style="font-family:monospace; font-weight:700; color:#0f172a;">${PlanningModule.escapeHtml(row.code || '-')}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Adet</div><div style="font-weight:800; color:#0f172a;">${PlanningModule.escapeHtml(String(row.qty || 0))}</div></div>
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem;"><div style="font-size:0.72rem; color:#64748b;">Termin</div><div style="font-weight:700; color:#0f172a;">${PlanningModule.escapeHtml(row.dueDate || '-')}</div></div>
+                </div>
+                <div style="border:1px solid #bfdbfe; background:#eff6ff; color:#1e3a8a; border-radius:0.65rem; padding:0.6rem;">
+                    <div style="font-size:0.78rem; font-weight:800;">Durum</div>
+                    <div style="font-size:0.86rem; margin-top:0.15rem;">${PlanningModule.escapeHtml(row.statusLabel || 'Onaylandi / Planlamaya Bekliyor')}</div>
+                    <div style="font-size:0.76rem; margin-top:0.35rem;">${row.alreadySent ? 'Bu satir planlama havuzuna gonderildi.' : 'Onayli satir planlama havuzuna gonderilebilir.'}</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.45rem;">
+                    <button class="btn-primary" onclick="PlanningModule.sendSalesOrderLineToPlanningPool('${PlanningModule.escapeJsString(row.key || '')}')" ${row.canSend ? '' : 'disabled'} style="${row.canSend ? '' : 'opacity:0.45; cursor:not-allowed;'}">${row.alreadySent ? 'planlama havuzuna gonderildi' : 'planlama havuzuna gonder'}</button>
+                    <button class="btn-sm" onclick="Modal.close()">kapat</button>
+                </div>
+            </div>
+        `;
+        Modal.open(`Siparis Satiri Goruntule - ${PlanningModule.escapeHtml(String(row.orderNo || '-'))}`, html, { maxWidth: '980px' });
+    },
+
     getDemandItems: (demand) => {
         if (Array.isArray(demand?.items) && demand.items.length) {
             return demand.items
@@ -160,7 +698,7 @@ const PlanningModule = {
         const itemToken = rawItems.map((item, index) => {
             const kind = PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL');
             const qty = PlanningModule.parseQty(item?.qty, 0);
-            const variantId = String(item?.variantId || '').trim();
+            const variantId = PlanningModule.resolveDemandModelVariantId(item, demand);
             const componentId = String(item?.componentId || '').trim();
             const semiFinishedId = String(item?.semiFinishedId || '').trim();
             if (kind !== 'MODEL') {
@@ -181,6 +719,20 @@ const PlanningModule = {
             return `${index}|MODEL|${variantId}|${qty}|${variantUpdated}|${variantItemsToken}`;
         }).join('||');
         return `${demandId}|${demandUpdated}|${itemToken}`;
+    },
+
+    resolveDemandModelVariantId: (item, demand) => {
+        const rawVariantId = String(item?.variantId || '').trim();
+        if (!rawVariantId) return '';
+        const direct = PlanningModule.findVariantById(rawVariantId);
+        if (direct) return rawVariantId;
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        const kind = PlanningModule.normalizeDraftItemKind(item?.itemType || 'MODEL');
+        if (sourceType !== 'SALES_ORDER' || kind !== 'MODEL') return rawVariantId;
+        if (rawVariantId.toLowerCase().startsWith('salesvar_')) return rawVariantId;
+        const normalizedVariantId = PlanningModule.normalizePlanningModelVariantId(rawVariantId);
+        const normalized = PlanningModule.findVariantById(normalizedVariantId);
+        return normalized ? normalizedVariantId : rawVariantId;
     },
 
     parseQty: (value, fallback = 0) => {
@@ -635,7 +1187,8 @@ const PlanningModule = {
                 return;
             }
 
-            const variant = PlanningModule.findVariantById(item?.variantId || '');
+            const variantId = PlanningModule.resolveDemandModelVariantId(item, demand);
+            const variant = PlanningModule.findVariantById(variantId);
             const variantItems = Array.isArray(variant?.items) ? variant.items : [];
             if (!variant || !variantItems.length) return;
             variantItems.forEach((variantItem) => {
@@ -725,6 +1278,15 @@ const PlanningModule = {
     ensurePlanningPoolRows: (demandId) => {
         const key = String(demandId || '').trim();
         if (!key) return [];
+        const readonlyRows = PlanningModule.getSalesReadonlyRows(key);
+        if (Array.isArray(readonlyRows)) {
+            const syncedReadonlyRows = PlanningModule.syncPlanningPoolRowsWithAvailability(readonlyRows);
+            if (!PlanningModule.state.salesReadonlyRowsByDemand || typeof PlanningModule.state.salesReadonlyRowsByDemand !== 'object') {
+                PlanningModule.state.salesReadonlyRowsByDemand = {};
+            }
+            PlanningModule.state.salesReadonlyRowsByDemand[key] = syncedReadonlyRows;
+            return syncedReadonlyRows;
+        }
         const demand = PlanningModule.getDemands().find((row) => String(row?.id || '') === key);
         if (!demand) return [];
         if (!PlanningModule.state.planningPoolRowsByDemand || typeof PlanningModule.state.planningPoolRowsByDemand !== 'object') {
@@ -2032,7 +2594,7 @@ const PlanningModule = {
         const openCount = all.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'OPEN').length;
         const releasedCount = all.filter((row) => String(row?.status || 'OPEN').toUpperCase() === 'RELEASED').length;
         const cards = [
-            { id: 'sales-demand', icon: 'shopping-bag', label: 'Siparisten Gelen Talepler', tone: 'g-orange', meta: 'Taslak not ekrani' },
+            { id: 'sales-demand', icon: 'shopping-bag', label: 'Siparisten Gelen Talepler', tone: 'g-orange', meta: 'Onayli siparis satirlari' },
             { id: 'stock-production', icon: 'boxes', label: 'Stok Icin Uretim', tone: 'g-emerald', meta: `${openCount} acik talep` },
             { id: 'planning-pool', icon: 'clipboard-list', label: 'Planlama Havuzu', tone: 'g-blue', meta: `${openCount} bekleyen` },
             { id: 'released-orders', icon: 'file-check-2', label: 'Is Emrine Donusenler', tone: 'g-pink', meta: `${releasedCount} donusen` }
@@ -2261,7 +2823,76 @@ const PlanningModule = {
         `;
     },
 
+    renderSalesDemandWorkspace: () => {
+        const rows = PlanningModule.getSalesDemandRows();
+        PlanningModule.state.salesDemandRowsByKey = {};
+        rows.forEach((row) => {
+            const key = String(row?.key || '').trim();
+            if (!key) return;
+            PlanningModule.state.salesDemandRowsByKey[key] = row;
+        });
+
+        const renderRows = () => {
+            if (!rows.length) {
+                return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Onayli siparis satiri bulunamadi.</td></tr>`;
+            }
+            return rows.map((row) => `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:0.6rem; font-family:monospace; font-weight:800; color:#1d4ed8;">${PlanningModule.escapeHtml(row.orderNo || '-')}</td>
+                    <td style="padding:0.6rem; font-family:monospace; font-weight:700; color:#4338ca;">${PlanningModule.escapeHtml(row.customerRefId || '-')}</td>
+                    <td style="padding:0.6rem; font-weight:700; color:#334155;">${PlanningModule.escapeHtml(row.productName || '-')}</td>
+                    <td style="padding:0.6rem; font-family:monospace;">${PlanningModule.escapeHtml(row.code || '-')}</td>
+                    <td style="padding:0.6rem; text-align:center; font-weight:800;">${PlanningModule.escapeHtml(String(row.qty || 0))}</td>
+                    <td style="padding:0.6rem;">${PlanningModule.escapeHtml(row.dueDate || '-')}</td>
+                    <td style="padding:0.6rem;"><span style="display:inline-block; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8;">${PlanningModule.escapeHtml(row.statusLabel || 'Onaylandi / Planlamaya Bekliyor')}</span></td>
+                    <td style="padding:0.6rem; text-align:right;"><button class="btn-sm" onclick="PlanningModule.openSalesDemandDetailModal('${PlanningModule.escapeJsString(row.key || '')}')">goruntule</button></td>
+                </tr>
+            `).join('');
+        };
+
+        return `
+            <section style="max-width:1680px; margin:0 auto;">
+                <div style="background:rgba(255,255,255,0.72); border:1px solid #cbd5e1; border-radius:1.8rem; padding:1.25rem;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.9rem; margin-bottom:0.9rem; flex-wrap:wrap;">
+                        <div>
+                            <h2 class="page-title" style="margin:0;">planlama / siparisten gelen talepler</h2>
+                            <div style="font-size:0.84rem; color:#64748b; margin-top:0.2rem;">Sadece onayli siparis satirlari listelenir. Detay ekranindan planlama havuzuna gonderim yapilabilir.</div>
+                        </div>
+                        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+                            <button class="btn-sm" onclick="PlanningModule.openWorkspace('menu')">geri</button>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.65rem; margin-bottom:0.85rem;">
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#64748b;">Onayli siparis satiri</div><div style="font-size:1.05rem; font-weight:800; color:#0f172a;">${rows.length}</div></div>
+                        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:0.8rem; padding:0.65rem 0.75rem;"><div style="font-size:0.72rem; color:#1e3a8a;">Planlama Havuzuna Gonder</div><div style="font-size:0.9rem; font-weight:700; color:#1d4ed8;">Detay ekrani uzerinden aktif</div></div>
+                    </div>
+                    <div style="background:white; border:2px solid #e2e8f0; border-radius:1rem; padding:0.75rem;">
+                        <div class="card-table">
+                            <table style="width:100%; border-collapse:collapse;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                        <th style="padding:0.6rem; text-align:left;">Siparis Kodu</th>
+                                        <th style="padding:0.6rem; text-align:left;">Musteri ID</th>
+                                        <th style="padding:0.6rem; text-align:left;">Urun</th>
+                                        <th style="padding:0.6rem; text-align:left;">Varyasyon / Kod</th>
+                                        <th style="padding:0.6rem; text-align:center;">Adet</th>
+                                        <th style="padding:0.6rem; text-align:left;">Termin</th>
+                                        <th style="padding:0.6rem; text-align:left;">Durum</th>
+                                        <th style="padding:0.6rem; text-align:right;">Islem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${renderRows()}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        `;
+    },
+
     renderPlanningPoolWorkspace: () => {
+        const orphanCleanupCount = PlanningModule.cleanupOpenOrphanSalesOrderPlanningDemands();
+        if (orphanCleanupCount > 0) PlanningModule.schedulePlanningDemandCleanupSave();
         const allRows = PlanningModule.getDemands().slice();
         const priorityOrder = ['URGENT', 'HIGH', 'NORMAL', 'LOW'];
         const openRows = allRows
@@ -3189,6 +3820,7 @@ const PlanningModule = {
         PlanningModule.ensureData();
         const viewId = String(PlanningModule.state.workspaceView || 'menu');
         if (viewId === 'menu') container.innerHTML = PlanningModule.renderMenuLayout();
+        else if (viewId === 'sales-demand') container.innerHTML = PlanningModule.renderSalesDemandWorkspace();
         else if (viewId === 'stock-production') container.innerHTML = PlanningModule.renderStockProductionWorkspace();
         else if (viewId === 'planning-pool') container.innerHTML = PlanningModule.renderPlanningPoolWorkspace();
         else if (viewId === 'released-orders') container.innerHTML = PlanningModule.renderReleasedOrdersWorkspace();

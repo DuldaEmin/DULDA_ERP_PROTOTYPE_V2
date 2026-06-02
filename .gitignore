@@ -7,3 +7,16 @@ pnpm-debug.log*
 .env.*
 .DS_Store
 Thumbs.db
+
+# Dulda local state/history/log safety
+.state-history/**
+demo_state.json
+demo_state.backup-*.json
+backup.log
+health_check.log
+*.log
+
+# Local snapshot/backup folders
+.local-backups/**
+local-history/**
+snapshots/**

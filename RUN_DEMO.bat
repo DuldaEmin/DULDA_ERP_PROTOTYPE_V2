@@ -33,15 +33,16 @@ pause
 goto :eof
 
 :AskBackupPrompt
-set /p backupAns=Backup almak istiyor musun? (E/H): 
+echo Not: Bu adim otomatik GitHub push yapmaz.
+set /p backupAns=Guvenli Git kontrol raporu calistirilsin mi? (E/H): 
 if /I "%backupAns%"=="E" goto :RunBackup
 if /I "%backupAns%"=="EVET" goto :RunBackup
-echo Backup atlandi.
+echo Guvenli kontrol atlandi.
 goto :eof
 
 :RunBackup
 if not exist "%~dp0AUTO_BACKUP_GITHUB.ps1" (
-  echo Backup script bulunamadi.
+  echo Guvenli kontrol scripti bulunamadi.
   goto :eof
 )
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0AUTO_BACKUP_GITHUB.ps1"

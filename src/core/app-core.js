@@ -36,6 +36,8 @@ const TextStylePolicy = {
         ['satis & pazarlama', 'Satış & Pazarlama'],
         ['satış / sipariş oluşturma', 'Satış / Sipariş Oluşturma'],
         ['satis / siparis olusturma', 'Satış / Sipariş Oluşturma'],
+        ['satış & sipariş oluşturma', 'Satış & Sipariş Oluşturma'],
+        ['satis & siparis olusturma', 'Satış & Sipariş Oluşturma'],
         ['yeni sipariş', 'Yeni Sipariş'],
         ['yeni siparis', 'Yeni Sipariş'],
         ['siparişi kaydet', 'Siparişi Kaydet'],
@@ -895,6 +897,17 @@ const DB = {
         if (!DB.data.meta || typeof DB.data.meta !== "object") DB.data.meta = {};
         if (!DB.data.meta.created_at) DB.data.meta.created_at = new Date().toISOString();
         if (!Number.isInteger(DB.data.meta.revision) || DB.data.meta.revision < 0) DB.data.meta.revision = 0;
+        // PROTOTYPE BOOTSTRAP ONLY:
+        // Login/oturum sistemi henuz olmadigi icin, yetki guardlarinin demoda kilitlenmemesi adina
+        // aktif rol varsayilan olarak super-admin atanir. Canli geciste gercek oturum/kimlik
+        // altyapisi devreye alindiginda bu gecici fallback kaldirilmalidir.
+        if (!String(DB.data.meta.activeRole || '').trim()) DB.data.meta.activeRole = 'super-admin';
+        if (!String(DB.data.meta.activeUserName || '').trim()
+            && !String(DB.data.meta.activeUsername || '').trim()
+            && !String(DB.data.meta.currentUserName || '').trim()
+            && !String(DB.data.meta.currentUser || '').trim()) {
+            DB.data.meta.activeUserName = 'demo-super-admin';
+        }
 
         if (!DB.data.data || typeof DB.data.data !== "object") DB.data.data = {};
         const d = DB.data.data;
@@ -1322,11 +1335,6 @@ const Router = {
         if (!skipHistory && !fromBack && currentPage && currentPage !== targetPage) {
             Router.history.push(Router.currentPage);
         }
-        // Fresh open rule: entering Units from another page should start at unit list.
-        if (targetPage === 'units' && currentPage !== 'units' && !fromBack) {
-            UnitModule.state.view = 'list';
-            UnitModule.state.activeUnitId = null;
-        }
         // Fresh open rule: entering Product workspace resets open panels/forms unless caller explicitly preserves UI state.
         if (targetPage === 'products' && currentPage !== 'products') {
             const preserveProductsState = !!options.preserveProductsState;
@@ -1338,19 +1346,47 @@ const Router = {
                 }
             }
         }
-        // Fresh open rule: entering Stock workspace starts from menu.
-        if (targetPage === 'stock' && currentPage !== 'stock' && !fromBack) {
-            StockModule.state.workspaceView = 'menu';
-            StockModule.state.selectedKey = 'all';
-        }
-        if (targetPage === 'planlama' && currentPage !== 'planlama' && !fromBack) {
-            PlanningModule.state.workspaceView = 'menu';
-        }
-        if (targetPage === 'sales' && currentPage !== 'sales' && !fromBack) {
-            SalesModule.state.workspaceView = 'menu';
-            SalesModule.state.customerDetailId = null;
-            SalesModule.state.customerDetailMode = 'view';
-            SalesModule.state.customerEditDraft = null;
+        const isFreshModuleEntry = currentPage !== targetPage && !fromBack;
+        if (isFreshModuleEntry) {
+            if (targetPage === 'units') {
+                if (typeof UnitModule?.resetWorkspaceEntryUiState === 'function') {
+                    UnitModule.resetWorkspaceEntryUiState();
+                } else {
+                    UnitModule.state.view = 'list';
+                    UnitModule.state.activeUnitId = null;
+                }
+            }
+            if (targetPage === 'stock') {
+                if (typeof StockModule?.resetWorkspaceEntryUiState === 'function') {
+                    StockModule.resetWorkspaceEntryUiState();
+                } else {
+                    StockModule.state.workspaceView = 'menu';
+                    StockModule.state.selectedKey = 'all';
+                }
+            }
+            if (targetPage === 'planlama') {
+                if (typeof PlanningModule?.resetWorkspaceEntryUiState === 'function') {
+                    PlanningModule.resetWorkspaceEntryUiState();
+                } else {
+                    PlanningModule.state.workspaceView = 'menu';
+                }
+            }
+            if (targetPage === 'sales') {
+                if (typeof SalesModule?.resetWorkspaceEntryUiState === 'function') {
+                    SalesModule.resetWorkspaceEntryUiState();
+                } else {
+                    SalesModule.state.workspaceView = 'menu';
+                    SalesModule.state.customerDetailId = null;
+                    SalesModule.state.customerDetailMode = 'view';
+                    SalesModule.state.customerEditDraft = null;
+                }
+            }
+            if (targetPage === 'purchasing' && typeof PurchasingModule?.resetWorkspaceEntryUiState === 'function') {
+                PurchasingModule.resetWorkspaceEntryUiState();
+            }
+            if (targetPage === 'personnel' && typeof PersonnelModule?.resetWorkspaceEntryUiState === 'function') {
+                PersonnelModule.resetWorkspaceEntryUiState();
+            }
         }
         Router.currentPage = targetPage;
         UI.renderCurrentPage();
@@ -1510,6 +1546,10 @@ const UI = {
             pageTitle.innerText = 'ALÜMİNYUM PROFİL ENVANTERİ';
             AluminumModule.render(container);
         }
+        else if (page === 'accounting') {
+            pageTitle.innerText = 'MUHASEBE';
+            UI.renderAccountingPlaceholder(container);
+        }
         else container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8;"><h3>🚧 Modül Hazırlanıyor: ${page}</h3></div>`;
 
         MojibakeFix.sanitizeTree(container);
@@ -1525,6 +1565,7 @@ const UI = {
             { id: 'units', title: 'Birimler & Atölyeler', icon: 'hammer', gradient: 'g-yellow' },
             { id: 'products', title: 'Ürün ve Parça Oluşturma', icon: 'boxes', gradient: 'g-pink' },
             { id: 'personnel', title: 'Personel', icon: 'users', gradient: 'g-cyan' },
+            { id: 'accounting', title: 'Muhasebe', icon: 'calculator', gradient: 'g-gray' },
             { id: 'settings', title: 'Ayarlar', icon: 'settings', gradient: 'g-gray' },
         ];
 
@@ -1534,14 +1575,33 @@ const UI = {
                 <p style="color:#64748b; font-size:1.1rem;">ASIL - Fabrika Yönetim Sistemi</p>
             </div>
             <div class="apps-grid">
-                ${apps.map(app => `
-                    <a href="#" onclick="Router.navigate('${app.id}'); return false;" class="app-card">
+                ${apps.map((app) => {
+                    const onClick = `Router.navigate('${app.id}'); return false;`;
+                    return `
+                    <a href="#" onclick="${onClick}" class="app-card">
                         <div class="icon-box ${app.gradient}"><i data-lucide="${app.icon}" width="32" height="32"></i></div>
                         <div class="app-name">${app.title}</div>
                     </a>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
             <div style="text-align:center; margin-top:4rem; color:#94a3b8; font-size:0.8rem">Faz 1 - Temel Yapı</div>
+        `;
+    },
+
+    renderAccountingPlaceholder: (container) => {
+        container.innerHTML = `
+            <section style="max-width:960px; margin:0 auto; padding:1.5rem;">
+                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; box-shadow:0 8px 20px rgba(15,23,42,0.04);">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:999px; background:#f8fafc; border:1px solid #e2e8f0; color:#475569; margin-bottom:1rem;">
+                        <i data-lucide="calculator" width="30" height="30"></i>
+                    </div>
+                    <h2 style="margin:0; font-size:1.35rem; color:#0f172a; font-weight:800;">Muhasebe</h2>
+                    <p style="margin:0.8rem auto 0; max-width:640px; color:#64748b; font-size:0.98rem;">
+                        Muhasebe modülü ileri fazda tasarlanacaktır.
+                    </p>
+                </div>
+            </section>
         `;
     }
 };

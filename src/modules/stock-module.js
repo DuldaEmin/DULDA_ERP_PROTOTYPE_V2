@@ -53,7 +53,66 @@ const StockModule = {
             status: '',
             dateFrom: '',
             dateTo: ''
-        }
+        },
+        montageReadyFilter: 'all',
+        montageReadyExpanded: {},
+        montageReadySendQtyByJob: {},
+        montageDepotReceiveQtyByDispatch: {},
+        montageShipmentTab: 'give'
+    },
+
+    resetWorkspaceEntryUiState: () => {
+        StockModule.state.workspaceView = 'menu';
+        StockModule.state.topTab = 'all';
+        StockModule.state.selectedKey = 'all';
+        StockModule.state.searchQuery = '';
+        StockModule.state.inventoryStockFilters = {
+            available: true,
+            inProcess: true,
+            reserve: true
+        };
+        StockModule.state.inventoryLocationFilter = null;
+        StockModule.state.inventoryOpenCategoryKeys = {};
+        StockModule.state.searchName = '';
+        StockModule.state.searchCode = '';
+        StockModule.state.operationSearchName = '';
+        StockModule.state.operationSearchCode = '';
+        StockModule.state.operationFormOpen = false;
+        StockModule.state.operationEditingId = null;
+        StockModule.state.operationSelectedId = null;
+        StockModule.state.operationDraftCode = '';
+        StockModule.state.operationDraftName = '';
+        StockModule.state.operationDraftNote = '';
+        StockModule.resetDepotDraft();
+
+        StockModule.state.goodsReceiptDraft = null;
+        StockModule.state.goodsReceiptEditingId = null;
+        StockModule.state.goodsReceiptSubView = 'archive';
+        StockModule.state.goodsReceiptPickerLineId = '';
+        StockModule.state.inventoryRegistrationFormOpen = false;
+        StockModule.state.inventoryRegistrationDraft = null;
+        StockModule.state.inventoryRegistrationPickerPending = false;
+        StockModule.state.inventoryRegistrationPickerKind = 'master';
+        StockModule.state.inventoryRegistrationFilters = {
+            docNo: '',
+            productQuery: '',
+            depotId: '',
+            dateFrom: '',
+            dateTo: ''
+        };
+        StockModule.state.goodsReceiptFilters = {
+            docNo: '',
+            supplierId: '',
+            depotId: '',
+            status: '',
+            dateFrom: '',
+            dateTo: ''
+        };
+        StockModule.state.montageReadyFilter = 'all';
+        StockModule.state.montageReadyExpanded = {};
+        StockModule.state.montageReadySendQtyByJob = {};
+        StockModule.state.montageDepotReceiveQtyByDispatch = {};
+        StockModule.state.montageShipmentTab = 'give';
     },
 
     moduleBlueprints: {
@@ -141,8 +200,70 @@ const StockModule = {
         .replace(/'/g, "\\'")
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n'),
+    escapeSafeId: (value) => String(value ?? '').replace(/[^a-zA-Z0-9_-]/g, '_'),
 
     normalize: (value) => String(value || '').trim().toLocaleLowerCase('tr-TR'),
+    normalizeSearchText: (value) => {
+        const lowered = StockModule.normalize(value)
+            .replace(/ç/g, 'c')
+            .replace(/ğ/g, 'g')
+            .replace(/ı/g, 'i')
+            .replace(/ö/g, 'o')
+            .replace(/ş/g, 's')
+            .replace(/ü/g, 'u');
+        return lowered
+            .replace(/[^a-z0-9]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+    },
+    normalizeSearchCompact: (value) => StockModule.normalizeSearchText(value).replace(/\s+/g, ''),
+    normalizeSearchCode: (value) => {
+        const compact = StockModule.normalizeSearchCompact(value).replace(/[^a-z0-9]/g, '');
+        if (!compact) return '';
+        const digitNormalizer = (digits) => {
+            const rawDigits = String(digits || '').replace(/\D+/g, '');
+            if (!rawDigits) return '';
+            const trimmed = rawDigits.replace(/^0+/, '');
+            return trimmed || '0';
+        };
+        const alphaNum = compact.match(/^([a-z]+)(\d+)$/);
+        if (alphaNum) {
+            return `${alphaNum[1]}${digitNormalizer(alphaNum[2])}`;
+        }
+        const onlyDigits = compact.match(/^(\d+)$/);
+        if (onlyDigits) return onlyDigits[1];
+        return compact;
+    },
+    getSearchTokenVariants: (value) => {
+        const base = StockModule.normalizeSearchText(value);
+        const compact = StockModule.normalizeSearchCompact(value);
+        const canon = StockModule.normalizeSearchCode(value);
+        const uniq = [];
+        [base, compact, canon].forEach((candidate) => {
+            const normalized = String(candidate || '').trim();
+            if (!normalized) return;
+            if (!uniq.includes(normalized)) uniq.push(normalized);
+        });
+        return uniq;
+    },
+    getSearchEntryVariants: (value) => {
+        const raw = Array.isArray(value) ? value.filter(Boolean).join(' ') : String(value || '');
+        return StockModule.getSearchTokenVariants(raw);
+    },
+    entryVariantsMatch: (entryVariants, queryVariants, mode = 'contains') => {
+        const haystack = Array.isArray(entryVariants) ? entryVariants : [];
+        const needles = Array.isArray(queryVariants) ? queryVariants : [];
+        if (!haystack.length || !needles.length) return false;
+        return needles.some((needle) => {
+            if (!needle) return false;
+            return haystack.some((hay) => {
+                if (!hay) return false;
+                if (mode === 'exact') return hay === needle;
+                if (mode === 'prefix') return hay.startsWith(needle);
+                return hay.includes(needle);
+            });
+        });
+    },
 
     formatDateTimeLabel: (value) => {
         if (!value) return '-';
@@ -152,9 +273,16 @@ const StockModule = {
     },
 
     getInventorySearchMatch: (row, rawQuery) => {
-        const q = StockModule.normalize(rawQuery).replace(/\s+/g, ' ').trim();
-        if (!q) return { matched: true, score: 0, label: '' };
-        const tokens = q.split(' ').filter(Boolean);
+        const normalizedQuery = StockModule.normalizeSearchText(rawQuery);
+        if (!normalizedQuery) return { matched: true, score: 0, label: '' };
+        const queryVariants = StockModule.getSearchTokenVariants(rawQuery);
+        const tokens = normalizedQuery.split(' ').filter(Boolean);
+        const tokenVariants = tokens.map((token) => StockModule.getSearchTokenVariants(token));
+        const isSplitCodeQuery = tokens.length === 2
+            && (
+                (/^[a-z]+$/.test(tokens[0]) && /^\d+$/.test(tokens[1]))
+                || (/^\d+$/.test(tokens[0]) && /^[a-z]+$/.test(tokens[1]))
+            );
 
         const labels = {
             code: 'ID kodu',
@@ -165,16 +293,24 @@ const StockModule = {
             masterCode: 'Master kodu',
             productType: 'Urun tipi',
             note: 'Not',
-            depotName: 'Depo'
+            depotName: 'Depo',
+            unit: 'Birim',
+            color: 'Renk',
+            surface: 'Yuzey',
+            customer: 'Musteri',
+            orderNo: 'Siparis',
+            workOrder: 'Is emri',
+            operation: 'Operasyon',
+            route: 'Rota'
         };
 
         const idEntries = [];
         const textEntries = [];
         const pushEntry = (bucket, value, key, fallbackLabel = '') => {
-            const raw = String(value || '').trim();
-            if (!raw) return;
+            const variants = StockModule.getSearchEntryVariants(value);
+            if (!variants.length) return;
             bucket.push({
-                norm: StockModule.normalize(raw),
+                variants,
                 label: labels[key] || fallbackLabel || key || 'Alan'
             });
         };
@@ -193,6 +329,17 @@ const StockModule = {
         pushEntry(idEntries, row?.searchMeta?.semiCardCode, 'code');
         pushEntry(idEntries, row?.searchMeta?.locationId, 'locationCode', 'Lokasyon ID');
         pushEntry(idEntries, row?.searchMeta?.depotId, 'depotName', 'Depo ID');
+        pushEntry(idEntries, row?.searchMeta?.depotNodeKey, 'depotName', 'Depo anahtar');
+        pushEntry(idEntries, row?.searchMeta?.unitId, 'depotName', 'Birim ID');
+        pushEntry(idEntries, row?.searchMeta?.workOrderId, 'workOrder', 'Is emri ID');
+        pushEntry(idEntries, row?.searchMeta?.workOrderCode, 'workOrder');
+        pushEntry(idEntries, row?.searchMeta?.workOrderLineId, 'workOrder', 'Is emri satir ID');
+        pushEntry(idEntries, row?.searchMeta?.workOrderLineCode, 'workOrder', 'Is emri satir no');
+        pushEntry(idEntries, row?.searchMeta?.demandId, 'planCodeId', 'Plan ID');
+        pushEntry(idEntries, row?.searchMeta?.demandCode, 'planCodeId', 'Plan kod');
+        pushEntry(idEntries, row?.searchMeta?.routeId, 'route', 'Rota ID');
+        pushEntry(idEntries, row?.searchMeta?.routeSeq, 'route', 'Rota adim');
+        pushEntry(idEntries, row?.searchMeta?.operationCode, 'operation', 'Operasyon kodu');
 
         pushEntry(textEntries, row?.name, 'name');
         pushEntry(textEntries, row?.depotName, 'depotName');
@@ -209,28 +356,49 @@ const StockModule = {
         pushEntry(textEntries, row?.searchMeta?.semiCardName, 'name');
         pushEntry(textEntries, row?.searchMeta?.semiCardGroup, 'productType', 'Yari mamul grubu');
         pushEntry(textEntries, row?.searchMeta?.semiCardSubGroup, 'productType', 'Yari mamul alt grubu');
+        pushEntry(textEntries, row?.searchMeta?.variantCode, 'modelCode', 'Varyasyon kodu');
+        pushEntry(textEntries, row?.searchMeta?.variantName, 'name', 'Varyasyon adi');
+        pushEntry(textEntries, row?.searchMeta?.productGroup, 'productType', 'Urun grubu');
+        pushEntry(textEntries, row?.searchMeta?.productSubGroup, 'productType', 'Urun alt grubu');
+        pushEntry(textEntries, row?.searchMeta?.color, 'color');
+        pushEntry(textEntries, row?.searchMeta?.surface, 'surface');
+        pushEntry(textEntries, row?.searchMeta?.measure, 'productType', 'Olcu');
+        pushEntry(textEntries, row?.searchMeta?.unit, 'unit');
+        pushEntry(textEntries, row?.searchMeta?.depotNodeName, 'depotName', 'Lokasyon');
+        pushEntry(textEntries, row?.searchMeta?.locationName, 'locationCode', 'Lokasyon adi');
+        pushEntry(textEntries, row?.searchMeta?.stationName, 'operation', 'Atolye');
+        pushEntry(textEntries, row?.searchMeta?.operationName, 'operation');
+        pushEntry(textEntries, row?.searchMeta?.routeStationName, 'route', 'Rota istasyonu');
+        pushEntry(textEntries, row?.searchMeta?.routeProcessName, 'operation', 'Rota operasyonu');
+        pushEntry(textEntries, row?.searchMeta?.wipNote, 'note', 'WIP notu');
+        pushEntry(textEntries, row?.searchMeta?.sourceType, 'productType', 'Kaynak turu');
+        pushEntry(textEntries, row?.searchMeta?.sourceLabel, 'productType', 'Kaynak');
+        pushEntry(textEntries, row?.searchMeta?.sourceCode, 'code', 'Kaynak kod');
+        pushEntry(textEntries, row?.searchMeta?.sourceItemCode, 'code', 'Kaynak urun kodu');
+        pushEntry(textEntries, row?.searchMeta?.sourceItemName, 'name', 'Kaynak urun');
+        pushEntry(textEntries, row?.searchMeta?.searchKeywords, 'note', 'Genel alan');
 
-        const exactId = idEntries.find((entry) => entry.norm === q);
+        const exactId = idEntries.find((entry) => StockModule.entryVariantsMatch(entry.variants, queryVariants, 'exact'));
         if (exactId) return { matched: true, score: 400, label: exactId.label };
 
-        const prefixId = idEntries.find((entry) => entry.norm.startsWith(q));
+        const prefixId = idEntries.find((entry) => StockModule.entryVariantsMatch(entry.variants, queryVariants, 'prefix'));
         if (prefixId) return { matched: true, score: 300, label: prefixId.label };
 
-        const prefixName = textEntries.find((entry) => entry.norm.startsWith(q));
+        const prefixName = textEntries.find((entry) => StockModule.entryVariantsMatch(entry.variants, queryVariants, 'prefix'));
         if (prefixName) return { matched: true, score: 200, label: prefixName.label };
 
-        const containsAny = [...idEntries, ...textEntries].find((entry) => entry.norm.includes(q));
+        const containsAny = [...idEntries, ...textEntries].find((entry) => StockModule.entryVariantsMatch(entry.variants, queryVariants, 'contains'));
         if (containsAny) return { matched: true, score: 160, label: containsAny.label };
+        if (isSplitCodeQuery) return { matched: false, score: 0, label: '' };
 
-        if (tokens.length > 1) {
-            const allEntries = [...idEntries, ...textEntries];
-            const combined = allEntries.map((entry) => entry.norm).join(' ');
-            const tokenMatcher = (value) => tokens.every((token) => String(value || '').includes(token));
-            const tokenFieldMatch = allEntries.find((entry) => tokenMatcher(entry.norm));
-            if (tokenFieldMatch) return { matched: true, score: 130, label: tokenFieldMatch.label };
-            if (tokenMatcher(combined)) return { matched: true, score: 120, label: 'Genel eslesme' };
-            return { matched: false, score: 0, label: '' };
-        }
+        const allEntries = [...idEntries, ...textEntries];
+        const singleFieldTokenMatch = allEntries.find((entry) => tokenVariants.every((tokenVariant) => StockModule.entryVariantsMatch(entry.variants, tokenVariant, 'contains')));
+        if (singleFieldTokenMatch) return { matched: true, score: 130, label: singleFieldTokenMatch.label };
+
+        const allTokenMatched = tokenVariants.every((tokenVariant) => {
+            return allEntries.some((entry) => StockModule.entryVariantsMatch(entry.variants, tokenVariant, 'contains'));
+        });
+        if (allTokenMatched && tokens.length > 1) return { matched: true, score: 120, label: 'Genel eslesme' };
 
         return { matched: false, score: 0, label: '' };
     },
@@ -285,6 +453,7 @@ const StockModule = {
         if (!Array.isArray(DB.data.data.stockGoodsReceipts)) DB.data.data.stockGoodsReceipts = [];
         if (!Array.isArray(DB.data.data.stockManualEntries)) DB.data.data.stockManualEntries = [];
         if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
+        if (!Array.isArray(DB.data.data.montageJobDispatches)) DB.data.data.montageJobDispatches = [];
 
         let changed = false;
         const now = new Date().toISOString();
@@ -299,10 +468,24 @@ const StockModule = {
                 { id: 'u_dtm', name: 'DEPO TRANSFER', type: 'internal' },
                 { id: 'u9', name: 'HILAL PWD', type: 'external' },
                 { id: 'u10', name: 'IBRAHIM POLISAJ', type: 'external' },
-                { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' }
+                { id: 'u11', name: 'TEKIN ELOKSAL', type: 'external' },
+                { id: 'u12', name: 'BOYA KAPLAMA', type: 'external' },
+                { id: 'u13', name: 'KROMAJ KAPLAMA', type: 'external' }
             ];
             changed = true;
         }
+
+        const requiredExternalUnits = [
+            { id: 'u12', name: 'BOYA KAPLAMA', type: 'external' },
+            { id: 'u13', name: 'KROMAJ KAPLAMA', type: 'external' }
+        ];
+        requiredExternalUnits.forEach((requiredUnit) => {
+            const exists = (DB.data.data.units || []).some((row) => String(row?.id || '').trim() === requiredUnit.id);
+            if (!exists) {
+                DB.data.data.units.push({ ...requiredUnit });
+                changed = true;
+            }
+        });
 
         const mainDepotUnit = (DB.data.data.units || []).find((row) => String(row?.id || '') === 'u_dtm');
         if (!mainDepotUnit) {
@@ -630,9 +813,10 @@ const StockModule = {
     },
 
     getCustomDepots: () => {
-        const order = ['depot_granul', 'depot_profil', 'depot_mafsal', 'depot_transfer'];
+        const order = ['depot_granul', 'depot_profil', 'depot_mafsal'];
         const rows = (DB.data.data.stockDepots || [])
             .filter((row) => row?.isActive !== false)
+            .filter((row) => String(row?.id || '') !== 'depot_transfer')
             .map((row) => ({
                 ...row,
                 key: `managed:${String(row?.id || '')}`,
@@ -653,6 +837,7 @@ const StockModule = {
     getUnitRowsMeta: () => {
         const formatName = (name) => {
             const upper = String(name || '').trim().toUpperCase();
+            if (upper.includes('DEPO TRANSFER')) return 'DEPO TRANSFER';
             if (upper.includes('EKSTRUDER')) return 'EKSTRUDER DEPO';
             if (upper.includes('TESTERE')) return 'TESTERE DEPO';
             if (upper.includes('PLEKSI')) return 'PLEKSI POLISAJ DEPO';
@@ -662,21 +847,24 @@ const StockModule = {
         };
         const rows = (DB.data?.data?.units || [])
             .filter((row) => String(row?.type || '') === 'internal')
-            .filter((row) => String(row?.id || '') !== 'u_dtm')
             .map((row) => ({
                 ...row,
                 key: `unit:${String(row?.id || '')}`,
                 name: formatName(row?.name || ''),
-                note: 'Bu alan izleme ekranidir. Gerekirse raf / hucre tanimi yapilip stok gorunumu filtrelenebilir.',
+                note: String(row?.id || '') === 'u_dtm'
+                    ? 'Operasyon izleme birimi. Fiziksel depo/raf-hucre stogu gibi kullanilmaz.'
+                    : 'Bu alan izleme ekranidir. Gerekirse raf / hucre tanimi yapilip stok gorunumu filtrelenebilir.',
                 kind: 'unit',
                 editable: false,
-                allowLocations: true
+                allowLocations: String(row?.id || '') === 'u_dtm' ? false : true
             }));
-        const ordered = ['EKSTRUDER', 'TESTERE', 'CNC', 'PLEKSI', 'MONTAJ'];
+        const ordered = ['EKSTRUDER', 'TESTERE', 'CNC', 'PLEKSI', 'MONTAJ', 'DEPO TRANSFER'];
         return rows.sort((a, b) => {
             const aKey = ordered.findIndex((item) => String(a?.name || '').includes(item));
             const bKey = ordered.findIndex((item) => String(b?.name || '').includes(item));
-            return (aKey === -1 ? 999 : aKey) - (bKey === -1 ? 999 : bKey);
+            const rankDiff = (aKey === -1 ? 999 : aKey) - (bKey === -1 ? 999 : bKey);
+            if (rankDiff !== 0) return rankDiff;
+            return String(a?.name || '').localeCompare(String(b?.name || ''), 'tr');
         });
     },
 
@@ -686,16 +874,16 @@ const StockModule = {
             .map((row) => ({
                 ...row,
                 key: `external:${String(row?.id || '')}`,
-                name: String(row?.name || '').trim().toUpperCase(),
+                name: StockModule.getExternalProcessDisplayName(String(row?.name || '').trim().toUpperCase()),
                 note: 'Dis birim veya fason nokta. Izleme amacli gorunur; istenirse raf / hucre tanimi yapilabilir.',
                 kind: 'external',
                 editable: false,
                 allowLocations: true
             }));
-        const ordered = ['IBRAHIM POLISAJ', 'TEKIN ELOKSAL', 'HILAL PWD'];
+        const ordered = ['Polisaj', 'Eloksal kaplama', 'PVD kaplama', 'Boya kaplama', 'Kromaj kaplama'];
         rows.sort((a, b) => {
-            const aName = String(a?.name || '').trim().toUpperCase();
-            const bName = String(b?.name || '').trim().toUpperCase();
+            const aName = String(a?.name || '').trim();
+            const bName = String(b?.name || '').trim();
             const aIdx = ordered.indexOf(aName);
             const bIdx = ordered.indexOf(bName);
             if (aIdx !== -1 || bIdx !== -1) {
@@ -714,9 +902,242 @@ const StockModule = {
         });
         return rows;
     },
+    getExternalProcessDisplayName: (rawName) => {
+        const upper = String(rawName || '').trim().toUpperCase();
+        if (!upper) return '';
+        if (upper.includes('IBRAHIM POLISAJ')) return 'Polisaj';
+        if (upper.includes('TEKIN ELOKSAL')) return 'Eloksal kaplama';
+        if (upper.includes('HILAL PWD') || upper.includes('HILAL PVD')) return 'PVD kaplama';
+        if (upper.includes('BOYA KAPLAMA')) return 'Boya kaplama';
+        if (upper.includes('KROMAJ KAPLAMA')) return 'Kromaj kaplama';
+        return String(rawName || '').trim();
+    },
+    getExternalProcessDisplayNameByUnitId: (unitId) => {
+        const id = String(unitId || '').trim();
+        if (!id) return '';
+        const unit = (Array.isArray(DB.data?.data?.units) ? DB.data.data.units : [])
+            .find((row) => String(row?.id || '') === id && String(row?.type || '') === 'external');
+        if (!unit) return '';
+        return StockModule.getExternalProcessDisplayName(unit?.name || '');
+    },
+    getExternalProcessSupplierLinks: () => {
+        if (!DB.data || typeof DB.data !== 'object') DB.data = {};
+        if (!DB.data.data || typeof DB.data.data !== 'object') DB.data.data = {};
+        if (!Array.isArray(DB.data.data.externalProcessSupplierLinks)) DB.data.data.externalProcessSupplierLinks = [];
+        return DB.data.data.externalProcessSupplierLinks;
+    },
+    getOpenExternalDispatchNotes: () => {
+        const notes = Array.isArray(DB.data?.data?.workOrderDispatchNotes) ? DB.data.data.workOrderDispatchNotes : [];
+        const openStatuses = new Set(['TESLIM_EDILDI', 'DIS_BIRIMDE']);
+        return notes.filter((note) => {
+            if (!note || note.isArchived === true) return false;
+            const status = String(note?.status || '').trim().toUpperCase();
+            return openStatuses.has(status);
+        });
+    },
+    getExternalSupplierRowsMeta: () => {
+        const suppliers = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
+        const supplierById = new Map(
+            suppliers
+                .map((supplier) => [String(supplier?.id || '').trim(), supplier])
+                .filter(([id]) => !!id)
+        );
+        const links = StockModule.getExternalProcessSupplierLinks();
+        const processRows = StockModule.getExternalRowsMeta()
+            .filter((row) => String(row?.key || '') !== 'external:free');
+        const openNotes = StockModule.getOpenExternalDispatchNotes();
+        const supplierRows = [];
+        processRows.forEach((processRow) => {
+            const unitId = String(processRow?.id || '').trim();
+            if (!unitId) return;
+            const linkedSupplierIds = links
+                .filter((link) => String(link?.unitId || '').trim() === unitId)
+                .map((link) => String(link?.supplierId || '').trim())
+                .filter(Boolean);
+            const uniqueLinkedIds = Array.from(new Set(linkedSupplierIds));
+            uniqueLinkedIds.forEach((supplierId) => {
+                const supplier = supplierById.get(supplierId) || null;
+                const supplierName = String(supplier?.name || '').trim() || `Bilinmeyen tedarikci (${supplierId})`;
+                supplierRows.push({
+                    id: `external_supplier:${unitId}:${supplierId}`,
+                    key: `external_supplier:${unitId}:${supplierId}`,
+                    name: supplierName,
+                    note: `${String(processRow?.name || '-')} icin acik emanet izleme`,
+                    kind: 'external_supplier',
+                    editable: false,
+                    allowLocations: false,
+                    unitId,
+                    supplierId
+                });
+            });
+            const hasUnassigned = openNotes.some((note) => {
+                if (String(note?.targetUnitId || '').trim() !== unitId) return false;
+                return !String(note?.supplierId || '').trim();
+            });
+            if (hasUnassigned) {
+                supplierRows.push({
+                    id: `external_supplier:${unitId}:__unassigned__`,
+                    key: `external_supplier:${unitId}:__unassigned__`,
+                    name: 'Atanmamis fasoncu',
+                    note: `${String(processRow?.name || '-')} icin supplier atanmamis acik emanet`,
+                    kind: 'external_supplier',
+                    editable: false,
+                    allowLocations: false,
+                    unitId,
+                    supplierId: '__unassigned__'
+                });
+            }
+        });
+        return supplierRows;
+    },
+    renderExternalSupplierSidebarSection: (processRows) => {
+        const links = StockModule.getExternalProcessSupplierLinks();
+        const supplierRows = StockModule.getExternalSupplierRowsMeta();
+        const supplierNodeByKey = new Map(
+            supplierRows.map((row) => [String(row?.key || '').trim(), row]).filter(([key]) => !!key)
+        );
+        const selectedKey = String(StockModule.state.selectedKey || '');
+        const rows = Array.isArray(processRows) ? processRows : [];
+        return `
+            <div class="stock-side-group">
+                <div class="stock-side-group-title">Fason / dis birimler</div>
+                <div class="stock-side-list">
+                    ${rows.map((processRow) => {
+            const processSelected = selectedKey === String(processRow?.key || '');
+            const unitId = String(processRow?.id || '').trim();
+            const linkedRows = supplierRows
+                .filter((row) => String(row?.unitId || '') === unitId)
+                .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
+            const hasLinks = linkedRows.length > 0;
+            const linkedSupplierIds = links
+                .filter((link) => String(link?.unitId || '').trim() === unitId)
+                .map((link) => String(link?.supplierId || '').trim())
+                .filter(Boolean);
+            const uniqueSupplierCount = new Set(linkedSupplierIds).size;
+            return `
+                        <div class="stock-side-row">
+                            <button onclick="StockModule.selectNode('${StockModule.escapeHtml(processRow?.key || '')}')" class="stock-side-btn" style="font-weight:700; ${processSelected ? 'border-color:#1e3a8a; background:#eaf1ff; color:#1e3a8a;' : ''}">${StockModule.escapeHtml(processRow?.name || '-')}</button>
+                            <div style="margin-top:0.32rem; margin-left:0.35rem; display:grid; gap:0.22rem;">
+                                ${hasLinks ? linkedRows.map((supplierRow) => {
+                const key = String(supplierRow?.key || '').trim();
+                const selected = selectedKey === key;
+                const supplierNode = supplierNodeByKey.get(key) || supplierRow;
+                return `<button onclick="StockModule.selectNode('${StockModule.escapeHtml(key)}')" class="stock-side-btn" title="${StockModule.escapeHtml(supplierNode?.name || '-')}" style="font-size:0.72rem; padding:0.42rem 0.5rem; margin-left:0.4rem; border-style:${selected ? 'solid' : 'dashed'}; border-color:${selected ? '#2563eb' : '#cbd5e1'}; background:${selected ? '#eff6ff' : '#ffffff'}; color:${selected ? '#1d4ed8' : '#334155'}; font-weight:${selected ? '700' : '500'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${StockModule.escapeHtml(supplierNode?.name || '-')}</button>`;
+            }).join('') : `<div style="font-size:0.72rem; color:#94a3b8; margin-left:0.82rem;">Bagli fasoncu yok</div>`}
+                            </div>
+                            <div style="margin-top:0.24rem; margin-left:0.83rem; font-size:0.68rem; color:#94a3b8;">${uniqueSupplierCount > 0 ? `${uniqueSupplierCount} bagli fasoncu` : 'fasoncu baglantisi bekleniyor'}</div>
+                        </div>
+                    `;
+        }).join('')}
+                </div>
+            </div>
+        `;
+    },
+    getDispatchStatusDisplay: (status) => {
+        const upper = String(status || '').trim().toUpperCase();
+        if (upper === 'HAZIRLANDI') return 'Hazirlandi';
+        if (upper === 'TESLIM_EDILDI') return 'Teslim edildi';
+        if (upper === 'DIS_BIRIMDE') return 'Dis birimde';
+        if (upper === 'GERI_GELDI') return 'Geri geldi';
+        if (upper === 'DEPOYA_ALINDI') return 'Depoya alindi';
+        return String(status || '-').trim() || '-';
+    },
+    renderExternalSupplierOpenConsignmentPanel: (node) => {
+        const unitId = String(node?.unitId || '').trim();
+        const supplierId = String(node?.supplierId || '').trim();
+        const allSuppliers = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
+        const supplier = allSuppliers.find((row) => String(row?.id || '').trim() === supplierId) || null;
+        const supplierName = supplierId === '__unassigned__'
+            ? 'Atanmamis fasoncu'
+            : (String(supplier?.name || '').trim() || '-');
+        const processName = String(StockModule.getExternalProcessDisplayNameByUnitId(unitId) || node?.name || '-').trim() || '-';
+        const notes = StockModule.getOpenExternalDispatchNotes().filter((note) => {
+            if (String(note?.targetUnitId || '').trim() !== unitId) return false;
+            const noteSupplierId = String(note?.supplierId || '').trim();
+            if (supplierId === '__unassigned__') return !noteSupplierId;
+            return noteSupplierId === supplierId;
+        });
+        const totalQty = notes.reduce((acc, note) => {
+            const qty = (Array.isArray(note?.rows) ? note.rows : [])
+                .reduce((sum, line) => sum + Math.max(0, Number(line?.qty || 0) || 0), 0);
+            return acc + qty;
+        }, 0);
+        return `
+            <div class="stock-group-card">
+                <div class="stock-table-card" style="padding:0.95rem;">
+                    <div style="display:flex; justify-content:space-between; gap:0.7rem; align-items:flex-start; flex-wrap:wrap;">
+                        <div>
+                            <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Acik Emanet DSI</div>
+                            <div style="font-size:0.78rem; color:#64748b; margin-top:0.2rem;">Bu alan stok degil, fasoncu uzerindeki acik emanet DSI kayitlarinin read-only izlemesidir.</div>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:0.55rem; margin-top:0.7rem;">
+                        <div style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.55rem; padding:0.5rem 0.55rem;"><div style="font-size:0.7rem; color:#64748b;">Dis islem turu</div><div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(processName)}</div></div>
+                        <div style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.55rem; padding:0.5rem 0.55rem;"><div style="font-size:0.7rem; color:#64748b;">Fasoncu</div><div style="font-weight:700; color:#0f172a;">${StockModule.escapeHtml(supplierName)}</div></div>
+                        <div style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.55rem; padding:0.5rem 0.55rem;"><div style="font-size:0.7rem; color:#64748b;">Acik DSI sayisi</div><div style="font-weight:700; color:#0f172a;">${notes.length}</div></div>
+                        <div style="border:1px solid #e2e8f0; background:#f8fafc; border-radius:0.55rem; padding:0.5rem 0.55rem;"><div style="font-size:0.7rem; color:#64748b;">Toplam acik adet</div><div style="font-weight:700; color:#0f172a;">${totalQty}</div></div>
+                    </div>
+                    ${notes.length === 0 ? `
+                        <div class="stock-empty" style="margin-top:0.7rem; text-align:left;">Bu fasoncu icin acik emanet DSI kaydi bulunmuyor.</div>
+                    ` : `
+                        <div style="margin-top:0.7rem; overflow:auto;">
+                            <table class="stock-table">
+                                <thead><tr><th>DSI no</th><th>Tarih</th><th>Is emri</th><th>Parca adi</th><th>Yapilacak islem</th><th>Acik adet</th><th>Hedef islem turu</th><th>Durum</th></tr></thead>
+                                <tbody>
+                                    ${notes.flatMap((note) => {
+            const noteDocNo = String(note?.docNo || note?.id || '-').trim() || '-';
+            const noteDate = StockModule.formatDateTimeLabel(note?.created_at || note?.updated_at || '');
+            const noteStatus = StockModule.getDispatchStatusDisplay(note?.status || '');
+            const targetDisplay = String(StockModule.getExternalProcessDisplayNameByUnitId(note?.targetUnitId || '') || note?.targetUnitName || '-').trim() || '-';
+            const lines = (Array.isArray(note?.rows) ? note.rows : []);
+            if (!lines.length) {
+                return [`
+                                                <tr>
+                                                    <td>${StockModule.escapeHtml(noteDocNo)}</td>
+                                                    <td>${StockModule.escapeHtml(noteDate)}</td>
+                                                    <td>-</td>
+                                                    <td>-</td>
+                                                    <td>-</td>
+                                                    <td>0</td>
+                                                    <td>${StockModule.escapeHtml(targetDisplay)}</td>
+                                                    <td>${StockModule.escapeHtml(noteStatus)}</td>
+                                                </tr>
+                                            `];
+            }
+            return lines.map((line) => {
+                const workOrderCode = String(line?.workOrderCode || line?.workOrderId || '-').trim() || '-';
+                const partName = String(line?.componentName || line?.lineCode || '-').trim() || '-';
+                const processNameLine = String(line?.targetProcessName || line?.targetProcessId || '-').trim() || '-';
+                const qty = Math.max(0, Number(line?.qty || 0) || 0);
+                return `
+                                                <tr>
+                                                    <td>${StockModule.escapeHtml(noteDocNo)}</td>
+                                                    <td>${StockModule.escapeHtml(noteDate)}</td>
+                                                    <td>${StockModule.escapeHtml(workOrderCode)}</td>
+                                                    <td>${StockModule.escapeHtml(partName)}</td>
+                                                    <td>${StockModule.escapeHtml(processNameLine)}</td>
+                                                    <td>${qty}</td>
+                                                    <td>${StockModule.escapeHtml(targetDisplay)}</td>
+                                                    <td>${StockModule.escapeHtml(noteStatus)}</td>
+                                                </tr>
+                                            `;
+            });
+        }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    },
 
     getSelectedNode: () => {
         const key = String(StockModule.state.selectedKey || 'all');
+        if (key === 'managed:depot_transfer') {
+            StockModule.state.selectedKey = 'all';
+            StockModule.state.topTab = 'all';
+        }
         if (key === 'all') {
             return { id: 'all', key: 'all', name: 'TUM DEPOLAR', note: 'Depo secilmediginde arama tum depolarda calisir.', kind: 'all', editable: false, allowLocations: false };
         }
@@ -724,9 +1145,14 @@ const StockModule = {
             StockModule.getMainDepot(),
             ...StockModule.getCustomDepots(),
             ...StockModule.getUnitRowsMeta(),
-            ...StockModule.getExternalRowsMeta()
+            ...StockModule.getExternalRowsMeta(),
+            ...StockModule.getExternalSupplierRowsMeta()
         ];
-        return nodes.find((row) => String(row?.key || '') === key) || StockModule.getMainDepot();
+        const selected = nodes.find((row) => String(row?.key || '') === key) || null;
+        if (selected) return selected;
+        StockModule.state.selectedKey = 'all';
+        StockModule.state.topTab = 'all';
+        return { id: 'all', key: 'all', name: 'TUM DEPOLAR', note: 'Depo secilmediginde arama tum depolarda calisir.', kind: 'all', editable: false, allowLocations: false };
     },
 
     getOverviewSummary: () => {
@@ -784,7 +1210,8 @@ const StockModule = {
             StockModule.getMainDepot(),
             ...StockModule.getCustomDepots(),
             ...StockModule.getUnitRowsMeta(),
-            ...StockModule.getExternalRowsMeta()
+            ...StockModule.getExternalRowsMeta(),
+            ...StockModule.getExternalSupplierRowsMeta()
         ];
         const hit = nodes.find((row) => String(row?.id || '') === key || String(row?.key || '') === key) || null;
         return String(hit?.name || key).trim() || key;
@@ -1014,8 +1441,156 @@ const StockModule = {
         if (raw === 'WIP' || raw === 'ISLEMDE') return 'WIP';
         return 'KULLANILABILIR';
     },
-    getWorkflowWipRows: () => {
+    buildInventorySearchLookup: () => {
+        const planningDemands = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+        const workOrders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const customers = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+
+        const demandById = new Map();
+        const demandByCode = new Map();
+        const demandByWorkOrderId = new Map();
+        const demandByWorkOrderCode = new Map();
+        planningDemands.forEach((demand) => {
+            const demandId = String(demand?.id || '').trim();
+            const demandCode = StockModule.normalizeSearchCode(demand?.demandCode || '');
+            if (demandId && !demandById.has(demandId)) demandById.set(demandId, demand);
+            if (demandCode && !demandByCode.has(demandCode)) demandByCode.set(demandCode, demand);
+            (Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : []).forEach((idRaw) => {
+                const id = String(idRaw || '').trim();
+                if (id && !demandByWorkOrderId.has(id)) demandByWorkOrderId.set(id, demand);
+            });
+            (Array.isArray(demand?.workOrderCodes) ? demand.workOrderCodes : []).forEach((codeRaw) => {
+                const code = StockModule.normalizeSearchCode(codeRaw);
+                if (code && !demandByWorkOrderCode.has(code)) demandByWorkOrderCode.set(code, demand);
+            });
+            const oneOrderId = String(demand?.workOrderId || '').trim();
+            if (oneOrderId && !demandByWorkOrderId.has(oneOrderId)) demandByWorkOrderId.set(oneOrderId, demand);
+            const oneOrderCode = StockModule.normalizeSearchCode(demand?.workOrderCode || '');
+            if (oneOrderCode && !demandByWorkOrderCode.has(oneOrderCode)) demandByWorkOrderCode.set(oneOrderCode, demand);
+        });
+
+        const orderById = new Map();
+        const orderByNo = new Map();
+        orders.forEach((order) => {
+            const id = String(order?.id || '').trim();
+            const no = StockModule.normalizeSearchCode(order?.orderNo || '');
+            if (id && !orderById.has(id)) orderById.set(id, order);
+            if (no && !orderByNo.has(no)) orderByNo.set(no, order);
+        });
+
+        const customerById = new Map();
+        const customerByRef = new Map();
+        customers.forEach((customer) => {
+            const id = String(customer?.id || '').trim();
+            const ref = StockModule.normalizeSearchCode(customer?.customerRefId || '');
+            const code = StockModule.normalizeSearchCode(customer?.customerCode || '');
+            if (id && !customerById.has(id)) customerById.set(id, customer);
+            if (ref && !customerByRef.has(ref)) customerByRef.set(ref, customer);
+            if (code && !customerByRef.has(code)) customerByRef.set(code, customer);
+        });
+
+        const workOrderById = new Map();
+        const workOrderByCode = new Map();
+        const workOrdersByDemandRef = new Map();
+        const pushDemandWorkOrder = (mapKey, workOrder) => {
+            const key = String(mapKey || '').trim();
+            if (!key) return;
+            if (!workOrdersByDemandRef.has(key)) workOrdersByDemandRef.set(key, []);
+            workOrdersByDemandRef.get(key).push(workOrder);
+        };
+        workOrders.forEach((workOrder) => {
+            const id = String(workOrder?.id || '').trim();
+            const code = StockModule.normalizeSearchCode(workOrder?.workOrderCode || '');
+            if (id && !workOrderById.has(id)) workOrderById.set(id, workOrder);
+            if (code && !workOrderByCode.has(code)) workOrderByCode.set(code, workOrder);
+            const sourceId = String(workOrder?.sourceId || '').trim();
+            const sourceCode = StockModule.normalizeSearchCode(workOrder?.sourceCode || '');
+            if (sourceId) pushDemandWorkOrder(`id:${sourceId}`, workOrder);
+            if (sourceCode) pushDemandWorkOrder(`code:${sourceCode}`, workOrder);
+        });
+
+        const resolveDemandFromRefs = (refs) => {
+            const list = Array.isArray(refs) ? refs : [refs];
+            for (const ref of list) {
+                const id = String(ref || '').trim();
+                if (id && demandById.has(id)) return demandById.get(id);
+                const code = StockModule.normalizeSearchCode(ref || '');
+                if (code && demandByCode.has(code)) return demandByCode.get(code);
+            }
+            return null;
+        };
+        const resolveSalesOrderByDemand = (demand) => {
+            if (!demand || typeof demand !== 'object') return null;
+            const orderId = String(demand?.sourceOrderId || '').trim();
+            if (orderId && orderById.has(orderId)) return orderById.get(orderId);
+            const orderNo = StockModule.normalizeSearchCode(demand?.sourceOrderNo || '');
+            if (orderNo && orderByNo.has(orderNo)) return orderByNo.get(orderNo);
+            return null;
+        };
+        const resolveCustomerByDemandOrder = (demand, order) => {
+            const orderCustomerId = String(order?.customerId || '').trim();
+            if (orderCustomerId && customerById.has(orderCustomerId)) return customerById.get(orderCustomerId);
+            const demandRef = StockModule.normalizeSearchCode(demand?.sourceCustomerRefId || '');
+            if (demandRef && customerByRef.has(demandRef)) return customerByRef.get(demandRef);
+            const orderDisplayRef = StockModule.normalizeSearchCode(order?.customerDisplayId || '');
+            if (orderDisplayRef && customerByRef.has(orderDisplayRef)) return customerByRef.get(orderDisplayRef);
+            return null;
+        };
+        const resolveWorkOrdersByDemand = (demand) => {
+            if (!demand || typeof demand !== 'object') return [];
+            const found = [];
+            const seen = new Set();
+            const push = (workOrder) => {
+                const id = String(workOrder?.id || '').trim();
+                if (!id || seen.has(id)) return;
+                seen.add(id);
+                found.push(workOrder);
+            };
+            const demandId = String(demand?.id || '').trim();
+            const demandCode = StockModule.normalizeSearchCode(demand?.demandCode || '');
+            if (demandId && workOrdersByDemandRef.has(`id:${demandId}`)) {
+                workOrdersByDemandRef.get(`id:${demandId}`).forEach(push);
+            }
+            if (demandCode && workOrdersByDemandRef.has(`code:${demandCode}`)) {
+                workOrdersByDemandRef.get(`code:${demandCode}`).forEach(push);
+            }
+            (Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : []).forEach((idRaw) => {
+                const id = String(idRaw || '').trim();
+                if (!id || !workOrderById.has(id)) return;
+                push(workOrderById.get(id));
+            });
+            (Array.isArray(demand?.workOrderCodes) ? demand.workOrderCodes : []).forEach((codeRaw) => {
+                const code = StockModule.normalizeSearchCode(codeRaw);
+                if (!code || !workOrderByCode.has(code)) return;
+                push(workOrderByCode.get(code));
+            });
+            return found;
+        };
+        return {
+            resolveFromPlanRefs: (refs) => {
+                const demand = resolveDemandFromRefs(refs);
+                const order = resolveSalesOrderByDemand(demand);
+                const customer = resolveCustomerByDemandOrder(demand, order);
+                const linkedWorkOrders = resolveWorkOrdersByDemand(demand);
+                return { demand, order, customer, workOrders: linkedWorkOrders };
+            },
+            resolveFromWorkOrder: (workOrder) => {
+                const demand = resolveDemandFromRefs([workOrder?.sourceId, workOrder?.sourceCode])
+                    || demandByWorkOrderId.get(String(workOrder?.id || '').trim())
+                    || demandByWorkOrderCode.get(StockModule.normalizeSearchCode(workOrder?.workOrderCode || ''))
+                    || null;
+                const order = resolveSalesOrderByDemand(demand);
+                const customer = resolveCustomerByDemandOrder(demand, order);
+                return { demand, order, customer };
+            }
+        };
+    },
+    getWorkflowWipRows: (searchLookup = null) => {
         if (typeof UnitModule === 'undefined' || !UnitModule || typeof UnitModule.computeWorkLineRouteMetrics !== 'function') return [];
+        const lookup = searchLookup && typeof searchLookup === 'object'
+            ? searchLookup
+            : StockModule.buildInventorySearchLookup();
         const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
         const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
         const rows = [];
@@ -1023,7 +1598,7 @@ const StockModule = {
             const lines = Array.isArray(order?.lines) ? order.lines : [];
             lines.forEach((line) => {
                 const routes = Array.isArray(line?.routes) ? line.routes : [];
-                routes.forEach((_route, idx) => {
+                routes.forEach((route, idx) => {
                     const metrics = UnitModule.computeWorkLineRouteMetrics(order, line, idx, txns);
                     if (!metrics) return;
                     const inProcessQty = Math.max(0, Math.floor(Number(metrics?.inProcessQty || 0)));
@@ -1031,6 +1606,38 @@ const StockModule = {
                     const stationId = String(metrics?.stationId || '').trim();
                     if (!stationId) return;
                     const node = StockModule.resolveInventoryNode({ stationId }) || null;
+                    const processId = String(metrics?.processId || route?.processId || '').trim();
+                    const processName = typeof UnitModule.getRouteProcessName === 'function'
+                        ? String(UnitModule.getRouteProcessName(stationId, processId) || '').trim()
+                        : '';
+                    const relation = lookup?.resolveFromWorkOrder && typeof lookup.resolveFromWorkOrder === 'function'
+                        ? lookup.resolveFromWorkOrder(order)
+                        : { demand: null, order: null, customer: null };
+                    const demand = relation?.demand || null;
+                    const salesOrder = relation?.order || null;
+                    const customer = relation?.customer || null;
+                    const demandCode = String(demand?.demandCode || order?.sourceCode || '').trim();
+                    const linePlanCodes = (Array.isArray(line?.plans) ? line.plans : [])
+                        .map((plan) => String(plan?.planCode || plan?.planId || plan?.id || '').trim())
+                        .filter(Boolean);
+                    const searchKeywords = [
+                        order?.workOrderCode,
+                        line?.lineCode,
+                        demandCode,
+                        linePlanCodes.join(' '),
+                        demand?.sourceLineId,
+                        metrics?.stationName,
+                        processId,
+                        processName,
+                        route?.stationName,
+                        line?.componentCode,
+                        line?.componentName,
+                        order?.sourceItemCode,
+                        order?.sourceItemName
+                    ]
+                        .map((val) => String(val || '').trim())
+                        .filter(Boolean)
+                        .join(' | ');
                     rows.push({
                         id: `wip_${String(order?.id || '')}_${String(line?.id || '')}_${String(metrics?.routeSeq || idx + 1)}`,
                         name: String(line?.componentName || order?.productName || '-').trim(),
@@ -1053,6 +1660,14 @@ const StockModule = {
                             productName: String(line?.componentName || order?.productName || '').trim(),
                             productCategory: '',
                             productBrandModel: '',
+                            variantCode: '',
+                            variantName: '',
+                            productGroup: '',
+                            productSubGroup: '',
+                            color: '',
+                            surface: '',
+                            measure: '',
+                            unit: 'ADET',
                             partCardCode: '',
                             partCardName: '',
                             partCardGroup: '',
@@ -1062,7 +1677,40 @@ const StockModule = {
                             semiCardGroup: '',
                             semiCardSubGroup: '',
                             locationId: '',
-                            depotId: String(node?.id || '')
+                            locationName: '',
+                            depotId: String(node?.id || ''),
+                            depotNodeKey: String(node?.key || ''),
+                            depotNodeName: String(node?.name || ''),
+                            stationName: String(metrics?.stationName || stationId || '').trim(),
+                            unitId: String(node?.id || stationId || ''),
+                            workOrderId: String(order?.id || '').trim(),
+                            workOrderCode: String(order?.workOrderCode || '').trim(),
+                            workOrderLineId: String(line?.id || '').trim(),
+                            workOrderLineCode: String(line?.lineCode || '').trim(),
+                            sourceType: String(order?.sourceType || demand?.sourceType || '').trim(),
+                            sourceLabel: String(demand?.sourceLabel || '').trim(),
+                            sourceCode: String(order?.sourceCode || demandCode || '').trim(),
+                            sourceItemCode: String(order?.sourceItemCode || '').trim(),
+                            sourceItemName: String(order?.sourceItemName || '').trim(),
+                            demandId: String(demand?.id || order?.sourceId || '').trim(),
+                            demandCode,
+                            orderId: String(salesOrder?.id || '').trim(),
+                            orderNo: '',
+                            orderLineId: String(demand?.sourceLineId || '').trim(),
+                            customerId: String(customer?.id || '').trim(),
+                            customerName: '',
+                            customerCode: '',
+                            customerRefId: '',
+                            routeId: String(metrics?.routeId || route?.id || '').trim(),
+                            routeSeq: String(metrics?.routeSeq || idx + 1),
+                            routeStationId: String(metrics?.stationId || route?.stationId || '').trim(),
+                            routeStationName: String(metrics?.stationName || route?.stationName || '').trim(),
+                            routeProcessId: processId,
+                            routeProcessName: processName,
+                            operationCode: processId,
+                            operationName: processName,
+                            wipNote: `Is emri: ${String(order?.workOrderCode || '-')} | Rota: ${Number(metrics?.routeSeq || idx + 1)}`,
+                            searchKeywords
                         }
                     });
                 });
@@ -1089,6 +1737,7 @@ const StockModule = {
     },
 
     getInventoryRows: () => {
+        const lookup = StockModule.buildInventorySearchLookup();
         const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
         const productById = new Map(products.map((row) => [String(row?.id || ''), row]));
         const productByCode = new Map(
@@ -1117,10 +1766,18 @@ const StockModule = {
             const partCard = partByCode.get(normalizedCode) || null;
             const semiCard = semiByCode.get(normalizedCode) || null;
             const node = StockModule.resolveInventoryNode(raw);
+            const scopeId = StockModule.resolveScopeIdFromStockRow(raw);
+            const isDepoTransferScope = String(scopeId || '') === 'unit:u_dtm' || String(node?.key || '') === 'unit:u_dtm';
             const location = locationMap.get(String(raw?.locationId || '')) || null;
             const quantity = raw?.quantity ?? raw?.qty ?? raw?.amount ?? '';
-            const stockClass = StockModule.normalizeStockClass(raw?.stockClass || raw?.status || 'KULLANILABILIR');
-            const status = String(raw?.status || '').trim() || (stockClass === 'WIP' ? 'ISLEMDE OLANLAR' : 'KULLANILABILIR');
+            const baseStockClass = StockModule.normalizeStockClass(raw?.stockClass || raw?.status || 'KULLANILABILIR');
+            const baseStatus = String(raw?.status || '').trim() || (baseStockClass === 'WIP' ? 'ISLEMDE OLANLAR' : 'KULLANILABILIR');
+            const reserveHintRaw = StockModule.normalize([raw?.status, raw?.stockClass].filter(Boolean).join(' '));
+            const hasReserveHint = reserveHintRaw.includes('rezerve') || reserveHintRaw.includes('rezerv');
+            const stockClass = isDepoTransferScope ? 'WIP' : baseStockClass;
+            const status = isDepoTransferScope
+                ? (hasReserveHint ? 'REZERVE + ISLEMDE / YONLENDIRME BEKLIYOR' : 'ISLEMDE / YONLENDIRME BEKLIYOR')
+                : baseStatus;
             const locationCode = raw?.locationCode
                 ? String(raw.locationCode)
                 : location
@@ -1129,6 +1786,15 @@ const StockModule = {
             const modelCode = String(raw?.modelCode || raw?.modelId || product?.specs?.brandModel || '').trim();
             const planCodeId = String(raw?.planCodeId || raw?.planCode || raw?.planId || product?.planCodeId || product?.specs?.planCodeId || '').trim();
             const masterCode = String(raw?.masterCode || partCard?.masterCode || semiCard?.masterCode || product?.supplierProductCode || '').trim();
+            const relation = lookup?.resolveFromPlanRefs && typeof lookup.resolveFromPlanRefs === 'function'
+                ? lookup.resolveFromPlanRefs([planCodeId, raw?.planCodeId, raw?.planCode, raw?.planId, raw?.sourceId])
+                : { demand: null, order: null, customer: null, workOrders: [] };
+            const demand = relation?.demand || null;
+            const salesOrder = relation?.order || null;
+            const customer = relation?.customer || null;
+            const linkedWorkOrderCodes = (Array.isArray(relation?.workOrders) ? relation.workOrders : [])
+                .map((workOrder) => String(workOrder?.workOrderCode || '').trim())
+                .filter(Boolean);
             const productType = String(
                 raw?.productType
                 || raw?.type
@@ -1137,12 +1803,41 @@ const StockModule = {
                 || product?.type
                 || ''
             ).trim();
+            const color = String(raw?.color || raw?.colorCode || product?.specs?.color || product?.specs?.colorCode || product?.colorCode || product?.colorType || '').trim();
+            const surface = String(raw?.surface || raw?.finish || raw?.coating || product?.specs?.surface || '').trim();
+            const measure = String(raw?.measure || raw?.size || raw?.length || product?.specs?.lengthMm || product?.unitAmount || '').trim();
+            const unit = String(raw?.unit || product?.unit || product?.specs?.unit || '').trim();
+            const demandCode = String(demand?.demandCode || '').trim();
+            const locationName = String(location?.name || location?.label || '').trim();
+            const searchKeywords = [
+                raw?.productCode,
+                raw?.productName,
+                raw?.masterCode,
+                raw?.modelCode,
+                planCodeId,
+                demandCode,
+                linkedWorkOrderCodes.join(' '),
+                locationCode,
+                locationName,
+                node?.name,
+                node?.key,
+                product?.sourceCatalogProductCode,
+                product?.sourceCatalogCode,
+                product?.sourceCatalogName,
+                product?.category,
+                product?.name,
+                color,
+                surface
+            ]
+                .map((val) => String(val || '').trim())
+                .filter(Boolean)
+                .join(' | ');
             return {
                 id: String(raw?.id || product?.id || ''),
                 name: String(raw?.productName || raw?.name || product?.name || '').trim(),
                 code: String(rawCode || product?.code || '').trim(),
                 quantity,
-                unit: String(raw?.unit || product?.unit || product?.specs?.unit || '').trim(),
+                unit,
                 status,
                 stockClass,
                 productType,
@@ -1167,13 +1862,53 @@ const StockModule = {
                     semiCardName: String(semiCard?.name || ''),
                     semiCardGroup: String(semiCard?.group || ''),
                     semiCardSubGroup: String(semiCard?.subGroup || ''),
+                    variantCode: String(product?.sourceCatalogProductCode || raw?.variantCode || '').trim(),
+                    variantName: String(product?.sourceCatalogName || '').trim(),
+                    productGroup: String(product?.category || partCard?.group || semiCard?.group || '').trim(),
+                    productSubGroup: String(partCard?.subGroup || semiCard?.subGroup || '').trim(),
+                    color,
+                    surface,
+                    measure,
+                    unit: String(unit || '').trim().toUpperCase(),
                     locationId: String(raw?.locationId || ''),
+                    locationName,
                     depotId: String(raw?.depotId || raw?.nodeId || ''),
-                    unitId: String(raw?.unitId || raw?.stationId || ((node?.kind === 'unit' || node?.kind === 'external') ? node?.id : '') || '')
+                    depotNodeKey: String(node?.key || ''),
+                    depotNodeName: String(node?.name || ''),
+                    unitId: String(raw?.unitId || raw?.stationId || ((node?.kind === 'unit' || node?.kind === 'external') ? node?.id : '') || ''),
+                    stationName: String((node?.kind === 'unit' || node?.kind === 'external') ? node?.name : '').trim(),
+                    workOrderId: '',
+                    workOrderCode: linkedWorkOrderCodes[0] || '',
+                    workOrderLineId: '',
+                    workOrderLineCode: '',
+                    sourceType: String(demand?.sourceType || '').trim(),
+                    sourceLabel: String(demand?.sourceLabel || '').trim(),
+                    sourceCode: String(demandCode || '').trim(),
+                    sourceItemCode: '',
+                    sourceItemName: '',
+                    demandId: String(demand?.id || '').trim(),
+                    demandCode,
+                    orderId: String(salesOrder?.id || '').trim(),
+                    orderNo: '',
+                    orderLineId: String(demand?.sourceLineId || '').trim(),
+                    customerId: String(customer?.id || '').trim(),
+                    customerName: '',
+                    customerCode: '',
+                    customerRefId: '',
+                    routeId: '',
+                    routeSeq: '',
+                    routeStationId: '',
+                    routeStationName: '',
+                    routeProcessId: '',
+                    routeProcessName: '',
+                    operationCode: '',
+                    operationName: '',
+                    wipNote: '',
+                    searchKeywords
                 }
             };
         });
-        return [...stockRows, ...StockModule.getWorkflowWipRows()];
+        return [...stockRows, ...StockModule.getWorkflowWipRows(lookup)];
     },
 
     getFilteredInventoryRows: (node) => {
@@ -1241,6 +1976,13 @@ const StockModule = {
             StockModule.ensureInventoryRegistrationDraftState();
             StockModule.state.inventoryRegistrationFormOpen = false;
             StockModule.state.inventoryRegistrationPickerPending = false;
+        }
+        if (String(viewId || '') === 'montage-ready-jobs') {
+            StockModule.state.montageReadyFilter = 'all';
+            StockModule.state.montageReadyExpanded = {};
+            StockModule.state.montageReadySendQtyByJob = {};
+            StockModule.state.montageDepotReceiveQtyByDispatch = {};
+            StockModule.state.montageShipmentTab = 'give';
         }
         UI.renderCurrentPage();
     },
@@ -3186,16 +3928,18 @@ const StockModule = {
 
     setTopTab: (tabId) => {
         const nextTab = String(tabId || 'all');
-        StockModule.state.topTab = nextTab;
-        StockModule.state.selectedKey = nextTab === 'transfer' ? 'managed:depot_transfer' : 'all';
+        const safeTab = nextTab === 'transfer' ? 'all' : nextTab;
+        StockModule.state.topTab = safeTab;
+        StockModule.state.selectedKey = 'all';
         StockModule.clearInventoryLocationFilter({ rerender: false });
         UI.renderCurrentPage();
     },
 
     selectNode: (key) => {
-        const nextKey = String(key || 'all');
+        const rawKey = String(key || 'all');
+        const nextKey = rawKey === 'managed:depot_transfer' ? 'all' : rawKey;
         StockModule.state.selectedKey = nextKey;
-        StockModule.state.topTab = nextKey === 'managed:depot_transfer' ? 'transfer' : 'all';
+        StockModule.state.topTab = 'all';
         StockModule.clearInventoryLocationFilter({ rerender: false });
         UI.renderCurrentPage();
     },
@@ -3380,10 +4124,44 @@ const StockModule = {
         return candidates.length > 0 ? candidates[0] : '-';
     },
 
-    getInventoryRowStatusMeta: (row) => {
+    getInventoryRowStatusFlags: (row) => {
+        const nodeKey = String(row?.depotNode?.key || '').trim();
         const raw = StockModule.normalize([row?.status, row?.stockClass].filter(Boolean).join(' '));
-        if (raw.includes('rezerve') || raw.includes('rezerv')) return { key: 'reserve', text: 'rezerve' };
-        if (raw.includes('wip') || raw.includes('islemde')) return { key: 'wip', text: 'islemde olanlar' };
+        const stockClassNorm = StockModule.normalizeStockClass(row?.stockClass || row?.status || '');
+        const sourceTypeNorm = StockModule.normalize(row?.searchMeta?.sourceType || '');
+        const hasReserveHint = raw.includes('rezerve')
+            || raw.includes('rezerv')
+            || !!String(row?.searchMeta?.orderId || '').trim()
+            || !!String(row?.searchMeta?.orderNo || '').trim()
+            || !!String(row?.searchMeta?.orderLineId || '').trim()
+            || sourceTypeNorm.includes('sales_order')
+            || sourceTypeNorm.includes('satis');
+        const isExternalScope = nodeKey.startsWith('external:');
+        const isDepoTransferScope = nodeKey === 'unit:u_dtm';
+        const hasWipHint = raw.includes('wip')
+            || raw.includes('islemde')
+            || stockClassNorm === 'WIP'
+            || StockModule.normalize(row?.productType || '') === 'wip';
+        const inProcess = hasWipHint || isDepoTransferScope || isExternalScope;
+        const reserve = hasReserveHint;
+        const available = !inProcess && !reserve;
+        return { available, inProcess, reserve };
+    },
+
+    getInventoryRowStatusMeta: (row) => {
+        const nodeKey = String(row?.depotNode?.key || '').trim();
+        const flags = StockModule.getInventoryRowStatusFlags(row);
+        if (flags.inProcess && flags.reserve) {
+            if (nodeKey === 'unit:u_dtm') return { key: 'reserve', text: 'islemde + rezerve / yonlendirme bekliyor' };
+            if (nodeKey.startsWith('external:')) return { key: 'reserve', text: 'fasonda + rezerve' };
+            return { key: 'reserve', text: 'islemde + rezerve' };
+        }
+        if (flags.inProcess) {
+            if (nodeKey === 'unit:u_dtm') return { key: 'wip', text: 'islemde / yonlendirme bekliyor' };
+            if (nodeKey.startsWith('external:')) return { key: 'wip', text: 'fasonda / islemde' };
+            return { key: 'wip', text: 'islemde olanlar' };
+        }
+        if (flags.reserve) return { key: 'reserve', text: 'rezerve' };
         return { key: 'available', text: 'kullanilabilir' };
     },
 
@@ -3418,7 +4196,7 @@ const StockModule = {
             })
             .sort((a, b) => new Date(b?.created_at || b?.updated_at || 0) - new Date(a?.created_at || a?.updated_at || 0));
         const selectedNode = StockModule.getSelectedNode();
-        const allowTransferInCurrentScope = String(selectedNode?.key || '') !== 'all';
+        const allowTransferInCurrentScope = String(selectedNode?.key || '') !== 'all' && String(selectedNode?.key || '') !== 'unit:u_dtm';
         const stockDepotRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
         const sourceStockRow = stockDepotRows.find((row) => String(row?.id || '') === id) || null;
         const statusMeta = StockModule.getInventoryRowStatusMeta(sourceStockRow || selectedRow || {});
@@ -3885,6 +4663,7 @@ const StockModule = {
         if (kind === 'managed') return String(node?.id || '').trim();
         if (kind === 'unit' || kind === 'external') {
             const byKey = String(node?.key || '').trim();
+            if (byKey === 'unit:u_dtm') return '';
             if (byKey.startsWith('unit:') || byKey.startsWith('external:')) return byKey;
             return `${kind}:${String(node?.id || '').trim()}`;
         }
@@ -4172,7 +4951,10 @@ const StockModule = {
 
         if (!cellsOnly) {
             StockModule.state.selectedKey = `managed:${depotId}`;
-            StockModule.state.topTab = depotId === 'depot_transfer' ? 'transfer' : 'all';
+            if (String(depotId || '') === 'depot_transfer') {
+                StockModule.state.selectedKey = 'all';
+            }
+            StockModule.state.topTab = 'all';
         }
         await DB.save();
         StockModule.resetDepotDraft();
@@ -4297,11 +5079,11 @@ const StockModule = {
             const filteredRows = rows.filter((row) => {
                 const qty = StockModule.getStockRowQty(row);
                 if (qty <= 0) return false;
-                const statusKey = StockModule.getInventoryRowStatusMeta(row).key;
-                if (statusKey === 'available') return !!stockFilters.available;
-                if (statusKey === 'wip') return !!stockFilters.inProcess;
-                if (statusKey === 'reserve') return !!stockFilters.reserve;
-                return false;
+                const flags = StockModule.getInventoryRowStatusFlags(row);
+                const byAvailable = !!stockFilters.available && !!flags.available;
+                const byInProcess = !!stockFilters.inProcess && !!flags.inProcess;
+                const byReserve = !!stockFilters.reserve && !!flags.reserve;
+                return byAvailable || byInProcess || byReserve;
             });
             const mergedScopeKey = `${String(group?.key || 'group')}|filtered`;
             return `
@@ -4690,7 +5472,907 @@ const StockModule = {
                             <div class="stock-hub-icon stock-hub-icon-sky"><i data-lucide="library-big" width="24" height="24"></i></div>
                             <div class="stock-hub-label">Islem Kutuphanesi</div>
                         </button>
+                        <button class="stock-hub-card" onclick="StockModule.openWorkspace('montage-ready-jobs')">
+                            <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="boxes" width="24" height="24"></i></div>
+                            <div class="stock-hub-label">Montaj & Sevkiyat Isleri</div>
+                            <div style="font-size:0.78rem; color:#64748b; line-height:1.45; margin-top:0.35rem;">
+                                Montaja verilecek, montajdan geri alinacak ve sevkiyat akisinda izlenecek urun/set isleri tek catida takip edilir.
+                            </div>
+                        </button>
                     </div>
+                </div>
+            </section>
+        `;
+    },
+
+    normalizeMontageReadyFilter: (value) => {
+        const raw = String(value || 'all').trim().toLowerCase();
+        if (raw === 'sales') return 'sales';
+        if (raw === 'stock') return 'stock';
+        return 'all';
+    },
+
+    setMontageReadyFilter: (value) => {
+        StockModule.state.montageReadyFilter = StockModule.normalizeMontageReadyFilter(value);
+        UI.renderCurrentPage();
+    },
+
+    toggleMontageReadyJobDetail: (jobKey) => {
+        const key = String(jobKey || '').trim();
+        if (!key) return;
+        const next = (StockModule.state.montageReadyExpanded && typeof StockModule.state.montageReadyExpanded === 'object')
+            ? { ...StockModule.state.montageReadyExpanded }
+            : {};
+        next[key] = !next[key];
+        StockModule.state.montageReadyExpanded = next;
+        UI.renderCurrentPage();
+    },
+
+    parseMontageQty: (value) => {
+        const num = Number(value);
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return Math.floor(num);
+    },
+    getMontageJobDispatches: () => {
+        return Array.isArray(DB.data?.data?.montageJobDispatches) ? DB.data.data.montageJobDispatches : [];
+    },
+    getMontageDispatchKeyForJob: (job) => {
+        const demandId = String(job?.demandId || '').trim();
+        const sourceTypeKey = String(job?.sourceTypeKey || '').trim().toUpperCase();
+        const variantCode = String(job?.variantCode || '').trim().toUpperCase();
+        return `${demandId}::${sourceTypeKey}::${variantCode}`;
+    },
+    isMontageDispatchClosedForNewBatch: (row) => {
+        const status = String(row?.status || '').trim().toUpperCase();
+        if (status === 'READY_FOR_SHIPMENT') return true;
+        const completedQty = Math.max(0, Number(row?.completedQty || 0));
+        const depotReceivedQty = Math.max(0, Number(row?.depotReceivedQty || 0));
+        return completedQty > 0 && depotReceivedQty >= completedQty;
+    },
+    isMontageDispatchActiveForMerge: (row) => {
+        if (!row || typeof row !== 'object') return false;
+        if (StockModule.isMontageDispatchClosedForNewBatch(row)) return false;
+        const status = String(row?.status || '').trim().toUpperCase();
+        if (!status) return true; // Bekleyen (status henuz yazilmamis)
+        return new Set([
+            'BEKLEYEN',
+            'RECEIVED_IN_MONTAGE',
+            'MONTAGE_PARTIAL_COMPLETED',
+            'MONTAGE_COMPLETED_AWAITING_DEPOT',
+            'PARTIAL_DEPOT_RECEIVED'
+        ]).has(status);
+    },
+    getMontageDispatchedQtyForJob: (job) => {
+        const key = StockModule.getMontageDispatchKeyForJob(job);
+        if (!key || key === '::::') return 0;
+        return StockModule.getMontageJobDispatches()
+            .filter((x) => String(x?.dispatchKey || '') === key)
+            .reduce((sum, row) => sum + Math.max(0, Number(row?.sentQty || 0)), 0);
+    },
+    setMontageReadySendQty: (jobKey, value) => {
+        const key = String(jobKey || '').trim();
+        if (!key) return;
+        const next = (StockModule.state.montageReadySendQtyByJob && typeof StockModule.state.montageReadySendQtyByJob === 'object')
+            ? { ...StockModule.state.montageReadySendQtyByJob }
+            : {};
+        next[key] = String(value ?? '').trim();
+        StockModule.state.montageReadySendQtyByJob = next;
+    },
+    sendMontageReadyJob: async (jobKey) => {
+        const key = String(jobKey || '').trim();
+        if (!key) return;
+        const allJobs = StockModule.buildMontageReadyJobCards();
+        const job = allJobs.find((row) => String(row?.key || '') === key) || null;
+        if (!job) return alert('Montaja verilecek is bulunamadi.');
+        if (!job.calculable) return alert('Bu kayitta montaja verilebilir set hesaplanamiyor.');
+        const dispatchedQty = StockModule.getMontageDispatchedQtyForJob(job);
+        const availableQty = Math.max(0, Number(job?.readySetQty || 0) - dispatchedQty);
+        if (availableQty <= 0) return alert('Bu kayit icin montaja verilebilir kalan set yok.');
+        const stateValue = String((StockModule.state.montageReadySendQtyByJob || {})[key] || '').trim();
+        const inputEl = document.getElementById(`montage_send_qty_${StockModule.escapeSafeId(key)}`);
+        const rawValue = stateValue || String(inputEl?.value || '').trim();
+        const qty = StockModule.parseMontageQty(rawValue);
+        if (qty < 1) return alert('Gonderilecek miktar en az 1 olmalidir.');
+        if (qty > availableQty) return alert(`Gonderilecek miktar kalan seti asamaz. Kalan: ${availableQty}`);
+
+        if (!Array.isArray(DB.data?.data?.montageJobDispatches)) DB.data.data.montageJobDispatches = [];
+        const dispatchKey = StockModule.getMontageDispatchKeyForJob(job);
+        const now = new Date().toISOString();
+        const rows = DB.data.data.montageJobDispatches;
+        const candidates = rows
+            .filter((row) => String(row?.dispatchKey || '') === dispatchKey)
+            .slice()
+            .sort((a, b) => String(b?.updated_at || b?.created_at || '').localeCompare(String(a?.updated_at || a?.created_at || '')));
+        let record = candidates.find((row) => StockModule.isMontageDispatchActiveForMerge(row)) || null;
+        if (!record) {
+            record = {
+                id: crypto.randomUUID(),
+                dispatchKey,
+                demandId: String(job?.demandId || ''),
+                demandCode: String(job?.demandCode || ''),
+                sourceTypeKey: String(job?.sourceTypeKey || ''),
+                sourceTypeLabel: String(job?.sourceMeta?.label || ''),
+                variantCode: String(job?.variantCode || ''),
+                productName: String(job?.productName || ''),
+                workOrderText: String(job?.workOrderText || ''),
+                dueDate: String(job?.dueDate || ''),
+                note: String(job?.note || ''),
+                montageCardId: String(job?.montageCardId || ''),
+                montageCardCode: String(job?.montageCardCode || '').trim().toUpperCase(),
+                partRows: (Array.isArray(job?.partRows) ? job.partRows : []).map((part) => ({
+                    code: String(part?.code || '').trim().toUpperCase(),
+                    name: String(part?.name || '').trim(),
+                    qtyPerSet: Number(part?.qtyPerSet || 0)
+                })),
+                sentQty: 0,
+                receivedQty: 0,
+                completedQty: 0,
+                depotReceivedQty: 0,
+                status: '',
+                completionLogs: [],
+                created_at: now,
+                updated_at: now
+            };
+            rows.push(record);
+        }
+        record.sentQty = Math.max(0, Number(record?.sentQty || 0)) + qty;
+        record.productName = String(job?.productName || record.productName || '');
+        record.variantCode = String(job?.variantCode || record.variantCode || '').trim().toUpperCase();
+        record.workOrderText = String(job?.workOrderText || record.workOrderText || '');
+        record.demandCode = String(job?.demandCode || record.demandCode || '');
+        record.dueDate = String(job?.dueDate || record.dueDate || '');
+        record.note = String(job?.note || record.note || '');
+        record.sourceTypeLabel = String(job?.sourceMeta?.label || record.sourceTypeLabel || '');
+        record.montageCardId = String(job?.montageCardId || record?.montageCardId || '').trim();
+        record.montageCardCode = String(job?.montageCardCode || record?.montageCardCode || '').trim().toUpperCase();
+        record.updated_at = now;
+
+        const nextQtyMap = { ...(StockModule.state.montageReadySendQtyByJob || {}) };
+        delete nextQtyMap[key];
+        StockModule.state.montageReadySendQtyByJob = nextQtyMap;
+
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+
+    getMontageReadySourceMeta: (sourceType) => {
+        const raw = String(sourceType || '').trim().toUpperCase();
+        if (raw === 'SALES_ORDER') {
+            return { key: 'SALES_ORDER', label: 'Satis Siparisi' };
+        }
+        if (raw === 'STOCK') {
+            return { key: 'STOCK', label: 'Stok Icin Uretim' };
+        }
+        return { key: 'UNKNOWN', label: 'Belirsiz' };
+    },
+
+    getMontageReadyStatusMeta: (demand) => {
+        // FAZ-4 oncesi durum degisimi yok: tum kartlar "Montaja Verilecek" olarak gosterilir.
+        return { key: 'READY_TO_GIVE', label: 'Montaja Verilecek', style: 'background:#dbeafe; color:#1d4ed8; border:1px solid #93c5fd;' };
+    },
+
+    getMontageReadyDemands: () => {
+        return Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+    },
+
+    getMontageReadyOrderNoteByDemand: (demand) => {
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        if (sourceType !== 'SALES_ORDER') return '';
+        const orderId = String(demand?.sourceOrderId || '').trim();
+        const lineId = String(demand?.sourceLineId || '').trim();
+        if (!orderId) return '';
+        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const order = orders.find((row) => String(row?.id || '').trim() === orderId) || null;
+        if (!order) return '';
+        const lines = Array.isArray(order?.lines) ? order.lines : [];
+        const line = lineId
+            ? (lines.find((row) => String(row?.id || row?.lineId || '').trim() === lineId) || null)
+            : null;
+        const chunks = [
+            String(order?.note || '').trim(),
+            String(order?.productionNote || '').trim(),
+            String(order?.operationNote || '').trim(),
+            String(order?.dispatchNote || '').trim(),
+            String(line?.note || '').trim(),
+            String(line?.productionNote || '').trim(),
+            String(line?.operationNote || '').trim(),
+            String(line?.dispatchNote || '').trim()
+        ].filter(Boolean);
+        return chunks.join(' | ');
+    },
+
+    getMontageReadyVariantRows: () => {
+        if (typeof ProductLibraryModule !== 'undefined'
+            && ProductLibraryModule
+            && typeof ProductLibraryModule.getPlanningModelVariants === 'function') {
+            try {
+                return ProductLibraryModule.getPlanningModelVariants();
+            } catch (_err) {
+            }
+        }
+        return Array.isArray(DB.data?.data?.catalogProductVariants) ? DB.data.data.catalogProductVariants : [];
+    },
+
+    getMontageReadyVariantMap: () => {
+        const byId = new Map();
+        const byCode = new Map();
+        StockModule.getMontageReadyVariantRows().forEach((raw) => {
+            if (!raw || typeof raw !== 'object') return;
+            const rawMontage = raw?.montageCard && typeof raw.montageCard === 'object' ? raw.montageCard : {};
+            const row = {
+                id: String(raw?.id || '').trim(),
+                variantCode: String(raw?.variantCode || '').trim().toUpperCase(),
+                productName: String(raw?.productName || raw?.name || '').trim(),
+                montageCard: {
+                    id: String(rawMontage?.id || '').trim(),
+                    cardCode: String(rawMontage?.cardCode || raw?.montageCardCode || '').trim().toUpperCase()
+                },
+                items: (Array.isArray(raw?.items) ? raw.items : []).map((item) => ({
+                    id: String(item?.id || '').trim(),
+                    source: String(item?.source || '').trim().toLowerCase(),
+                    refId: String(item?.refId || '').trim(),
+                    code: String(item?.code || '').trim().toUpperCase(),
+                    name: String(item?.name || '').trim(),
+                    qty: Number(item?.qty ?? item?.quantity ?? 0)
+                }))
+            };
+            if (row.id) byId.set(row.id, row);
+            if (row.variantCode) byCode.set(row.variantCode, row);
+        });
+        return { byId, byCode };
+    },
+
+    getMontageReadyStockCodeTotals: () => {
+        const managedIds = new Set([
+            String(StockModule.getMainDepot()?.id || '').trim(),
+            ...(StockModule.getCustomDepots().map((row) => String(row?.id || '').trim()))
+        ].filter(Boolean));
+        const rows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const totals = new Map();
+        rows.forEach((row) => {
+            const code = String(row?.productCode || row?.code || '').trim().toUpperCase();
+            if (!code) return;
+            const qty = StockModule.getStockRowQty(row);
+            if (qty <= 0) return;
+            const depotId = String(row?.depotId || '').trim();
+            const nodeKey = String(row?.nodeKey || '').trim();
+            const isManaged = managedIds.has(depotId) || nodeKey.startsWith('managed:');
+            if (!isManaged) return;
+            const stockClass = StockModule.normalizeStockClass(row?.stockClass || row?.status || '');
+            if (stockClass === 'WIP') return;
+            const statusNorm = StockModule.normalize(row?.status || '');
+            if (statusNorm.includes('rezerve') || statusNorm.includes('rezerv')) return;
+            totals.set(code, Number((Number(totals.get(code) || 0) + qty).toFixed(3)));
+        });
+        return totals;
+    },
+
+    resolveMontageReadyVariantByItem: (item, variantMaps) => {
+        const hintId = String(item?.variantId || '').trim();
+        const hintCode = String(item?.variantCode || item?.productCode || '').trim().toUpperCase();
+        const byId = variantMaps?.byId || new Map();
+        const byCode = variantMaps?.byCode || new Map();
+        if (hintId && byId.has(hintId)) return byId.get(hintId);
+        if (hintId && !hintId.toLowerCase().startsWith('salesvar_') && byId.has(`salesvar_${hintId}`)) return byId.get(`salesvar_${hintId}`);
+        if (hintCode && byCode.has(hintCode)) return byCode.get(hintCode);
+        return null;
+    },
+
+    getMontageReadyModelItemsFromDemand: (demand) => {
+        const rawItems = Array.isArray(demand?.items) && demand.items.length
+            ? demand.items
+            : [{
+                id: String(demand?.id || ''),
+                itemType: String(demand?.itemType || ''),
+                qty: demand?.qty,
+                variantId: String(demand?.variantId || ''),
+                variantCode: String(demand?.variantCode || demand?.productCode || ''),
+                productName: String(demand?.productName || '')
+            }];
+        const rows = [];
+        rawItems.forEach((raw, index) => {
+            const itemType = String(raw?.itemType || demand?.itemType || '').trim().toUpperCase();
+            const hasComponentRef = !!String(raw?.componentId || raw?.componentCode || raw?.semiFinishedId || raw?.semiFinishedCode || '').trim();
+            const hasModelRef = !!String(raw?.variantId || raw?.variantCode || raw?.productCode || demand?.variantId || demand?.variantCode || '').trim();
+            if (itemType && itemType !== 'MODEL') return;
+            if (!itemType && hasComponentRef) return;
+            if (!hasModelRef) return;
+            const qty = StockModule.parseMontageQty(raw?.qty ?? demand?.qty ?? 0);
+            if (qty <= 0) return;
+            rows.push({
+                key: String(raw?.id || `${String(demand?.id || 'demand')}_${index}`),
+                qty,
+                variantId: String(raw?.variantId || demand?.variantId || '').trim(),
+                variantCode: String(raw?.variantCode || demand?.variantCode || raw?.productCode || demand?.productCode || '').trim().toUpperCase(),
+                productName: String(raw?.productName || demand?.productName || '').trim(),
+                montageCardId: String(raw?.montageCardId || demand?.montageCardId || '').trim(),
+                montageCardCode: String(raw?.montageCardCode || demand?.montageCardCode || '').trim().toUpperCase()
+            });
+        });
+        return rows;
+    },
+
+    getMontageReadyRecipeRows: (variant) => {
+        if (!variant || !Array.isArray(variant?.items)) return [];
+        return variant.items
+            .map((item, idx) => ({
+                key: String(item?.id || `recipe_${idx}`),
+                source: String(item?.source || '').trim().toLowerCase(),
+                refId: String(item?.refId || '').trim(),
+                code: String(item?.code || '').trim().toUpperCase(),
+                name: String(item?.name || '').trim(),
+                qtyPerSet: Number(item?.qty ?? item?.quantity ?? 0)
+            }))
+            .filter((item) => item.code || item.name || item.refId);
+    },
+
+    buildMontageReadyJobCards: () => {
+        const demands = StockModule.getMontageReadyDemands();
+        const variantMaps = StockModule.getMontageReadyVariantMap();
+        const stockByCode = StockModule.getMontageReadyStockCodeTotals();
+        const montageCards = Array.isArray(DB.data?.data?.montageCards) ? DB.data.data.montageCards : [];
+        const jobs = [];
+
+        demands.forEach((demand) => {
+            const modelItems = StockModule.getMontageReadyModelItemsFromDemand(demand);
+            if (!modelItems.length) return;
+            const sourceMeta = StockModule.getMontageReadySourceMeta(demand?.sourceType);
+            const statusMeta = StockModule.getMontageReadyStatusMeta(demand);
+            const workOrderCodes = Array.isArray(demand?.workOrderCodes)
+                ? demand.workOrderCodes.map((code) => String(code || '').trim()).filter(Boolean)
+                : [];
+            const workOrderText = workOrderCodes.length > 0
+                ? (workOrderCodes.length > 1 ? `${workOrderCodes[0]} +${workOrderCodes.length - 1}` : workOrderCodes[0])
+                : String(demand?.workOrderCode || '-').trim() || '-';
+            const mergedNote = [String(demand?.note || '').trim(), StockModule.getMontageReadyOrderNoteByDemand(demand)]
+                .filter(Boolean)
+                .join(' | ');
+
+            modelItems.forEach((item, index) => {
+                const variant = StockModule.resolveMontageReadyVariantByItem(item, variantMaps);
+                let montageCardId = String(item?.montageCardId || demand?.montageCardId || variant?.montageCard?.id || '').trim();
+                let montageCardCode = String(item?.montageCardCode || demand?.montageCardCode || variant?.montageCard?.cardCode || '').trim().toUpperCase();
+                if (montageCardId && !montageCardCode) {
+                    const byId = montageCards.find((row) => String(row?.id || '').trim() === montageCardId) || null;
+                    montageCardCode = String(byId?.cardCode || '').trim().toUpperCase();
+                }
+                if (!montageCardId && montageCardCode) {
+                    const byCode = montageCards.find((row) => String(row?.cardCode || '').trim().toUpperCase() === montageCardCode) || null;
+                    montageCardId = String(byCode?.id || '').trim();
+                }
+                const requestedQty = StockModule.parseMontageQty(item?.qty || 0);
+                const recipeRows = StockModule.getMontageReadyRecipeRows(variant);
+                const partRows = recipeRows.map((recipe) => {
+                    const code = String(recipe?.code || '').trim().toUpperCase();
+                    const qtyPerSet = StockModule.parseMontageQty(recipe?.qtyPerSet || 0);
+                    const requiredQty = qtyPerSet > 0 ? qtyPerSet * requestedQty : 0;
+                    const stockMatched = !!code && stockByCode.has(code);
+                    const readyQty = stockMatched ? Number(stockByCode.get(code) || 0) : 0;
+                    const missingQty = Math.max(0, requiredQty - readyQty);
+                    const possibleSet = qtyPerSet > 0 ? Math.floor(readyQty / qtyPerSet) : null;
+                    const warningText = stockMatched ? '' : 'stok eslesmesi yok';
+                    return {
+                        key: recipe.key,
+                        code,
+                        name: String(recipe?.name || '-').trim() || '-',
+                        qtyPerSet,
+                        requiredQty,
+                        stockMatched,
+                        readyQty,
+                        missingQty,
+                        possibleSet,
+                        warningText
+                    };
+                });
+
+                let calculable = true;
+                let calculableReason = '';
+                if (!partRows.length) {
+                    calculable = false;
+                    calculableReason = 'hesaplanamadi (recete baglantisi yok)';
+                } else if (partRows.some((row) => row.qtyPerSet <= 0)) {
+                    calculable = false;
+                    calculableReason = 'hesaplanamadi (recete miktari gecersiz)';
+                }
+
+                const readySetQty = calculable
+                    ? Math.max(0, partRows.reduce((min, row) => Math.min(min, Number(row?.possibleSet || 0)), Number.MAX_SAFE_INTEGER))
+                    : null;
+                const missingSetQty = calculable ? Math.max(0, requestedQty - Number(readySetQty || 0)) : null;
+                const variantCode = String(item?.variantCode || variant?.variantCode || '-').trim().toUpperCase() || '-';
+                const productName = String(item?.productName || variant?.productName || '-').trim() || '-';
+
+                jobs.push({
+                    key: `${String(demand?.id || 'demand')}_${String(item?.key || index)}`,
+                    itemKey: String(item?.key || ''),
+                    demandId: String(demand?.id || ''),
+                    sourceMeta,
+                    statusMeta,
+                    productName,
+                    variantCode,
+                    requestedQty,
+                    readySetQty,
+                    missingSetQty,
+                    calculable,
+                    calculableReason,
+                    partRows,
+                    workOrderText,
+                    note: mergedNote || '-',
+                    dueDate: String(demand?.dueDate || '-').trim() || '-',
+                    demandCode: String(demand?.demandCode || '-').trim() || '-',
+                    montageCardId,
+                    montageCardCode,
+                    createdAt: String(demand?.created_at || '').trim(),
+                    sourceTypeKey: sourceMeta.key
+                });
+            });
+        });
+
+        return jobs.sort((a, b) => {
+            const aDate = Date.parse(String(a?.createdAt || ''));
+            const bDate = Date.parse(String(b?.createdAt || ''));
+            if (Number.isFinite(aDate) && Number.isFinite(bDate) && aDate !== bDate) return bDate - aDate;
+            const dueCmp = String(a?.dueDate || '').localeCompare(String(b?.dueDate || ''), 'tr');
+            if (dueCmp !== 0) return dueCmp;
+            return String(a?.productName || '').localeCompare(String(b?.productName || ''), 'tr');
+        });
+    },
+
+    getMontageReadyFilteredJobs: () => {
+        const all = StockModule.buildMontageReadyJobCards();
+        const filter = StockModule.normalizeMontageReadyFilter(StockModule.state.montageReadyFilter);
+        if (filter === 'sales') return all.filter((row) => row.sourceTypeKey === 'SALES_ORDER');
+        if (filter === 'stock') return all.filter((row) => row.sourceTypeKey === 'STOCK');
+        return all;
+    },
+
+    getMontageReadySummary: (rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        return list.reduce((acc, row) => {
+            acc.totalDemandCount += 1;
+            acc.totalRequestedQty += Number(row?.requestedQty || 0);
+            if (row?.calculable) {
+                acc.totalReadySet += Number(row?.readySetQty || 0);
+                acc.totalMissing += Number(row?.missingSetQty || 0);
+            } else {
+                acc.uncalculatedCount += 1;
+            }
+            return acc;
+        }, {
+            totalDemandCount: 0,
+            totalRequestedQty: 0,
+            totalReadySet: 0,
+            totalMissing: 0,
+            uncalculatedCount: 0
+        });
+    },
+    normalizeMontageShipmentTab: (value) => {
+        const raw = String(value || 'give').trim().toLowerCase();
+        if (raw === 'receive') return 'receive';
+        if (raw === 'ready') return 'ready';
+        if (raw === 'archive') return 'archive';
+        return 'give';
+    },
+    setMontageShipmentTab: (value) => {
+        StockModule.state.montageShipmentTab = StockModule.normalizeMontageShipmentTab(value);
+        UI.renderCurrentPage();
+    },
+    setMontageDepotReceiveQtyDraft: (dispatchId, value) => {
+        const id = String(dispatchId || '').trim();
+        if (!id) return;
+        const next = (StockModule.state.montageDepotReceiveQtyByDispatch && typeof StockModule.state.montageDepotReceiveQtyByDispatch === 'object')
+            ? { ...StockModule.state.montageDepotReceiveQtyByDispatch }
+            : {};
+        next[id] = String(value ?? '').trim();
+        StockModule.state.montageDepotReceiveQtyByDispatch = next;
+    },
+    parseMontageDepotReceiveQty: (value) => {
+        const raw = String(value ?? '').trim();
+        if (!raw) return { ok: false, qty: 0, message: 'Depoya alinacak miktar bos olamaz.' };
+        if (!/^\d+$/.test(raw)) return { ok: false, qty: 0, message: 'Depoya alinacak miktar tam sayi olmali.' };
+        const qty = Number(raw);
+        if (!Number.isFinite(qty) || qty < 1) return { ok: false, qty: 0, message: 'Depoya alinacak miktar en az 1 olmali.' };
+        return { ok: true, qty };
+    },
+    getMontageDispatchDepotReceivedQty: (row) => Math.max(0, Number(row?.depotReceivedQty || 0)),
+    getMontageDispatchDepotPendingQty: (row) => {
+        const completedQty = Math.max(0, Number(row?.completedQty || 0));
+        const depotReceivedQty = StockModule.getMontageDispatchDepotReceivedQty(row);
+        return Math.max(0, completedQty - depotReceivedQty);
+    },
+    getMontageDispatchStatusLabel: (row) => {
+        const status = String(row?.status || '').trim().toUpperCase();
+        if (status === 'READY_FOR_SHIPMENT') return 'Sevkiyata Hazir';
+        if (status === 'PARTIAL_DEPOT_RECEIVED') return 'Kismi Depoya Alindi';
+        return 'Montaj Tamamlandi / Depoya Teslim Bekliyor';
+    },
+    receiveMontageDispatchToDepot: async (dispatchId) => {
+        const id = String(dispatchId || '').trim();
+        if (!id) return;
+        if (!Array.isArray(DB.data?.data?.montageJobDispatches)) DB.data.data.montageJobDispatches = [];
+        const rows = DB.data.data.montageJobDispatches;
+        const row = rows.find((x) => String(x?.id || '') === id) || null;
+        if (!row) return alert('Montaj sevk kaydi bulunamadi.');
+        const completedQty = Math.max(0, Number(row?.completedQty || 0));
+        if (completedQty <= 0) return alert('Depoya alinacak tamamlanmis set bulunamadi.');
+        const depotReceivedQty = StockModule.getMontageDispatchDepotReceivedQty(row);
+        const pendingQty = Math.max(0, completedQty - depotReceivedQty);
+        if (pendingQty <= 0) return alert('Bu kayit zaten sevkiyata hazir.');
+        const inputEl = document.getElementById(`montage_depot_receive_qty_${StockModule.escapeSafeId(id)}`);
+        const raw = String((StockModule.state.montageDepotReceiveQtyByDispatch || {})[id] || String(inputEl?.value || '')).trim();
+        const parsed = StockModule.parseMontageDepotReceiveQty(raw);
+        if (!parsed.ok) return alert(parsed.message);
+        if (parsed.qty > pendingQty) return alert(`Depoya alinacak miktar kalan seti asamaz. Kalan: ${pendingQty}`);
+        const nextDepotReceivedQty = depotReceivedQty + parsed.qty;
+        row.depotReceivedQty = nextDepotReceivedQty;
+        row.status = nextDepotReceivedQty >= completedQty ? 'READY_FOR_SHIPMENT' : 'PARTIAL_DEPOT_RECEIVED';
+        row.updated_at = new Date().toISOString();
+        const nextDraft = { ...(StockModule.state.montageDepotReceiveQtyByDispatch || {}) };
+        delete nextDraft[id];
+        StockModule.state.montageDepotReceiveQtyByDispatch = nextDraft;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
+    getMontageAwaitingDepotRows: () => {
+        const rows = StockModule.getMontageJobDispatches();
+        return rows
+            .filter((row) => {
+                const status = String(row?.status || '').trim().toUpperCase();
+                const completed = Math.max(0, Number(row?.completedQty || 0));
+                if (completed <= 0) return false;
+                const pendingDepotQty = StockModule.getMontageDispatchDepotPendingQty(row);
+                if (pendingDepotQty <= 0) return false;
+                return status === 'MONTAGE_COMPLETED_AWAITING_DEPOT'
+                    || status === 'PARTIAL_DEPOT_RECEIVED'
+                    || status === 'MONTAGE_PARTIAL_COMPLETED'
+                    || status === 'READY_FOR_SHIPMENT'
+                    || completed > 0;
+            })
+            .map((row) => {
+                const sentQty = Math.max(0, Number(row?.sentQty || 0));
+                const receivedQty = Math.max(0, Number(row?.receivedQty || 0));
+                const completedQty = Math.max(0, Number(row?.completedQty || 0));
+                const depotReceivedQty = StockModule.getMontageDispatchDepotReceivedQty(row);
+                const pendingDepotQty = StockModule.getMontageDispatchDepotPendingQty(row);
+                const sourceTypeKey = String(row?.sourceTypeKey || '').trim().toUpperCase();
+                const sourceTypeLabel = String(row?.sourceTypeLabel || '').trim()
+                    || (sourceTypeKey === 'SALES_ORDER' ? 'Satis Siparisi' : (sourceTypeKey === 'STOCK' ? 'Stok Icin Uretim' : '-'));
+                return {
+                    id: String(row?.id || ''),
+                    productName: String(row?.productName || '-'),
+                    variantCode: String(row?.variantCode || '-').trim().toUpperCase() || '-',
+                    setQty: sentQty,
+                    receivedQty,
+                    completedQty,
+                    depotReceivedQty,
+                    pendingDepotQty,
+                    sourceTypeLabel,
+                    demandCode: String(row?.demandCode || '-'),
+                    workOrderText: String(row?.workOrderText || '-'),
+                    statusLabel: StockModule.getMontageDispatchStatusLabel(row),
+                    updatedAt: String(row?.updated_at || row?.completed_at || row?.created_at || '')
+                };
+            })
+            .sort((a, b) => {
+                const aTime = Date.parse(String(a?.updatedAt || ''));
+                const bTime = Date.parse(String(b?.updatedAt || ''));
+                if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return bTime - aTime;
+                return String(a?.productName || '').localeCompare(String(b?.productName || ''), 'tr');
+            });
+    },
+    getMontageReadyForShipmentRows: () => {
+        const rows = StockModule.getMontageJobDispatches();
+        return rows
+            .filter((row) => {
+                const status = String(row?.status || '').trim().toUpperCase();
+                const completedQty = Math.max(0, Number(row?.completedQty || 0));
+                const depotReceivedQty = StockModule.getMontageDispatchDepotReceivedQty(row);
+                if (completedQty <= 0) return false;
+                return status === 'READY_FOR_SHIPMENT' || depotReceivedQty >= completedQty;
+            })
+            .map((row) => {
+                const sentQty = Math.max(0, Number(row?.sentQty || 0));
+                const completedQty = Math.max(0, Number(row?.completedQty || 0));
+                const depotReceivedQty = StockModule.getMontageDispatchDepotReceivedQty(row);
+                const sourceTypeKey = String(row?.sourceTypeKey || '').trim().toUpperCase();
+                const sourceTypeLabel = String(row?.sourceTypeLabel || '').trim()
+                    || (sourceTypeKey === 'SALES_ORDER' ? 'Satis Siparisi' : (sourceTypeKey === 'STOCK' ? 'Stok Icin Uretim' : '-'));
+                return {
+                    id: String(row?.id || ''),
+                    productName: String(row?.productName || '-'),
+                    variantCode: String(row?.variantCode || '-').trim().toUpperCase() || '-',
+                    setQty: sentQty,
+                    completedQty,
+                    depotReceivedQty,
+                    sourceTypeLabel,
+                    demandCode: String(row?.demandCode || '-'),
+                    workOrderText: String(row?.workOrderText || '-'),
+                    statusLabel: 'Sevkiyata Hazir',
+                    updatedAt: String(row?.updated_at || row?.completed_at || row?.created_at || '')
+                };
+            })
+            .sort((a, b) => {
+                const aTime = Date.parse(String(a?.updatedAt || ''));
+                const bTime = Date.parse(String(b?.updatedAt || ''));
+                if (Number.isFinite(aTime) && Number.isFinite(bTime) && aTime !== bTime) return bTime - aTime;
+                return String(a?.productName || '').localeCompare(String(b?.productName || ''), 'tr');
+            });
+    },
+
+    renderMontageReadyJobsLayout: () => {
+        const activeShipmentTab = StockModule.normalizeMontageShipmentTab(StockModule.state.montageShipmentTab);
+        const activeFilter = StockModule.normalizeMontageReadyFilter(StockModule.state.montageReadyFilter);
+        const allJobs = StockModule.buildMontageReadyJobCards();
+        const filteredJobs = StockModule.getMontageReadyFilteredJobs();
+        const summary = StockModule.getMontageReadySummary(filteredJobs);
+        const awaitingDepotRows = StockModule.getMontageAwaitingDepotRows();
+        const readyForShipmentRows = StockModule.getMontageReadyForShipmentRows();
+        const depotReceiveDraftMap = (StockModule.state.montageDepotReceiveQtyByDispatch && typeof StockModule.state.montageDepotReceiveQtyByDispatch === 'object')
+            ? StockModule.state.montageDepotReceiveQtyByDispatch
+            : {};
+        const isExpanded = StockModule.state.montageReadyExpanded && typeof StockModule.state.montageReadyExpanded === 'object'
+            ? StockModule.state.montageReadyExpanded
+            : {};
+        return `
+            <section class="stock-shell">
+                <div class="stock-subpage-shell">
+                    <div class="stock-subpage-head">
+                        <h2 class="stock-title">Montaj & Sevkiyat Isleri</h2>
+                        <button class="btn-sm" onclick="StockModule.openWorkspace('menu')">geri</button>
+                    </div>
+
+                    <div class="card-table" style="padding:1.3rem 1.45rem; margin-bottom:1rem;">
+                        <div style="font-size:0.95rem; color:#334155; line-height:1.72;">
+                            Bu ekran, montaja verilecek urun/setleri, montajdan depoya teslim alinacak urunleri ve sevkiyat akislarini tek catida takip etmek icin hazirlanmistir.
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:0.9rem 1rem; margin-bottom:1rem;">
+                        <div style="display:flex; flex-wrap:wrap; gap:0.45rem;">
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageShipmentTab('give')" style="${activeShipmentTab === 'give' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">1. Montaja Verilecek Isler</button>
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageShipmentTab('receive')" style="${activeShipmentTab === 'receive' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">2. Montajdan Teslim Alinacak Urunler</button>
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageShipmentTab('ready')" style="${activeShipmentTab === 'ready' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">3. Sevkiyata Hazir Urunler</button>
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageShipmentTab('archive')" style="${activeShipmentTab === 'archive' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">4. Sevk Edilen / Arsiv</button>
+                        </div>
+                    </div>
+
+                    ${activeShipmentTab === 'give' ? `
+                    <div class="card-table" style="padding:1.15rem 1.35rem; margin-bottom:1rem;">
+                        <div style="font-size:0.8rem; color:#64748b; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; margin-bottom:0.65rem;">Filtreler</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.5rem;">
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageReadyFilter('all')" style="${activeFilter === 'all' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">Hepsi</button>
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageReadyFilter('sales')" style="${activeFilter === 'sales' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">Satis Siparisi</button>
+                            <button type="button" class="btn-sm" onclick="StockModule.setMontageReadyFilter('stock')" style="${activeFilter === 'stock' ? 'border-color:#0f172a; background:#0f172a; color:#fff;' : ''}">Stok Icin Uretim</button>
+                        </div>
+                    </div>
+
+                    <div class="card-table" style="padding:1rem 1.15rem; margin-bottom:1rem;">
+                        <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.65rem;">
+                            <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Talep kaydi</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${summary.totalDemandCount}</div></div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam talep adedi</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${summary.totalRequestedQty}</div></div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Montaja verilebilir toplam set</div><div style="font-size:1.18rem; font-weight:800; color:#166534;">${summary.totalReadySet}</div></div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Eksik toplam</div><div style="font-size:1.18rem; font-weight:800; color:#b91c1c;">${summary.totalMissing}</div></div>
+                        </div>
+                        ${summary.uncalculatedCount > 0 ? `<div style="margin-top:0.6rem; font-size:0.82rem; color:#b45309;">${summary.uncalculatedCount} kayitta montaja verilebilir set hesaplanamadi.</div>` : ''}
+                    </div>
+
+                    <div class="card-table" style="padding:1.15rem 1.35rem; margin-bottom:1rem;">
+                        <div style="font-size:0.8rem; color:#64748b; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; margin-bottom:0.65rem;">Durum Alanlari</div>
+                        <div style="display:flex; flex-wrap:wrap; gap:0.55rem;">
+                            <span style="display:inline-flex; align-items:center; padding:0.38rem 0.8rem; border-radius:999px; background:#dbeafe; color:#1d4ed8; font-size:0.8rem; font-weight:700;">Montaja Verilecek</span>
+                        </div>
+                    </div>
+
+                    <div style="display:grid; gap:0.8rem;">
+                        ${allJobs.length === 0 ? `
+                            <div class="card-table" style="padding:1.25rem 1.4rem; border:1px solid #e2e8f0; background:#f8fafc;">
+                                <div style="font-size:0.98rem; font-weight:800; color:#0f172a; margin-bottom:0.4rem;">Bos Liste</div>
+                                <div style="font-size:0.92rem; color:#475569; line-height:1.68;">
+                                    Henuz montaja verilecek is bulunmuyor. Bu ekran ileride Satilan Urun Kutuphanesi kaynakli is emirleri ve depo hazir set hesaplariyla beslenecek.
+                                </div>
+                            </div>
+                        ` : (filteredJobs.length === 0 ? `
+                            <div class="card-table" style="padding:1.25rem 1.4rem; border:1px solid #e2e8f0; background:#f8fafc;">
+                                <div style="font-size:0.95rem; font-weight:800; color:#0f172a;">Secili filtrede kayit bulunamadi.</div>
+                            </div>
+                        ` : filteredJobs.map((job) => `
+                            <div class="card-table" style="padding:1rem 1.1rem;">
+                                <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.65rem; flex-wrap:wrap;">
+                                    <div>
+                                        <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+                                            <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border-radius:999px; background:#f1f5f9; color:#0f172a; font-size:0.75rem; font-weight:700;">${StockModule.escapeHtml(job.sourceMeta.label)}</span>
+                                            <span style="display:inline-flex; align-items:center; padding:0.2rem 0.62rem; border-radius:999px; font-size:0.75rem; font-weight:700; ${StockModule.escapeHtml(job.statusMeta.style)}">${StockModule.escapeHtml(job.statusMeta.label)}</span>
+                                        </div>
+                                        <div style="margin-top:0.45rem; font-size:1.02rem; font-weight:800; color:#0f172a;">${StockModule.escapeHtml(job.productName)}</div>
+                                        <div style="margin-top:0.2rem; font-size:0.78rem; color:#1d4ed8; font-family:Consolas, monospace;">Varyasyon: ${StockModule.escapeHtml(job.variantCode)}</div>
+                                    </div>
+                                    <button type="button" class="btn-sm" onclick="StockModule.toggleMontageReadyJobDetail('${StockModule.escapeJsString(job.key)}')">${isExpanded[job.key] ? 'detay gizle' : 'detay'}</button>
+                                </div>
+                                <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.55rem; margin-top:0.65rem;">
+                                    <div><div style="font-size:0.72rem; color:#64748b;">Talep edilen adet</div><div style="font-weight:800; color:#0f172a;">${StockModule.escapeHtml(String(job.requestedQty))}</div></div>
+                                    <div><div style="font-size:0.72rem; color:#64748b;">Montaja verilebilir set</div><div style="font-weight:800; color:${job.calculable ? '#166534' : '#b45309'};">${StockModule.escapeHtml(job.calculable ? String(job.readySetQty) : job.calculableReason)}</div></div>
+                                    <div><div style="font-size:0.72rem; color:#64748b;">Eksik adet</div><div style="font-weight:800; color:${job.calculable ? '#b91c1c' : '#b45309'};">${StockModule.escapeHtml(job.calculable ? String(job.missingSetQty) : 'hesaplanamadi')}</div></div>
+                                    <div><div style="font-size:0.72rem; color:#64748b;">Is emri / Plan no</div><div style="font-weight:700; color:#334155; font-family:Consolas, monospace;">${StockModule.escapeHtml(job.workOrderText || '-')}</div></div>
+                                </div>
+                                ${(() => {
+                                    const dispatchedQty = StockModule.getMontageDispatchedQtyForJob(job);
+                                    const remainingQty = job.calculable ? Math.max(0, Number(job.readySetQty || 0) - dispatchedQty) : 0;
+                                    const inputId = `montage_send_qty_${StockModule.escapeSafeId(job.key)}`;
+                                    const draftValue = String((StockModule.state.montageReadySendQtyByJob || {})[job.key] || '').trim();
+                                    const defaultValue = draftValue || (remainingQty > 0 ? String(remainingQty) : '');
+                                    const canSend = job.calculable && remainingQty > 0;
+                                    return `
+                                        <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem; margin-top:0.55rem;">
+                                            <div><div style="font-size:0.72rem; color:#64748b;">Daha once montaja verilen</div><div style="font-weight:800; color:#0f172a;">${StockModule.escapeHtml(String(dispatchedQty))}</div></div>
+                                            <div><div style="font-size:0.72rem; color:#64748b;">Kalan verilebilir set</div><div style="font-weight:800; color:${remainingQty > 0 ? '#166534' : '#b45309'};">${StockModule.escapeHtml(String(remainingQty))}</div></div>
+                                            <div style="display:flex; align-items:flex-end; justify-content:flex-end;">
+                                                <div style="display:inline-flex; align-items:center; gap:0.4rem;">
+                                                    <input id="${StockModule.escapeHtml(inputId)}" type="number" min="1" ${canSend ? `max="${remainingQty}"` : 'max="0"'} value="${StockModule.escapeHtml(defaultValue)}" oninput="StockModule.setMontageReadySendQty('${StockModule.escapeJsString(job.key)}', this.value)" style="width:90px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700;" ${canSend ? '' : 'disabled'}>
+                                                    <button type="button" class="btn-sm" onclick="StockModule.sendMontageReadyJob('${StockModule.escapeJsString(job.key)}')" ${canSend ? '' : 'disabled'} style="${canSend ? 'border-color:#86efac; background:#ecfdf5; color:#166534; font-weight:800;' : 'opacity:0.45; cursor:not-allowed;'}">Montaja Ver</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                })()}
+                                <div style="margin-top:0.55rem; font-size:0.83rem; color:#64748b;">Talep kodu: <strong style="color:#0f172a; font-family:Consolas, monospace;">${StockModule.escapeHtml(job.demandCode)}</strong> | Termin: <strong style="color:#0f172a;">${StockModule.escapeHtml(job.dueDate || '-')}</strong></div>
+                                <div style="margin-top:0.35rem; font-size:0.83rem; color:#64748b;">Operasyonel not: <span style="color:#334155;">${StockModule.escapeHtml(job.note || '-')}</span></div>
+                                ${isExpanded[job.key] ? `
+                                    <div style="margin-top:0.8rem; overflow:auto;">
+                                        <table style="width:100%; min-width:760px; border-collapse:collapse;">
+                                            <thead>
+                                                <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                                    <th style="padding:0.45rem; text-align:left;">Parca</th>
+                                                    <th style="padding:0.45rem; text-align:left;">PRC kodu</th>
+                                                    <th style="padding:0.45rem; text-align:right;">Gerekli</th>
+                                                    <th style="padding:0.45rem; text-align:right;">Hazir</th>
+                                                    <th style="padding:0.45rem; text-align:right;">Eksik</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${job.partRows.length === 0 ? `
+                                                    <tr><td colspan="5" style="padding:0.7rem; text-align:center; color:#94a3b8;">Recete baglantisi bulunamadi.</td></tr>
+                                                ` : job.partRows.map((part) => `
+                                                    <tr style="border-bottom:1px solid #f1f5f9;">
+                                                        <td style="padding:0.45rem; color:#0f172a;">${StockModule.escapeHtml(part.name || '-')}</td>
+                                                        <td style="padding:0.45rem; color:#1d4ed8; font-family:Consolas, monospace;">${StockModule.escapeHtml(part.code || '-')}</td>
+                                                        <td style="padding:0.45rem; text-align:right; color:#334155; font-weight:700;">${StockModule.escapeHtml(String(part.requiredQty || 0))}</td>
+                                                        <td style="padding:0.45rem; text-align:right; color:#334155; font-weight:700;">
+                                                            <div>${StockModule.escapeHtml(String(part.readyQty || 0))}</div>
+                                                            ${part.warningText ? `<div style="font-size:0.72rem; color:#b45309; font-weight:600;">${StockModule.escapeHtml(part.warningText)}</div>` : ''}
+                                                        </td>
+                                                        <td style="padding:0.45rem; text-align:right; color:#b91c1c; font-weight:800;">${StockModule.escapeHtml(String(part.missingQty || 0))}</td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join(''))}
+                    </div>
+
+                    <div class="card-table" style="padding:1.2rem 1.35rem; border:1px solid #fde68a; background:#fffbeb;">
+                        <div style="font-size:0.88rem; font-weight:800; color:#92400e; margin-bottom:0.65rem;">Bilgi Kutusu</div>
+                        <div style="display:grid; gap:0.5rem; font-size:0.9rem; color:#78350f; line-height:1.62;">
+                            <div>- Bu ekran PRC / Parca & Bilesen uretim ekrani degildir.</div>
+                            <div>- Sadece Satilan Urun Kutuphanesi kaynakli urun/varyasyon isleri icin kullanilacaktir.</div>
+                            <div>- Bu fazda stok hareketi yapilmaz.</div>
+                            <div>- Montaja Ver islemi sadece Montaj Isleri kaydi olusturur, stok hareketi yapmaz.</div>
+                            <div>- Bu fazda bitmis urun stogu olusturulmaz.</div>
+                        </div>
+                    </div>
+                    ` : (activeShipmentTab === 'receive' ? `
+                        <div class="card-table" style="padding:1rem 1.15rem; margin-bottom:1rem;">
+                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.65rem;">
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Kayit</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${awaitingDepotRows.length}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam set</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${awaitingDepotRows.reduce((sum, row) => sum + Number(row?.setQty || 0), 0)}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Tamamlanan set</div><div style="font-size:1.18rem; font-weight:800; color:#166534;">${awaitingDepotRows.reduce((sum, row) => sum + Number(row?.completedQty || 0), 0)}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Depoya alinacak set</div><div style="font-size:1.18rem; font-weight:800; color:#b45309;">${awaitingDepotRows.reduce((sum, row) => sum + Number(row?.pendingDepotQty || 0), 0)}</div></div>
+                            </div>
+                        </div>
+                        <div class="card-table" style="padding:1.15rem 1.35rem;">
+                            <div style="font-size:0.9rem; color:#64748b; margin-bottom:0.65rem;">Montaj tamamlanip depoya teslim bekleyen urun/set kayitlari</div>
+                            <div style="overflow:auto;">
+                                <table style="width:100%; min-width:940px; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                            <th style="padding:0.5rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.5rem; text-align:left;">Varyasyon</th>
+                                            <th style="padding:0.5rem; text-align:center;">Set</th>
+                                            <th style="padding:0.5rem; text-align:center;">Teslim Alinan</th>
+                                            <th style="padding:0.5rem; text-align:center;">Tamamlanan</th>
+                                            <th style="padding:0.5rem; text-align:center;">Depoya Alinan</th>
+                                            <th style="padding:0.5rem; text-align:center;">Kalan</th>
+                                            <th style="padding:0.5rem; text-align:left;">Kaynak</th>
+                                            <th style="padding:0.5rem; text-align:left;">Is Emri / Plan</th>
+                                            <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                            <th style="padding:0.5rem; text-align:right;">Islem</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${awaitingDepotRows.length === 0 ? `
+                                            <tr><td colspan="11" style="padding:1rem; color:#94a3b8; text-align:center;">Montajdan teslim alinacak urun yok.</td></tr>
+                                        ` : awaitingDepotRows.map((row) => `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.5rem; color:#0f172a; font-weight:700;">${StockModule.escapeHtml(row.productName || '-')}</td>
+                                                <td style="padding:0.5rem; color:#1d4ed8; font-family:Consolas, monospace;">${StockModule.escapeHtml(row.variantCode || '-')}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(String(row.setQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(String(row.receivedQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#166534;">${StockModule.escapeHtml(String(row.completedQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#0f172a;">${StockModule.escapeHtml(String(row.depotReceivedQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#b45309;">${StockModule.escapeHtml(String(row.pendingDepotQty || 0))}</td>
+                                                <td style="padding:0.5rem; color:#334155;">${StockModule.escapeHtml(row.sourceTypeLabel || '-')}</td>
+                                                <td style="padding:0.5rem; color:#334155;"><div style="font-family:Consolas, monospace;">${StockModule.escapeHtml(row.workOrderText || '-')}</div><div style="font-size:0.76rem; color:#64748b; font-family:Consolas, monospace;">${StockModule.escapeHtml(row.demandCode || '-')}</div></td>
+                                                <td style="padding:0.5rem;"><span style="display:inline-flex; align-items:center; padding:0.22rem 0.64rem; border-radius:999px; font-size:0.75rem; font-weight:700; background:#dcfce7; color:#166534; border:1px solid #86efac;">${StockModule.escapeHtml(row.statusLabel)}</span></td>
+                                                <td style="padding:0.5rem; text-align:right;">
+                                                    ${(() => {
+                                                        const draftValue = String(depotReceiveDraftMap[String(row.id || '')] || '').trim();
+                                                        const defaultValue = draftValue || (Number(row?.pendingDepotQty || 0) > 0 ? String(row.pendingDepotQty) : '');
+                                                        const canReceive = Number(row?.pendingDepotQty || 0) > 0;
+                                                        return `
+                                                            <div style="display:inline-flex; gap:0.4rem; align-items:center;">
+                                                                <input id="montage_depot_receive_qty_${StockModule.escapeHtml(StockModule.escapeSafeId(row.id))}" type="number" min="1" max="${Math.max(0, Number(row?.pendingDepotQty || 0))}" value="${StockModule.escapeHtml(defaultValue)}" oninput="StockModule.setMontageDepotReceiveQtyDraft('${StockModule.escapeJsString(row.id)}', this.value)" style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.4rem; font-weight:700;" ${canReceive ? '' : 'disabled'}>
+                                                                <button type="button" class="btn-sm" onclick="StockModule.receiveMontageDispatchToDepot('${StockModule.escapeJsString(row.id)}')" ${canReceive ? '' : 'disabled'} style="${canReceive ? 'border-color:#86efac; background:#ecfdf5; color:#166534; font-weight:800;' : 'opacity:0.45; cursor:not-allowed;'}">Depoya Al</button>
+                                                            </div>
+                                                        `;
+                                                    })()}
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ` : (activeShipmentTab === 'ready' ? `
+                        <div class="card-table" style="padding:1rem 1.15rem; margin-bottom:1rem;">
+                            <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.65rem;">
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Kayit</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${readyForShipmentRows.length}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Toplam set</div><div style="font-size:1.18rem; font-weight:800; color:#0f172a;">${readyForShipmentRows.reduce((sum, row) => sum + Number(row?.setQty || 0), 0)}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Tamamlanan</div><div style="font-size:1.18rem; font-weight:800; color:#166534;">${readyForShipmentRows.reduce((sum, row) => sum + Number(row?.completedQty || 0), 0)}</div></div>
+                                <div style="border:1px solid #e2e8f0; border-radius:0.7rem; padding:0.68rem 0.72rem;"><div style="font-size:0.72rem; color:#64748b;">Depoya Alinan</div><div style="font-size:1.18rem; font-weight:800; color:#1d4ed8;">${readyForShipmentRows.reduce((sum, row) => sum + Number(row?.depotReceivedQty || 0), 0)}</div></div>
+                            </div>
+                        </div>
+                        <div class="card-table" style="padding:1.15rem 1.35rem;">
+                            <div style="font-size:0.9rem; color:#64748b; margin-bottom:0.65rem;">Depoya alinmis ve sevkiyata hazir urun/set kayitlari</div>
+                            <div style="overflow:auto;">
+                                <table style="width:100%; min-width:860px; border-collapse:collapse;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
+                                            <th style="padding:0.5rem; text-align:left;">Urun</th>
+                                            <th style="padding:0.5rem; text-align:left;">Varyasyon</th>
+                                            <th style="padding:0.5rem; text-align:center;">Set</th>
+                                            <th style="padding:0.5rem; text-align:center;">Tamamlanan</th>
+                                            <th style="padding:0.5rem; text-align:center;">Depoya Alinan</th>
+                                            <th style="padding:0.5rem; text-align:left;">Kaynak</th>
+                                            <th style="padding:0.5rem; text-align:left;">Is Emri / Plan</th>
+                                            <th style="padding:0.5rem; text-align:left;">Durum</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${readyForShipmentRows.length === 0 ? `
+                                            <tr><td colspan="8" style="padding:1rem; color:#94a3b8; text-align:center;">Sevkiyata hazir urun yok.</td></tr>
+                                        ` : readyForShipmentRows.map((row) => `
+                                            <tr style="border-bottom:1px solid #f1f5f9;">
+                                                <td style="padding:0.5rem; color:#0f172a; font-weight:700;">${StockModule.escapeHtml(row.productName || '-')}</td>
+                                                <td style="padding:0.5rem; color:#1d4ed8; font-family:Consolas, monospace;">${StockModule.escapeHtml(row.variantCode || '-')}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:700; color:#0f172a;">${StockModule.escapeHtml(String(row.setQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#166534;">${StockModule.escapeHtml(String(row.completedQty || 0))}</td>
+                                                <td style="padding:0.5rem; text-align:center; font-weight:800; color:#1d4ed8;">${StockModule.escapeHtml(String(row.depotReceivedQty || 0))}</td>
+                                                <td style="padding:0.5rem; color:#334155;">${StockModule.escapeHtml(row.sourceTypeLabel || '-')}</td>
+                                                <td style="padding:0.5rem; color:#334155;"><div style="font-family:Consolas, monospace;">${StockModule.escapeHtml(row.workOrderText || '-')}</div><div style="font-size:0.76rem; color:#64748b; font-family:Consolas, monospace;">${StockModule.escapeHtml(row.demandCode || '-')}</div></td>
+                                                <td style="padding:0.5rem;"><span style="display:inline-flex; align-items:center; padding:0.22rem 0.64rem; border-radius:999px; font-size:0.75rem; font-weight:700; background:#dcfce7; color:#166534; border:1px solid #86efac;">${StockModule.escapeHtml(row.statusLabel)}</span></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="card-table" style="padding:1.25rem 1.4rem; border:1px solid #e2e8f0; background:#f8fafc;">
+                            <div style="font-size:0.98rem; font-weight:800; color:#0f172a; margin-bottom:0.4rem;">Sevk Edilen / Arsiv</div>
+                            <div style="font-size:0.92rem; color:#475569; line-height:1.68;">Bu sekme bu fazda iskelet olarak acildi. Sevk edilen ve arsiv kayitlari sonraki fazda eklenecek.</div>
+                        </div>
+                    `))}
                 </div>
             </section>
         `;
@@ -4810,7 +6492,7 @@ const StockModule = {
         const overview = StockModule.getOverviewSummary();
         const managedSummary = node.kind === 'managed' ? StockModule.getManagedSummary(node.id) : null;
         const topManagedRows = [mainDepot, ...customDepots];
-        const canOpenLocationEditor = String(node?.key || '') !== 'all';
+        const canOpenLocationEditor = String(node?.key || '') !== 'all' && String(node?.key || '') !== 'unit:u_dtm';
         const stockFilterState = StockModule.getInventoryStockFilters();
         const activeLocationFilter = StockModule.getInventoryLocationFilterForNode(node);
 
@@ -4826,8 +6508,22 @@ const StockModule = {
             <div class="stock-side-row" style="margin-top:0.45rem;"><button onclick="StockModule.openDepotCreateModal()" class="stock-side-add" style="text-align:center;">Depo Olustur +</button></div>
             <div style="height:1px; background:#cbd5e1; margin:0.85rem 0;"></div>
             ${StockModule.renderSidebarSection('Birim / atolye depolari', unitDepots, { canEdit: false })}
-            ${StockModule.renderSidebarSection('Fason / dis birimler', externalDepots)}
+            ${StockModule.renderExternalSupplierSidebarSection(externalDepots)}
         `;
+        const isExternalSupplierNode = String(node?.kind || '') === 'external_supplier';
+        const contentTitle = String(node?.key || '') === 'all'
+            ? 'tum depo icerigi'
+            : isExternalSupplierNode
+                ? `${StockModule.escapeHtml(node?.name || '-')} / acik emanet izleme`
+                : `${StockModule.escapeHtml(node?.name || '-')} / urun gorunumu`;
+        const contentHelper = String(node?.key || '') === 'all'
+            ? 'Depo secilmediginde arama tum depolarda calisir. Urun adi, ID/kod, PRC/Master/Varyasyon kodu, depo, raf/hucre, is emri ve plan alanlarinda arar. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.'
+            : isExternalSupplierNode
+                ? 'Bu ekran secili fasoncu uzerindeki acik emanet DSI kayitlarini read-only izlemek icindir. Stok hareketi yapmaz.'
+                : 'Arama secili depoda urun, kod, raf/hucre, is emri ve plan alanlarinda calisir. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.';
+        const contentBody = isExternalSupplierNode
+            ? StockModule.renderExternalSupplierOpenConsignmentPanel(node)
+            : `${StockModule.renderInventoryGroups(node)}${StockModule.renderLocationsCard(node)}`;
 
         return `
             <section class="stock-shell">
@@ -4868,32 +6564,32 @@ const StockModule = {
 
                     <div class="stock-content">
                         <div class="stock-section-head">
-                            <div class="stock-section-title">${String(node?.key || '') === 'all' ? 'tum depo icerigi' : `${StockModule.escapeHtml(node.name || '-')} / urun gorunumu`}</div>
-                            <div class="stock-section-helper">${String(node?.key || '') === 'all' ? 'Depo secilmediginde arama tum depolarda calisir. Tek kutu urun adi, ID kodu, parca/model, plan kodu ve raf kodunda arar. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.' : 'Arama secili depoda urun adi ve tum ID alanlarinda (kod, model, plan, raf) calisir. Coklu kelimede tum kelimeler eslesmelidir. Durum butonlari ile listeyi daraltabilirsin.'}</div>
+                            <div class="stock-section-title">${contentTitle}</div>
+                            <div class="stock-section-helper">${contentHelper}</div>
                             <div style="margin-left:auto;">
                                 <button class="btn-sm" onclick="StockModule.openLocationManagerForSelectedNode()" ${canOpenLocationEditor ? '' : 'disabled'} style="${canOpenLocationEditor ? 'border-color:#0f172a; background:#0f172a; color:#fff; font-weight:700;' : 'opacity:0.45; cursor:not-allowed;'}">DUZENLE / HUCRE EKLE</button>
                             </div>
                         </div>
 
-                        <div class="stock-search-toolbar">
-                            <div class="stock-search-grid stock-search-grid-1 stock-search-grid-compact">
-                                <input id="stock-search-query" class="stock-input stock-input-strong" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun adi, ID, parca, model, plan kodu veya raf kodu ile ara">
+                        ${isExternalSupplierNode ? '' : `
+                            <div class="stock-search-toolbar">
+                                <div class="stock-search-grid stock-search-grid-1 stock-search-grid-compact">
+                                    <input id="stock-search-query" class="stock-input stock-input-strong" value="${StockModule.escapeHtml(StockModule.state.searchQuery || StockModule.state.searchName || StockModule.state.searchCode)}" oninput="StockModule.setSearch('inventory', this.value)" placeholder="urun, kod, depo, raf/hucre, is emri veya plan ile ara">
+                                </div>
+                                <div class="stock-status-filter-group">
+                                    <button type="button" class="stock-status-filter-btn${stockFilterState.available ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('available')">Kullanilabilir</button>
+                                    <button type="button" class="stock-status-filter-btn${stockFilterState.inProcess ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('inProcess')">Islemde Olanlar</button>
+                                    <button type="button" class="stock-status-filter-btn${stockFilterState.reserve ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('reserve')">Rezerve</button>
+                                </div>
                             </div>
-                            <div class="stock-status-filter-group">
-                                <button type="button" class="stock-status-filter-btn${stockFilterState.available ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('available')">Kullanilabilir</button>
-                                <button type="button" class="stock-status-filter-btn${stockFilterState.inProcess ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('inProcess')">Islemde Olanlar</button>
-                                <button type="button" class="stock-status-filter-btn${stockFilterState.reserve ? ' active' : ''}" onclick="StockModule.toggleInventoryStockFilter('reserve')">Rezerve</button>
-                            </div>
-                        </div>
-                        ${activeLocationFilter ? `
-                            <div class="stock-location-filter-inline">
-                                <span>Hucre filtresi: <strong>${StockModule.escapeHtml(activeLocationFilter.locationLabel || activeLocationFilter.locationCode || '-')}</strong></span>
-                                <button type="button" class="btn-sm stock-location-clear-btn" onclick="StockModule.clearInventoryLocationFilter()">Temizle</button>
-                            </div>
-                        ` : ''}
-
-                        ${StockModule.renderInventoryGroups(node)}
-                        ${StockModule.renderLocationsCard(node)}
+                            ${activeLocationFilter ? `
+                                <div class="stock-location-filter-inline">
+                                    <span>Hucre filtresi: <strong>${StockModule.escapeHtml(activeLocationFilter.locationLabel || activeLocationFilter.locationCode || '-')}</strong></span>
+                                    <button type="button" class="btn-sm stock-location-clear-btn" onclick="StockModule.clearInventoryLocationFilter()">Temizle</button>
+                                </div>
+                            ` : ''}
+                        `}
+                        ${contentBody}
                     </div>
                 </div>
             </section>
@@ -4914,6 +6610,9 @@ const StockModule = {
         }
         if (workspaceView === 'inventory-registration') {
             return StockModule.renderInventoryRegistrationLayout();
+        }
+        if (workspaceView === 'montage-ready-jobs') {
+            return StockModule.renderMontageReadyJobsLayout();
         }
         if (StockModule.moduleBlueprints[workspaceView]) {
             return StockModule.renderBlueprintWorkspace(workspaceView);

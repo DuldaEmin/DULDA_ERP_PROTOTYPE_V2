@@ -84,7 +84,7 @@ Zorunlu yetenekler:
 - Tek parca kartindan is emri acma
 - Rota adimina gore bekleyen/islemde/tamamlanan takip
 - Istasyon bazli process preview
-
+![alt text](image.png)
 ## 4.3 PlanningModule
 Sorumluluk:
 - Talep acma (stok icin uretim)

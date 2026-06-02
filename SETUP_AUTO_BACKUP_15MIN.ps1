@@ -1,16 +1,17 @@
 $ErrorActionPreference = "Stop"
 
 $repoPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-$backupScript = Join-Path $repoPath "AUTO_BACKUP_GITHUB.ps1"
+Set-Location $repoPath
 
-if (-not (Test-Path $backupScript)) {
-    throw "AUTO_BACKUP_GITHUB.ps1 bulunamadi: $backupScript"
-}
+Write-Output "Bu script guvenlik nedeniyle otomatik GitHub commit/push gorevi OLUSTURMAZ."
+Write-Output "COMMIT ONAY ve PUSH ONAY olmadan GitHub islemi yapilmamalidir."
+Write-Output ""
 
-$dailyTaskName = "DULDA_GitAutoBackup_Daily"
-$taskArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$backupScript`""
-$triggerAt = (Get-Date).AddMinutes(2)
-$startTime = $triggerAt.ToString("HH:mm")
+$legacyTasks = @(
+    "DULDA_GitAutoBackup_15Min",
+    "DULDA_ERP_AutoBackup_15Min",
+    "DULDA_GitAutoBackup_Daily"
+)
 
 function Invoke-Schtasks {
     param([string[]]$ArgumentList)
@@ -18,17 +19,10 @@ function Invoke-Schtasks {
     return $proc.ExitCode
 }
 
-foreach ($legacyTask in @("DULDA_GitAutoBackup_15Min", "DULDA_ERP_AutoBackup_15Min", "DULDA_ProjectCheck_Hourly")) {
-    Invoke-Schtasks @("/End", "/TN", $legacyTask) | Out-Null
-    Invoke-Schtasks @("/Change", "/TN", $legacyTask, "/DISABLE") | Out-Null
+foreach ($taskName in $legacyTasks) {
+    Invoke-Schtasks @("/End", "/TN", $taskName) | Out-Null
+    Invoke-Schtasks @("/Change", "/TN", $taskName, "/DISABLE") | Out-Null
 }
 
-Unregister-ScheduledTask -TaskName $dailyTaskName -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $taskArguments
-$trigger = New-ScheduledTaskTrigger -Daily -At $triggerAt
-Register-ScheduledTask -TaskName $dailyTaskName -Action $action -Trigger $trigger -Force | Out-Null
-
-Write-Output "Olusturuldu: $dailyTaskName"
-Write-Output "Komut: powershell.exe $taskArguments"
-Write-Output "Periyot: 24 saat"
-Write-Output "Baslangic saati: $startTime"
+Write-Output "Eski otomatik GitHub gorevleri (varsa) devre disi birakildi."
+Write-Output "Yeni otomatik GitHub gorevi olusturulmadi."

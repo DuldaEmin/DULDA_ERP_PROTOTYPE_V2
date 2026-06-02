@@ -45,6 +45,8 @@
         salesOrderAnchoragePickerContext: null,
         salesPaymentMethodDraft: '',
         salesStockAnalysisModal: null,
+        salesProductionStatusModal: null,
+        priceListsSuspended: true,
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -65,6 +67,8 @@
         proformaSettingsSnapshot: '',
         proformaSettingsMode: 'preview'
     },
+
+    isPriceListsSuspended: () => SalesModule.state?.priceListsSuspended !== false,
 
     resetWorkspaceEntryUiState: () => {
         SalesModule.state.workspaceView = 'menu';
@@ -107,6 +111,7 @@
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
         SalesModule.state.salesStockAnalysisModal = null;
+        SalesModule.state.salesProductionStatusModal = null;
 
         SalesModule.state.priceListDraft = null;
         SalesModule.state.priceListLineDraft = {
@@ -534,6 +539,7 @@
     },
 
     setActivePriceList: (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const targetId = String(id || '').trim();
         if (!targetId) return;
         const store = SalesModule.getMutablePriceListStore();
@@ -550,6 +556,7 @@
     },
 
     createQuickPriceList: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const raw = prompt('Yeni fiyat listesi adi');
         const name = String(raw || '').trim();
@@ -582,6 +589,7 @@
     },
 
     deleteActivePriceList: async () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const active = SalesModule.getActivePriceList();
         if (!active) return;
@@ -649,10 +657,11 @@
         return SalesModule.buildSalesOrderDefaultDeliveryAddress(customer);
     },
 
-    parseSalesQuantity: (value, fallback = 1) => {
+    parseSalesQuantity: (value, fallback = 0) => {
         const parsed = Number(String(value ?? '').replace(',', '.'));
-        if (!Number.isFinite(parsed)) return Number(fallback || 1);
-        return Math.max(0.01, Number(parsed.toFixed(2)));
+        const fallbackNumber = Number(String(fallback ?? 0).replace(',', '.'));
+        if (!Number.isFinite(parsed)) return Number.isFinite(fallbackNumber) ? fallbackNumber : 0;
+        return Math.max(0, Number(parsed.toFixed(2)));
     },
 
     formatEditableNumberInput: (value, options = {}) => {
@@ -802,7 +811,7 @@
             productId: String(seed.productId || '').trim(),
             variationId: String(seed.variationId || '').trim(),
             unit: SalesModule.normalizeSalesLineUnit(seed.unit || seed.quantityUnit || 'adet'),
-            qty: SalesModule.parseSalesQuantity(seed.qty, 1),
+            qty: SalesModule.parseSalesQuantity(seed.qty, 0),
             unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
             isManualPrice: !!seed.isManualPrice,
             defaultAnchorageCatalogIdCode: String(seed.defaultAnchorageCatalogIdCode || '').trim(),
@@ -1007,6 +1016,7 @@
     },
 
     applyPriceSuggestionToOrderLine: (line, draft) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         if (!line || typeof line !== 'object') return;
         const suggestion = SalesModule.getSalesPriceSuggestion(
             String(draft?.customerId || '').trim(),
@@ -1375,11 +1385,20 @@
         SalesModule.state.priceListDraft = null;
         SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
         SalesModule.state.priceListEditingId = '';
-        SalesModule.syncActivePriceListCategoryRows();
+        if (!SalesModule.isPriceListsSuspended()) {
+            SalesModule.syncActivePriceListCategoryRows();
+        }
+        UI.renderCurrentPage();
+    },
+
+    openOtherSettingsPage: () => {
+        SalesModule.ensureData();
+        SalesModule.state.workspaceView = 'settings-other';
         UI.renderCurrentPage();
     },
 
     startNewPriceListDraft: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const now = new Date().toISOString();
         SalesModule.state.priceListEditingId = '';
         SalesModule.state.priceListDraft = SalesModule.normalizePriceList({
@@ -1400,6 +1419,7 @@
     },
 
     editPriceListDraft: (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureData();
         const targetId = String(id || '').trim();
         if (!targetId) return;
@@ -1420,6 +1440,7 @@
     },
 
     setPriceListDraftField: (field, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const draft = SalesModule.state.priceListDraft;
         if (!draft || typeof draft !== 'object') return;
         const key = String(field || '').trim();
@@ -1445,6 +1466,7 @@
     },
 
     setPriceListLineDraftField: (field, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const key = String(field || '').trim();
         if (!key) return;
         const draft = SalesModule.state.priceListLineDraft && typeof SalesModule.state.priceListLineDraft === 'object'
@@ -1465,6 +1487,7 @@
     },
 
     addPriceListLineToDraft: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const listDraft = SalesModule.state.priceListDraft;
         const lineDraft = SalesModule.state.priceListLineDraft;
         if (!listDraft || typeof listDraft !== 'object') return;
@@ -1491,6 +1514,7 @@
     },
 
     removePriceListLineFromDraft: (lineId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const targetId = String(lineId || '').trim();
         if (!targetId) return;
         const draft = SalesModule.state.priceListDraft;
@@ -1501,6 +1525,7 @@
     },
 
     savePriceListDraft: async () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const draft = SalesModule.state.priceListDraft;
         if (!draft || typeof draft !== 'object') return;
@@ -1524,6 +1549,7 @@
     },
 
     deletePriceList: async (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const targetId = String(id || '').trim();
         if (!targetId) return;
@@ -1601,6 +1627,7 @@
     },
 
     syncActivePriceListCategoryRows: (options = {}) => {
+        if (SalesModule.isPriceListsSuspended()) return { changed: false, addedProductIds: [] };
         SalesModule.ensureSettingsData();
         const categoryId = String(options?.categoryId || SalesModule.state.catalogActiveCategoryId || '').trim();
         const active = SalesModule.getActivePriceList();
@@ -1671,6 +1698,7 @@
     },
 
     setPriceListMainProductPrice: (productId, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const id = String(productId || '').trim();
         if (!id) return;
         const active = SalesModule.getActivePriceList();
@@ -1703,6 +1731,7 @@
     },
 
     setPriceListVariantPrice: (productId, variationId, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         const variationKey = String(variationId || '').trim();
         if (!productKey || !variationKey) return;
@@ -1735,6 +1764,7 @@
     },
 
     resetPriceListVariantToInherited: (productId, variationId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         const variationKey = String(variationId || '').trim();
         if (!productKey || !variationKey) return;
@@ -1919,6 +1949,7 @@
     },
 
     renderSalesProductPriceModalHtml: (product = {}, line = {}, currency = 'USD', listName = '') => {
+        const isSuspended = SalesModule.isPriceListsSuspended();
         const pathText = SalesModule.getCatalogCategoryPathText(product?.categoryId || '');
         const productImage = String(product?.images?.product || product?.images?.application || '').trim();
         const technicalImage = String(product?.images?.technical || '').trim();
@@ -1957,11 +1988,14 @@
                             <div style="display:grid; grid-template-columns:1fr auto; gap:0.55rem; margin-top:0.55rem; align-items:end;">
                                 <div>
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ana urun birim fiyat (${SalesModule.escapeHtml(currency)})</label>
-                                    <input id="sales_price_list_main_price_modal_input" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(currentPrice)}">
+                                    <input id="sales_price_list_main_price_modal_input" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(currentPrice)}" ${isSuspended ? 'disabled' : ''}>
                                 </div>
-                                <button class="btn-primary" type="button" onclick="SalesModule.setPriceListMainProductPriceFromModal('${SalesModule.escapeHtml(String(product?.id || ''))}')">kaydet</button>
+                                <button class="btn-primary" type="button" onclick="SalesModule.setPriceListMainProductPriceFromModal('${SalesModule.escapeHtml(String(product?.id || ''))}')" ${isSuspended ? 'disabled' : ''}>kaydet</button>
                             </div>
                             <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">Bu fiyat override olmayan varyasyonlara miras gider.</div>
+                            ${isSuspended
+                ? '<div style="margin-top:0.45rem; font-size:0.78rem; font-weight:800; color:#b91c1c;">Bu ekran gecici olarak pasif. Fiyat guncelleme kapali.</div>'
+                : ''}
                         </div>
 
                         <div style="margin-top:0.6rem;">
@@ -1991,6 +2025,7 @@
     },
 
     setPriceListMainProductPriceFromModal: (productId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         if (!productKey) return;
         const input = document.getElementById('sales_price_list_main_price_modal_input');
@@ -2699,7 +2734,7 @@
         if (!line) return;
 
         if (key === 'qty') {
-            line.qty = SalesModule.parseSalesQuantity(value, 1);
+            line.qty = SalesModule.parseSalesQuantity(value, 0);
             if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             SalesModule.refreshSalesOrderUi();
             return;
@@ -2881,6 +2916,295 @@
         if (!targetOrderId) return null;
         const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         return orders.find((row) => String(row?.id || '').trim() === targetOrderId) || null;
+    },
+
+    getPlanningDemandsReadOnly: () => (
+        Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : []
+    ),
+
+    isUuidLikeValue: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw);
+    },
+
+    getSalesOrderReleasedDemandsForTracking: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const orderId = String(source?.id || '').trim();
+        const orderNo = String(source?.orderNo || source?.orderCode || '').trim();
+        const orderNoKey = orderNo.toUpperCase();
+        if (!orderId && !orderNoKey) return [];
+        const salesReleasedDemands = SalesModule.getPlanningDemandsReadOnly()
+            .filter((demand) => {
+                const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+                const status = String(demand?.status || '').trim().toUpperCase();
+                return sourceType === 'SALES_ORDER' && status === 'RELEASED';
+            });
+        const byOrderId = orderId
+            ? salesReleasedDemands.filter((demand) => String(demand?.sourceOrderId || '').trim() === orderId)
+            : [];
+        if (byOrderId.length) return byOrderId;
+        if (!orderNoKey) return [];
+        return salesReleasedDemands.filter((demand) => {
+            const demandOrderId = String(demand?.sourceOrderId || '').trim();
+            if (demandOrderId) return false;
+            const demandOrderNoKey = String(demand?.sourceOrderNo || '').trim().toUpperCase();
+            return !!demandOrderNoKey && demandOrderNoKey === orderNoKey;
+        });
+    },
+
+    getSalesOrderReleasedGroupKey: (order = null, releasedDemands = []) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const rows = Array.isArray(releasedDemands) ? releasedDemands : [];
+        if (!source || !rows.length) return '';
+        const orderId = String(source?.id || '').trim();
+        const hasOrderIdLinkedDemand = !!(orderId && rows.some((demand) =>
+            String(demand?.sourceOrderId || '').trim() === orderId
+        ));
+        if (hasOrderIdLinkedDemand) return `sales:${orderId}`;
+        const orderNo = String(source?.orderNo || source?.orderCode || '').trim();
+        if (!orderNo || SalesModule.isUuidLikeValue(orderNo)) return '';
+        return `sales:${orderNo}`;
+    },
+
+    getSalesOrderProductionTrackingMeta: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        if (!source) return { hasReleased: false, groupKey: '', releasedDemands: [] };
+        const releasedDemands = SalesModule.getSalesOrderReleasedDemandsForTracking(source);
+        const groupKey = SalesModule.getSalesOrderReleasedGroupKey(source, releasedDemands);
+        return {
+            hasReleased: releasedDemands.length > 0,
+            groupKey,
+            releasedDemands
+        };
+    },
+
+    getDemandTimelineMs: (demand = null) => {
+        const updatedMs = Date.parse(String(demand?.updated_at || '').trim());
+        if (Number.isFinite(updatedMs)) return updatedMs;
+        const createdMs = Date.parse(String(demand?.created_at || '').trim());
+        if (Number.isFinite(createdMs)) return createdMs;
+        return 0;
+    },
+
+    getSalesOrderLinePlanningDemands: (orderId, lineId) => {
+        const targetOrderId = String(orderId || '').trim();
+        const targetLineId = String(lineId || '').trim();
+        if (!targetOrderId || !targetLineId) return [];
+        return SalesModule.getPlanningDemandsReadOnly()
+            .filter((demand) => {
+                const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+                if (sourceType !== 'SALES_ORDER') return false;
+                if (String(demand?.sourceOrderId || '').trim() !== targetOrderId) return false;
+                return String(demand?.sourceLineId || '').trim() === targetLineId;
+            });
+    },
+
+    pickPreferredSalesLineDemand: (rows = []) => {
+        const source = Array.isArray(rows) ? rows.slice() : [];
+        if (!source.length) return null;
+        source.sort((a, b) => {
+            const aReleased = String(a?.status || '').trim().toUpperCase() === 'RELEASED';
+            const bReleased = String(b?.status || '').trim().toUpperCase() === 'RELEASED';
+            if (aReleased !== bReleased) return aReleased ? -1 : 1;
+            const timeDiff = SalesModule.getDemandTimelineMs(b) - SalesModule.getDemandTimelineMs(a);
+            if (timeDiff !== 0) return timeDiff;
+            return String(b?.demandCode || '').localeCompare(String(a?.demandCode || ''), 'tr');
+        });
+        return source[0] || null;
+    },
+
+    getDemandWorkOrderShortText: (demand = null) => {
+        if (!demand || typeof demand !== 'object') return '-';
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.getReleasedDemandWorkOrderText === 'function') {
+            const text = String(PlanningModule.getReleasedDemandWorkOrderText(demand) || '').trim();
+            if (text) return text;
+        }
+        const codes = Array.isArray(demand?.workOrderCodes)
+            ? demand.workOrderCodes.map((code) => String(code || '').trim()).filter(Boolean)
+            : [];
+        if (codes.length > 1) return `${codes[0]} +${codes.length - 1}`;
+        if (codes.length === 1) return codes[0];
+        const directCode = String(demand?.workOrderCode || '').trim();
+        if (directCode) return directCode;
+        const idList = Array.isArray(demand?.workOrderIds)
+            ? demand.workOrderIds.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+        if (idList.length > 1) return `${idList[0]} +${idList.length - 1}`;
+        if (idList.length === 1) return idList[0];
+        const directId = String(demand?.workOrderId || '').trim();
+        return directId || '-';
+    },
+
+    getSalesLineProductionStatusRows: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const orderId = String(source?.id || '').trim();
+        const lines = Array.isArray(source?.lines) ? source.lines : [];
+        return lines.map((line, index) => {
+            const lineId = String(line?.id || '').trim();
+            const demands = lineId ? SalesModule.getSalesOrderLinePlanningDemands(orderId, lineId) : [];
+            const preferredDemand = SalesModule.pickPreferredSalesLineDemand(demands);
+            const releasedDemands = demands.filter((demand) => String(demand?.status || '').trim().toUpperCase() === 'RELEASED');
+            const isReleased = String(preferredDemand?.status || '').trim().toUpperCase() === 'RELEASED';
+            const statusKey = isReleased ? 'RELEASED' : (preferredDemand ? 'WAITING' : 'NOT_SENT');
+            const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+            const productName = String(line?.productName || line?.name || '-').trim() || '-';
+            const variationName = String(line?.variationName || line?.variantName || '').trim();
+            const code = String(line?.variantCode || line?.variationCode || line?.productCode || line?.code || '-').trim() || '-';
+            return {
+                index,
+                lineId,
+                productName,
+                variationName,
+                code,
+                qty,
+                statusKey,
+                statusText: statusKey === 'RELEASED'
+                    ? 'Is emrine donusmus.'
+                    : (statusKey === 'WAITING'
+                        ? 'Bu siparis satiri planlama havuzunda bekliyor. Henuz is emrine donusmemis.'
+                        : 'Bu siparis satiri henuz planlama havuzuna gonderilmemis.'),
+                demandId: String(preferredDemand?.id || '').trim(),
+                demandCode: String(preferredDemand?.demandCode || '-').trim() || '-',
+                demandStatus: String(preferredDemand?.status || '').trim() || '-',
+                workOrderShort: isReleased ? SalesModule.getDemandWorkOrderShortText(preferredDemand) : '-',
+                canTrack: isReleased && !!String(preferredDemand?.id || '').trim(),
+                releasedCount: releasedDemands.length,
+                demandCount: demands.length
+            };
+        });
+    },
+
+    closeSalesOrderProductionStatusModal: () => {
+        const modalState = SalesModule.state.salesProductionStatusModal;
+        SalesModule.state.salesProductionStatusModal = null;
+        const shouldReopenEditor = !!modalState?.returnToEditor;
+        if (shouldReopenEditor) {
+            SalesModule.state.salesOrderEditorModalOpen = true;
+            SalesModule.renderSalesOrderEditorModal();
+            return;
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') UI.renderCurrentPage();
+    },
+
+    openSalesOrderLineProductionTracking: (demandId) => {
+        const targetDemandId = String(demandId || '').trim();
+        if (!targetDemandId) return;
+        const demands = SalesModule.getPlanningDemandsReadOnly();
+        const demand = demands.find((row) => String(row?.id || '').trim() === targetDemandId) || null;
+        if (!demand) {
+            alert('Planlama talebi bulunamadi.');
+            return;
+        }
+        if (String(demand?.status || '').trim().toUpperCase() !== 'RELEASED') {
+            alert('Bu satir henuz is emrine donusmedigi icin detay takip acilamiyor.');
+            return;
+        }
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openReleasedDemandTrackingModal !== 'function') {
+            alert('Planlama takip modulu hazir degil.');
+            return;
+        }
+        PlanningModule.openReleasedDemandTrackingModal(targetDemandId);
+    },
+
+    openSalesOrderProductionStatusModal: (orderId = '') => {
+        SalesModule.ensureData();
+        SalesModule.ensureSalesOrderDraft();
+        const explicitOrderId = String(orderId || '').trim();
+        const draftOrderId = String(SalesModule.state?.salesOrderDraft?.editingOrderId || '').trim();
+        const resolvedOrderId = explicitOrderId || draftOrderId;
+        if (!resolvedOrderId) {
+            alert('Uretim durumu sadece kaydedilmis siparisler icin goruntulenebilir.');
+            return;
+        }
+        const order = SalesModule.getSavedSalesOrderById(resolvedOrderId);
+        if (!order) {
+            alert('Siparis kaydi bulunamadi.');
+            return;
+        }
+        const statusRows = SalesModule.getSalesLineProductionStatusRows(order);
+        const orderNo = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
+        const releasedCount = statusRows.filter((row) => row.statusKey === 'RELEASED').length;
+        const waitingCount = statusRows.filter((row) => row.statusKey === 'WAITING').length;
+        const notSentCount = Math.max(0, statusRows.length - releasedCount - waitingCount);
+        const returnToEditor = !!SalesModule.state.salesOrderEditorModalOpen && draftOrderId === resolvedOrderId;
+        SalesModule.state.salesProductionStatusModal = { orderId: resolvedOrderId, returnToEditor };
+        if (returnToEditor) SalesModule.state.salesOrderEditorModalOpen = false;
+        const rowsHtml = statusRows.length
+            ? statusRows.map((row) => {
+                const lineLabel = `${Number(row?.index || 0) + 1}. satir`;
+                const statusBadgeStyle = row.statusKey === 'RELEASED'
+                    ? 'background:#ecfdf5; color:#047857; border:1px solid #86efac;'
+                    : (row.statusKey === 'WAITING'
+                        ? 'background:#fff7ed; color:#b45309; border:1px solid #fdba74;'
+                        : 'background:#f8fafc; color:#475569; border:1px solid #cbd5e1;');
+                const displayName = row.variationName
+                    ? `${row.productName} / ${row.variationName}`
+                    : row.productName;
+                const statusNote = row.releasedCount > 1
+                    ? '<div style="margin-top:0.2rem; font-size:0.72rem; color:#b45309;">Birden fazla RELEASED kaydi bulundu; en guncel kayit gosteriliyor.</div>'
+                    : '';
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:0.52rem; color:#64748b; font-weight:700;">${SalesModule.escapeHtml(lineLabel)}</td>
+                        <td style="padding:0.52rem;">
+                            <div style="font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(displayName)}</div>
+                            <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${SalesModule.escapeHtml(row.code || '-')}</div>
+                        </td>
+                        <td style="padding:0.52rem; text-align:center; font-weight:700;">${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(row.qty || 0, { maxFractionDigits: 2 }))}</td>
+                        <td style="padding:0.52rem;">
+                            <span style="display:inline-flex; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusBadgeStyle}">${SalesModule.escapeHtml(row.demandStatus || row.statusKey)}</span>
+                            <div style="margin-top:0.22rem; font-size:0.76rem; color:#334155;">${SalesModule.escapeHtml(row.statusText || '-')}</div>
+                            ${statusNote}
+                        </td>
+                        <td style="padding:0.52rem; font-family:monospace; font-weight:700; color:#1d4ed8;">${SalesModule.escapeHtml(row.demandCode || '-')}</td>
+                        <td style="padding:0.52rem; font-family:monospace; color:#1e40af; font-weight:700;">${SalesModule.escapeHtml(row.workOrderShort || '-')}</td>
+                        <td style="padding:0.52rem; text-align:right;">
+                            <button class="btn-sm" type="button" ${row.canTrack ? '' : 'disabled'} style="${row.canTrack ? '' : 'opacity:0.5; cursor:not-allowed;'}" onclick="SalesModule.openSalesOrderLineProductionTracking('${SalesModule.escapeHtml(String(row.demandId || ''))}')">Durumu Goruntule</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="7" style="padding:0.9rem; text-align:center; color:#94a3b8;">Bu sipariste izlenecek satir bulunamadi.</td></tr>';
+
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.6rem; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Uretim Durumu</div>
+                        <div style="font-size:0.78rem; color:#64748b; margin-top:0.15rem;">Siparis: <strong style="font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(orderNo)}</strong></div>
+                    </div>
+                    <button class="btn-sm" type="button" style="height:36px; min-width:96px; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800;" onclick="SalesModule.closeSalesOrderProductionStatusModal()">kapat</button>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Is emrine donusen</div><div style="font-size:1.02rem; font-weight:800; color:#047857;">${releasedCount}</div></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Planlama havuzunda bekleyen</div><div style="font-size:1.02rem; font-weight:800; color:#b45309;">${waitingCount}</div></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Henuz gonderilmeyen</div><div style="font-size:1.02rem; font-weight:800; color:#475569;">${notSentCount}</div></div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:auto; background:#ffffff;">
+                    <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.5rem; text-align:left;">Satir</th>
+                                <th style="padding:0.5rem; text-align:left;">Urun / varyasyon</th>
+                                <th style="padding:0.5rem; text-align:center;">Adet</th>
+                                <th style="padding:0.5rem; text-align:left;">Planlama durumu</th>
+                                <th style="padding:0.5rem; text-align:left;">PLN</th>
+                                <th style="padding:0.5rem; text-align:left;">WO</th>
+                                <th style="padding:0.5rem; text-align:right;">Islem</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        Modal.open(`Uretim Durumu - ${SalesModule.escapeHtml(orderNo)}`, html, { maxWidth: '1480px' });
     },
 
     buildSalesOrderStockAnalysisPayload: (order, candidate) => {
@@ -3280,6 +3604,59 @@
         SalesModule.renderSalesStockAnalysisModal();
     },
 
+    openSalesOrderProductionTrackingFromList: (orderId) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return;
+        const order = SalesModule.getSavedSalesOrderById(targetOrderId);
+        if (!order) {
+            alert('Kaydedilmis siparis bulunamadi. Lutfen listeyi yenileyip tekrar deneyin.');
+            return;
+        }
+        const trackingMeta = SalesModule.getSalesOrderProductionTrackingMeta(order);
+        if (!trackingMeta.hasReleased) {
+            SalesModule.openSalesOrderStockAnalysisFromList(targetOrderId);
+            return;
+        }
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openWorkspace !== 'function'
+            || typeof PlanningModule.openGroupDetailWorkspace !== 'function'
+            || typeof Router === 'undefined'
+            || !Router
+            || typeof Router.navigate !== 'function') {
+            alert('Planlama takip modulu hazir degil.');
+            return;
+        }
+
+        const demandRows = Array.isArray(trackingMeta.releasedDemands) ? trackingMeta.releasedDemands : [];
+        let completionView = 'ACTIVE';
+        if (demandRows.length
+            && typeof PlanningModule.getReleasedDemandItemGroups === 'function'
+            && typeof PlanningModule.getReleasedDemandStatusMeta === 'function') {
+            const hasActive = demandRows.some((demand) => {
+                const groups = PlanningModule.getReleasedDemandItemGroups(demand);
+                const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups, demand);
+                return !statusMeta?.archived;
+            });
+            completionView = hasActive ? 'ACTIVE' : 'ARCHIVE';
+        }
+        PlanningModule.state.releasedSourceFilter = 'SALES_ORDER';
+        PlanningModule.state.releasedSearchQuery = '';
+        PlanningModule.state.releasedCompletionView = completionView;
+        PlanningModule.state.releasedArchiveMode = completionView === 'ARCHIVE';
+        PlanningModule.state.releasedDetailInlineTrackingDemandId = '';
+
+        Router.navigate('planlama', { fromBack: true });
+
+        if (!trackingMeta.groupKey) {
+            PlanningModule.openWorkspace('released-orders');
+            alert('Bu siparis icin dogrudan detay grubu cozulmedi. Is Emrine Donusenler listesi acildi.');
+            return;
+        }
+        PlanningModule.openGroupDetailWorkspace('released-orders', trackingMeta.groupKey, 'released-orders');
+    },
+
     openSavedSalesOrderLineStockAnalysis: (lineId, orderId = '') => {
         SalesModule.ensureData();
         SalesModule.ensureSalesOrderDraft();
@@ -3526,17 +3903,30 @@
         const editingOrderId = String(SalesModule.state?.salesOrderDraft?.editingOrderId || '').trim();
         const shouldCloseEditor = !!SalesModule.state.salesOrderEditorModalOpen && editingOrderId === targetId;
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const targetOrder = rows.find((row) => String(row?.id || '').trim() === targetId) || null;
         const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
-        let removedPlanningDemandCount = 0;
+        let cleanupSummary = null;
         if (typeof PlanningModule !== 'undefined'
             && PlanningModule
-            && typeof PlanningModule.cleanupOpenSalesOrderPlanningDemands === 'function') {
-            removedPlanningDemandCount = Number(PlanningModule.cleanupOpenSalesOrderPlanningDemands(targetId) || 0);
+            && typeof PlanningModule.cleanupSalesOrderCascadeForDemo === 'function') {
+            const targetLineIds = (Array.isArray(targetOrder?.lines) ? targetOrder.lines : [])
+                .map((line) => String(line?.id || line?.lineId || '').trim())
+                .filter(Boolean);
+            cleanupSummary = PlanningModule.cleanupSalesOrderCascadeForDemo(targetId, {
+                orderNo: String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim(),
+                lineIds: targetLineIds
+            });
         }
         DB.data.data.orders = next;
         await DB.save();
-        if (removedPlanningDemandCount > 0) {
-            alert('Silinen siparise bagli acik planlama talepleri temizlendi.');
+        if (cleanupSummary && (
+            Number(cleanupSummary?.removedDemandCount || 0) > 0
+            || Number(cleanupSummary?.removedWorkOrderCount || 0) > 0
+            || Number(cleanupSummary?.removedWorkOrderTxnCount || 0) > 0
+            || Number(cleanupSummary?.removedDispatchNoteRowCount || 0) > 0
+            || Number(cleanupSummary?.removedMontageDispatchCount || 0) > 0
+        )) {
+            alert('Silinen siparise bagli demo planlama/is emri/montaj kayitlari temizlendi.');
         }
         if (shouldCloseEditor) {
             SalesModule.state.salesOrderEditorModalOpen = false;
@@ -9176,15 +9566,11 @@
                         <h2 class="stock-title" style="margin:0;">satis & pazarlama</h2>
                         <div style="font-size:0.84rem; color:#64748b; margin-top:0.22rem;">Proforma ve diger genel ayarlar icin Ayarlar ekranini kullan.</div>
                     </div>
-                    <button class="btn-primary" onclick="SalesModule.openSettingsPage()" style="display:inline-flex; align-items:center; gap:0.45rem;">
-                        <i data-lucide="settings" width="15" height="15"></i>
-                        Ayarlar
-                    </button>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('sales')">
                         <div class="stock-hub-icon" style="background:linear-gradient(135deg,#16a34a 0%, #15803d 100%);"><i data-lucide="shopping-cart" width="24" height="24"></i></div>
-                        <div class="stock-hub-label">Satis</div>
+                        <div class="stock-hub-label">Satis & Siparis</div>
                     </button>
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
                         <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="users" width="24" height="24"></i></div>
@@ -9197,6 +9583,10 @@
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('products')">
                         <div class="stock-hub-icon" style="background:linear-gradient(135deg,#f97316 0%, #ef4444 100%);"><i data-lucide="boxes" width="24" height="24"></i></div>
                         <div class="stock-hub-label">Satis Urun Kutuphanesi</div>
+                    </button>
+                    <button class="stock-hub-card" onclick="SalesModule.openSettingsPage()">
+                        <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="settings" width="24" height="24"></i></div>
+                        <div class="stock-hub-label">Ayarlar</div>
                     </button>
                 </div>
             </div>
@@ -9212,7 +9602,7 @@
             return `${out} TL`;
         };
         if (!Array.isArray(rows) || rows.length === 0) {
-            return '<tr><td colspan="9" style="padding:0.8rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>';
+            return '<div style="border:1px dashed #cbd5e1; border-radius:0.8rem; background:#f8fafc; padding:0.95rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</div>';
         }
         return rows.map((row) => {
             const source = row?.source || {};
@@ -9231,9 +9621,19 @@
                 const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
                 return !!(productId && variationId && qty > 0);
             });
-            const stockButtonTitle = hasStockAnalysisLine
-                ? 'Kayitli siparis satiri stok analizini goruntule.'
-                : 'Bu sipariste stok analizi acilabilecek satir bulunamadi.';
+            const trackingMeta = SalesModule.getSalesOrderProductionTrackingMeta(source);
+            const hasReleasedProduction = !!trackingMeta.hasReleased;
+            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            const stockButtonTitle = hasReleasedProduction
+                ? 'Bu siparis is emrine donusmus satirlar iceriyor. Planlama detay ekranini ac.'
+                : (hasStockAnalysisLine
+                    ? 'Kayitli siparis satiri stok analizini goruntule.'
+                    : 'Bu sipariste stok analizi acilabilecek satir bulunamadi.');
+            const stockButtonDisabled = hasReleasedProduction ? '' : (hasStockAnalysisLine ? '' : 'disabled');
+            const stockButtonOnClick = hasReleasedProduction
+                ? `SalesModule.openSalesOrderProductionTrackingFromList('${id}')`
+                : `SalesModule.openSalesOrderStockAnalysisFromList('${id}')`;
+            const stockButtonLabel = hasReleasedProduction ? 'uretim durumu goruntule' : 'stok durumu goruntule';
             const reservationSummaryStatus = SalesModule.getSalesOrderReservationSummaryStatus(source);
             const reservationSummaryText = reservationSummaryStatus === 'CONFIRMED'
                 ? 'Onayli siparise ayrildi'
@@ -9247,27 +9647,56 @@
                 : (reservationSummaryStatus === 'EXPIRED'
                     ? 'color:#b91c1c; background:#fff1f2; border:1px solid #fecaca;'
                     : 'color:#475569; background:#f8fafc; border:1px solid #e2e8f0;'));
-            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            const orderNo = SalesModule.escapeHtml(String(row?.orderNo || '-'));
+            const customerName = SalesModule.escapeHtml(String(row?.customerName || '-'));
+            const orderDate = SalesModule.escapeHtml(String(row?.orderDate || '-'));
+            const currency = SalesModule.escapeHtml(String(row?.currency || 'USD'));
+            const revision = SalesModule.escapeHtml(String(revisionNo));
+            const days = SalesModule.escapeHtml(String(daysPassed));
             return `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:0.42rem; font-family:Consolas,monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.orderNo || '-'))}</td>
-                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.customerName || '-'))}</td>
-                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.orderDate || '-'))}</td>
-                    <td style="padding:0.42rem;"><span style="display:inline-flex; padding:0.12rem 0.45rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span></td>
-                    <td style="padding:0.42rem; text-align:right;">${fmtMoney(row?.total || 0, String(row?.currency || 'USD'))}</td>
-                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(row?.currency || 'USD'))}</td>
-                    <td style="padding:0.42rem; text-align:center;">v${SalesModule.escapeHtml(String(revisionNo))}</td>
-                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(daysPassed))}</td>
-                    <td style="padding:0.42rem; text-align:right;">
-                        <div style="display:flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
-                            <span style="display:inline-flex; align-items:center; padding:0 0.52rem; height:30px; border-radius:999px; font-size:0.7rem; font-weight:800; ${reservationSummaryStyle}">${SalesModule.escapeHtml(reservationSummaryText)}</span>
-                            <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
-                            <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
-                            <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" title="${SalesModule.escapeHtml(stockButtonTitle)}" ${hasStockAnalysisLine ? '' : 'disabled'} onclick="SalesModule.openSalesOrderStockAnalysisFromList('${id}')">stok durumu goruntule</button>
-                            ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
+                <article style="border:1px solid #dbe4ee; border-radius:0.86rem; background:#f8fafc; padding:0.72rem 0.78rem; box-shadow:0 1px 2px rgba(15,23,42,0.06);">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:0.55rem; align-items:start;">
+                        <div style="min-width:0;">
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Siparis No</div>
+                            <div style="margin-top:0.14rem; font-family:Consolas,monospace; font-weight:900; color:#1d4ed8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${orderNo}</div>
                         </div>
-                    </td>
-                </tr>
+                        <div style="min-width:0;">
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Musteri</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${customerName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Tarih</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${orderDate}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Durum</div>
+                            <div style="margin-top:0.14rem;"><span style="display:inline-flex; padding:0.12rem 0.45rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Toplam</div>
+                            <div style="margin-top:0.14rem; font-weight:800; color:#0f172a;">${fmtMoney(row?.total || 0, String(row?.currency || 'USD'))}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Kur</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${currency}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Revizyon</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">v${revision}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Gecen Gun</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${days}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.3rem; flex-wrap:wrap; margin-top:0.62rem; padding-top:0.48rem; border-top:1px solid #e2e8f0;">
+                        <span style="display:inline-flex; align-items:center; padding:0 0.52rem; height:30px; border-radius:999px; font-size:0.7rem; font-weight:800; ${reservationSummaryStyle}">${SalesModule.escapeHtml(reservationSummaryText)}</span>
+                        <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
+                        <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
+                        <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" title="${SalesModule.escapeHtml(stockButtonTitle)}" ${stockButtonDisabled} onclick="${stockButtonOnClick}">${stockButtonLabel}</button>
+                        ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
+                    </div>
+                </article>
             `;
         }).join('');
     },
@@ -9528,7 +9957,7 @@
         return `
             <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                    <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">siparis olusturma ekrani</div>
+                    <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">satis & siparis olusturma ekrani</div>
                     <div style="display:flex; align-items:center; gap:0.45rem;">
                         <div style="display:flex; gap:0.45rem; font-size:0.76rem; color:#64748b;">
                             <span>hazirlayan: <strong>${SalesModule.escapeHtml(String(draft.preparedBy || '-'))}</strong></span>
@@ -9597,7 +10026,7 @@
                 <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0.65rem; margin-top:0.72rem;">
                     <div style="font-size:0.8rem; color:#64748b;">
                         <div><span style="color:#e11d48;">*</span> zorunlu alanlar kayit sirasinda kontrol edilir.</div>
-                        <div style="margin-top:0.22rem;">Fiyat = onceki siparis / fiyat listesi / manuel giris. Fiyat 0 ise kayit olmaz.</div>
+                        <div style="margin-top:0.22rem;">Fiyat ilk fazda manuel girilir. Fiyat 0 ise kayit alinmaz.</div>
                     </div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.72rem; padding:0.62rem; background:#f8fafc;">
                         <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
@@ -9612,8 +10041,8 @@
                     ${destructiveActionsHtml}
                     <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
                         <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">PDF Goruntule</button>
+                        <button class="btn-sm" type="button" ${isSavedOrder ? '' : 'disabled'} style="${isSavedOrder ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:700;' : 'border-color:#cbd5e1; background:#f8fafc; color:#94a3b8; cursor:not-allowed;'}" onclick="SalesModule.openSalesOrderProductionStatusModal('${SalesModule.escapeHtml(editingOrderId)}')">Üretim Durumu</button>
                         <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
-                        <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
                     </div>
                 </div>
             </div>
@@ -9632,7 +10061,7 @@
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
-                        <h2 class="stock-title">satis / siparis olusturma</h2>
+                        <h2 class="stock-title">satis & siparis olusturma</h2>
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                     </div>
 
@@ -9661,23 +10090,10 @@
                                 <button class="btn-primary" type="button" onclick="SalesModule.openNewOrderModal()">yeni siparis +</button>
                             </div>
                         </div>
-                        <div style="overflow:auto; margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem;">
-                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
-                                <thead>
-                                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                        <th style="padding:0.42rem; text-align:left;">Siparis No</th>
-                                        <th style="padding:0.42rem; text-align:left;">Musteri</th>
-                                        <th style="padding:0.42rem; text-align:left;">Tarih</th>
-                                        <th style="padding:0.42rem; text-align:left;">Durum</th>
-                                        <th style="padding:0.42rem; text-align:right;">Toplam</th>
-                                        <th style="padding:0.42rem; text-align:center;">Kur</th>
-                                        <th style="padding:0.42rem; text-align:center;">Revizyon</th>
-                                        <th style="padding:0.42rem; text-align:center;">Gecen Gun</th>
-                                        <th style="padding:0.42rem; text-align:right;">Islem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${orderRowsHtml}</tbody>
-                            </table>
+                        <div style="margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem; background:#ffffff; padding:0.55rem;">
+                            <div style="display:grid; gap:0.55rem;">
+                                ${orderRowsHtml}
+                            </div>
                         </div>
                     </div>
 
@@ -9694,31 +10110,26 @@
                     <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                 </div>
 
-                <div class="card-table" style="padding:1rem 1.1rem;">
-                    <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
-                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.25rem;">Proforma, fiyat listeleri ve yeni eklenecek ayarlar bu ekrandan yonetilecek.</div>
+                <div style="max-width:980px; margin:0 auto;">
+                    <div style="text-align:center; margin:0.35rem 0 1.35rem 0;">
+                        <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
+                    </div>
 
-                    <div style="margin-top:0.9rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0.8rem;">
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openProformaSettingsPage()">
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#1d4ed8 0%, #1e40af 100%);"><i data-lucide="file-text" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Proforma Ayarlari</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Logo, banka hesaplari ve varsayilan notlari yonet.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
-                        </button>
+                    <div style="display:flex; justify-content:center; align-items:stretch; gap:1.15rem; flex-wrap:nowrap; overflow-x:auto; padding-bottom:0.2rem;">
+                        <a href="#" onclick="SalesModule.openProformaSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-blue"><i data-lucide="file-text" width="30" height="30"></i></div>
+                            <div class="app-name">Proforma Ayarlari</div>
+                        </a>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openPriceListsSettingsPage()">
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="list-todo" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Fiyat Listeleri</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Genel ve musteri bazli liste fiyatlarini yonet.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
-                        </button>
+                        <a href="#" onclick="SalesModule.openPriceListsSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-gray"><i data-lucide="list-todo" width="30" height="30"></i></div>
+                            <div class="app-name">Fiyat Listeleri</div>
+                        </a>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#7c3aed 0%, #4338ca 100%);"><i data-lucide="sliders-horizontal" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Diger Ayarlar</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Ihtiyaca gore yeni ayar bolumleri bu alana eklenecek.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
-                        </button>
+                        <a href="#" onclick="SalesModule.openOtherSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-purple"><i data-lucide="sliders-horizontal" width="30" height="30"></i></div>
+                            <div class="app-name">Diger Ayarlar</div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -9728,7 +10139,10 @@
     renderPriceListsSettingsLayout: () => {
         SalesModule.ensureCatalogState();
         SalesModule.ensurePriceListActiveSelection();
-        SalesModule.syncActivePriceListCategoryRows();
+        const isSuspended = SalesModule.isPriceListsSuspended();
+        if (!isSuspended) {
+            SalesModule.syncActivePriceListCategoryRows();
+        }
 
         const activeList = SalesModule.getActivePriceList();
         const priceLists = SalesModule.getPriceLists()
@@ -9778,10 +10192,20 @@
                                 </span>
                             </div>
 
+                            ${isSuspended ? `
+                                <div style="margin-top:0.72rem; margin-bottom:0.35rem; border:2px solid #dc2626; background:#fff1f2; color:#7f1d1d; border-radius:0.9rem; padding:0.85rem 0.95rem; box-shadow:0 8px 24px rgba(127,29,29,0.16);">
+                                    <div style="font-size:1.1rem; font-weight:900; letter-spacing:0.01em; line-height:1.45;">
+                                        FİYAT LİSTELERİ GEÇİCİ OLARAK ASKIYA ALINMIŞTIR.<br>
+                                        SATIŞ & SİPARİŞ İLE OLAN OTOMATİK FİYAT BAĞLANTISI KOPARILMIŞTIR.<br>
+                                        BU SAYFA İLERİDE YENİDEN TASARLANACAKTIR.
+                                    </div>
+                                </div>
+                            ` : ''}
+
                             <div style="display:grid; grid-template-columns:minmax(220px,1fr) 130px 130px; gap:0.55rem; align-items:end;">
                                 <div>
                                     <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Aktif fiyat listesi</label>
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setActivePriceList(this.value)">
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setActivePriceList(this.value)" ${isSuspended ? 'disabled' : ''}>
                                         ${priceLists.map((row) => {
                     const id = String(row?.id || '').trim();
                     const selected = id === activeListId ? 'selected' : '';
@@ -9789,8 +10213,8 @@
                 }).join('')}
                                     </select>
                                 </div>
-                                <button class="btn-sm" type="button" onclick="SalesModule.createQuickPriceList()">yeni liste +</button>
-                                <button class="btn-sm" type="button" onclick="SalesModule.deleteActivePriceList()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">listeyi sil</button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.createQuickPriceList()" ${isSuspended ? 'disabled' : ''}>yeni liste +</button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.deleteActivePriceList()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" ${isSuspended ? 'disabled' : ''}>listeyi sil</button>
                             </div>
 
                             <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem 0.65rem; background:#f8fafc;">
@@ -9855,7 +10279,7 @@
                                     <button class="btn-sm" type="button" style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="SalesModule.openSalesProductFromPriceList('${productIdEsc}')">${idCode}</button>
                                 </td>
                                 <td style="padding:0.5rem; text-align:right;">
-                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)">
+                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)" ${isSuspended ? 'disabled' : ''}>
                                 </td>
                                 <td style="padding:0.5rem;">
                                     <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${badgeHtml}</div>
@@ -9882,13 +10306,13 @@
                                     <td style="padding:0.45rem; color:#64748b;">varyasyon</td>
                                     <td style="padding:0.45rem; color:#64748b;">ana urun: ${idCode}</td>
                                     <td style="padding:0.45rem; text-align:right;">
-                                        <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(variant?.unitPrice || 0))}" onchange="SalesModule.setPriceListVariantPrice('${productIdEsc}', '${variationId}', this.value)">
+                                        <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(variant?.unitPrice || 0))}" onchange="SalesModule.setPriceListVariantPrice('${productIdEsc}', '${variationId}', this.value)" ${isSuspended ? 'disabled' : ''}>
                                     </td>
                                     <td style="padding:0.45rem;">
                                         <div style="display:flex; gap:0.32rem; flex-wrap:wrap; align-items:center;">
                                             ${variationBadgeHtml}
                                             ${isOverride
-                    ? `<button class="btn-sm" type="button" onclick="SalesModule.resetPriceListVariantToInherited('${productIdEsc}', '${variationId}')">mirasa don</button>`
+                    ? `<button class="btn-sm" type="button" onclick="SalesModule.resetPriceListVariantToInherited('${productIdEsc}', '${variationId}')" ${isSuspended ? 'disabled' : ''}>mirasa don</button>`
                     : ''}
                                         </div>
                                     </td>
@@ -10127,6 +10551,23 @@
             </section>
         `;
     },
+
+    renderOtherSettingsLayout: () => `
+        <section class="stock-shell">
+            <div class="stock-subpage-shell">
+                <div class="stock-subpage-head">
+                    <h2 class="stock-title">satis & pazarlama / diger ayarlar</h2>
+                    <button class="btn-sm" onclick="SalesModule.openWorkspace('settings')">geri</button>
+                </div>
+                <div class="card-table" style="padding:1rem 1.1rem;">
+                    <div style="font-size:1.2rem; font-weight:800; color:#0f172a;">Diger Ayarlar</div>
+                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.3rem;">
+                        Bu alan ikinci seviye ayar detay ekrani olarak ayrildi. Yeni ayar kartlari ve icerikleri sonraki fazda bu sayfaya eklenecek.
+                    </div>
+                </div>
+            </div>
+        </section>
+    `,
 
     renderCustomerInlineEditFormHtml: (draft = {}) => `
         ${SalesModule.renderCountryDatalistHtml('sales_customer_country_options_detail')}
@@ -10491,6 +10932,7 @@
         if (view === 'settings') return SalesModule.renderSettingsLayout();
         if (view === 'settings-price-lists') return SalesModule.renderPriceListsSettingsLayout();
         if (view === 'settings-proforma') return SalesModule.renderProformaSettingsLayout();
+        if (view === 'settings-other') return SalesModule.renderOtherSettingsLayout();
         return SalesModule.renderMenuLayout();
     }
 };

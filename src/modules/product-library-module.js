@@ -78,7 +78,7 @@
         componentDraftColorCode: '',
         componentDraftMasterCode: '',
         componentDraftVariantType: 'FINISHED_PART',
-        componentDraftConsumptionUnit: 'adet',
+        componentDraftConsumptionUnit: '',
         componentDraftStockConsumptionQty: '',
         componentDraftRoutes: [],
         componentDraftRouteStationId: '',
@@ -298,6 +298,32 @@
             }
         }
         Router.navigate('planlama', { fromBack: true });
+    },
+
+    isProductLibrarySelectionMode: () => {
+        const state = ProductLibraryModule.state || {};
+        const hasLibraryPickerSource = [
+            state.masterPickerSource,
+            state.componentPickerSource,
+            state.planningPickerSource
+        ].some(value => !!String(value || '').trim());
+        if (hasLibraryPickerSource) return true;
+
+        const stockState = (typeof StockModule !== 'undefined' && StockModule && StockModule.state)
+            ? StockModule.state
+            : null;
+        if (stockState?.inventoryRegistrationPickerPending) return true;
+
+        const salesState = (typeof SalesModule !== 'undefined' && SalesModule && SalesModule.state)
+            ? SalesModule.state
+            : null;
+        return !!(salesState?.salesOrderLineLibraryPickerPending || salesState?.salesOrderAnchoragePickerPending);
+    },
+
+    isSalesProductProductionPlanningAllowed: () => {
+        const source = String(ProductLibraryModule.state?.salesProductEntrySource || '').trim().toLowerCase();
+        if (source !== 'product-library') return false;
+        return !ProductLibraryModule.isProductLibrarySelectionMode();
     },
 
     resetModelAccordionState: () => {
@@ -1690,7 +1716,8 @@
         const mode = String(ProductLibraryModule.state.salesVariationEditorMode || '').trim();
         const draft = ProductLibraryModule.state.salesVariationDraft;
         if (!mode || !draft) return '';
-        const readOnly = mode === 'view';
+        const canManageLibrary = !ProductLibraryModule.isProductLibrarySelectionMode();
+        const readOnly = mode === 'view' || !canManageLibrary;
         const sourceProduct = product && typeof product === 'object' ? product : {};
         const diameters = Array.isArray(sourceProduct?.diameters)
             ? sourceProduct.diameters.map((value) => String(value || '').trim()).filter(Boolean)
@@ -1719,7 +1746,9 @@
         });
         const reasonText = String(draftProductionStatus?.reason || '').toLocaleLowerCase('tr-TR');
         const hasProductionPlanGap = reasonText.includes('uretim plani');
-        const showCompletePlanAction = mode === 'edit' && hasProductionPlanGap;
+        const showCompletePlanAction = mode === 'edit'
+            && hasProductionPlanGap
+            && ProductLibraryModule.isSalesProductProductionPlanningAllowed();
 
         return `
             <div class="card-table" style="padding:1.2rem; margin-top:0.95rem; border:1.5px solid #111827; border-radius:1rem;">
@@ -1899,9 +1928,11 @@
                                                 <span class="svx-unit">adet</span>
                                             </div>
                                             <button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.openSalesVariationLinkedRecord('component', '${ProductLibraryModule.escapeHtml(item?.refId || '')}', '${ProductLibraryModule.escapeHtml(item?.code || '')}')">goruntule</button>
-                                            ${readOnly
-                    ? '<button class="btn-sm svx-action-btn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">duzenle</button>'
-                    : `<button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>`}
+                                            ${canManageLibrary
+                    ? (readOnly
+                        ? '<button class="btn-sm svx-action-btn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">duzenle</button>'
+                        : `<button class="btn-sm svx-action-btn" type="button" onclick="ProductLibraryModule.editSalesVariationComponentItem('${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>`)
+                    : ''}
                                         </div>
                                     `;
                 })()}
@@ -1933,16 +1964,16 @@
                 </div>
 
                 <div style="margin-top:0.9rem; display:flex; align-items:center; justify-content:space-between; gap:0.45rem; flex-wrap:wrap;">
-                    <div>${mode === 'edit' ? '<button class="btn-sm" onclick="ProductLibraryModule.deleteSalesVariation()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">sil</button>' : ''}</div>
+                    <div>${mode === 'edit' && canManageLibrary ? '<button class="btn-sm" onclick="ProductLibraryModule.deleteSalesVariation()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">sil</button>' : ''}</div>
                     <div style="display:flex; justify-content:flex-end; gap:0.45rem; flex-wrap:wrap;">
-                        ${mode === 'view' ? `<button class="btn-sm" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')">duzenle</button>` : ''}
-                        ${mode === 'edit'
+                        ${mode === 'view' && canManageLibrary ? `<button class="btn-sm" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(ProductLibraryModule.state.salesVariationEditingId || '')}')">duzenle</button>` : ''}
+                        ${mode === 'edit' && canManageLibrary
                 ? (showCompletePlanAction
                     ? '<button class="btn-primary" onclick="ProductLibraryModule.completeSalesVariationProductionPlan()" style="background:#b45309;">Uretim Planini Tamamla</button>'
                     : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(true)" style="background:#6b7280;">Farkli Kaydet</button>')
                 : ''}
                         <button class="btn-sm" onclick="ProductLibraryModule.closeSalesVariationEditor()">Vazgec</button>
-                        ${mode === 'view' ? '' : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(false)">Kaydet</button>'}
+                        ${mode === 'view' || !canManageLibrary ? '' : '<button class="btn-primary" onclick="ProductLibraryModule.saveSalesVariation(false)">Kaydet</button>'}
                     </div>
                 </div>
             </div>
@@ -2032,6 +2063,8 @@
         const isStockInventoryPicker = isPlanningModelPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
+        const isSelectionMode = ProductLibraryModule.isProductLibrarySelectionMode();
+        const canManageLibrary = !isSelectionMode;
         const editorPanelHtml = ProductLibraryModule.renderSalesVariationEditorPanel(row);
 
         container.innerHTML = `
@@ -2067,7 +2100,7 @@
                                     ${categoryPathText ? `<div class="sales-product-detail-path">${ProductLibraryModule.escapeHtml(categoryPathText)}</div>` : ''}
                                     <div class="sales-product-detail-title">${ProductLibraryModule.escapeHtml(row?.name || 'Urun')}</div>
                                 </div>
-                                <button class="btn-primary" type="button" onclick="SalesModule.openEditCatalogModal('${escapedProductId}', { fromDetail: true, detailSource: 'product-library' })">duzenle</button>
+                                ${canManageLibrary ? `<button class="btn-primary" type="button" onclick="SalesModule.openEditCatalogModal('${escapedProductId}', { fromDetail: true, detailSource: 'product-library' })">duzenle</button>` : ''}
                             </div>
                             <div class="sales-product-detail-info-grid">
                                 ${infoGridHtml}
@@ -2098,24 +2131,24 @@
                             <div style="font-weight:800; color:#0f172a; font-size:1.02rem;">Varyasyonlar</div>
                             <div style="font-size:0.8rem; color:#64748b; margin-top:0.15rem;">Bu urune bagli varyasyonlar satir satir listelenir.</div>
                         </div>
-                        <button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('create')">yeni varyasyon olustur</button>
+                        ${canManageLibrary ? '<button class="btn-primary" type="button" onclick="ProductLibraryModule.openSalesVariationEditor(\'create\')">yeni varyasyon olustur</button>' : ''}
                     </div>
                     ${editorPanelHtml}
 
-                    <div style="border:1px solid #e2e8f0; border-radius:0.85rem; overflow:auto;">
-                        <table style="width:100%; min-width:1280px; border-collapse:collapse;">
+                    <div class="sales-product-variation-table-wrap">
+                        <table class="sales-product-variation-table">
                             <thead>
-                                <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
-                                    <th style="padding:0.58rem; text-align:left;">Urun adi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Urun kodu</th>
-                                    <th style="padding:0.58rem; text-align:left;">ID kodu</th>
-                                    <th style="padding:0.58rem; text-align:left;">Cap</th>
-                                    <th style="padding:0.58rem; text-align:left;">Aksesuar rengi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Boru rengi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Pleksi rengi</th>
-                                    <th style="padding:0.58rem; text-align:left;">Kabarcik</th>
-                                    <th style="padding:0.58rem; text-align:left;">Alt boru uzunlugu</th>
-                                    <th style="padding:0.58rem; text-align:left;">Islem</th>
+                                <tr>
+                                    <th>Urun adi</th>
+                                    <th>Urun kodu</th>
+                                    <th>ID kodu</th>
+                                    <th>Cap</th>
+                                    <th>Aksesuar rengi</th>
+                                    <th>Boru rengi</th>
+                                    <th>Pleksi rengi</th>
+                                    <th>Kabarcik</th>
+                                    <th>Alt boru uzunlugu</th>
+                                    <th>Islem</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -2135,25 +2168,25 @@
                         : lowerTubeValue;
                     const productionStatus = ProductLibraryModule.getSalesVariationProductionStatus(item);
                     const isIncomplete = !productionStatus.ready;
-                    const rowStyle = isIncomplete ? 'border-bottom:1px solid #fecdd3; background:#fff1f2;' : 'border-bottom:1px solid #f1f5f9;';
+                    const rowClass = isIncomplete ? 'sales-product-variation-row is-warning' : 'sales-product-variation-row';
                     return `
-                                        <tr style="${rowStyle}" title="${ProductLibraryModule.escapeHtml(isIncomplete ? productionStatus.reason : '')}">
-                                            <td style="padding:0.58rem; color:#0f172a; font-weight:700;">
+                                        <tr class="${rowClass}" title="${ProductLibraryModule.escapeHtml(isIncomplete ? productionStatus.reason : '')}">
+                                            <td class="sales-product-variation-name">
                                                 ${ProductLibraryModule.escapeHtml(item?.productName || '-')}
                                                 ${isIncomplete ? '<span style="margin-left:0.4rem; display:inline-flex; align-items:center; padding:0.1rem 0.45rem; border:1px solid #fda4af; border-radius:999px; background:#ffe4e6; color:#be123c; font-size:0.68rem; font-weight:800;">URETIM PLANI EKSIK!</span>' : ''}
                                             </td>
-                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(productCode)}</td>
-                                            <td style="padding:0.58rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(idCode)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(diameter)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(accessoryColor)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(tubeColor)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(plexiColor)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(bubble)}</td>
-                                            <td style="padding:0.58rem; color:#334155;">${ProductLibraryModule.escapeHtml(lowerTubeText)}</td>
-                                            <td style="padding:0.58rem;">
-                                                <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+                                            <td class="sales-product-variation-code">${ProductLibraryModule.escapeHtml(productCode)}</td>
+                                            <td class="sales-product-variation-code">${ProductLibraryModule.escapeHtml(idCode)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(diameter)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(accessoryColor)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(tubeColor)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(plexiColor)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(bubble)}</td>
+                                            <td>${ProductLibraryModule.escapeHtml(lowerTubeText)}</td>
+                                            <td>
+                                                <div class="sales-product-variation-actions">
                                                     <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('view', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">goruntule</button>
-                                                    <button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>
+                                                    ${canManageLibrary ? `<button class="btn-sm" type="button" onclick="ProductLibraryModule.openSalesVariationEditor('edit', '${ProductLibraryModule.escapeHtml(item?.id || '')}')">duzenle</button>` : ''}
                                                     ${isPlanningModelPicker ? `<button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" onclick="ProductLibraryModule.selectPlanningModel('${ProductLibraryModule.escapeHtml(ProductLibraryModule.getPlanningModelIdFromSalesVariationId(item?.id || ''))}')">ekle</button>` : ''}
                                                 </div>
                                             </td>
@@ -2725,7 +2758,7 @@
         }
         const consumptionUnitOptions = ProductLibraryModule.getComponentConsumptionUnitOptions();
         if (!consumptionUnitOptions.includes(String(ProductLibraryModule.state.componentDraftConsumptionUnit || ''))) {
-            ProductLibraryModule.state.componentDraftConsumptionUnit = 'adet';
+            ProductLibraryModule.state.componentDraftConsumptionUnit = '';
         }
         const variantTypeOptions = ProductLibraryModule.getComponentVariantTypeOptions().map(item => item.value);
         if (!variantTypeOptions.includes(String(ProductLibraryModule.state.componentDraftVariantType || ''))) {
@@ -2799,6 +2832,17 @@
         'takım',
         'palet'
     ],
+    hasMissingComponentConsumptionInfo: (row) => {
+        const unitOptions = ProductLibraryModule.getComponentConsumptionUnitOptions();
+        const consumptionUnit = String(row?.consumptionUnit || '').trim();
+        if (!consumptionUnit || !unitOptions.includes(consumptionUnit)) return true;
+
+        const stockConsumptionQtyRaw = String(row?.stockConsumptionQty ?? '').trim();
+        if (!stockConsumptionQtyRaw) return true;
+
+        const stockConsumptionQty = Number(stockConsumptionQtyRaw.replace(',', '.'));
+        return !Number.isFinite(stockConsumptionQty) || stockConsumptionQty <= 0;
+    },
     getComponentVariantTypeOptions: () => [
         { value: 'FINISHED_PART', label: 'Bitmiş Parça' },
         { value: 'SEMI_FINISHED', label: 'Yarı Mamul' }
@@ -2812,6 +2856,17 @@
         const rootId = String(row?.rootComponentId || '').trim();
         const rootCode = String(row?.rootComponentCode || '').trim();
         return ProductLibraryModule.isTruthyVariantFlag(row?.isVariant) || !!rootId || !!rootCode;
+    },
+    getPartVariantFamilyIdentity: (row = {}) => {
+        const rowId = String(row?.id || '').trim();
+        const rowCode = String(row?.code || '').trim().toUpperCase();
+        const rootId = String(row?.rootComponentId || row?.variantParentId || '').trim();
+        const rootCode = String(row?.rootComponentCode || row?.variantParentCode || '').trim().toUpperCase();
+        const hasFamilyRef = !!rootId || !!rootCode || ProductLibraryModule.isTruthyVariantFlag(row?.isVariant);
+        return {
+            id: hasFamilyRef ? (rootId || rowId) : rowId,
+            code: hasFamilyRef ? (rootCode || rowCode) : rowCode
+        };
     },
     resolveComponentColorType: (row) => {
         const fromRow = ProductLibraryModule.normalizeColorType(row?.colorType || '');
@@ -2905,7 +2960,7 @@
         ProductLibraryModule.state.componentDraftName = '';
         ProductLibraryModule.state.componentDraftMasterCode = '';
         ProductLibraryModule.state.componentDraftVariantType = 'FINISHED_PART';
-        ProductLibraryModule.state.componentDraftConsumptionUnit = 'adet';
+        ProductLibraryModule.state.componentDraftConsumptionUnit = '';
         ProductLibraryModule.state.componentDraftStockConsumptionQty = '';
         ProductLibraryModule.state.componentDraftRoutes = [];
         ProductLibraryModule.state.componentDraftRouteStationId = '';
@@ -2928,7 +2983,7 @@
         ProductLibraryModule.state.componentDraftName = '';
         ProductLibraryModule.state.componentDraftMasterCode = '';
         ProductLibraryModule.state.componentDraftVariantType = 'FINISHED_PART';
-        ProductLibraryModule.state.componentDraftConsumptionUnit = 'adet';
+        ProductLibraryModule.state.componentDraftConsumptionUnit = '';
         ProductLibraryModule.state.componentDraftStockConsumptionQty = '';
         ProductLibraryModule.state.componentDraftRoutes = [];
         ProductLibraryModule.state.componentDraftRouteStationId = '';
@@ -3023,7 +3078,11 @@
             ProductLibraryModule.state.componentDraftStockConsumptionQty = '';
             return;
         }
-        const cleaned = raw.replace(/[^0-9.]/g, '');
+        if (/[^0-9.]/.test(raw)) {
+            ProductLibraryModule.state.componentDraftStockConsumptionQty = raw;
+            return;
+        }
+        const cleaned = raw;
         const segments = cleaned.split('.');
         const normalized = segments.length > 1
             ? `${segments[0]}.${segments.slice(1).join('')}`
@@ -3511,13 +3570,31 @@
         ].join('||');
     },
 
-    findDuplicateComponentCard: (row = {}, excludeId = '', kind = 'PART') => {
+    findDuplicateComponentCard: (row = {}, exclude = '', kind = 'PART') => {
         const targetSignature = ProductLibraryModule.buildComponentDuplicateSignature(row);
         if (!targetSignature) return null;
         const key = ProductLibraryModule.getComponentCollectionKey(kind);
         const all = Array.isArray(DB.data?.data?.[key]) ? DB.data.data[key] : [];
+        const excludeInfo = exclude && typeof exclude === 'object'
+            ? exclude
+            : { id: exclude };
+        const excludeId = String(excludeInfo?.id || '').trim();
+        const excludeCode = String(excludeInfo?.code || '').trim().toUpperCase();
+        const shouldExcludeFamily = ProductLibraryModule.normalizeComponentLibraryKind(kind) === 'PART';
+        const excludeFamilyId = shouldExcludeFamily ? String(excludeInfo?.familyId || '').trim() : '';
+        const excludeFamilyCode = shouldExcludeFamily ? String(excludeInfo?.familyCode || '').trim().toUpperCase() : '';
         return all.find(item => {
-            if (excludeId && String(item?.id || '') === String(excludeId)) return false;
+            const itemId = String(item?.id || '').trim();
+            if (excludeId && itemId && itemId === excludeId) return false;
+            const itemCode = String(item?.code || '').trim().toUpperCase();
+            if (excludeCode && itemCode && itemCode === excludeCode) return false;
+            if (shouldExcludeFamily && (excludeFamilyId || excludeFamilyCode)) {
+                const itemFamily = ProductLibraryModule.getPartVariantFamilyIdentity(item);
+                const itemFamilyId = String(itemFamily?.id || '').trim();
+                const itemFamilyCode = String(itemFamily?.code || '').trim().toUpperCase();
+                if (excludeFamilyId && itemFamilyId && itemFamilyId === excludeFamilyId) return false;
+                if (excludeFamilyCode && itemFamilyCode && itemFamilyCode === excludeFamilyCode) return false;
+            }
             return ProductLibraryModule.buildComponentDuplicateSignature(item) === targetSignature;
         }) || null;
     },
@@ -3554,7 +3631,7 @@
         const rowConsumptionUnit = String(row.consumptionUnit || '').trim();
         ProductLibraryModule.state.componentDraftConsumptionUnit = isPartLibrary && unitOptions.includes(rowConsumptionUnit)
             ? rowConsumptionUnit
-            : 'adet';
+            : '';
         ProductLibraryModule.state.componentDraftStockConsumptionQty = isPartLibrary
             ? String(row.stockConsumptionQty ?? '').trim()
             : '';
@@ -3973,6 +4050,19 @@
             && ProductLibraryModule.isPartChildVariantCard(editingRow)
         );
 
+        const duplicateFamily = targetEditingId && isPartLibrary && editingRow
+            ? ProductLibraryModule.getPartVariantFamilyIdentity(editingRow)
+            : null;
+        const duplicateExclude = targetEditingId
+            ? {
+                id: targetEditingId,
+                code: String(editingRow?.code || '').trim().toUpperCase(),
+                ...(duplicateFamily ? {
+                    familyId: String(duplicateFamily.id || '').trim(),
+                    familyCode: String(duplicateFamily.code || '').trim().toUpperCase()
+                } : {})
+            }
+            : '';
         const duplicateRow = ProductLibraryModule.findDuplicateComponentCard({
             name,
             group,
@@ -3981,7 +4071,7 @@
             colorCode,
             masterCode,
             routes
-        }, targetEditingId || '', libraryKind);
+        }, duplicateExclude, libraryKind);
         if (duplicateRow && !(isPartLibrary && (shouldSaveAsNew || isPartChildVariantSave))) {
             return alert(`Bu urun zaten mevcut. ID kod: ${duplicateRow.code || '-'}`);
         }
@@ -4012,16 +4102,17 @@
             ? ProductLibraryModule.normalizeConvertiblePartRefs(s.componentDraftConvertiblePartRefs || [])
             : null;
         const unitOptions = ProductLibraryModule.getComponentConsumptionUnitOptions();
-        const consumptionUnit = isPartLibrary && unitOptions.includes(String(s.componentDraftConsumptionUnit || '').trim())
-            ? String(s.componentDraftConsumptionUnit || '').trim()
-            : 'adet';
+        const consumptionUnit = String(s.componentDraftConsumptionUnit || '').trim();
         const stockConsumptionQtyRaw = String(s.componentDraftStockConsumptionQty ?? '').trim();
         let stockConsumptionQty = '';
-        if (isPartLibrary && stockConsumptionQtyRaw) {
+        if (isPartLibrary) {
+            if (!consumptionUnit || !unitOptions.includes(consumptionUnit) || !stockConsumptionQtyRaw) {
+                return alert('Tüketim birimi ve 1 adet için stoktan düşülecek miktar girilmeden Parça & Bileşen kaydedilemez.');
+            }
             const normalizedQty = stockConsumptionQtyRaw.replace(',', '.');
             const parsedQty = Number(normalizedQty);
-            if (!Number.isFinite(parsedQty) || parsedQty < 0) {
-                return alert('Stoktan Düşülecek Miktar 0 veya daha büyük bir sayı olmalıdır.');
+            if (!Number.isFinite(parsedQty) || parsedQty <= 0) {
+                return alert('Tüketim birimi ve 1 adet için stoktan düşülecek miktar girilmeden Parça & Bileşen kaydedilemez.');
             }
             stockConsumptionQty = normalizedQty;
         }
@@ -4279,6 +4370,9 @@
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
         const isComponentPicker = isAssemblyComponentPicker || isModelComponentPicker || isSalesVariationComponentPicker || isPlanningComponentPicker;
+        const isSelectionMode = ProductLibraryModule.isProductLibrarySelectionMode();
+        const canManageLibrary = !isSelectionMode;
+        const componentTableColspan = 6 + (canManageLibrary ? 1 : 0);
         const filters = state.componentFilters || { name: '', group: '', colorType: '', subGroup: '', code: '' };
         const allComponentRows = ProductLibraryModule.getActiveComponentCards();
         const categorySearchOptions = ProductLibraryModule.getPartGroups();
@@ -4455,6 +4549,9 @@
             const childBadgeHtml = isSemiFinishedVariant
                 ? '<span style="display:inline-flex; align-items:center; justify-content:center; font-size:0.68rem; font-weight:800; color:#7c2d12; border:1px solid #fdba74; background:#fff7ed; border-radius:999px; padding:0.06rem 0.42rem;">Yarı Mamul</span>'
                 : '';
+            const missingConsumptionBadgeHtml = isPartLibrary && ProductLibraryModule.hasMissingComponentConsumptionInfo(row)
+                ? '<span style="display:inline-flex; align-items:center; justify-content:center; font-size:0.68rem; font-weight:800; color:#991b1b; border:1px solid #fca5a5; background:#fef2f2; border-radius:999px; padding:0.06rem 0.42rem;">Tüketim Bilgisi Eksik</span>'
+                : '';
             const pickerAddButtonHtml = `<button class="btn-sm" onclick="${isPlanningComponentPicker ? (planningPickerSource === 'semi' ? `ProductLibraryModule.selectPlanningSemiFinished('${row.id}')` : `ProductLibraryModule.selectPlanningComponent('${row.id}')`) : (isModelComponentPicker ? `ProductLibraryModule.selectModelComponent('${row.id}')` : (isSalesVariationComponentPicker ? `ProductLibraryModule.selectSalesVariationComponent('${row.id}')` : `ProductLibraryModule.selectComponentForAssembly('${row.id}')`))}">ekle</button>`;
             const planningVariantToggleHtml = (isPlanningComponentPicker && isPartLibrary && variantControlHtml)
                 ? variantControlHtml
@@ -4472,6 +4569,7 @@
                         <span style="display:inline-flex; align-items:center; gap:0.45rem;">
                             <span>${ProductLibraryModule.escapeHtml(row?.name || '-')}</span>
                             ${childBadgeHtml}
+                            ${missingConsumptionBadgeHtml}
                         </span>
                     </div>
                 </td>
@@ -4479,7 +4577,7 @@
                 <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(row?.subGroup || '-')}</td>
                 <td style="padding:0.55rem; font-family:monospace; color:#334155;">${ProductLibraryModule.escapeHtml(row?.code || '-')}</td>
                 <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openComponentCardView('${row.id}')">goruntule</button></td>
-                <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>
+                ${canManageLibrary ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.startEditComponentCard('${row.id}')">duzenle</button></td>` : ''}
                 <td style="padding:0.55rem; text-align:center;">
                     ${isComponentPicker
                         ? pickerActionsHtml
@@ -4489,7 +4587,7 @@
         `;
         };
         const rowsHtml = rows.length === 0
-            ? `<tr><td colspan="7" style="padding:0.95rem; color:#94a3b8; text-align:center;">${ProductLibraryModule.escapeHtml(isSemiLibrary ? 'Kayitli yari mamul yok.' : 'Kayitli parca/bilesen yok.')}</td></tr>`
+            ? `<tr><td colspan="${componentTableColspan}" style="padding:0.95rem; color:#94a3b8; text-align:center;">${ProductLibraryModule.escapeHtml(isSemiLibrary ? 'Kayitli yari mamul yok.' : 'Kayitli parca/bilesen yok.')}</td></tr>`
             : (() => {
                 const preferredGroups = Array.from(new Set([
                     ...ProductLibraryModule.getPartGroups(),
@@ -4524,7 +4622,7 @@
                         : '';
                     return `
                         <tr>
-                            <td colspan="7" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
+                            <td colspan="${componentTableColspan}" style="padding:0; border-top:2px solid #cbd5e1; background:${isOpen ? '#eef2ff' : '#f8fafc'};">
                                 <button type="button" onclick='ProductLibraryModule.toggleComponentCategorySection(${JSON.stringify(group.key)})' style="width:calc(100% - 0.7rem); margin:0.3rem 0.35rem; border:1px solid #cbd5e1; border-radius:0.62rem; background:${isOpen ? '#eef2ff' : 'white'}; padding:0.65rem 0.8rem; display:flex; align-items:center; gap:0.6rem; cursor:pointer; text-align:left;">
                                     <span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border:1.5px solid #0f172a; border-radius:999px; color:#0f172a; background:white;">
                                         <i data-lucide="${arrowIcon}" width="16" height="16"></i>
@@ -4627,7 +4725,7 @@
                                 <th style="padding:0.55rem; text-align:left;">renk</th>
                                 <th style="padding:0.55rem; text-align:left;">ID kod</th>
                                 <th style="padding:0.55rem; text-align:center;">goruntule</th>
-                                <th style="padding:0.55rem; text-align:center;">duzenle</th>
+                                ${canManageLibrary ? '<th style="padding:0.55rem; text-align:center;">duzenle</th>' : ''}
                                 <th style="padding:0.55rem; text-align:center;">${isComponentPicker ? 'sec' : (isPartLibrary ? 'varyant' : '')}</th>
                             </tr>
                         </thead>
@@ -4635,7 +4733,7 @@
                     </table>
                 </div>
 
-                ${state.componentFormOpen && !isAssemblyComponentPicker ? `
+                ${state.componentFormOpen && canManageLibrary && !isAssemblyComponentPicker ? `
                     <div class="card-table" style="padding:1rem; border:2px solid #0f172a; border-radius:1rem;">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">${ProductLibraryModule.escapeHtml(isSemiLibrary ? 'Yari Mamul olustur' : 'Parca ve Bilesen olustur')}</h3>
@@ -4712,7 +4810,8 @@
                                         <div>
                                             <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Tüketim Birimi</label>
                                             <select onchange="ProductLibraryModule.state.componentDraftConsumptionUnit=this.value" style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                                                ${consumptionUnitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftConsumptionUnit || 'adet') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
+                                                <option value="" ${String(state.componentDraftConsumptionUnit || '') ? '' : 'selected'}>Tüketim birimi seç</option>
+                                                ${consumptionUnitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${String(state.componentDraftConsumptionUnit || '') === String(x) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                                             </select>
                                         </div>
                                         <div>
@@ -7094,6 +7193,8 @@
         const isStockInventoryPicker = isPlanningModelPicker
             && typeof StockModule !== 'undefined'
             && !!StockModule?.state?.inventoryRegistrationPickerPending;
+        const isSelectionMode = ProductLibraryModule.isProductLibrarySelectionMode();
+        const canManageLibrary = !isSelectionMode;
         if (state.modelViewingId && !isPlanningModelPicker) state.modelViewingId = null;
 
         const filters = state.modelFilters || { group: '', name: '', code: '', plexiType: '', plexi: '', accessoryType: '', accessory: '', tubeType: '', tube: '' };
@@ -7168,7 +7269,7 @@
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.accessory?.name || '-')}</td>
                                             <td style="padding:0.5rem;">${ProductLibraryModule.escapeHtml(row.colors?.tube?.name || '-')}</td>
                                             <td style="padding:0.5rem; font-family:monospace;">${ProductLibraryModule.escapeHtml(row.montageCard?.cardCode || '-')}</td>
-                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button><button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button>${isPlanningModelPicker ? `<button class="btn-sm" onclick="ProductLibraryModule.selectPlanningModel('${row.id}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">ekle</button>` : ''}</div></td>
+                                            <td style="padding:0.5rem;"><div style="display:flex; gap:0.35rem; flex-wrap:wrap;"><button class="btn-sm" onclick="ProductLibraryModule.openModelVariantView('${row.id}')">goruntule</button>${canManageLibrary ? `<button class="btn-sm" onclick="ProductLibraryModule.startEditModelVariant('${row.id}')">duzenle</button>` : ''}${isPlanningModelPicker ? `<button class="btn-sm" onclick="ProductLibraryModule.selectPlanningModel('${row.id}')" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;">ekle</button>` : ''}</div></td>
                                         </tr>`).join('')}</tbody></table></div>` : ''}
                                 </div>
                             `;
@@ -7253,7 +7354,7 @@
 
                 <div class="card-table" style="padding:0.9rem; margin-bottom:1rem;">${listHtml}</div>
 
-                ${(state.modelFormOpen || !!state.modelEditingId) ? `
+                ${canManageLibrary && (state.modelFormOpen || !!state.modelEditingId) ? `
                     <div id="model_form_anchor" class="card-table" style="padding:1rem; border:2px solid #cbd5e1;">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap; margin-bottom:0.9rem;">
                             <div><div style="font-weight:800; color:#334155; font-size:1.15rem;">${state.modelEditingId ? 'Urun varyanti duzenle' : 'Yeni urun karti olustur'}</div><div style="font-size:0.82rem; color:#64748b; margin-top:0.25rem;">Bu kart satisa sunulan katalog urununu ve varyant baglarini tanimlar.</div></div>
@@ -8014,6 +8115,11 @@
     getMasterProductById: (id) => {
         return ProductLibraryModule.getMasterProducts().find(x => x.id === id) || null;
     },
+    hasMissingMasterConsumptionUnit: (row) => {
+        const unitOptions = ProductLibraryModule.getMasterUnitOptions();
+        const consumptionUnit = String(row?.tuketimBirimi || '').trim();
+        return !consumptionUnit || !unitOptions.includes(consumptionUnit);
+    },
 
     renderMasterPage: (container) => {
         const state = ProductLibraryModule.state;
@@ -8024,7 +8130,8 @@
         const records = ProductLibraryModule.getMasterProducts()
             .filter((row) => !row?.isSalesMirror && String(row?.categoryId || '').trim() !== 'cat_sales');
 
-        const showForm = state.masterFormOpen || !!state.masterEditingId;
+        const showCreateForm = !!state.masterFormOpen && !state.masterEditingId;
+        const showInlineEditForm = !!state.masterEditingId;
         const selectedId = state.masterSelectedId;
         const isComponentPicker = state.masterPickerSource === 'component';
         const isSalesVariationMasterPicker = state.masterPickerSource === 'sales-variation';
@@ -8033,8 +8140,11 @@
         const isStockGoodsReceiptPicker = state.masterPickerSource === 'stock-goods-receipt';
         const isStockInventoryRegistrationPicker = state.masterPickerSource === 'stock-inventory-registration';
         const isMasterPicker = isComponentPicker || isSalesVariationMasterPicker || isAssemblyMasterPicker || isModelMasterPicker || isStockGoodsReceiptPicker || isStockInventoryRegistrationPicker;
+        const isSelectionMode = ProductLibraryModule.isProductLibrarySelectionMode();
+        const canManageLibrary = !isSelectionMode;
         const showSelectColumn = isMasterPicker;
-        const masterTableColspan = showSelectColumn ? 14 : 13;
+        const showMasterEditDeleteActions = canManageLibrary;
+        const masterTableColspan = 11 + (showMasterEditDeleteActions ? 2 : 0) + (showSelectColumn ? 1 : 0);
         const masterPickerHint = isAssemblyMasterPicker
             ? 'Master urun secimi modundasin. "ekle" ile secilen urunu parca grup formuna eklersin.'
             : (isModelMasterPicker
@@ -8176,11 +8286,24 @@
             const sourceBadge = isSalesMirror
                 ? '<span style="display:inline-flex; align-items:center; margin-left:0.45rem; padding:0.08rem 0.42rem; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-size:0.68rem; font-weight:800;">SATIS</span>'
                 : '';
+            const missingConsumptionBadge = ProductLibraryModule.hasMissingMasterConsumptionUnit(p)
+                ? '<span style="display:inline-flex; align-items:center; margin-left:0.45rem; padding:0.08rem 0.42rem; border-radius:999px; background:#fef2f2; color:#991b1b; border:1px solid #fca5a5; font-size:0.68rem; font-weight:800;">Tüketim Birimi Eksik</span>'
+                : '';
+            const isEditingThisRow = showInlineEditForm && String(state.masterEditingId || '') === String(p.id || '');
+            const inlineEditRowHtml = isEditingThisRow && canManageLibrary && !isMasterPicker
+                ? `
+                    <tr class="master-product-inline-edit-row">
+                        <td colspan="${masterTableColspan}">
+                            ${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode, mode: 'edit' })}
+                        </td>
+                    </tr>
+                `
+                : '';
             return `
                 <tr style="border-bottom:1px solid #eef2f7; ${selectedStyle}">
-                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}${sourceBadge}</td>
+                    <td style="padding:0.55rem; font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(p.name || '-')}${sourceBadge}${missingConsumptionBadge}</td>
                     <td style="padding:0.55rem; color:#64748b;">${ProductLibraryModule.escapeHtml(p.categoryName)}</td>
-                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.unit || '-')}</td>
+                    <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.tuketimBirimi || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml((p.unitAmount ? `${p.unitAmount} ${p.unitAmountType || ''}` : '-').trim())}</td>
                     <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.length || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;">${ProductLibraryModule.escapeHtml(p.color || '-')}</td>
@@ -8189,12 +8312,17 @@
                     <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
                     <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
                     <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>${isSalesMirror ? 'kilitli' : 'duzenle'}</button></td>
+                    ${showMasterEditDeleteActions
+                        ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>${isSalesMirror ? 'kilitli' : 'duzenle'}</button></td>`
+                        : ''}
                     ${showSelectColumn
                         ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.selectMasterProduct('${p.id}')" style="${selectedId === p.id ? 'background:#0f172a; color:white; border-color:#0f172a;' : ''}">${isMasterPicker ? 'ekle' : 'sec'}</button></td>`
                         : ''}
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>sil</button></td>
+                    ${showMasterEditDeleteActions
+                        ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>sil</button></td>`
+                        : ''}
                 </tr>
+                ${inlineEditRowHtml}
             `;
         };
 
@@ -8268,9 +8396,9 @@
                             </div>
                         </div>
                         <input id="master_filter_code" value="${ProductLibraryModule.escapeHtml(state.masterFilters.code || '')}" oninput="ProductLibraryModule.setMasterFilter('code', this.value)" placeholder="ID kod ile ara" style="height:50px; border:1px solid #cbd5e1; border-radius:0.65rem; padding:0 0.75rem; font-weight:600;">
-                        <button class="btn-primary" onclick="${isMasterPicker ? 'ProductLibraryModule.cancelMasterPicker()' : 'ProductLibraryModule.toggleMasterForm()'}" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${isMasterPicker ? 'vazgec' : (showForm ? 'vazgec' : 'urun ekle +')}</button>
+                        <button class="btn-primary" onclick="${isMasterPicker ? 'ProductLibraryModule.cancelMasterPicker()' : 'ProductLibraryModule.toggleMasterForm()'}" style="height:50px; border-radius:0.75rem; text-transform:lowercase;">${isMasterPicker ? 'vazgec' : (showCreateForm ? 'vazgec' : 'urun ekle +')}</button>
                     </div>
-                    ${showForm && !isMasterPicker ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode })}</div>` : ''}
+                    ${showCreateForm && canManageLibrary && !isMasterPicker ? `<div style="margin-top:0.95rem;">${ProductLibraryModule.renderMasterFormHtml({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode, mode: 'create' })}</div>` : ''}
                     <div class="card-table" style="margin-top:0.85rem;">
                         <table>
                             <thead>
@@ -8286,9 +8414,9 @@
                                     <th>TEDARIKCI</th>
                                     <th style="font-family:monospace">KOD</th>
                                     <th style="text-align:center;">GORUNTULE</th>
-                                    <th style="text-align:center;">DUZENLE</th>
+                                    ${showMasterEditDeleteActions ? '<th style="text-align:center;">DUZENLE</th>' : ''}
                                     ${showSelectColumn ? '<th style="text-align:center;">SEC</th>' : ''}
-                                    <th style="text-align:center;">SIL</th>
+                                    ${showMasterEditDeleteActions ? '<th style="text-align:center;">SIL</th>' : ''}
                                 </tr>
                             </thead>
                             <tbody>${rowsHtml}</tbody>
@@ -8300,18 +8428,21 @@
         if (window.lucide) window.lucide.createIcons();
     },
 
-    renderMasterFormHtml: ({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode }) => {
+    renderMasterFormHtml: ({ categories, unitOptions, colorTypeOptions, colorOptions, suppliers, selectedSupplierRowsHtml, draftCode, mode = 'create' }) => {
         const state = ProductLibraryModule.state;
         void suppliers;
         void selectedSupplierRowsHtml;
+        const isEditMode = mode === 'edit' || !!state.masterEditingId;
+        const formTitle = isEditMode ? 'Master urunu duzenle' : 'Kutuphaneye urun ekle';
+        const formSubtitle = isEditMode ? 'Secilen satirin bilgilerini guncelle' : 'Master urunun ilk kimligini tanimla';
         return `
-            <div style="background:linear-gradient(180deg,#ffffff 0%,#fbfdff 100%); border:1px solid #cbd5e1; border-radius:1.2rem; padding:1rem 1rem 1.2rem; font-size:1.01rem; box-shadow:0 8px 24px rgba(15,23,42,0.06);">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; flex-wrap:wrap; margin-bottom:0.85rem;">
-                    <div style="font-weight:800; color:#1e293b; font-size:1.45rem; letter-spacing:0.01em;">Kutuphaneye urun ekle</div>
-                    <div style="font-size:0.76rem; color:#64748b; font-weight:700;">Master urunun ilk kimligini tanimla</div>
+            <div class="master-product-form-panel">
+                <div class="master-product-form-head">
+                    <div style="font-weight:800; color:#1e293b; font-size:1.45rem; letter-spacing:0.01em;">${formTitle}</div>
+                    <div style="font-size:0.76rem; color:#64748b; font-weight:700;">${formSubtitle}</div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 220px minmax(360px,1fr) 180px 180px 220px; gap:0.7rem; align-items:end; margin-bottom:0.72rem;">
+                <div class="master-product-identity-grid">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('category')">+ YONET (EKLE-SIL)</div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">kategori *</label>
@@ -8338,18 +8469,12 @@
                     </div>
                 </div>
 
-                <div style="display:grid; grid-template-columns: 210px 210px minmax(320px,1fr); gap:0.7rem; align-items:end; margin-bottom:0.72rem;">
+                <div class="master-product-detail-grid">
                     <div>
                         <div style="font-size:0.66rem; color:#3b82f6; font-weight:700; margin:0 0 0.2rem 0.15rem; cursor:pointer;" onclick="ProductLibraryModule.openMasterDictionary('unit')">+ YONET (EKLE-SIL)</div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">alis birimi *</label>
-                        <select onchange="ProductLibraryModule.setMasterDraft('unit', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                            ${unitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftUnit === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
-                        </select>
-                    </div>
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tuketim birimi</label>
+                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tuketim birimi *</label>
                         <select onchange="ProductLibraryModule.setMasterDraft('consumptionUnit', this.value)" style="width:100%; height:45px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem;">
-                            <option value="" ${state.masterDraftConsumptionUnit ? '' : 'selected'}>alis birimi ile ayni</option>
+                            <option value="" ${state.masterDraftConsumptionUnit ? '' : 'selected'}>Tüketim birimi seç</option>
                             ${unitOptions.map(x => `<option value="${ProductLibraryModule.escapeHtml(x)}" ${state.masterDraftConsumptionUnit === x ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(x)}</option>`).join('')}
                         </select>
                     </div>
@@ -8357,8 +8482,8 @@
                         <div style="margin-bottom:0.2rem;">
                             <label style="display:block; font-size:0.72rem; color:#64748b;">kategori / renk</label>
                         </div>
-                        <div style="height:45px; border:1px solid #cbd5e1; border-radius:0.75rem; overflow:hidden; display:grid; grid-template-columns:42% 58%;">
-                            <div style="background:#d9e9f8; border-right:1px solid #cbd5e1;">
+                        <div class="master-product-color-picker">
+                            <div class="master-product-color-type">
                                 <select onchange="ProductLibraryModule.setMasterColorType(this.value)" style="width:100%; height:100%; border:none; outline:none; background:transparent; padding:0 0.65rem; font-weight:700; color:#334155;">
                                     <option value="">kategori sec</option>
                                     ${colorTypeOptions.map(opt => `<option value="${opt.id}" ${state.masterDraftColorType === opt.id ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.label)}</option>`).join('')}
@@ -8372,22 +8497,10 @@
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div style="display:grid; grid-template-columns: minmax(280px, 1fr) minmax(340px, 1fr); gap:0.7rem; align-items:start; margin-bottom:0.72rem;">
-                    <div>
-                        <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">tedarikci baglantisi</label>
-                        <div style="border:1px dashed #cbd5e1; border-radius:0.62rem; padding:0.7rem; min-height:110px; display:flex; align-items:center; background:#f8fafc;">
-                            <div style="font-size:0.82rem; color:#475569; line-height:1.5;">
-                                Bu ekranda tedarikci baglanmaz.<br>
-                                Tedarikci ve tedarikciye ozel urun kodu eslestirmesi
-                                <strong>Tedarikciler</strong> modulunden yonetilir.
-                            </div>
-                        </div>
-                    </div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">resim / pdf dosya + ekle (opsiyonel)</label>
-                        <div style="border:1px dashed #cbd5e1; border-radius:0.62rem; padding:0.6rem; min-height:110px;">
+                        <div class="master-product-attachment-box">
                             <input type="file" accept=".pdf,image/*" onchange="ProductLibraryModule.handleMasterAttachment(this)" style="font-size:0.82rem;">
                             <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">${ProductLibraryModule.escapeHtml(state.masterDraftAttachment?.name || 'Dosya secilmedi')}</div>
                             <div style="display:flex; gap:0.4rem; margin-top:0.45rem;">
@@ -8405,7 +8518,9 @@
                     </div>
                     <div style="display:flex; gap:0.6rem;">
                         ${state.masterEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${state.masterEditingId}')" style="height:40px; padding:0 1rem; color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>` : ''}
-                        <button class="btn-sm" onclick="ProductLibraryModule.loadSelectedMasterForEdit()" ${state.masterSelectedId ? '' : 'disabled'} style="height:40px; padding:0 1rem;">duzenle</button>
+                        ${isEditMode
+                ? '<button class="btn-sm" onclick="ProductLibraryModule.resetMasterDraft(false); UI.renderCurrentPage();" style="height:40px; padding:0 1rem;">vazgec</button>'
+                : `<button class="btn-sm" onclick="ProductLibraryModule.loadSelectedMasterForEdit()" ${state.masterSelectedId ? '' : 'disabled'} style="height:40px; padding:0 1rem;">duzenle</button>`}
                         <button class="btn-primary" onclick="ProductLibraryModule.saveMasterProduct()" style="height:40px; padding:0 1.2rem; border-radius:0.7rem;">kaydet</button>
                     </div>
                 </div>
@@ -8528,8 +8643,8 @@
     },
 
     toggleMasterForm: () => {
-        const show = ProductLibraryModule.state.masterFormOpen || !!ProductLibraryModule.state.masterEditingId;
-        if (show) ProductLibraryModule.resetMasterDraft(false);
+        const showCreateForm = !!ProductLibraryModule.state.masterFormOpen && !ProductLibraryModule.state.masterEditingId;
+        if (showCreateForm) ProductLibraryModule.resetMasterDraft(false);
         else ProductLibraryModule.resetMasterDraft(true);
         UI.renderCurrentPage();
     },
@@ -8770,7 +8885,7 @@
             })
             .filter(Boolean);
 
-        ProductLibraryModule.state.masterFormOpen = true;
+        ProductLibraryModule.state.masterFormOpen = false;
         ProductLibraryModule.state.masterEditingId = record.id;
         ProductLibraryModule.state.masterSelectedId = record.id;
         ProductLibraryModule.state.masterDraftCategoryId = record.categoryId || ProductLibraryModule.state.masterDraftCategoryId;
@@ -8816,6 +8931,12 @@
             return;
         }
         ProductLibraryModule.loadMasterDraftFromRecord(record);
+        const groupName = String(record.categoryName || 'Diger').trim() || 'Diger';
+        const groupKey = String(record.categoryId || ProductLibraryModule.normalizeAsciiUpper(groupName) || 'DIGER');
+        if (!ProductLibraryModule.state.masterCategoryExpanded || typeof ProductLibraryModule.state.masterCategoryExpanded !== 'object') {
+            ProductLibraryModule.state.masterCategoryExpanded = {};
+        }
+        ProductLibraryModule.state.masterCategoryExpanded[groupKey] = true;
         UI.renderCurrentPage();
     },
 
@@ -8904,17 +9025,15 @@
         }
         if (!finalCategory) return alert('Kategori seciniz.');
 
-        const purchaseUnit = String(s.masterDraftUnit || '').trim();
-        if (!purchaseUnit) return alert('Alis birimi zorunlu.');
-        if (!unitOptions.includes(purchaseUnit)) return alert('Alis birimi listeden secilmelidir.');
         const consumptionUnitRaw = String(s.masterDraftConsumptionUnit || '').trim();
-        if (consumptionUnitRaw && !unitOptions.includes(consumptionUnitRaw)) {
-            return alert('Tuketim birimi listeden secilmelidir.');
+        if (!consumptionUnitRaw || !unitOptions.includes(consumptionUnitRaw)) {
+            return alert('Master ürün kaydedilmeden önce tüketim birimi seçilmelidir.');
         }
-        const consumptionUnit = (consumptionUnitRaw && consumptionUnitRaw !== purchaseUnit) ? consumptionUnitRaw : '';
+        const consumptionUnit = consumptionUnitRaw;
+        const purchaseUnit = consumptionUnit;
 
         const unitAmount = String(s.masterDraftUnitAmount || '').trim();
-        const unitAmountType = ProductLibraryModule.getUnitAmountType(purchaseUnit);
+        const unitAmountType = ProductLibraryModule.getUnitAmountType(consumptionUnit);
         const brand = String(s.masterDraftBrand || '').trim();
         const pack = String(s.masterDraftPack || '').trim();
         const length = String(s.masterDraftLength || '').trim();

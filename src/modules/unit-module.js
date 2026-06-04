@@ -4869,6 +4869,273 @@ const UnitModule = {
             .filter((row) => row.quantity > 0)
             .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'tr'));
     },
+    normalizeStockMatchCode: (value) => String(value || '').trim().toUpperCase(),
+    normalizeStockUnit: (value) => String(value || '').trim().toUpperCase(),
+    normalizeLengthUnit: (value) => {
+        const unit = UnitModule.normalizeStockUnit(value);
+        if (unit === 'MT' || unit === 'M') return 'M';
+        if (unit === 'CM') return 'CM';
+        if (unit === 'MM') return 'MM';
+        return '';
+    },
+    getLengthUnitToMmFactor: (value) => {
+        const unit = UnitModule.normalizeLengthUnit(value);
+        if (unit === 'M') return 1000;
+        if (unit === 'CM') return 10;
+        if (unit === 'MM') return 1;
+        return 0;
+    },
+    canConvertStockUnits: (fromUnit, toUnit) => {
+        const from = UnitModule.normalizeStockUnit(fromUnit);
+        const to = UnitModule.normalizeStockUnit(toUnit);
+        if (!from || !to) return false;
+        if (from === to) return true;
+        return UnitModule.getLengthUnitToMmFactor(from) > 0 && UnitModule.getLengthUnitToMmFactor(to) > 0;
+    },
+    convertStockQty: (qty, fromUnit, toUnit) => {
+        const num = Number(qty || 0);
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        const from = UnitModule.normalizeStockUnit(fromUnit);
+        const to = UnitModule.normalizeStockUnit(toUnit);
+        if (!from || !to) return 0;
+        if (from === to) return UnitModule.roundStockQty(num);
+        const fromFactor = UnitModule.getLengthUnitToMmFactor(from);
+        const toFactor = UnitModule.getLengthUnitToMmFactor(to);
+        if (fromFactor <= 0 || toFactor <= 0) return 0;
+        return UnitModule.roundStockQty((num * fromFactor) / toFactor);
+    },
+    isFirstRouteMetrics: (metrics) => {
+        if (!metrics) return false;
+        return Number(metrics?.routeSeq || 0) === 1 && !String(metrics?.prevStationId || '').trim();
+    },
+    findPartComponentCardForWorkLine: (line) => {
+        const code = UnitModule.normalizeStockMatchCode(line?.componentCode || '');
+        if (!code) return null;
+        const cards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
+        return cards.find((row) => UnitModule.normalizeStockMatchCode(row?.code || '') === code) || null;
+    },
+    getFirstRouteTakeQty: (metrics) => {
+        const qty = Number(metrics?.availableQty || 0);
+        if (!Number.isFinite(qty) || qty <= 0) return 0;
+        return Math.floor(qty);
+    },
+    parseStockConsumptionQty: (value) => {
+        const num = Number(String(value ?? '').trim().replace(',', '.'));
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return num;
+    },
+    roundStockQty: (qty) => {
+        const num = Number(qty || 0);
+        if (!Number.isFinite(num)) return 0;
+        return Math.max(0, Number(num.toFixed(3)));
+    },
+    isAvailableStockSourceRow: (row) => {
+        const stockClass = UnitModule.normalizeStockMatchCode(row?.stockClass || '');
+        const status = UnitModule.normalizeStockMatchCode(row?.status || '');
+        return stockClass === 'KULLANILABILIR' || status === 'KULLANILABILIR';
+    },
+    getStockSourceLocationCode: (row) => {
+        const direct = String(row?.locationCode || '').trim().toUpperCase();
+        if (direct) return direct;
+        const locationId = String(row?.locationId || '').trim();
+        if (locationId) {
+            const fromLocation = UnitModule.getDepotLocationCodeById(locationId);
+            if (fromLocation) return String(fromLocation || '').trim().toUpperCase();
+        }
+        return [row?.rafCode, row?.cellCode].map((value) => String(value || '').trim().toUpperCase()).filter(Boolean).join('-');
+    },
+    getFirstRouteStockSourceRows: (masterCode, consumptionUnit, stockIssueQty = 0) => {
+        const code = UnitModule.normalizeStockMatchCode(masterCode || '');
+        const unit = UnitModule.normalizeStockUnit(consumptionUnit || '');
+        if (!code || !unit) return [];
+        const issueQty = UnitModule.roundStockQty(stockIssueQty);
+        const rows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        return rows
+            .map((row) => {
+                const rowCode = UnitModule.normalizeStockMatchCode(row?.productCode || row?.code || '');
+                const rowUnit = UnitModule.normalizeStockUnit(row?.unit || '');
+                const qty = UnitModule.getStockItemQty(row);
+                const scopeId = UnitModule.getStockRowScopeId(row);
+                const locationId = String(row?.locationId || '').trim();
+                const locationCode = UnitModule.getStockSourceLocationCode(row);
+                if (rowCode !== code) return null;
+                if (!UnitModule.isAvailableStockSourceRow(row)) return null;
+                if (qty <= 0) return null;
+                if (!UnitModule.canConvertStockUnits(unit, rowUnit)) return null;
+                if (!scopeId || (!locationId && !locationCode)) return null;
+                const sourceIssueQty = issueQty > 0
+                    ? UnitModule.convertStockQty(issueQty, unit, rowUnit)
+                    : 0;
+                if (issueQty > 0 && sourceIssueQty <= 0) return null;
+                return {
+                    row,
+                    id: String(row?.id || '').trim(),
+                    qty,
+                    unit: rowUnit,
+                    sourceIssueQty,
+                    scopeId,
+                    depotName: UnitModule.getStoreScopeName(scopeId),
+                    locationId,
+                    locationCode
+                };
+            })
+            .filter((row) => row && row.id)
+            .sort((a, b) => {
+                const depotCmp = String(a?.depotName || '').localeCompare(String(b?.depotName || ''), 'tr');
+                if (depotCmp !== 0) return depotCmp;
+                return String(a?.locationCode || '').localeCompare(String(b?.locationCode || ''), 'tr');
+            });
+    },
+    buildFirstRouteStockTakePlan: (order, line, metrics) => {
+        if (!UnitModule.isFirstRouteMetrics(metrics)) {
+            return { ok: false, reason: 'Bu islem sadece ilk rota icin kullanilir.' };
+        }
+        const takeQty = UnitModule.getFirstRouteTakeQty(metrics);
+        if (takeQty <= 0) return { ok: false, reason: 'Alinabilir is emri adedi yok.' };
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const routeFilter = UnitModule.getRouteFilterForIndex(line, 0);
+        const alreadyTakenQty = UnitModule.getWorkTxnQty(txns, order?.id, line?.id, metrics?.stationId, 'TAKE', routeFilter);
+        if (alreadyTakenQty > 0) {
+            return {
+                ok: false,
+                alreadyTaken: true,
+                reason: `Ilk rota daha once teslim alinmis. Miktar: ${UnitModule.roundStockQty(alreadyTakenQty)}`
+            };
+        }
+        const card = UnitModule.findPartComponentCardForWorkLine(line);
+        if (!card) return { ok: false, reason: 'PRC karti bulunamadi.' };
+        const masterCode = UnitModule.normalizeStockMatchCode(card?.masterCode || '');
+        if (!masterCode) return { ok: false, reason: 'PRC kartinda master urun kodu yok.' };
+        const consumptionUnit = String(card?.consumptionUnit || '').trim();
+        if (!consumptionUnit) return { ok: false, reason: 'PRC kartinda tuketim birimi yok.' };
+        const perUnitQty = UnitModule.parseStockConsumptionQty(card?.stockConsumptionQty);
+        if (perUnitQty <= 0) return { ok: false, reason: 'PRC kartinda stoktan dusulecek miktar gecersiz.' };
+        const stockIssueQty = UnitModule.roundStockQty(takeQty * perUnitQty);
+        if (stockIssueQty <= 0) return { ok: false, reason: 'Stok tuketim miktari hesaplanamadi.' };
+        const sources = UnitModule.getFirstRouteStockSourceRows(masterCode, consumptionUnit, stockIssueQty);
+        return {
+            ok: true,
+            card,
+            masterCode,
+            consumptionUnit,
+            normalizedConsumptionUnit: UnitModule.normalizeStockUnit(consumptionUnit),
+            perUnitQty,
+            takeQty,
+            stockIssueQty,
+            sources
+        };
+    },
+    renderFirstRouteStockTakeAction: (row) => {
+        const order = row?.order || {};
+        const line = row?.line || {};
+        const metrics = row?.metrics || {};
+        const plan = UnitModule.buildFirstRouteStockTakePlan(order, line, metrics);
+        if (!plan.ok) {
+            return `<span style="display:inline-flex; align-items:center; max-width:360px; border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:0.55rem; padding:0.34rem 0.5rem; font-size:0.72rem; font-weight:700; text-align:left;">${UnitModule.escapeHtml(plan.reason || 'Ilk rota kaynak stogu hazir degil.')}</span>`;
+        }
+        const selectId = `wo_first_source_${String(order?.id || '')}_${String(line?.id || '')}_${String(metrics?.stationId || '')}_${String(metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const optionsHtml = plan.sources.length === 0
+            ? '<option value="">Uygun kaynak stok yok</option>'
+            : ['<option value="">Kaynak depo/hucre sec</option>'].concat(plan.sources.map((source) => {
+                const enough = Number(source?.qty || 0) >= Number(source?.sourceIssueQty || 0);
+                const label = `${source.depotName || '-'} / ${source.locationCode || '-'} | ${UnitModule.roundStockQty(source.qty)} ${source.unit}${enough ? '' : ' | YETERSIZ'}`;
+                return `<option value="${UnitModule.escapeHtml(source.id)}">${UnitModule.escapeHtml(label)}</option>`;
+            })).join('');
+        const disabledAttr = plan.sources.length === 0 ? 'disabled' : '';
+        return `
+            <span style="display:inline-flex; flex-direction:column; align-items:flex-end; gap:0.3rem; max-width:420px;">
+                <span style="font-size:0.68rem; color:#64748b; text-align:right;">
+                    TAKE: <strong style="color:#0f172a;">${UnitModule.escapeHtml(String(plan.takeQty))} ADET</strong> |
+                    Stok dusumu: <strong style="color:#991b1b;">${UnitModule.escapeHtml(String(plan.stockIssueQty))} ${UnitModule.escapeHtml(UnitModule.normalizeStockUnit(plan.consumptionUnit))}</strong> |
+                    Master: <strong style="font-family:monospace; color:#334155;">${UnitModule.escapeHtml(plan.masterCode)}</strong>
+                </span>
+                <span style="display:inline-flex; align-items:center; gap:0.35rem; justify-content:flex-end; flex-wrap:wrap;">
+                    <select id="${UnitModule.escapeHtml(selectId)}" ${disabledAttr} style="max-width:315px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-size:0.72rem; font-weight:700; background:white;">
+                        ${optionsHtml}
+                    </select>
+                    <button class="btn-sm" onclick="UnitModule.takeFirstRouteWorkOrderQtyFromSource('${UnitModule.escapeJsString(order?.id || '')}','${UnitModule.escapeJsString(line?.id || '')}','${UnitModule.escapeJsString(metrics?.stationId || '')}','${UnitModule.escapeJsString(selectId)}','${Number(metrics?.routeSeq || 0)}')" ${disabledAttr} style="${disabledAttr ? 'opacity:0.45; cursor:not-allowed;' : 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;'}">Teslim al</button>
+                </span>
+            </span>
+        `;
+    },
+    takeFirstRouteWorkOrderQtyFromSource: async (workOrderId, lineId, stationId, sourceSelectId, routeSeq = '') => {
+        const order = (DB.data?.data?.workOrders || []).find(x => String(x?.id || '') === String(workOrderId || ''));
+        if (!order) return alert('Is emri bulunamadi.');
+        const line = (order.lines || []).find(x => String(x?.id || '') === String(lineId || ''));
+        if (!line) return alert('Is emri satiri bulunamadi.');
+        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
+        const metrics = UnitModule.computeWorkLineUnitMetrics(order, line, stationId, txns, { routeSeq: Number(routeSeq || 0) });
+        const plan = UnitModule.buildFirstRouteStockTakePlan(order, line, metrics);
+        if (!plan.ok) return alert(plan.reason || 'Ilk rota teslim alma kosullari saglanamadi.');
+        const sourceId = String(document.getElementById(String(sourceSelectId || ''))?.value || '').trim();
+        if (!sourceId) return alert('Kaynak depo/hucre seciniz.');
+        const source = plan.sources.find((row) => String(row?.id || '') === sourceId) || null;
+        if (!source) return alert('Secilen kaynak stok satiri kullanilabilir degil.');
+        if (Number(source?.sourceIssueQty || 0) <= 0) {
+            return alert('Kaynak stok birimi ile tuketim birimi uyumlu degil.');
+        }
+        if (Number(source?.qty || 0) < Number(source?.sourceIssueQty || 0)) {
+            return alert(`Kaynak stok yetersiz. Gerekli: ${UnitModule.roundStockQty(source.sourceIssueQty)} ${source.unit} / Mevcut: ${UnitModule.roundStockQty(source.qty)} ${source.unit}`);
+        }
+        if (!Array.isArray(DB.data?.data?.stock_movements)) DB.data.data.stock_movements = [];
+        if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
+
+        const now = new Date().toISOString();
+        UnitModule.setStockItemQty(source.row, UnitModule.roundStockQty(Number(source.qty || 0) - Number(source.sourceIssueQty || 0)));
+        DB.data.data.workOrderTransactions.push({
+            id: crypto.randomUUID(),
+            workOrderId: String(workOrderId || ''),
+            lineId: String(lineId || ''),
+            stationId: String(stationId || ''),
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Math.max(0, Number(metrics?.routeSeq || 0)),
+            processId: String(metrics?.processId || '').trim().toUpperCase(),
+            type: 'TAKE',
+            qty: Number(plan.takeQty || 0),
+            note: `Ilk rota depodan teslim alindi: ${source.depotName || '-'} / ${source.locationCode || '-'}`,
+            user: 'Demo User',
+            created_at: now
+        });
+        DB.data.data.stock_movements.push({
+            id: crypto.randomUUID(),
+            movementType: 'WORK_ORDER_ISSUE',
+            type: 'WORK_ORDER_ISSUE',
+            productCode: String(plan.masterCode || ''),
+            code: String(plan.masterCode || ''),
+            productName: String(source.row?.productName || source.row?.name || plan.masterCode || '').trim(),
+            quantity: Number(plan.stockIssueQty || 0),
+            qty: Number(plan.stockIssueQty || 0),
+            unit: UnitModule.normalizeStockUnit(plan.consumptionUnit),
+            sourceQuantity: Number(source.sourceIssueQty || 0),
+            sourceQty: Number(source.sourceIssueQty || 0),
+            sourceUnit: String(source.unit || ''),
+            sourceDepotId: String(source.scopeId || ''),
+            sourceDepotName: String(source.depotName || ''),
+            sourceLocationId: String(source.locationId || ''),
+            sourceLocationCode: String(source.locationCode || ''),
+            depotId: String(source.scopeId || ''),
+            depotName: String(source.depotName || ''),
+            locationId: String(source.locationId || ''),
+            locationCode: String(source.locationCode || ''),
+            workOrderId: String(workOrderId || ''),
+            workOrderCode: String(order?.workOrderCode || ''),
+            workOrderLineId: String(lineId || ''),
+            workOrderLineCode: String(line?.lineCode || ''),
+            componentCode: String(line?.componentCode || ''),
+            componentName: String(line?.componentName || ''),
+            stationId: String(stationId || ''),
+            routeId: String(metrics?.routeId || ''),
+            routeSeq: Math.max(0, Number(metrics?.routeSeq || 0)),
+            productionQty: Number(plan.takeQty || 0),
+            consumptionPerUnit: Number(plan.perUnitQty || 0),
+            note: `Is emrine / atolyeye verildi: ${String(order?.workOrderCode || '-')} | TAKE ${Number(plan.takeQty || 0)} ADET`,
+            created_at: now,
+            updated_at: now
+        });
+        order.updated_at = now;
+        await DB.save();
+        UI.renderCurrentPage();
+    },
     addWorkOrderTxn: async (workOrderId, lineId, stationId, type, qty, note = '', routeRef = null, options = {}) => {
         if (!Array.isArray(DB.data?.data?.workOrderTransactions)) DB.data.data.workOrderTransactions = [];
         const cleanQty = Number(qty || 0);
@@ -6412,12 +6679,15 @@ const UnitModule = {
                                                 <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
                                                     <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')">Goruntule</button>
                                                     ${showPlanAction ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
-                                                    ${showTakeAction ? `
-                                                        <span style="display:inline-flex; align-items:center; gap:0.35rem;">
-                                                            <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
-                                                            <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${takeInputId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>
-                                                        </span>
-                                                    ` : ''}
+                                                    ${showTakeAction ? (UnitModule.isFirstRouteMetrics(r.metrics)
+                                                        ? UnitModule.renderFirstRouteStockTakeAction(r)
+                                                        : `
+                                                            <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                                                <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                                                <button class="btn-sm" onclick="UnitModule.takeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${takeInputId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>
+                                                            </span>
+                                                        `
+                                                    ) : ''}
                                                 </div>
                                                 ${completeActionBlock}
                                             </td>

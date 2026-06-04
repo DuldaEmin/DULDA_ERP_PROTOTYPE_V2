@@ -290,7 +290,6 @@ const StockModule = {
             locationCode: 'Raf kodu',
             planCodeId: 'Plan kod ID',
             modelCode: 'Model kodu',
-            masterCode: 'Master kodu',
             productType: 'Urun tipi',
             note: 'Not',
             depotName: 'Depo',
@@ -314,32 +313,32 @@ const StockModule = {
                 label: labels[key] || fallbackLabel || key || 'Alan'
             });
         };
+        const isWorkflowWipRow = StockModule.normalizeStockClass(row?.stockClass || row?.status || row?.productType) === 'WIP';
 
         pushEntry(idEntries, row?.code, 'code');
         pushEntry(idEntries, row?.id, 'code');
         pushEntry(idEntries, row?.locationCode, 'locationCode');
         pushEntry(idEntries, row?.planCodeId, 'planCodeId');
         pushEntry(idEntries, row?.modelCode, 'modelCode');
-        pushEntry(idEntries, row?.masterCode, 'masterCode');
         pushEntry(idEntries, row?.depotNode?.id, 'depotName', 'Depo ID');
         pushEntry(idEntries, row?.depotNode?.key, 'depotName', 'Depo anahtar');
         pushEntry(idEntries, row?.searchMeta?.productId, 'code', 'Urun ID');
         pushEntry(idEntries, row?.searchMeta?.productCode, 'code');
-        pushEntry(idEntries, row?.searchMeta?.partCardCode, 'code');
-        pushEntry(idEntries, row?.searchMeta?.semiCardCode, 'code');
         pushEntry(idEntries, row?.searchMeta?.locationId, 'locationCode', 'Lokasyon ID');
         pushEntry(idEntries, row?.searchMeta?.depotId, 'depotName', 'Depo ID');
         pushEntry(idEntries, row?.searchMeta?.depotNodeKey, 'depotName', 'Depo anahtar');
         pushEntry(idEntries, row?.searchMeta?.unitId, 'depotName', 'Birim ID');
-        pushEntry(idEntries, row?.searchMeta?.workOrderId, 'workOrder', 'Is emri ID');
-        pushEntry(idEntries, row?.searchMeta?.workOrderCode, 'workOrder');
-        pushEntry(idEntries, row?.searchMeta?.workOrderLineId, 'workOrder', 'Is emri satir ID');
-        pushEntry(idEntries, row?.searchMeta?.workOrderLineCode, 'workOrder', 'Is emri satir no');
-        pushEntry(idEntries, row?.searchMeta?.demandId, 'planCodeId', 'Plan ID');
-        pushEntry(idEntries, row?.searchMeta?.demandCode, 'planCodeId', 'Plan kod');
-        pushEntry(idEntries, row?.searchMeta?.routeId, 'route', 'Rota ID');
-        pushEntry(idEntries, row?.searchMeta?.routeSeq, 'route', 'Rota adim');
-        pushEntry(idEntries, row?.searchMeta?.operationCode, 'operation', 'Operasyon kodu');
+        if (isWorkflowWipRow) {
+            pushEntry(idEntries, row?.searchMeta?.workOrderId, 'workOrder', 'Is emri ID');
+            pushEntry(idEntries, row?.searchMeta?.workOrderCode, 'workOrder');
+            pushEntry(idEntries, row?.searchMeta?.workOrderLineId, 'workOrder', 'Is emri satir ID');
+            pushEntry(idEntries, row?.searchMeta?.workOrderLineCode, 'workOrder', 'Is emri satir no');
+            pushEntry(idEntries, row?.searchMeta?.demandId, 'planCodeId', 'Plan ID');
+            pushEntry(idEntries, row?.searchMeta?.demandCode, 'planCodeId', 'Plan kod');
+            pushEntry(idEntries, row?.searchMeta?.routeId, 'route', 'Rota ID');
+            pushEntry(idEntries, row?.searchMeta?.routeSeq, 'route', 'Rota adim');
+            pushEntry(idEntries, row?.searchMeta?.operationCode, 'operation', 'Operasyon kodu');
+        }
 
         pushEntry(textEntries, row?.name, 'name');
         pushEntry(textEntries, row?.depotName, 'depotName');
@@ -350,16 +349,6 @@ const StockModule = {
         pushEntry(textEntries, row?.searchMeta?.productName, 'name');
         pushEntry(textEntries, row?.searchMeta?.productCategory, 'productType', 'Kategori');
         pushEntry(textEntries, row?.searchMeta?.productBrandModel, 'modelCode');
-        pushEntry(textEntries, row?.searchMeta?.partCardName, 'name');
-        pushEntry(textEntries, row?.searchMeta?.partCardGroup, 'productType', 'Parca grubu');
-        pushEntry(textEntries, row?.searchMeta?.partCardSubGroup, 'productType', 'Parca alt grubu');
-        pushEntry(textEntries, row?.searchMeta?.semiCardName, 'name');
-        pushEntry(textEntries, row?.searchMeta?.semiCardGroup, 'productType', 'Yari mamul grubu');
-        pushEntry(textEntries, row?.searchMeta?.semiCardSubGroup, 'productType', 'Yari mamul alt grubu');
-        pushEntry(textEntries, row?.searchMeta?.variantCode, 'modelCode', 'Varyasyon kodu');
-        pushEntry(textEntries, row?.searchMeta?.variantName, 'name', 'Varyasyon adi');
-        pushEntry(textEntries, row?.searchMeta?.productGroup, 'productType', 'Urun grubu');
-        pushEntry(textEntries, row?.searchMeta?.productSubGroup, 'productType', 'Urun alt grubu');
         pushEntry(textEntries, row?.searchMeta?.color, 'color');
         pushEntry(textEntries, row?.searchMeta?.surface, 'surface');
         pushEntry(textEntries, row?.searchMeta?.measure, 'productType', 'Olcu');
@@ -367,16 +356,12 @@ const StockModule = {
         pushEntry(textEntries, row?.searchMeta?.depotNodeName, 'depotName', 'Lokasyon');
         pushEntry(textEntries, row?.searchMeta?.locationName, 'locationCode', 'Lokasyon adi');
         pushEntry(textEntries, row?.searchMeta?.stationName, 'operation', 'Atolye');
-        pushEntry(textEntries, row?.searchMeta?.operationName, 'operation');
-        pushEntry(textEntries, row?.searchMeta?.routeStationName, 'route', 'Rota istasyonu');
-        pushEntry(textEntries, row?.searchMeta?.routeProcessName, 'operation', 'Rota operasyonu');
-        pushEntry(textEntries, row?.searchMeta?.wipNote, 'note', 'WIP notu');
-        pushEntry(textEntries, row?.searchMeta?.sourceType, 'productType', 'Kaynak turu');
-        pushEntry(textEntries, row?.searchMeta?.sourceLabel, 'productType', 'Kaynak');
-        pushEntry(textEntries, row?.searchMeta?.sourceCode, 'code', 'Kaynak kod');
-        pushEntry(textEntries, row?.searchMeta?.sourceItemCode, 'code', 'Kaynak urun kodu');
-        pushEntry(textEntries, row?.searchMeta?.sourceItemName, 'name', 'Kaynak urun');
-        pushEntry(textEntries, row?.searchMeta?.searchKeywords, 'note', 'Genel alan');
+        if (isWorkflowWipRow) {
+            pushEntry(textEntries, row?.searchMeta?.operationName, 'operation');
+            pushEntry(textEntries, row?.searchMeta?.routeStationName, 'route', 'Rota istasyonu');
+            pushEntry(textEntries, row?.searchMeta?.routeProcessName, 'operation', 'Rota operasyonu');
+            pushEntry(textEntries, row?.searchMeta?.wipNote, 'note', 'WIP notu');
+        }
 
         const exactId = idEntries.find((entry) => StockModule.entryVariantsMatch(entry.variants, queryVariants, 'exact'));
         if (exactId) return { matched: true, score: 400, label: exactId.label };
@@ -2049,6 +2034,15 @@ const StockModule = {
         return raw.toUpperCase();
     },
 
+    isValidGoodsReceiptUnit: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return false;
+        const unit = StockModule.normalizeGoodsReceiptUnit(raw);
+        return ['ADET', 'KG', 'MT', 'BOY', 'MM', 'CM', 'M2', 'M3', 'LT', 'KOLI', 'PAKET', 'SET'].includes(unit);
+    },
+
+    getGoodsReceiptUnitOptions: () => ['ADET', 'KG', 'MT', 'BOY', 'MM', 'CM', 'M2', 'M3', 'LT', 'KOLI', 'PAKET', 'SET'],
+
     getGoodsReceiptProductOptions: () => {
         const products = Array.isArray(DB.data?.data?.products) ? DB.data.data.products : [];
         return products
@@ -2057,11 +2051,11 @@ const StockModule = {
                 const id = String(row?.id || '').trim();
                 const code = String(row?.code || '').trim().toUpperCase();
                 const name = String(row?.name || '').trim();
-                const unitRaw = String(row?.specs?.unit || row?.unit || row?.unitAmountType || 'adet').trim();
+                const unitRaw = String(row?.specs?.tuketimBirimi || row?.tuketimBirimi || row?.specs?.unit || row?.unit || row?.unitAmountType || '').trim();
                 const unit = StockModule.normalizeGoodsReceiptUnit(unitRaw);
                 const category = String(row?.category || row?.categoryId || '').trim();
                 const searchText = StockModule.normalize([code, name, category, unit].join(' '));
-                return { id, code, name, unit, category, searchText };
+                return { id, code, name, unit, hasValidUnit: StockModule.isValidGoodsReceiptUnit(unitRaw), category, searchText };
             })
             .filter((row) => row.id && row.code && row.name)
             .sort((a, b) => {
@@ -2087,6 +2081,15 @@ const StockModule = {
         return Math.max(0, Number(num.toFixed(3)));
     },
 
+    normalizeGoodsReceiptDocumentQty: (value, unit = '') => {
+        if (StockModule.isValidGoodsReceiptUnit(unit)) {
+            return StockModule.normalizeGoodsReceiptQty(value, unit);
+        }
+        const num = Number(String(value ?? '').replace(',', '.'));
+        if (!Number.isFinite(num) || num <= 0) return 0;
+        return Math.max(0, Number(num.toFixed(3)));
+    },
+
     getGoodsReceiptQtyStep: (unit = '') => {
         const unitText = StockModule.normalizeGoodsReceiptUnit(unit || '');
         if (unitText === 'ADET' || unitText === 'PCS') return '1';
@@ -2098,10 +2101,12 @@ const StockModule = {
         productId: String(seed?.productId || '').trim(),
         productCode: String(seed?.productCode || '').trim().toUpperCase(),
         productName: String(seed?.productName || '').trim(),
-        unit: StockModule.normalizeGoodsReceiptUnit(seed?.unit || 'ADET'),
-        acceptedQty: StockModule.normalizeGoodsReceiptQty(seed?.acceptedQty || 0, seed?.unit || 'ADET'),
-        damagedQty: StockModule.normalizeGoodsReceiptQty(seed?.damagedQty || 0, seed?.unit || 'ADET'),
-        missingQty: StockModule.normalizeGoodsReceiptQty(seed?.missingQty || 0, seed?.unit || 'ADET'),
+        documentUnit: StockModule.isValidGoodsReceiptUnit(seed?.documentUnit) ? StockModule.normalizeGoodsReceiptUnit(seed?.documentUnit) : '',
+        documentQty: StockModule.normalizeGoodsReceiptDocumentQty(seed?.documentQty || 0, seed?.documentUnit || ''),
+        unit: StockModule.isValidGoodsReceiptUnit(seed?.unit) ? StockModule.normalizeGoodsReceiptUnit(seed?.unit) : '',
+        acceptedQty: StockModule.normalizeGoodsReceiptQty(seed?.acceptedQty || 0, seed?.unit || ''),
+        damagedQty: StockModule.normalizeGoodsReceiptQty(seed?.damagedQty || 0, seed?.unit || ''),
+        missingQty: StockModule.normalizeGoodsReceiptQty(seed?.missingQty || 0, seed?.unit || ''),
         locationId: String(seed?.locationId || '').trim(),
         locationCode: String(seed?.locationCode || '').trim().toUpperCase(),
         damageNote: String(seed?.damageNote || '').trim()
@@ -2268,7 +2273,7 @@ const StockModule = {
             const product = StockModule.getGoodsReceiptProductOptions().find((row) => row.id === productId) || null;
             line.productCode = String(product?.code || '').trim().toUpperCase();
             line.productName = String(product?.name || '').trim();
-            line.unit = StockModule.normalizeGoodsReceiptUnit(product?.unit || line.unit || 'ADET');
+            line.unit = product?.hasValidUnit ? StockModule.normalizeGoodsReceiptUnit(product.unit) : '';
             line.acceptedQty = StockModule.normalizeGoodsReceiptQty(line.acceptedQty || 0, line.unit);
             line.damagedQty = StockModule.normalizeGoodsReceiptQty(line.damagedQty || 0, line.unit);
             line.missingQty = StockModule.normalizeGoodsReceiptQty(line.missingQty || 0, line.unit);
@@ -2278,8 +2283,13 @@ const StockModule = {
             const depotId = String(draft.depotId || '').trim() || 'main';
             const location = StockModule.getGoodsReceiptLocationOptions(depotId).find((row) => row.id === locationId) || null;
             line.locationCode = String(location?.code || '').trim().toUpperCase();
+        } else if (key === 'documentUnit') {
+            line.documentUnit = StockModule.isValidGoodsReceiptUnit(value) ? StockModule.normalizeGoodsReceiptUnit(value) : '';
+            line.documentQty = StockModule.normalizeGoodsReceiptDocumentQty(line.documentQty || 0, line.documentUnit);
+        } else if (key === 'documentQty') {
+            line.documentQty = StockModule.normalizeGoodsReceiptDocumentQty(value, line?.documentUnit || '');
         } else if (key === 'acceptedQty' || key === 'damagedQty' || key === 'missingQty') {
-            line[key] = StockModule.normalizeGoodsReceiptQty(value, line?.unit || 'ADET');
+            line[key] = StockModule.normalizeGoodsReceiptQty(value, line?.unit || '');
         } else if (key === 'damageNote') {
             line.damageNote = String(value || '').trim();
             shouldRender = false;
@@ -2543,11 +2553,26 @@ const StockModule = {
             const line = lines[idx];
             const lineNo = idx + 1;
             if (!String(line?.productId || '').trim()) return { ok: false, message: `${lineNo}. satir icin urun seciniz.` };
-            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const documentUnitRaw = String(line?.documentUnit || '').trim();
+            if (!StockModule.isValidGoodsReceiptUnit(documentUnitRaw)) {
+                return { ok: false, message: `${lineNo}. satır için alış birimi seçiniz.` };
+            }
+            const documentQty = StockModule.normalizeGoodsReceiptDocumentQty(line?.documentQty || 0, documentUnitRaw);
+            if (documentQty <= 0) {
+                return { ok: false, message: `${lineNo}. satır için alış miktarı giriniz.` };
+            }
+            const unitRaw = String(line?.unit || '').trim();
+            if (!StockModule.isValidGoodsReceiptUnit(unitRaw)) {
+                return { ok: false, message: `${lineNo}. satir icin stok/tuketim birimi secili olmalidir.` };
+            }
+            const unit = StockModule.normalizeGoodsReceiptUnit(unitRaw);
             const accepted = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
             const damaged = StockModule.normalizeGoodsReceiptQty(line?.damagedQty || 0, unit);
             const missing = StockModule.normalizeGoodsReceiptQty(line?.missingQty || 0, unit);
-            if (accepted > 0 || damaged > 0 || missing > 0) hasQty = true;
+            if (accepted <= 0) {
+                return { ok: false, message: `${lineNo}. satir icin stoga islenecek miktar giriniz.` };
+            }
+            hasQty = true;
             if (accepted > 0 && !String(line?.locationId || '').trim()) {
                 return { ok: false, message: `${lineNo}. satirda kabul miktari var. Lokasyon seciniz.` };
             }
@@ -2576,7 +2601,8 @@ const StockModule = {
         const nowIso = new Date().toISOString();
         const lines = (Array.isArray(draft?.lines) ? draft.lines : []).map((raw) => {
             const product = products.find((row) => row.id === String(raw?.productId || '').trim()) || null;
-            const unit = StockModule.normalizeGoodsReceiptUnit(raw?.unit || product?.unit || 'ADET');
+            const unitRaw = String(raw?.unit || (product?.hasValidUnit ? product.unit : '')).trim();
+            const unit = StockModule.isValidGoodsReceiptUnit(unitRaw) ? StockModule.normalizeGoodsReceiptUnit(unitRaw) : '';
             const locationId = String(raw?.locationId || '').trim();
             const location = locationRows.find((row) => row.id === locationId) || null;
             return StockModule.buildEmptyGoodsReceiptLine({
@@ -2584,6 +2610,8 @@ const StockModule = {
                 productId: String(raw?.productId || '').trim(),
                 productCode: String(raw?.productCode || product?.code || '').trim().toUpperCase(),
                 productName: String(raw?.productName || product?.name || '').trim(),
+                documentUnit: StockModule.isValidGoodsReceiptUnit(raw?.documentUnit) ? StockModule.normalizeGoodsReceiptUnit(raw.documentUnit) : '',
+                documentQty: StockModule.normalizeGoodsReceiptDocumentQty(raw?.documentQty || 0, raw?.documentUnit || ''),
                 unit,
                 acceptedQty: StockModule.normalizeGoodsReceiptQty(raw?.acceptedQty || 0, unit),
                 damagedQty: StockModule.normalizeGoodsReceiptQty(raw?.damagedQty || 0, unit),
@@ -2659,7 +2687,9 @@ const StockModule = {
         const targetDepotName = StockModule.getScopeNameById(targetScopeId);
 
         (Array.isArray(record?.lines) ? record.lines : []).forEach((line) => {
-            const unit = String(line?.unit || 'ADET').trim().toUpperCase();
+            const unitRaw = String(line?.unit || '').trim();
+            if (!StockModule.isValidGoodsReceiptUnit(unitRaw)) return;
+            const unit = StockModule.normalizeGoodsReceiptUnit(unitRaw);
             const acceptedQty = StockModule.normalizeGoodsReceiptQty(line?.acceptedQty || 0, unit);
             if (acceptedQty <= 0) return;
             const productCode = String(line?.productCode || '').trim().toUpperCase();
@@ -2959,8 +2989,8 @@ const StockModule = {
           <th style="width:140px;">Urun Kodu</th>
           <th>Urun Adi</th>
           <th style="width:95px;">Lokasyon</th>
-          <th style="width:70px;" class="right">Birim</th>
-          <th style="width:90px;" class="right">Kabul</th>
+          <th style="width:100px;" class="right">Alış</th>
+          <th style="width:100px;" class="right">Stok</th>
           <th style="width:90px;" class="right">Hasar</th>
           <th style="width:90px;" class="right">Eksik</th>
         </tr>
@@ -2972,14 +3002,14 @@ const StockModule = {
             <td class="mono">${StockModule.escapeHtml(String(line?.productCode || '-'))}</td>
             <td><div style="font-weight:700;">${StockModule.escapeHtml(String(line?.productName || '-'))}</div>${String(line?.damageNote || '').trim() ? `<div style="font-size:11px; color:#b45309; margin-top:3px;">Hasar notu: ${StockModule.escapeHtml(String(line?.damageNote || '').trim())}</div>` : ''}</td>
             <td>${StockModule.escapeHtml(String(line?.locationCode || '-'))}</td>
-            <td class="right">${StockModule.escapeHtml(String(line?.unit || '-'))}</td>
-            <td class="right"><strong>${StockModule.escapeHtml(String(line?.acceptedQty || 0))}</strong></td>
+            <td class="right">${StockModule.escapeHtml(String(line?.documentQty || 0))} ${StockModule.escapeHtml(String(line?.documentUnit || '-'))}</td>
+            <td class="right"><strong>${StockModule.escapeHtml(String(line?.acceptedQty || 0))} ${StockModule.escapeHtml(String(line?.unit || '-'))}</strong></td>
             <td class="right">${StockModule.escapeHtml(String(line?.damagedQty || 0))}</td>
             <td class="right">${StockModule.escapeHtml(String(line?.missingQty || 0))}</td>
           </tr>
         `).join('')}
         <tr class="sum-row">
-          <td colspan="5" class="right">TOPLAM</td>
+          <td colspan="5" class="right">TOPLAM STOK</td>
           <td class="right">${StockModule.escapeHtml(String(totals.accepted || 0))}</td>
           <td class="right">${StockModule.escapeHtml(String(totals.damaged || 0))}</td>
           <td class="right">${StockModule.escapeHtml(String(totals.missing || 0))}</td>
@@ -3495,7 +3525,6 @@ const StockModule = {
                 <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.55rem;">
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('master')">Master Urun Kutuphanesi</button>
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('component')">Parca & Bilesen</button>
-                    <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('semi')">Yari Mamul</button>
                     <button class="btn-sm" style="height:44px; font-weight:700;" onclick="StockModule.openInventoryRegistrationProductPicker('model')">Satilan Urun Varyasyonlari</button>
                 </div>
                 <div style="font-size:0.78rem; color:#94a3b8;">Secimden sonra ilgili kutuphane acilir, urune "ekle" dediginde bu forma geri donersin.</div>
@@ -5258,13 +5287,15 @@ const StockModule = {
                             <button class="btn-sm" onclick="StockModule.addGoodsReceiptLine()" ${isEditable ? '' : 'disabled'}>satir ekle +</button>
                         </div>
                         <div style="overflow:auto;">
-                            <table style="width:100%; min-width:1220px; border-collapse:collapse;">
+                            <table style="width:100%; min-width:1540px; border-collapse:collapse;">
                                 <thead>
                                     <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.73rem; text-transform:uppercase;">
                                         <th style="padding:0.55rem; text-align:left;">Urun</th>
                                         <th style="padding:0.55rem; text-align:left;">Kod</th>
-                                        <th style="padding:0.55rem; text-align:center;">Birim</th>
-                                        <th style="padding:0.55rem; text-align:right;">Kabul</th>
+                                        <th style="padding:0.55rem; text-align:right;">Alış Miktarı</th>
+                                        <th style="padding:0.55rem; text-align:center;">Alış Birimi</th>
+                                        <th style="padding:0.55rem; text-align:center;">Stok Birimi</th>
+                                        <th style="padding:0.55rem; text-align:right;">Stok Miktarı</th>
                                         <th style="padding:0.55rem; text-align:right;">Hasar</th>
                                         <th style="padding:0.55rem; text-align:right;">Eksik</th>
                                         <th style="padding:0.55rem; text-align:left;">Lokasyon</th>
@@ -5276,6 +5307,8 @@ const StockModule = {
                                     ${lines.map((line, idx) => {
             const lineId = StockModule.escapeHtml(String(line?.id || ''));
             const qtyStep = StockModule.getGoodsReceiptQtyStep(line?.unit || 'ADET');
+            const documentStep = StockModule.isValidGoodsReceiptUnit(line?.documentUnit) ? StockModule.getGoodsReceiptQtyStep(line.documentUnit) : '0.001';
+            const documentValue = Number(line?.documentQty || 0) > 0 ? String(line.documentQty) : '';
             const acceptedValue = Number(line?.acceptedQty || 0) > 0 ? String(line.acceptedQty) : '';
             const damagedValue = Number(line?.damagedQty || 0) > 0 ? String(line.damagedQty) : '';
             const missingValue = Number(line?.missingQty || 0) > 0 ? String(line.missingQty) : '';
@@ -5295,6 +5328,15 @@ const StockModule = {
                                                 ${hasLinkedMaster
                 ? `<button type="button" onclick="StockModule.openGoodsReceiptProductCard('${lineId}')" style="border:none; background:none; padding:0; margin:0; color:#1d4ed8; text-decoration:underline; font-family:Consolas, monospace; font-weight:800; cursor:pointer;">${StockModule.escapeHtml(String(line?.productCode || '-'))}</button>`
                 : StockModule.escapeHtml(String(line?.productCode || '-'))}
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <input class="stock-input stock-input-tall" type="number" min="0" step="${StockModule.escapeHtml(documentStep)}" value="${StockModule.escapeHtml(documentValue)}" onchange="StockModule.setGoodsReceiptLineField('${lineId}','documentQty',this.value)" ${disabledAttr}>
+                                            </td>
+                                            <td style="padding:0.5rem;">
+                                                <select class="stock-input stock-input-tall" style="min-width:120px;" onchange="StockModule.setGoodsReceiptLineField('${lineId}','documentUnit',this.value)" ${disabledAttr}>
+                                                    <option value="">Alış birimi seç</option>
+                                                    ${StockModule.getGoodsReceiptUnitOptions().map((unit) => `<option value="${StockModule.escapeHtml(unit)}" ${String(line?.documentUnit || '') === String(unit) ? 'selected' : ''}>${StockModule.escapeHtml(unit)}</option>`).join('')}
+                                                </select>
                                             </td>
                                             <td style="padding:0.5rem; text-align:center; font-weight:700; color:#334155;">${StockModule.escapeHtml(String(line?.unit || '-'))}</td>
                                             <td style="padding:0.5rem;">
@@ -5325,7 +5367,7 @@ const StockModule = {
                             </table>
                         </div>
                         <div style="display:flex; justify-content:flex-end; gap:1.2rem; margin-top:0.8rem; font-size:0.83rem; color:#334155; font-weight:700; flex-wrap:wrap;">
-                            <div>Kabul: <span style="color:#0f172a;">${StockModule.escapeHtml(String(totals.accepted || 0))}</span></div>
+                            <div>Stok Miktarı: <span style="color:#0f172a;">${StockModule.escapeHtml(String(totals.accepted || 0))}</span></div>
                             <div>Hasar: <span style="color:#b45309;">${StockModule.escapeHtml(String(totals.damaged || 0))}</span></div>
                             <div>Eksik: <span style="color:#991b1b;">${StockModule.escapeHtml(String(totals.missing || 0))}</span></div>
                         </div>
@@ -5400,7 +5442,7 @@ const StockModule = {
                                         <th style="padding:0.55rem; text-align:left;">Tedarikci</th>
                                         <th style="padding:0.55rem; text-align:left;">Depo</th>
                                         <th style="padding:0.55rem; text-align:left;">Durum</th>
-                                        <th style="padding:0.55rem; text-align:right;">Toplam kabul</th>
+                                        <th style="padding:0.55rem; text-align:right;">Toplam stok</th>
                                         <th style="padding:0.55rem; text-align:center;">Islem</th>
                                     </tr>
                                 </thead>

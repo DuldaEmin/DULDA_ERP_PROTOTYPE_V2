@@ -3385,6 +3385,105 @@
     getActiveComponentCardById: (id) => {
         return ProductLibraryModule.getComponentCardsByKind(ProductLibraryModule.getActiveComponentLibraryKind()).find(row => String(row.id) === String(id)) || null;
     },
+
+    getComponentUsageSalesVariants: (componentId) => {
+        const component = ProductLibraryModule.getComponentCardById(componentId);
+        if (!component) return [];
+        const targetId = String(component?.id || '').trim();
+        const targetCode = ProductLibraryModule.normalizeAsciiUpper(component?.code || '');
+        if (!targetId && !targetCode) return [];
+
+        const products = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
+        const productById = {};
+        products.forEach((row) => {
+            const id = String(row?.id || '').trim();
+            if (id) productById[id] = row;
+        });
+
+        const variants = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
+        return variants
+            .filter((row) => {
+                const items = Array.isArray(row?.items) ? row.items : [];
+                return items.some((item) => {
+                    const itemRefId = String(item?.refId || '').trim();
+                    const itemCode = ProductLibraryModule.normalizeAsciiUpper(item?.code || '');
+                    if (targetId && itemRefId && itemRefId === targetId) return true;
+                    return !!(targetCode && itemCode && itemCode === targetCode);
+                });
+            })
+            .map((row) => {
+                const sourceCatalogProductId = String(row?.sourceCatalogProductId || '').trim();
+                const sourceProduct = productById[sourceCatalogProductId] || null;
+                return {
+                    variationId: String(row?.id || '').trim(),
+                    sourceCatalogProductId,
+                    productName: String(sourceProduct?.name || row?.sourceCatalogName || '-').trim() || '-',
+                    productCode: String(sourceProduct?.productCode || row?.sourceCatalogProductCode || '').trim().toUpperCase(),
+                    variantName: String(row?.productName || sourceProduct?.name || row?.sourceCatalogName || '-').trim() || '-',
+                    variantCode: String(row?.variantCode || '').trim().toUpperCase()
+                };
+            })
+            .filter((row) => row.variationId && row.sourceCatalogProductId)
+            .sort((a, b) => {
+                const productCompare = String(a.productName || '').localeCompare(String(b.productName || ''), 'tr');
+                if (productCompare !== 0) return productCompare;
+                return String(a.variantCode || '').localeCompare(String(b.variantCode || ''), 'tr');
+            });
+    },
+
+    openComponentUsageSalesVariationView: (sourceCatalogProductId, variationId) => {
+        const productId = String(sourceCatalogProductId || '').trim();
+        const targetVariationId = String(variationId || '').trim();
+        if (!productId || !targetVariationId) return alert('Satılan Ürün varyasyon kaydı bulunamadı.');
+        const sourceProduct = ProductLibraryModule.getSalesCatalogProductById(productId);
+        if (!sourceProduct) return alert('Satılan Ürün kaydı bulunamadı.');
+        const variation = ProductLibraryModule.getSalesProductVariationRows(productId)
+            .find((row) => String(row?.id || '') === targetVariationId);
+        if (!variation) return alert('Satılan Ürün varyasyon kaydı bulunamadı.');
+        if (ProductLibraryModule.state.componentEditingId) {
+            const ok = confirm('Kaydedilmemiş Parça & Bileşen değişiklikleri kaybolabilir. Devam edilsin mi?');
+            if (!ok) return;
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        ProductLibraryModule.state.workspaceView = 'sales-products';
+        ProductLibraryModule.state.salesProductDetailId = productId;
+        ProductLibraryModule.openSalesVariationEditor('view', targetVariationId);
+    },
+
+    openComponentUsageModal: (componentId) => {
+        const component = ProductLibraryModule.getComponentCardById(componentId);
+        if (!component) return alert('Parça & Bileşen kaydı bulunamadı.');
+        const usageRows = ProductLibraryModule.getComponentUsageSalesVariants(component.id);
+        const body = usageRows.length === 0
+            ? '<div style="padding:0.85rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.7rem;">Bu Parça & Bileşen hiçbir Satılan Ürün varyasyonunda kullanılmıyor.</div>'
+            : `
+                <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                    ${usageRows.map(row => {
+                        const productCodeText = row.productCode ? ` • ${ProductLibraryModule.escapeHtml(row.productCode)}` : '';
+                        const variantCodeText = row.variantCode ? ` • ${ProductLibraryModule.escapeHtml(row.variantCode)}` : '';
+                        return `
+                            <button type="button" class="btn-sm" onclick='ProductLibraryModule.openComponentUsageSalesVariationView(${JSON.stringify(row.sourceCatalogProductId)}, ${JSON.stringify(row.variationId)})' style="display:grid; grid-template-columns:minmax(0,1fr) minmax(160px,auto); gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.65rem 0.75rem; background:white; text-align:left; height:auto;">
+                                <span style="min-width:0;">
+                                    <span style="display:block; font-weight:800; color:#0f172a;">${ProductLibraryModule.escapeHtml(row.productName || '-')}${productCodeText}</span>
+                                    <span style="display:block; margin-top:0.12rem; color:#475569; font-weight:700;">${ProductLibraryModule.escapeHtml(row.variantName || '-')}${variantCodeText}</span>
+                                </span>
+                                <span style="font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; justify-self:end;">${ProductLibraryModule.escapeHtml(row.variantCode || row.variationId || '-')}</span>
+                            </button>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        const html = `
+            <div style="display:grid; gap:0.75rem;">
+                <div style="font-size:0.84rem; color:#64748b;">
+                    <span style="font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(component.code || '-')}</span>
+                    kodunu kullanan Satılan Ürün varyasyonları canlı hesaplanır.
+                </div>
+                ${body}
+            </div>
+        `;
+        Modal.open('Nerede Kullanılıyor?', html, { maxWidth: '820px' });
+    },
     normalizeSupplierRouteStationId: (supplierId) => `supplier:${String(supplierId || '').trim()}`,
     isSupplierRouteStationId: (stationId) => String(stationId || '').trim().toLowerCase().startsWith('supplier:'),
     isFasonSupplierTag: (tag) => {
@@ -3556,6 +3655,27 @@
             })
             .filter(Boolean)
             .join('|');
+    },
+
+    buildComponentRouteLineageIdentity: (row = {}) => {
+        const masterCode = ProductLibraryModule.normalizeAsciiUpper(row?.masterCode || '') || '-';
+        const processCodes = (Array.isArray(row?.routes) ? row.routes : [])
+            .map(route => String(ProductLibraryModule.getRouteProcessDisplayValue(route) || '').trim().toUpperCase())
+            .filter(Boolean);
+        const finalCode = String(row?.code || '').trim().toUpperCase() || '-';
+        return `${[masterCode, ...processCodes].join(' / ')} = ${finalCode}`;
+    },
+
+    buildComponentRouteNormalizedKinshipLineageIdentity: (row = {}) => {
+        const masterCode = ProductLibraryModule.normalizeAsciiUpper(row?.masterCode || '') || '-';
+        const processCodes = (Array.isArray(row?.routes) ? row.routes : [])
+            .map(route => {
+                const processCode = String(ProductLibraryModule.getRouteProcessDisplayValue(route) || '').trim().toUpperCase();
+                return /^DTR-\d{6}$/.test(processCode) ? 'DTR' : processCode;
+            })
+            .filter(Boolean);
+        const finalCode = String(row?.code || '').trim().toUpperCase() || '-';
+        return `${[masterCode, ...processCodes].join(' / ')} = ${finalCode}`;
     },
 
     buildComponentDuplicateSignature: (row = {}) => {
@@ -4039,10 +4159,44 @@
             .filter(r => r.stationId);
         const invalidStation = routes.find(r => !ProductLibraryModule.isValidRouteStationId(r.stationId));
         if (invalidStation) return alert('Rota satirinda gecersiz istasyon secimi var.');
+        if (isPartLibrary && String(routes[0]?.stationId || '').trim() === 'u_dtm') {
+            const continueWithDepotTransferStart = confirm('Bu rotanın ilk istasyonu DEPO TRANSFER olarak seçilmiş. Bu özel bir akıştır. Malzeme üretim işleminden başlamayıp doğrudan depo transfer / dış işlem yönlendirmesiyle başlayabilir. Yanlışlık varsa Vazgeç deyip rotayı düzeltin. Devam edilsin mi?');
+            if (!continueWithDepotTransferStart) return;
+        }
 
         const editingRow = targetEditingId
             ? all.find(x => String(x?.id || '') === String(targetEditingId || '')) || null
             : null;
+        const sourceRowForVariant = (isPartLibrary && shouldSaveAsNew)
+            ? all.find(x => String(x?.id || '') === String(s.componentEditingId || '')) || null
+            : null;
+        const draftRouteSignature = ProductLibraryModule.buildComponentRouteSignature(routes);
+        const hasComparableProductionIdentity = Boolean(masterCode && draftRouteSignature);
+        if (isPartLibrary && shouldSaveAsNew) {
+            const sourceMasterCode = ProductLibraryModule.normalizeAsciiUpper(sourceRowForVariant?.masterCode || '');
+            const sourceRouteSignature = ProductLibraryModule.buildComponentRouteSignature(sourceRowForVariant?.routes || []);
+            const productionIdentityChanged = sourceMasterCode !== masterCode || sourceRouteSignature !== draftRouteSignature;
+            const nameChanged = ProductLibraryModule.normalizeAsciiUpper(sourceRowForVariant?.name || '') !== ProductLibraryModule.normalizeAsciiUpper(name);
+            if (!productionIdentityChanged) {
+                return alert('Yeni varyasyon için hammadde/master kodu veya rota zincirinde değişiklik yapmalısınız. Sadece renk, isim veya kategori değişikliğiyle yeni varyasyon oluşturulamaz.');
+            }
+            if (!nameChanged) {
+                return alert('Üretim farkı yapıldı. Yeni varyasyonu ayırt etmek için ürün adını da değiştirin.');
+            }
+        }
+        if (isPartLibrary && hasComparableProductionIdentity) {
+            const productionIdentityExcludeId = targetEditingId ? String(targetEditingId || '') : '';
+            const productionIdentityDuplicate = all.find(item => {
+                const itemId = String(item?.id || '').trim();
+                if (productionIdentityExcludeId && itemId === productionIdentityExcludeId) return false;
+                const itemMasterCode = ProductLibraryModule.normalizeAsciiUpper(item?.masterCode || '');
+                const itemRouteSignature = ProductLibraryModule.buildComponentRouteSignature(item?.routes || []);
+                return itemMasterCode === masterCode && itemRouteSignature === draftRouteSignature;
+            });
+            if (productionIdentityDuplicate) {
+                return alert('Bu üretim kimliğine sahip parça zaten mevcut. Aynı hammadde/master kodu ve aynı rota zinciriyle yeni kayıt oluşturulamaz.');
+            }
+        }
         const isPartChildVariantSave = Boolean(
             isPartLibrary
             && !shouldSaveAsNew
@@ -4119,9 +4273,6 @@
 
         const note = String(s.componentDraftNote || '').trim();
         const now = new Date().toISOString();
-        const sourceRowForVariant = (isPartLibrary && shouldSaveAsNew)
-            ? all.find(x => String(x?.id || '') === String(s.componentEditingId || '')) || null
-            : null;
         const variantTypeOptions = ProductLibraryModule.getComponentVariantTypeOptions().map(item => item.value);
         const draftVariantType = String(s.componentDraftVariantType || '').trim().toUpperCase();
         const normalizedDraftVariantType = variantTypeOptions.includes(draftVariantType) ? draftVariantType : 'FINISHED_PART';
@@ -4267,6 +4418,8 @@
         const resolvedRootComponentCode = String(row?.rootComponentCode || fallbackPartCard?.rootComponentCode || '').trim();
         const isPartChildVariant = !!(resolvedRootComponentId || resolvedRootComponentCode);
         const showSemiFinishedVariantMeta = isPartLibrary && isPartChildVariant && resolvedVariantType === 'SEMI_FINISHED';
+        const routeLineageIdentity = ProductLibraryModule.buildComponentRouteLineageIdentity(row);
+        const normalizedKinshipLineageIdentity = ProductLibraryModule.buildComponentRouteNormalizedKinshipLineageIdentity(row);
 
         container.innerHTML = `
             <div style="max-width:1120px; margin:0 auto;">
@@ -4311,6 +4464,7 @@
                         </div>
                     ` : ''}
                     <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">master urun kutuphanesi hammadde ID kod</div><div style="font-weight:700; font-family:monospace;">${ProductLibraryModule.escapeHtml(row?.masterCode || '-')}</div></div>
+                    ${isPartLibrary ? `<div style="margin-top:0.75rem; border:1px solid #dbeafe; background:#eff6ff; border-radius:0.7rem; padding:0.65rem;"><div style="font-size:0.72rem; color:#1d4ed8; font-weight:800; margin-bottom:0.18rem;">Tam Rota Soy Kimliği</div><div style="font-weight:800; font-family:monospace; color:#0f172a; word-break:break-word;">${ProductLibraryModule.escapeHtml(routeLineageIdentity)}</div><div style="font-size:0.72rem; color:#1d4ed8; font-weight:800; margin:0.55rem 0 0.18rem;">Normalize Akrabalık Soy Kimliği</div><div style="font-weight:800; font-family:monospace; color:#0f172a; word-break:break-word;">${ProductLibraryModule.escapeHtml(normalizedKinshipLineageIdentity)}</div></div>` : ''}
                     <div style="margin-top:0.75rem;"><div style="font-size:0.72rem; color:#64748b;">not</div><div style="color:#334155;">${ProductLibraryModule.escapeHtml(row?.note || '-')}</div></div>
                 </div>
 
@@ -4409,9 +4563,6 @@
             const rowCode = String(row?.code || '').trim();
             return rowCode ? `code:${rowCode}` : '';
         };
-        const componentVariantExpandedMap = (state.componentVariantExpanded && typeof state.componentVariantExpanded === 'object')
-            ? state.componentVariantExpanded
-            : {};
         const partChildrenByRootKey = {};
         let groupedRowsSource = rows;
         if (isPartLibrary) {
@@ -4427,8 +4578,8 @@
             });
             const fallbackRows = [];
             partChildRows.forEach((row) => {
-                const rootId = String(row?.rootComponentId || '').trim();
-                const rootCode = String(row?.rootComponentCode || '').trim();
+                const rootId = String(row?.rootComponentId || row?.variantParentId || '').trim();
+                const rootCode = String(row?.rootComponentCode || row?.variantParentCode || '').trim();
                 let rootRow = null;
                 if (rootId && rootById[rootId]) rootRow = rootById[rootId];
                 if (!rootRow && rootCode && rootByCode[rootCode]) rootRow = rootByCode[rootCode];
@@ -4526,6 +4677,16 @@
             ProductLibraryModule.state.componentDraftCode
             || ProductLibraryModule.generateComponentCode(state.componentEditingId || null, libraryKind)
         ).trim().toUpperCase();
+        const draftRouteLineageIdentity = ProductLibraryModule.buildComponentRouteLineageIdentity({
+            masterCode: state.componentDraftMasterCode || '',
+            routes,
+            code: draftCode
+        });
+        const draftNormalizedKinshipLineageIdentity = ProductLibraryModule.buildComponentRouteNormalizedKinshipLineageIdentity({
+            masterCode: state.componentDraftMasterCode || '',
+            routes,
+            code: draftCode
+        });
         const componentExpandedMap = (state.componentCategoryExpanded && typeof state.componentCategoryExpanded === 'object')
             ? state.componentCategoryExpanded
             : {};
@@ -4609,12 +4770,11 @@
                             const rootKey = getPartRootLookupKey(row);
                             const childRows = (rootKey && Array.isArray(partChildrenByRootKey[rootKey])) ? partChildrenByRootKey[rootKey] : [];
                             const hasChildren = childRows.length > 0;
-                            const isChildrenOpen = hasChildren && !!componentVariantExpandedMap[rootKey];
                             const variantControlHtml = hasChildren
-                                ? `<button class="btn-sm" type="button" onclick='ProductLibraryModule.toggleComponentVariantSection(${JSON.stringify(rootKey)})' style="padding:0.2rem 0.5rem; min-height:auto;">${isChildrenOpen ? 'V' : 'V'} (${childRows.length})</button>`
+                                ? `<span style="display:inline-flex; align-items:center; justify-content:center; border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:800;">V (${childRows.length})</span>`
                                 : '';
                             const rootRowHtml = renderComponentRow(row, { variantControlHtml });
-                            const childrenHtml = (hasChildren && isChildrenOpen)
+                            const childrenHtml = hasChildren
                                 ? childRows.map(child => renderComponentRow(child, { indentLevel: 1 })).join('')
                                 : '';
                             return `${rootRowHtml}${childrenHtml}`;
@@ -4738,6 +4898,7 @@
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem; margin-bottom:0.85rem;">
                             <h3 style="margin:0; font-size:1.45rem; color:#334155;">${ProductLibraryModule.escapeHtml(isSemiLibrary ? 'Yari Mamul olustur' : 'Parca ve Bilesen olustur')}</h3>
                             <div style="display:flex; gap:0.75rem; align-items:center; flex-wrap:wrap;">
+                                ${isPartLibrary && state.componentEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.openComponentUsageModal('${state.componentEditingId}')" style="height:40px; padding:0 1rem;">Nerede Kullanılıyor?</button>` : ''}
                                 ${state.componentEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteComponentCard('${state.componentEditingId}')" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;">Sil</button>` : ''}
                                 ${state.componentEditingId ? `<div style="display:flex; align-items:center; gap:0.5rem; padding-left:0.75rem; margin-left:0.15rem; border-left:1px solid #cbd5e1;"><button class="btn-sm" onclick="ProductLibraryModule.saveComponentCard(true)" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8; font-weight:800;">${isPartLibrary ? 'Yeni Varyant Ekle' : 'Farkli Kaydet'}</button><span style="font-size:0.72rem; color:#64748b;">yeni renk / varyant karti ac</span></div>` : ''}
                                 <div style="display:flex; gap:0.5rem; align-items:center;">
@@ -4794,18 +4955,8 @@
                                         <button class="btn-sm" onclick="ProductLibraryModule.clearComponentMasterCode()" style="height:40px; min-width:80px;">sil</button>
                                     </div>
                                 </div>
+                                ${isPartLibrary ? `<div style="margin-bottom:0.75rem; border:1px solid #dbeafe; background:#eff6ff; border-radius:0.7rem; padding:0.65rem;"><div style="font-size:0.72rem; color:#1d4ed8; font-weight:800; margin-bottom:0.18rem;">Tam Rota Soy Kimliği</div><div style="font-weight:800; font-family:monospace; color:#0f172a; word-break:break-word;">${ProductLibraryModule.escapeHtml(draftRouteLineageIdentity)}</div><div style="font-size:0.72rem; color:#1d4ed8; font-weight:800; margin:0.55rem 0 0.18rem;">Normalize Akrabalık Soy Kimliği</div><div style="font-weight:800; font-family:monospace; color:#0f172a; word-break:break-word;">${ProductLibraryModule.escapeHtml(draftNormalizedKinshipLineageIdentity)}</div></div>` : ''}
                                 ${isPartLibrary ? `
-                                    <div style="margin-bottom:0.65rem;">
-                                        <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Varyant Tipi</label>
-                                        <select ${isPartChildVariantDraft ? `onchange="ProductLibraryModule.state.componentDraftVariantType=this.value"` : 'disabled'} style="width:100%; height:40px; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0 0.65rem; ${isPartChildVariantDraft ? 'background:white; color:#111827;' : 'background:#f8fafc; color:#334155;'}">
-                                            ${variantTypeOptions.map(opt => `<option value="${ProductLibraryModule.escapeHtml(opt.value)}" ${String(state.componentDraftVariantType || 'FINISHED_PART') === String(opt.value) ? 'selected' : ''}>${ProductLibraryModule.escapeHtml(opt.label)}</option>`).join('')}
-                                        </select>
-                                        <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">
-                                            ${isPartChildVariantDraft
-                                                ? 'Bu kart cocuk varyanttir. Bitmis Parca veya Yari Mamul secilebilir.'
-                                                : 'Kok parca karti Bitmis Parca olarak kalir ve degistirilemez.'}
-                                        </div>
-                                    </div>
                                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.7rem;">
                                         <div>
                                             <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Tüketim Birimi</label>
@@ -8115,6 +8266,60 @@
     getMasterProductById: (id) => {
         return ProductLibraryModule.getMasterProducts().find(x => x.id === id) || null;
     },
+
+    getMasterUsageParts: (masterCode) => {
+        const normalizedMasterCode = ProductLibraryModule.normalizeAsciiUpper(masterCode || '');
+        if (!normalizedMasterCode) return [];
+        const rows = typeof ProductLibraryModule.getComponentCardsByKind === 'function'
+            ? ProductLibraryModule.getComponentCardsByKind('PART')
+            : (Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : []);
+        return rows
+            .filter(row => ProductLibraryModule.normalizeAsciiUpper(row?.masterCode || '') === normalizedMasterCode)
+            .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || ''), 'tr'));
+    },
+
+    openMasterUsagePartView: (partId) => {
+        const id = String(partId || '').trim();
+        if (!id) return alert('Parca & Bilesen kaydi bulunamadi.');
+        const part = ProductLibraryModule.getComponentCardById(id);
+        if (!part) return alert('Parca & Bilesen kaydi bulunamadi.');
+        if (ProductLibraryModule.state.masterEditingId) {
+            const ok = confirm('Kaydedilmemiş master ürün değişiklikleri kaybolabilir. Devam edilsin mi?');
+            if (!ok) return;
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        ProductLibraryModule.state.componentLibraryKind = 'PART';
+        ProductLibraryModule.state.workspaceView = 'components';
+        ProductLibraryModule.openComponentCardView(part.id);
+    },
+
+    openMasterUsageModal: (masterId) => {
+        const record = ProductLibraryModule.getMasterProductById(masterId);
+        if (!record) return alert('Master urun kaydi bulunamadi.');
+        const usageParts = ProductLibraryModule.getMasterUsageParts(record.code || '');
+        const body = usageParts.length === 0
+            ? '<div style="padding:0.85rem; color:#94a3b8; border:1px dashed #cbd5e1; border-radius:0.7rem;">Bu Master Ürün hiçbir Parça & Bileşen kaydında kullanılmıyor.</div>'
+            : `
+                <div style="display:flex; flex-direction:column; gap:0.45rem;">
+                    ${usageParts.map(part => `
+                        <div style="display:grid; grid-template-columns:150px 1fr; gap:0.55rem; align-items:center; border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.55rem 0.65rem;">
+                            <button type="button" class="btn-sm" onclick='ProductLibraryModule.openMasterUsagePartView(${JSON.stringify(String(part?.id || ''))})' style="font-family:Consolas, monospace; font-weight:800; color:#1d4ed8; text-align:left; justify-content:flex-start;">${ProductLibraryModule.escapeHtml(part?.code || '-')}</button>
+                            <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(part?.name || '-')}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        const html = `
+            <div style="display:grid; gap:0.75rem;">
+                <div style="font-size:0.84rem; color:#64748b;">
+                    <span style="font-family:Consolas, monospace; font-weight:800; color:#1d4ed8;">${ProductLibraryModule.escapeHtml(record.code || '-')}</span>
+                    kodunu kullanan PRC kayıtları canlı hesaplanır.
+                </div>
+                ${body}
+            </div>
+        `;
+        Modal.open('Nerede Kullanılıyor?', html, { maxWidth: '760px' });
+    },
     hasMissingMasterConsumptionUnit: (row) => {
         const unitOptions = ProductLibraryModule.getMasterUnitOptions();
         const consumptionUnit = String(row?.tuketimBirimi || '').trim();
@@ -8281,7 +8486,6 @@
                     .filter(Boolean)
                     .join(', ')
                 : p.suppliers.map(s => s.name || s.id).filter(Boolean).join(', ');
-            const hasPreview = !!(p.attachment?.data || p.previewImage || p.previewPdf);
             const selectedStyle = selectedId === p.id ? 'background:#ffe4e6;' : '';
             const sourceBadge = isSalesMirror
                 ? '<span style="display:inline-flex; align-items:center; margin-left:0.45rem; padding:0.08rem 0.42rem; border-radius:999px; background:#eef2ff; color:#1e3a8a; font-size:0.68rem; font-weight:800;">SATIS</span>'
@@ -8311,7 +8515,7 @@
                     <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(p.pack || '-')}</td>
                     <td style="padding:0.55rem;">${ProductLibraryModule.escapeHtml(suppliersText || '-')}</td>
                     <td style="padding:0.55rem; font-family:monospace; color:#475569;">${ProductLibraryModule.escapeHtml(p.code || '-')}</td>
-                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${p.id}')" ${hasPreview ? '' : 'disabled'}>goruntule</button></td>
+                    <td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.openMasterProductView('${p.id}')">goruntule</button></td>
                     ${showMasterEditDeleteActions
                         ? `<td style="padding:0.55rem; text-align:center;"><button class="btn-sm" onclick="ProductLibraryModule.editMasterProduct('${p.id}')" ${isSalesMirror ? 'disabled' : ''}>${isSalesMirror ? 'kilitli' : 'duzenle'}</button></td>`
                         : ''}
@@ -8517,6 +8721,7 @@
                         <textarea rows="3" oninput="ProductLibraryModule.setMasterDraft('note', this.value)" style="width:100%; border:1px solid #cbd5e1; border-radius:0.55rem; padding:0.5rem; resize:vertical;">${ProductLibraryModule.escapeHtml(state.masterDraftNote || '')}</textarea>
                     </div>
                     <div style="display:flex; gap:0.6rem;">
+                        ${isEditMode && state.masterEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.openMasterUsageModal('${state.masterEditingId}')" style="height:40px; padding:0 1rem;">Nerede Kullanılıyor?</button>` : ''}
                         ${state.masterEditingId ? `<button class="btn-sm" onclick="ProductLibraryModule.deleteMasterProduct('${state.masterEditingId}')" style="height:40px; padding:0 1rem; color:#b91c1c; border-color:#fecaca; background:#fef2f2;">sil</button>` : ''}
                         ${isEditMode
                 ? '<button class="btn-sm" onclick="ProductLibraryModule.resetMasterDraft(false); UI.renderCurrentPage();" style="height:40px; padding:0 1rem;">vazgec</button>'
@@ -8744,16 +8949,82 @@
         ProductLibraryModule.openPreviewModal(file);
     },
 
+    getMasterPreviewAttachment: (record) => {
+        if (record?.attachment?.data) return record.attachment;
+        if (record?.previewPdf) return { name: 'pdf', type: 'application/pdf', data: record.previewPdf };
+        if (record?.previewImage) return { name: 'resim', type: 'image/*', data: record.previewImage };
+        return null;
+    },
+
+    openMasterProductView: (id) => {
+        const record = ProductLibraryModule.getMasterProductById(id);
+        if (!record) return alert('Master urun kaydi bulunamadi.');
+
+        const attachment = ProductLibraryModule.getMasterPreviewAttachment(record);
+        const fileType = String(attachment?.type || '').toLowerCase();
+        const fileData = String(attachment?.data || '');
+        const isPdf = fileType.includes('pdf') || fileData.startsWith('data:application/pdf');
+        const isImage = fileType.startsWith('image/') || fileData.startsWith('data:image/');
+        const colorTypeOption = ProductLibraryModule.getColorTypeOptions()
+            .find(opt => String(opt?.id || '') === String(record.colorType || ''));
+        const colorGroup = colorTypeOption?.label || record.colorType || '-';
+        const colorValue = [
+            String(record.color || '').trim(),
+            String(record.colorCode || '').trim()
+        ].filter(Boolean).join(' / ') || '-';
+        const filePreviewHtml = !attachment?.data
+            ? '<div style="padding:0.9rem; color:#94a3b8; font-weight:700;">Dosya yok.</div>'
+            : isPdf
+                ? `<iframe src="${fileData}" style="width:100%; min-height:360px; border:none; border-radius:0.65rem; background:white;"></iframe>`
+                : isImage
+                    ? `<div style="display:flex; align-items:center; justify-content:center; min-height:360px; background:white; border-radius:0.65rem; overflow:hidden;"><img src="${fileData}" alt="${ProductLibraryModule.escapeHtml(attachment.name || 'dosya')}" style="max-width:100%; max-height:360px; object-fit:contain;"></div>`
+                    : '<div style="padding:0.9rem; color:#94a3b8; font-weight:700;">Bu dosya turu icin yerlesik onizleme yok.</div>';
+        const fileActionsHtml = attachment?.data
+            ? `<div style="display:flex; align-items:center; justify-content:space-between; gap:0.6rem; flex-wrap:wrap; margin-bottom:0.55rem;">
+                    <div style="font-weight:700; color:#334155;">${ProductLibraryModule.escapeHtml(attachment.name || 'dosya')}</div>
+                    <button class="btn-sm" onclick="ProductLibraryModule.previewMasterAttachment('${record.id}')">dosyayi goruntule</button>
+                </div>`
+            : '<div style="font-weight:700; color:#94a3b8; margin-bottom:0.55rem;">Dosya yok.</div>';
+        const fieldHtml = (label, value, extraStyle = '') => `
+            <div>
+                <div style="font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">${ProductLibraryModule.escapeHtml(label)}</div>
+                <div style="font-weight:700; color:#111827; min-height:1.35rem; ${extraStyle}">${ProductLibraryModule.escapeHtml(value || '-')}</div>
+            </div>
+        `;
+        const html = `
+            <div style="display:grid; gap:0.85rem;">
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.85rem;">
+                    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.7rem;">
+                        ${fieldHtml('Kategori', record.categoryName || '-')}
+                        ${fieldHtml('Ürün adı', record.name || '-')}
+                        ${fieldHtml('Marka/model', record.brand || '-')}
+                        ${fieldHtml('Ambalaj içerik', record.pack || '-')}
+                        ${fieldHtml('ID kod', record.code || '-', 'font-family:Consolas, monospace; color:#1d4ed8;')}
+                        ${fieldHtml('Tüketim birimi', record.tuketimBirimi || '-')}
+                        ${fieldHtml('Kategori / renk grubu', colorGroup)}
+                        ${fieldHtml('Renk değeri', colorValue)}
+                    </div>
+                    <div style="margin-top:0.75rem;">
+                        <div style="font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Not / açıklama</div>
+                        <div style="color:#334155; white-space:pre-wrap;">${ProductLibraryModule.escapeHtml(record.note || '-')}</div>
+                    </div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.85rem;">
+                    <div style="font-size:0.84rem; color:#64748b; margin-bottom:0.55rem;">Dosya / teknik resim</div>
+                    ${fileActionsHtml}
+                    <div style="border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem; background:#f8fafc;">
+                        ${filePreviewHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+        Modal.open(`Master Urun Detay - ${ProductLibraryModule.escapeHtml(record.code || '-')}`, html, { maxWidth: '980px' });
+    },
+
     previewMasterAttachment: (id) => {
         const rec = ProductLibraryModule.getMasterProductById(id);
         if (!rec) return;
-        const attachment = rec.attachment?.data
-            ? rec.attachment
-            : rec.previewPdf
-                ? { name: 'pdf', type: 'application/pdf', data: rec.previewPdf }
-                : rec.previewImage
-                    ? { name: 'resim', type: 'image/*', data: rec.previewImage }
-                    : null;
+        const attachment = ProductLibraryModule.getMasterPreviewAttachment(rec);
         if (!attachment?.data) return alert('Goruntulenecek dosya yok.');
         ProductLibraryModule.openPreviewModal(attachment);
     },

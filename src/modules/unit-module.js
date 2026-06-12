@@ -99,6 +99,14 @@ const UnitModule = {
         workOrderDispatchQtyByRow: {},
         workOrderDispatchDraft: null,
         workOrderMontageCompletedDraftByDispatch: {},
+        workOrderCncViewMode: 'GROUPED',
+        workOrderCncGroupOpen: {},
+        workOrderDepoTransferViewMode: 'DETAIL',
+        workOrderDepoTransferGroupOpen: {},
+        workOrderDemandGroupOpen: {},
+        workOrderDemandGroupModalByKey: {},
+        workOrderDemandModalActiveContext: null,
+        workOrderDemandModalReopenRequest: null,
         workOrderStatsRange: 'WEEK',
         workOrderStatsGroup: 'UNIT',
         workOrderStatsProcess: '',
@@ -2140,7 +2148,7 @@ const UnitModule = {
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:1rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
                     <div style="font-size:0.83rem; color:#64748b;">Bu sayfa sadece izleme ekranidir. Isleme al / tamamla / depoya al islemleri bu ekranda kapatilidir.</div>
-                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya rota ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                    <input id="work_order_search_input" value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value, this.selectionStart)" placeholder="is emri, urun, bilesen veya rota ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                 </div>
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.95rem; margin-bottom:1rem;">
@@ -2240,9 +2248,157 @@ const UnitModule = {
         UnitModule.state.workOrderTab = validTabs.includes(normalized) ? normalized : 'AKTIF';
         UI.renderCurrentPage();
     },
-    setWorkOrderSearch: (value) => {
+    setWorkOrderSearch: (value, caretPos = null) => {
         UnitModule.state.workOrderSearch = String(value || '');
         UI.renderCurrentPage();
+        setTimeout(() => {
+            const inputEl = document.getElementById('work_order_search_input');
+            if (!inputEl) return;
+            inputEl.focus();
+            const pos = Number.isFinite(Number(caretPos))
+                ? Math.max(0, Number(caretPos))
+                : String(inputEl.value || '').length;
+            try { inputEl.setSelectionRange(pos, pos); } catch (_) { }
+        }, 0);
+    },
+    setWorkOrderCncViewMode: (mode) => {
+        const normalized = String(mode || 'GROUPED').trim().toUpperCase();
+        UnitModule.state.workOrderCncViewMode = normalized === 'DETAIL' ? 'DETAIL' : 'GROUPED';
+        UI.renderCurrentPage();
+    },
+    toggleWorkOrderCncGroup: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        if (!key) return;
+        if (!UnitModule.state.workOrderCncGroupOpen || typeof UnitModule.state.workOrderCncGroupOpen !== 'object') {
+            UnitModule.state.workOrderCncGroupOpen = {};
+        }
+        UnitModule.state.workOrderCncGroupOpen[key] = !UnitModule.state.workOrderCncGroupOpen[key];
+        UI.renderCurrentPage();
+    },
+    setWorkOrderDepoTransferViewMode: (mode) => {
+        const normalized = String(mode || 'DETAIL').trim().toUpperCase();
+        UnitModule.state.workOrderDepoTransferViewMode = normalized === 'GROUPED' ? 'GROUPED' : 'DETAIL';
+        UI.renderCurrentPage();
+    },
+    toggleWorkOrderDepoTransferGroup: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        if (!key) return;
+        if (!UnitModule.state.workOrderDepoTransferGroupOpen || typeof UnitModule.state.workOrderDepoTransferGroupOpen !== 'object') {
+            UnitModule.state.workOrderDepoTransferGroupOpen = {};
+        }
+        UnitModule.state.workOrderDepoTransferGroupOpen[key] = !UnitModule.state.workOrderDepoTransferGroupOpen[key];
+        UI.renderCurrentPage();
+    },
+    toggleWorkOrderDemandGroup: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        if (!key) return;
+        if (!UnitModule.state.workOrderDemandGroupOpen || typeof UnitModule.state.workOrderDemandGroupOpen !== 'object') {
+            UnitModule.state.workOrderDemandGroupOpen = {};
+        }
+        UnitModule.state.workOrderDemandGroupOpen[key] = !UnitModule.state.workOrderDemandGroupOpen[key];
+        UI.renderCurrentPage();
+    },
+    openWorkOrderDemandGroupModal: (groupKey) => {
+        const key = String(groupKey || '').trim();
+        const modalMap = UnitModule.state.workOrderDemandGroupModalByKey || {};
+        const payload = key ? modalMap[key] : null;
+        if (!payload) {
+            return alert('Detay grubu bulunamadi. Lutfen ekrani yenileyip tekrar deneyin.');
+        }
+        UnitModule.state.workOrderDemandModalActiveContext = {
+            groupKey: key,
+            unitId: String(payload.unitId || UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim(),
+            tab: String(payload.tab || UnitModule.state.workOrderTab || '').trim().toUpperCase(),
+            sourceCode: String(payload.sourceCode || '').trim(),
+            sourceLabel: String(payload.sourceLabel || '').trim()
+        };
+        Modal.open(payload.title || 'Is Emri Paketi', payload.html || '', { maxWidth: payload.maxWidth || '1280px' });
+    },
+    requestReopenWorkOrderDemandGroupModal: (options = {}) => {
+        const context = UnitModule.state.workOrderDemandModalActiveContext || {};
+        const groupKey = String(context.groupKey || '').trim();
+        if (!groupKey) return null;
+        const requestId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const request = {
+            requestId,
+            groupKey,
+            unitId: String(context.unitId || UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim(),
+            tab: String(context.tab || UnitModule.state.workOrderTab || '').trim().toUpperCase(),
+            sourceCode: String(context.sourceCode || '').trim(),
+            sourceLabel: String(context.sourceLabel || '').trim(),
+            notifyIfMissing: options?.notifyIfMissing !== false,
+            requestedAt: Date.now()
+        };
+        UnitModule.state.workOrderDemandModalReopenRequest = request;
+        setTimeout(() => {
+            const pending = UnitModule.state.workOrderDemandModalReopenRequest;
+            if (pending && String(pending.requestId || '') === requestId) {
+                UnitModule.state.workOrderDemandModalReopenRequest = null;
+            }
+        }, 6000);
+        return request;
+    },
+    tryReopenWorkOrderDemandGroupModalAfterRender: () => {
+        const request = UnitModule.state.workOrderDemandModalReopenRequest || null;
+        if (!request) return false;
+        const groupKey = String(request.groupKey || '').trim();
+        if (!groupKey) {
+            UnitModule.state.workOrderDemandModalReopenRequest = null;
+            return false;
+        }
+        const currentUnitId = String(UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim();
+        const currentTab = String(UnitModule.state.workOrderTab || '').trim().toUpperCase();
+        const requestUnitId = String(request.unitId || '').trim();
+        const requestTab = String(request.tab || '').trim().toUpperCase();
+        if ((requestUnitId && currentUnitId && requestUnitId !== currentUnitId) || (requestTab && currentTab && requestTab !== currentTab)) {
+            UnitModule.state.workOrderDemandModalReopenRequest = null;
+            return false;
+        }
+        const modalMap = UnitModule.state.workOrderDemandGroupModalByKey || {};
+        const hasFreshPayload = !!modalMap[groupKey];
+        UnitModule.state.workOrderDemandModalReopenRequest = null;
+        if (hasFreshPayload) {
+            setTimeout(() => {
+                const latestMap = UnitModule.state.workOrderDemandGroupModalByKey || {};
+                const latestUnitId = String(UnitModule.state.workOrderPlanningUnitId || UnitModule.state.activeUnitId || '').trim();
+                const latestTab = String(UnitModule.state.workOrderTab || '').trim().toUpperCase();
+                if ((requestUnitId && latestUnitId && requestUnitId !== latestUnitId) || (requestTab && latestTab && requestTab !== latestTab)) return;
+                if (latestMap[groupKey]) UnitModule.openWorkOrderDemandGroupModal(groupKey);
+            }, 0);
+            return true;
+        }
+        if (request.notifyIfMissing !== false) {
+            setTimeout(() => alert('Bu pakette bu sekmede kalan iş yok.'), 0);
+        }
+        return false;
+    },
+    closeWorkOrderDemandModalBeforeAction: (...fieldIds) => {
+        let options = {};
+        if (fieldIds.length && typeof fieldIds[fieldIds.length - 1] === 'object' && fieldIds[fieldIds.length - 1] !== null) {
+            options = fieldIds.pop();
+        }
+        if (options?.reopenAfterRender !== false) {
+            UnitModule.requestReopenWorkOrderDemandGroupModal(options);
+        }
+        const preservedFields = fieldIds
+            .map((fieldId) => String(fieldId || '').trim())
+            .filter(Boolean)
+            .map((fieldId) => {
+                const field = document.getElementById(fieldId);
+                return field ? { id: fieldId, value: String(field.value || '') } : null;
+            })
+            .filter(Boolean);
+        Modal.close();
+        preservedFields.forEach((field) => {
+            if (document.getElementById(field.id)) return;
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = field.id;
+            hiddenInput.value = field.value;
+            hiddenInput.setAttribute('data-work-order-modal-preserved-field', 'true');
+            document.body.appendChild(hiddenInput);
+            setTimeout(() => hiddenInput.remove(), 5000);
+        });
     },
     toggleWorkOrderMontageGroup: (groupKey) => {
         const key = String(groupKey || '').trim();
@@ -2919,7 +3075,7 @@ const UnitModule = {
 
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.8rem; margin-bottom:0.9rem; display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap;">
                     <div style="font-size:0.83rem; color:#64748b;">Bu ekran Montaj birimi icin ozel urun/set listesi sunar.</div>
-                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="urun, varyasyon, plan veya PRC ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
+                    <input id="work_order_search_input" value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value, this.selectionStart)" placeholder="urun, varyasyon, plan veya PRC ara" style="min-width:280px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0.52rem 0.65rem; font-weight:600;">
                 </div>
 
                 ${filteredRows.length === 0 ? `
@@ -5025,7 +5181,7 @@ const UnitModule = {
             sources
         };
     },
-    renderFirstRouteStockTakeAction: (row) => {
+    renderFirstRouteStockTakeAction: (row, options = {}) => {
         const order = row?.order || {};
         const line = row?.line || {};
         const metrics = row?.metrics || {};
@@ -5034,6 +5190,9 @@ const UnitModule = {
             return `<span style="display:inline-flex; align-items:center; max-width:360px; border:1px solid #fecaca; background:#fef2f2; color:#991b1b; border-radius:0.55rem; padding:0.34rem 0.5rem; font-size:0.72rem; font-weight:700; text-align:left;">${UnitModule.escapeHtml(plan.reason || 'Ilk rota kaynak stogu hazir degil.')}</span>`;
         }
         const selectId = `wo_first_source_${String(order?.id || '')}_${String(line?.id || '')}_${String(metrics?.stationId || '')}_${String(metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+        const closeActionPrefix = options?.closeModalBeforeAction
+            ? `UnitModule.closeWorkOrderDemandModalBeforeAction('${UnitModule.escapeJsString(selectId)}');`
+            : '';
         const optionsHtml = plan.sources.length === 0
             ? '<option value="">Uygun kaynak stok yok</option>'
             : ['<option value="">Kaynak depo/hucre sec</option>'].concat(plan.sources.map((source) => {
@@ -5053,7 +5212,7 @@ const UnitModule = {
                     <select id="${UnitModule.escapeHtml(selectId)}" ${disabledAttr} style="max-width:315px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-size:0.72rem; font-weight:700; background:white;">
                         ${optionsHtml}
                     </select>
-                    <button class="btn-sm" onclick="UnitModule.takeFirstRouteWorkOrderQtyFromSource('${UnitModule.escapeJsString(order?.id || '')}','${UnitModule.escapeJsString(line?.id || '')}','${UnitModule.escapeJsString(metrics?.stationId || '')}','${UnitModule.escapeJsString(selectId)}','${Number(metrics?.routeSeq || 0)}')" ${disabledAttr} style="${disabledAttr ? 'opacity:0.45; cursor:not-allowed;' : 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;'}">Teslim al</button>
+                    <button class="btn-sm" onclick="${closeActionPrefix}UnitModule.takeFirstRouteWorkOrderQtyFromSource('${UnitModule.escapeJsString(order?.id || '')}','${UnitModule.escapeJsString(line?.id || '')}','${UnitModule.escapeJsString(metrics?.stationId || '')}','${UnitModule.escapeJsString(selectId)}','${Number(metrics?.routeSeq || 0)}')" ${disabledAttr} style="${disabledAttr ? 'opacity:0.45; cursor:not-allowed;' : 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;'}">Teslim al</button>
                 </span>
             </span>
         `;
@@ -6001,7 +6160,7 @@ const UnitModule = {
                 <div style="${workOrderToolbarSearchGroupStyle}">
                     ${isDepoTransferPlanning ? renderTabBtn('HAVUZ', 'Atolyeye Gelecek Isler', poolRows.length, { secondary: true }) : ''}
                     ${renderReportsMenu(statsCount)}
-                    <input value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
+                    <input id="work_order_search_input" value="${UnitModule.escapeHtml(UnitModule.state.workOrderSearch || '')}" oninput="UnitModule.setWorkOrderSearch(this.value, this.selectionStart)" placeholder="is emri, urun, bilesen veya ID ara" style="${workOrderToolbarSearchStyle}">
                 </div>
             </div>
         `;
@@ -6014,6 +6173,726 @@ const UnitModule = {
             if (tabKey === 'ARSIV') return 'Bu sayfa, tamamlanan veya kismi teslim edilen islerin gecmis kaydini gosterir.';
             return 'Bu sayfa, atolye is emirlerini ve durumlarini gosterir.';
         };
+        const isCncPlanningUnit = String(unitId || '') === 'u1';
+        const cncViewMode = String(UnitModule.state.workOrderCncViewMode || 'GROUPED').trim().toUpperCase() === 'DETAIL'
+            ? 'DETAIL'
+            : 'GROUPED';
+        const useCncGroupedView = isCncPlanningUnit && tab === 'AKTIF' && cncViewMode === 'GROUPED';
+        const cncViewToggleHtml = (isCncPlanningUnit && tab === 'AKTIF') ? `
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin:-0.2rem 0 0.8rem; flex-wrap:wrap;">
+                <button type="button" class="btn-sm" onclick="UnitModule.setWorkOrderCncViewMode('GROUPED')" style="${cncViewMode === 'GROUPED' ? 'background:#0f172a; color:white; border-color:#0f172a;' : 'background:white; color:#334155; border-color:#cbd5e1;'} font-weight:800;">Benzer Ürünleri Tek Satırda Göster</button>
+                <button type="button" class="btn-sm" onclick="UnitModule.setWorkOrderCncViewMode('DETAIL')" style="${cncViewMode === 'DETAIL' ? 'background:#0f172a; color:white; border-color:#0f172a;' : 'background:white; color:#334155; border-color:#cbd5e1;'} font-weight:800;">İş Emirlerine Göre Göster</button>
+            </div>
+        ` : '';
+        const depoTransferViewMode = String(UnitModule.state.workOrderDepoTransferViewMode || 'DETAIL').trim().toUpperCase() === 'GROUPED'
+            ? 'GROUPED'
+            : 'DETAIL';
+        const useDepoTransferGroupedView = isDepoTransferPlanning && tab === 'AKTIF' && depoTransferViewMode === 'GROUPED';
+        const selectedTransferTargetName = selectedTransferTargetId
+            ? String(UnitModule.getUnitDisplayName(selectedTransferTargetId) || UnitModule.getRouteStationName(selectedTransferTargetId) || selectedTransferTargetId || '').trim()
+            : '';
+        const depoTransferViewToggleHtml = (isDepoTransferPlanning && tab === 'AKTIF') ? `
+            <div style="display:flex; justify-content:flex-end; gap:0.5rem; margin:-0.2rem 0 0.8rem; flex-wrap:wrap;">
+                <button type="button" class="btn-sm" onclick="UnitModule.setWorkOrderDepoTransferViewMode('GROUPED')" style="${depoTransferViewMode === 'GROUPED' ? 'background:#0f172a; color:white; border-color:#0f172a;' : 'background:white; color:#334155; border-color:#cbd5e1;'} font-weight:800;">Benzer Ürünleri Tek Satırda Göster</button>
+                <button type="button" class="btn-sm" onclick="UnitModule.setWorkOrderDepoTransferViewMode('DETAIL')" style="${depoTransferViewMode === 'DETAIL' ? 'background:#0f172a; color:white; border-color:#0f172a;' : 'background:white; color:#334155; border-color:#cbd5e1;'} font-weight:800;">İş Emirlerine Göre Göster</button>
+            </div>
+        ` : '';
+        const partCardByCode = new Map(
+            (Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [])
+                .map((card) => [String(card?.code || '').trim().toUpperCase(), card])
+                .filter(([code]) => !!code)
+        );
+        const buildCncGroupedRows = (sourceRows = []) => {
+            const groups = new Map();
+            sourceRows.forEach((row) => {
+                const stationId = String(row?.metrics?.stationId || '').trim();
+                const processId = String(row?.metrics?.processId || '').trim().toUpperCase();
+                const componentCode = String(row?.line?.componentCode || '').trim().toUpperCase();
+                const key = [stationId, processId].join('|');
+                if (!groups.has(key)) {
+                    const processName = UnitModule.getRouteProcessName(stationId, processId);
+                    groups.set(key, {
+                        key,
+                        stationId,
+                        processId,
+                        groupTitle: String(processName || processId || 'CNC işlem grubu').trim(),
+                        processName,
+                        availableQty: 0,
+                        inProcessQty: 0,
+                        doneQty: 0,
+                        remainingQty: 0,
+                        orderIds: new Set(),
+                        sourceCodes: new Set(),
+                        componentBreakdown: new Map(),
+                        rows: []
+                    });
+                }
+                const group = groups.get(key);
+                group.availableQty += Number(row?.metrics?.availableQty || 0);
+                group.inProcessQty += Number(row?.metrics?.inProcessQty || 0);
+                group.doneQty += Number(row?.metrics?.doneQty || 0);
+                group.remainingQty += Number(row?.remainingQty || 0);
+                const componentBreakdownKey = componentCode || '-';
+                const currentBreakdown = group.componentBreakdown.get(componentBreakdownKey) || {
+                    code: componentBreakdownKey,
+                    name: String(row?.line?.componentName || componentBreakdownKey || '-').trim(),
+                    qty: 0
+                };
+                currentBreakdown.qty += Number(row?.metrics?.inProcessQty || 0);
+                group.componentBreakdown.set(componentBreakdownKey, currentBreakdown);
+                const orderId = String(row?.order?.id || '').trim();
+                if (orderId) group.orderIds.add(orderId);
+                const sourceCode = String(row?.order?.sourceCode || '').trim().toUpperCase();
+                if (sourceCode) group.sourceCodes.add(sourceCode);
+                group.rows.push(row);
+            });
+            return Array.from(groups.values()).sort((a, b) => {
+                const processCmp = String(a.processId || '').localeCompare(String(b.processId || ''), 'tr');
+                if (processCmp !== 0) return processCmp;
+                return String(a.stationId || '').localeCompare(String(b.stationId || ''), 'tr');
+            });
+        };
+        const renderCncGroupedRowsHtml = (groups = []) => {
+            if (!groups.length) {
+                return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>`;
+            }
+            const openMap = (UnitModule.state.workOrderCncGroupOpen && typeof UnitModule.state.workOrderCncGroupOpen === 'object')
+                ? UnitModule.state.workOrderCncGroupOpen
+                : {};
+            return groups.map((group) => {
+                const isOpen = !!openMap[group.key];
+                const sourceCodes = Array.from(group.sourceCodes || []);
+                const sourceText = sourceCodes.length > 1 ? `${sourceCodes[0]} +${sourceCodes.length - 1}` : (sourceCodes[0] || '-');
+                const componentBreakdownRows = Array.from(group.componentBreakdown?.values?.() || [])
+                    .filter((row) => String(row?.code || '').trim())
+                    .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || ''), 'tr'));
+                const componentBreakdownHtml = componentBreakdownRows.length ? `
+                    <div style="margin-top:0.45rem; border-top:1px solid #e2e8f0; padding-top:0.38rem;">
+                        <div style="font-size:0.68rem; color:#64748b; font-weight:900; text-transform:uppercase;">PRC dağılımı</div>
+                        <div style="display:flex; gap:0.32rem; flex-wrap:wrap; margin-top:0.28rem;">
+                            ${componentBreakdownRows.map((item) => `
+                                <span style="display:inline-flex; align-items:center; gap:0.25rem; border:1px solid #cbd5e1; background:#f8fafc; border-radius:999px; padding:0.12rem 0.48rem; font-size:0.72rem; color:#334155;">
+                                    <strong style="font-family:monospace;">${UnitModule.escapeHtml(item.code || '-')}</strong>
+                                    <span>${UnitModule.escapeHtml(item.name || '-')}</span>
+                                    <span>${Number(item.qty || 0)} adet</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                const detailRowsHtml = !isOpen ? '' : `
+                    <tr style="background:#f8fafc;">
+                        <td colspan="8" style="padding:0.65rem 0.75rem;">
+                            <table style="width:100%; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:0.65rem; overflow:hidden;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.7rem; text-transform:uppercase;">
+                                        <th style="padding:0.45rem; text-align:left;">WO</th>
+                                        <th style="padding:0.45rem; text-align:left;">Satır</th>
+                                        <th style="padding:0.45rem; text-align:left;">PRC / Parça</th>
+                                        <th style="padding:0.45rem; text-align:center;">Bekleyen</th>
+                                        <th style="padding:0.45rem; text-align:center;">İşlemde</th>
+                                        <th style="padding:0.45rem; text-align:center;">Tamamlanan</th>
+                                        <th style="padding:0.45rem; text-align:center;">Rota</th>
+                                        <th style="padding:0.45rem; text-align:left;">İşlem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.rows.map((row) => `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.45rem; font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</td>
+                                            <td style="padding:0.45rem; font-family:monospace; color:#334155;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</td>
+                                            <td style="padding:0.45rem;"><div style="font-family:monospace; font-weight:800; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div><div style="font-size:0.72rem; color:#475569;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div></td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800;">${Number(row?.metrics?.availableQty || 0)}</td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800; color:#b45309;">${Number(row?.metrics?.inProcessQty || 0)}</td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800; color:#047857;">${Number(row?.metrics?.doneQty || 0)}</td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800;">${Number(row?.metrics?.routeSeq || 0)}</td>
+                                            <td style="padding:0.45rem;"><span style="font-family:monospace; color:#334155;">${UnitModule.escapeHtml(row?.metrics?.processId || '-')}</span></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                `;
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0; background:${isOpen ? '#f8fafc' : 'white'};">
+                        <td style="padding:0.65rem;">
+                            <div style="font-weight:900; color:#0f172a;">CNC İşlem Grubu</div>
+                            <div style="margin-top:0.12rem; font-family:monospace; font-weight:800; color:#334155;">${UnitModule.escapeHtml(group.processId || '-')}</div>
+                            <div style="font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(group.groupTitle || '-')} | Kaynak: ${UnitModule.escapeHtml(sourceText)}</div>
+                            ${componentBreakdownHtml}
+                        </td>
+                        <td style="padding:0.65rem;"><div style="font-family:monospace; font-weight:900; color:#1d4ed8;">${UnitModule.escapeHtml(group.processId || '-')}</div><div style="font-size:0.72rem; color:#64748b;">${UnitModule.escapeHtml(group.processName || '-')}</div></td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#334155;">${Number(group.availableQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#b45309;">${Number(group.inProcessQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#047857;">${Number(group.doneQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#334155;">${Number(group.remainingQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center;"><div style="font-weight:900; color:#0f172a;">${Number(group.orderIds?.size || 0)}</div><div style="font-size:0.7rem; color:#64748b;">WO</div></td>
+                        <td style="padding:0.65rem; text-align:right;"><button type="button" class="btn-sm" onclick="UnitModule.toggleWorkOrderCncGroup('${UnitModule.escapeJsString(group.key)}')" style="border-color:#cbd5e1;">${isOpen ? 'Detay Kapat' : 'Detay Aç'}</button></td>
+                    </tr>
+                    ${detailRowsHtml}
+                `;
+            }).join('');
+        };
+        const getDepoTransferKinshipInfo = (row) => {
+            const componentCode = String(row?.line?.componentCode || '').trim().toUpperCase();
+            const lineRootCode = String(row?.line?.rootComponentCode || '').trim().toUpperCase();
+            const lineVariantCode = String(row?.line?.variantParentCode || '').trim().toUpperCase();
+            const card = partCardByCode.get(componentCode) || null;
+            const rootCode = String(card?.rootComponentCode || lineRootCode || '').trim().toUpperCase();
+            const variantCode = String(card?.variantParentCode || lineVariantCode || '').trim().toUpperCase();
+            const kinshipCode = rootCode || variantCode || componentCode || '-';
+            const kinshipCard = partCardByCode.get(kinshipCode) || card || null;
+            return {
+                code: kinshipCode,
+                name: String(kinshipCard?.name || card?.name || row?.line?.componentName || kinshipCode || '-').trim()
+            };
+        };
+        const buildDepoTransferGroupedRows = (sourceRows = []) => {
+            if (!selectedTransferTargetId) return [];
+            const groups = new Map();
+            sourceRows.forEach((row) => {
+                const targetId = String(row?.metrics?.nextStationId || '').trim();
+                if (targetId !== selectedTransferTargetId) return;
+                const kinship = getDepoTransferKinshipInfo(row);
+                const componentCode = String(row?.line?.componentCode || '').trim().toUpperCase();
+                const key = [selectedTransferTargetId, kinship.code || componentCode || '-'].join('|');
+                if (!groups.has(key)) {
+                    groups.set(key, {
+                        key,
+                        targetId: selectedTransferTargetId,
+                        targetName: selectedTransferTargetName || selectedTransferTargetId,
+                        kinshipCode: kinship.code || componentCode || '-',
+                        kinshipName: kinship.name || row?.line?.componentName || '-',
+                        availableQty: 0,
+                        inProcessQty: 0,
+                        doneQty: 0,
+                        remainingQty: 0,
+                        orderIds: new Set(),
+                        componentBreakdown: new Map(),
+                        rows: []
+                    });
+                }
+                const group = groups.get(key);
+                group.availableQty += Number(row?.metrics?.availableQty || 0);
+                group.inProcessQty += Number(row?.metrics?.inProcessQty || 0);
+                group.doneQty += Number(row?.metrics?.doneQty || 0);
+                group.remainingQty += Number(row?.remainingQty || 0);
+                const breakdownKey = componentCode || '-';
+                const dispatchReadyQty = Math.max(0,
+                    Number(row?.metrics?.inProcessQty || 0)
+                    + Number(row?.metrics?.transferPendingQty || 0)
+                    + Number(row?.metrics?.depotPendingQty || 0)
+                );
+                const currentBreakdown = group.componentBreakdown.get(breakdownKey) || {
+                    code: breakdownKey,
+                    name: String(row?.line?.componentName || breakdownKey || '-').trim(),
+                    qty: 0
+                };
+                currentBreakdown.qty += dispatchReadyQty;
+                group.componentBreakdown.set(breakdownKey, currentBreakdown);
+                const orderId = String(row?.order?.id || '').trim();
+                if (orderId) group.orderIds.add(orderId);
+                group.rows.push(row);
+            });
+            return Array.from(groups.values()).sort((a, b) => {
+                const nameCmp = String(a.kinshipName || '').localeCompare(String(b.kinshipName || ''), 'tr');
+                if (nameCmp !== 0) return nameCmp;
+                return String(a.kinshipCode || '').localeCompare(String(b.kinshipCode || ''), 'tr');
+            });
+        };
+        const renderDepoTransferGroupedRowsHtml = (groups = []) => {
+            if (!selectedTransferTargetId) {
+                return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#92400e; background:#fffbeb;">Gruplu görünüm için önce soldaki hedef birimi seçiniz.</td></tr>`;
+            }
+            if (!groups.length) {
+                return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Seçili hedef için kayıt yok.</td></tr>`;
+            }
+            const openMap = (UnitModule.state.workOrderDepoTransferGroupOpen && typeof UnitModule.state.workOrderDepoTransferGroupOpen === 'object')
+                ? UnitModule.state.workOrderDepoTransferGroupOpen
+                : {};
+            return groups.map((group) => {
+                const isOpen = !!openMap[group.key];
+                const componentBreakdownRows = Array.from(group.componentBreakdown?.values?.() || [])
+                    .filter((row) => String(row?.code || '').trim())
+                    .sort((a, b) => String(a?.code || '').localeCompare(String(b?.code || ''), 'tr'));
+                const componentBreakdownHtml = componentBreakdownRows.length ? `
+                    <div style="margin-top:0.45rem; border-top:1px solid #e2e8f0; padding-top:0.38rem;">
+                        <div style="font-size:0.68rem; color:#64748b; font-weight:900; text-transform:uppercase;">PRC dağılımı</div>
+                        <div style="display:flex; gap:0.32rem; flex-wrap:wrap; margin-top:0.28rem;">
+                            ${componentBreakdownRows.map((item) => `
+                                <span style="display:inline-flex; align-items:center; gap:0.25rem; border:1px solid #cbd5e1; background:#f8fafc; border-radius:999px; padding:0.12rem 0.48rem; font-size:0.72rem; color:#334155;">
+                                    <strong style="font-family:monospace;">${UnitModule.escapeHtml(item.code || '-')}</strong>
+                                    <span>${UnitModule.escapeHtml(item.name || '-')}</span>
+                                    <span>${Number(item.qty || 0)} adet</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                ` : '';
+                const detailRowsHtml = !isOpen ? '' : `
+                    <tr style="background:#f8fafc;">
+                        <td colspan="8" style="padding:0.65rem 0.75rem;">
+                            <table style="width:100%; border-collapse:collapse; background:white; border:1px solid #e2e8f0; border-radius:0.65rem; overflow:hidden;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.7rem; text-transform:uppercase;">
+                                        <th style="padding:0.45rem; text-align:left;">WO</th>
+                                        <th style="padding:0.45rem; text-align:left;">Satır</th>
+                                        <th style="padding:0.45rem; text-align:left;">PRC / Parça</th>
+                                        <th style="padding:0.45rem; text-align:center;">Bekleyen</th>
+                                        <th style="padding:0.45rem; text-align:center;">İşlemde</th>
+                                        <th style="padding:0.45rem; text-align:center;">Tamamlanan</th>
+                                        <th style="padding:0.45rem; text-align:left;">Nereden</th>
+                                        <th style="padding:0.45rem; text-align:left;">Nereye</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${group.rows.map((row) => {
+                    const fromStationName = row?.metrics?.prevStationId
+                        ? String(UnitModule.getUnitDisplayName(row.metrics.prevStationId) || UnitModule.getRouteStationName(row.metrics.prevStationId) || row.metrics.prevStationId || '-')
+                        : 'Başlangıç';
+                    const toStationName = String(UnitModule.getUnitDisplayName(row?.metrics?.nextStationId) || UnitModule.getRouteStationName(row?.metrics?.nextStationId) || row?.metrics?.nextStationId || '-');
+                    return `
+                                        <tr style="border-bottom:1px solid #f1f5f9;">
+                                            <td style="padding:0.45rem; font-family:monospace; font-weight:800; color:#1d4ed8;">${UnitModule.escapeHtml(row?.order?.workOrderCode || '-')}</td>
+                                            <td style="padding:0.45rem; font-family:monospace; color:#334155;">${UnitModule.escapeHtml(row?.line?.lineCode || '-')}</td>
+                                            <td style="padding:0.45rem;"><div style="font-family:monospace; font-weight:800; color:#334155;">${UnitModule.escapeHtml(row?.line?.componentCode || '-')}</div><div style="font-size:0.72rem; color:#475569;">${UnitModule.escapeHtml(row?.line?.componentName || '-')}</div></td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800;">${Number(row?.metrics?.availableQty || 0)}</td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800; color:#b45309;">${Number(row?.metrics?.inProcessQty || 0)}</td>
+                                            <td style="padding:0.45rem; text-align:center; font-weight:800; color:#047857;">${Number(row?.metrics?.doneQty || 0)}</td>
+                                            <td style="padding:0.45rem; color:#334155;">${UnitModule.escapeHtml(fromStationName)}</td>
+                                            <td style="padding:0.45rem; color:#334155;">${UnitModule.escapeHtml(toStationName)}</td>
+                                        </tr>
+                                    `;
+                }).join('')}
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                `;
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0; background:${isOpen ? '#f8fafc' : 'white'};">
+                        <td style="padding:0.65rem;">
+                            <div style="font-weight:900; color:#0f172a;">${UnitModule.escapeHtml(group.kinshipName || '-')}</div>
+                            <div style="margin-top:0.12rem; font-family:monospace; font-weight:800; color:#334155;">${UnitModule.escapeHtml(group.kinshipCode || '-')}</div>
+                            <div style="font-size:0.72rem; color:#64748b;">Hedef: ${UnitModule.escapeHtml(group.targetName || '-')}</div>
+                            ${componentBreakdownHtml}
+                        </td>
+                        <td style="padding:0.65rem; font-weight:800; color:#334155;">${UnitModule.escapeHtml(group.targetName || '-')}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#334155;">${Number(group.availableQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#b45309;">${Number(group.inProcessQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#047857;">${Number(group.doneQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#334155;">${Number(group.remainingQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center;"><div style="font-weight:900; color:#0f172a;">${Number(group.orderIds?.size || 0)}</div><div style="font-size:0.7rem; color:#64748b;">WO</div></td>
+                        <td style="padding:0.65rem; text-align:right;"><button type="button" class="btn-sm" onclick="UnitModule.toggleWorkOrderDepoTransferGroup('${UnitModule.escapeJsString(group.key)}')" style="border-color:#cbd5e1;">${isOpen ? 'Detay Kapat' : 'Detay Aç'}</button></td>
+                    </tr>
+                    ${detailRowsHtml}
+                `;
+            }).join('');
+        };
+        const renderWorkOrderPlanningDetailRowsHtml = (sourceRows = [], options = {}) => {
+            const closeActionPrefix = (fieldId = '', actionOptions = {}) => {
+                if (!options?.closeModalBeforeAction) return '';
+                const args = [];
+                if (fieldId) args.push(`'${UnitModule.escapeJsString(fieldId)}'`);
+                if (actionOptions?.reopenAfterRender === false) args.push('{ reopenAfterRender: false }');
+                return `UnitModule.closeWorkOrderDemandModalBeforeAction(${args.join(',')});`;
+            };
+            return sourceRows.map((r) => {
+            const hasUnitPlan = !!(r.plan && (
+                String(r.plan.machine || '').trim()
+                || String(r.plan.personnel || '').trim()
+                || String(r.plan.targetDate || '').trim()
+            ));
+            const sourceCode = String(r.order?.sourceCode || '').trim().toUpperCase();
+            const hasSourcePlan = /^PLN-\d{6}$/.test(sourceCode);
+            const sourcePlanBadge = hasSourcePlan
+                ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
+                : '';
+            const planDetailText = hasUnitPlan
+                ? `${UnitModule.escapeHtml(r.plan.machine || '-')}/${UnitModule.escapeHtml(r.plan.personnel || '-')} ${r.plan.targetDate ? `(${UnitModule.escapeHtml(r.plan.targetDate)})` : ''}`
+                : '-';
+            const canTake = Number(r.metrics?.availableQty || 0) > 0;
+            const hasNextRoute = !!String(r?.metrics?.nextStationId || '').trim();
+            const isFinalStep = !hasNextRoute;
+            const depotPendingQty = Math.max(0, Number(r.metrics?.depotPendingQty || 0));
+            const canComplete = Number(r.metrics?.inProcessQty || 0) > 0;
+            const canStoreFinal = isFinalStep && (Number(r.metrics?.inProcessQty || 0) > 0 || depotPendingQty > 0);
+            const isWaitingTab = tab === 'BEKLEYEN';
+            const isActiveTab = tab === 'AKTIF';
+            const showTakeAction = isWaitingTab;
+            const showCompleteAction = isActiveTab;
+            const showPlanAction = isActiveTab && String(unitId || '') !== 'u_dtm';
+            const showDispatchSelection = isDepoTransferPlanning && isActiveTab && !!selectedTransferTargetId && hasNextRoute;
+            const transferPendingQty = Number(r.metrics?.transferPendingQty || 0);
+            const showTransferPendingBadge = isActiveTab && transferPendingQty > 0 && Number(r.metrics?.inProcessQty || 0) <= 0;
+            const componentPreviewAction = `UnitModule.openWorkOrderComponentPreview('${r.order.id}','${r.line.id}','${unitId}')`;
+            const processCode = String(r.metrics.processId || '').trim().toUpperCase();
+            const processPreviewAction = `UnitModule.openWorkOrderProcessPreview('${r.metrics.stationId}','${processCode}','${unitId}')`;
+            const linkButtonStyle = 'background:none; border:none; padding:0; margin:0; cursor:pointer; text-align:left;';
+            const componentNameHtml = `<button type="button" onclick="${componentPreviewAction}" style="${linkButtonStyle} font-weight:700; color:#1d4ed8; text-decoration:underline;">${UnitModule.escapeHtml(r.line?.componentName || '-')}</button>`;
+            const componentCodeHtml = `<button type="button" onclick="${componentPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(r.line?.componentCode || '-')}</button>`;
+            const isSingleComponentOrder = String(r.order?.productCode || '').trim().toUpperCase() === String(r.line?.componentCode || '').trim().toUpperCase()
+                && String(r.order?.productName || '').trim().toLowerCase() === String(r.line?.componentName || '').trim().toLowerCase();
+            const productTitle = isSingleComponentOrder ? 'Parca Uretimi' : UnitModule.escapeHtml(r.order?.productName || '-');
+            const productCode = isSingleComponentOrder ? 'Tek parca is emri' : UnitModule.escapeHtml(r.order?.productCode || '-');
+            const processName = UnitModule.getRouteProcessName(r.metrics.stationId, processCode);
+            const processCodeHtml = processCode
+                ? `<button type="button" onclick="${processPreviewAction}" style="${linkButtonStyle} font-size:0.74rem; color:#2563eb; font-family:monospace; text-decoration:underline;">${UnitModule.escapeHtml(processCode)}</button>`
+                : `<span style="font-size:0.74rem; color:#64748b; font-family:monospace;">-</span>`;
+            const routes = Array.isArray(r.line?.routes) ? r.line.routes : [];
+            const routeIndex = Math.max(0, Number(r.metrics?.routeSeq || 1) - 1);
+            const prevRoute = routeIndex > 0 ? routes[routeIndex - 1] : null;
+            const nextRoute = routeIndex >= 0 && routeIndex < routes.length - 1 ? routes[routeIndex + 1] : null;
+            const fromStationName = prevRoute
+                ? String(UnitModule.getRouteStationName(prevRoute.stationId) || prevRoute.stationName || prevRoute.stationId || '-')
+                : 'Baslangic';
+            const toStationName = nextRoute
+                ? String(UnitModule.getUnitDisplayName(nextRoute.stationId) || UnitModule.getRouteStationName(nextRoute.stationId) || nextRoute.stationName || nextRoute.stationId || '-')
+                : 'Birim stok deposu';
+            const totalQtyForStep = Math.max(0, Number(r.metrics?.stepTarget || 0));
+            const takenQtyForStep = Math.max(0, Number(r.metrics?.inProcessQty || 0) + Number(r.metrics?.doneQty || 0));
+            const remainingQtyForStep = Math.max(0, totalQtyForStep - takenQtyForStep);
+            const qtySummary = `${takenQtyForStep}/${totalQtyForStep}`;
+            const completeInputId = `wo_complete_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}_${String(r.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const dispatchRowKey = UnitModule.getWorkOrderDispatchRowKey(r.order?.id, r.line?.id, r.metrics?.stationId, r.metrics);
+            const dispatchChecked = !!(UnitModule.state.workOrderDispatchRows || {})[dispatchRowKey];
+            const dispatchQty = Math.max(0, Math.floor(Number((UnitModule.state.workOrderDispatchQtyByRow || {})[dispatchRowKey] || 0)));
+            const completeInputMax = Math.max(1, Math.floor(isFinalStep
+                ? (Number(r.metrics?.inProcessQty || 0) + depotPendingQty)
+                : Number(r.metrics?.inProcessQty || 0)));
+            const completeInputDefault = showDispatchSelection ? dispatchQty : completeInputMax;
+            const takeInputId = `wo_take_qty_${String(r.order?.id || '')}_${String(r.line?.id || '')}_${String(r.metrics?.stationId || '')}_${String(r.metrics?.routeSeq || 0)}`.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const takeInputMax = Math.max(1, Math.floor(Number(r.metrics?.availableQty || 0)));
+            const takeInputDefault = takeInputMax;
+            const qtyStatusBlock = `
+                <div style="margin-top:0.45rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
+                    <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end; font-size:0.69rem; color:#64748b;">
+                        <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Toplam:<strong style="color:#0f172a;">${totalQtyForStep}</strong></span>
+                        <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Alinan:<strong style="color:#1d4ed8;">${takenQtyForStep}</strong></span>
+                        <span style="display:inline-flex; align-items:center; gap:0.2rem; border:1px solid #e2e8f0; border-radius:0.42rem; padding:0.14rem 0.32rem; background:#f8fafc;">Kalan:<strong style="color:#b45309;">${remainingQtyForStep}</strong></span>
+                        <span style="display:inline-flex; align-items:center; justify-content:center; min-width:54px; height:24px; border:1px solid #d1d5db; border-radius:0.45rem; background:#f8fafc; color:#0f172a; font-weight:800;">${UnitModule.escapeHtml(qtySummary)}</span>
+                    </div>
+                </div>
+            `;
+            const actionButtonLabel = isFinalStep ? 'Depoya Al / Adet' : 'Tamamlanan Adedi Gir';
+            const actionButtonHandler = isFinalStep
+                ? `${closeActionPrefix(completeInputId, { reopenAfterRender: false })}UnitModule.openStoreWorkOrderLocationModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`
+                : `${closeActionPrefix(completeInputId)}UnitModule.completeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${completeInputId}','${Number(r.metrics?.routeSeq || 0)}')`;
+            const canMainAction = isFinalStep ? canStoreFinal : canComplete;
+            const completeActionBlock = showCompleteAction ? `
+                <div style="margin-top:0.2rem; display:flex; flex-direction:column; align-items:flex-end; gap:0.38rem;">
+                    ${qtyStatusBlock}
+                    ${canMainAction ? `
+                        <div style="display:inline-flex; align-items:center; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <input id="${UnitModule.escapeHtml(completeInputId)}" type="number" min="1" max="${completeInputMax}" value="${completeInputDefault}" ${showDispatchSelection ? `onchange="UnitModule.setWorkOrderDispatchQty('${UnitModule.escapeHtml(dispatchRowKey)}', this.value)"` : ''} style="width:88px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                            ${showDispatchSelection ? `
+                                <label style="display:inline-flex; align-items:center; gap:0.28rem; color:#334155; font-size:0.76rem; white-space:nowrap;">
+                                    <input type="checkbox" ${dispatchChecked ? 'checked' : ''} onchange="UnitModule.toggleWorkOrderDispatchRow('${UnitModule.escapeHtml(dispatchRowKey)}', this.checked)">
+                                    irsaliyeye ekle
+                                </label>
+                            ` : ''}
+                            ${showDispatchSelection
+                                ? ''
+                                : `<button class="btn-sm" onclick="${actionButtonHandler}" style="border-color:#bbf7d0; color:#047857; background:#ecfdf5;">${actionButtonLabel}</button>`
+                            }
+                        </div>
+                    ` : ''}
+                    ${showTransferPendingBadge
+                        ? `<span style="display:inline-block; border-radius:999px; padding:0.16rem 0.58rem; font-size:0.72rem; font-weight:700; background:#ffedd5; color:#9a3412; border:1px solid #fed7aa;">Tamamlandi - Devir Bekliyor</span>`
+                        : ''
+                    }
+                    ${isFinalStep && depotPendingQty > 0
+                        ? `<span style="display:inline-block; border-radius:999px; padding:0.16rem 0.58rem; font-size:0.72rem; font-weight:700; background:#ecfdf5; color:#166534; border:1px solid #bbf7d0;">Depoya alinabilir: ${depotPendingQty}</span>`
+                        : ''
+                    }
+                </div>
+            ` : qtyStatusBlock;
+            return `
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:0.55rem;">
+                        <div style="font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Is emri no</div>
+                        <div style="font-family:monospace; font-weight:700; color:#1d4ed8;">${UnitModule.escapeHtml(r.order?.workOrderCode || '-')}</div>
+                        <div style="margin-top:0.3rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Satir no</div>
+                        <div style="font-family:monospace; font-size:0.78rem; color:#334155;">${UnitModule.escapeHtml(r.line?.lineCode || '-')}</div>
+                        <div style="margin-top:0.35rem; font-size:0.7rem; color:#64748b; text-transform:uppercase; font-weight:700;">Plan</div>
+                        <div style="display:flex; flex-direction:column; gap:0.2rem; align-items:flex-start;">
+                            ${hasSourcePlan ? sourcePlanBadge : `<span style="font-size:0.76rem; color:#64748b;">-</span>`}
+                            ${hasUnitPlan ? `<div style="font-size:0.72rem; color:#475569;">${planDetailText}</div>` : ''}
+                        </div>
+                    </td>
+                    <td style="padding:0.55rem;">
+                        <div style="font-weight:700; color:#334155;">${productTitle}</div>
+                        <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${productCode}</div>
+                    </td>
+                    <td style="padding:0.55rem;">
+                        <div>${componentNameHtml}</div>
+                        <div>${componentCodeHtml}</div>
+                    </td>
+                    <td style="padding:0.55rem;">
+                        <div style="font-size:0.82rem; color:#334155; font-weight:700;">${r.metrics.routeSeq}. ${UnitModule.escapeHtml(UnitModule.getRouteStationName(r.metrics.stationId || '') || r.metrics.stationName || '-')}</div>
+                        <div>${processCodeHtml}</div>
+                        <div style="font-size:0.72rem; color:#64748b; margin-top:0.08rem;">${UnitModule.escapeHtml(processName || '-')}</div>
+                        <div style="margin-top:0.3rem; display:flex; flex-direction:column; gap:0.1rem;">
+                            <div style="font-size:0.7rem; color:#64748b;">Nereden: <strong style="color:#334155;">${UnitModule.escapeHtml(fromStationName)}</strong></div>
+                            <div style="font-size:0.7rem; color:#64748b;">Nereye: <strong style="color:#334155;">${UnitModule.escapeHtml(toStationName)}</strong></div>
+                        </div>
+                    </td>
+                    <td style="padding:0.55rem; text-align:center; font-weight:700; color:#334155;">${r.metrics.availableQty}</td>
+                    <td style="padding:0.55rem; text-align:center; font-weight:700; color:#b45309;">${r.metrics.inProcessQty}</td>
+                    <td style="padding:0.55rem; text-align:center; font-weight:700; color:#047857;">${r.metrics.doneQty}</td>
+                    <td style="padding:0.55rem; text-align:right;">
+                        <div style="display:inline-flex; gap:0.35rem; flex-wrap:wrap; justify-content:flex-end;">
+                            <button class="btn-sm" onclick="UnitModule.openWorkOrderExecutionDetail('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${Number(r.metrics?.routeSeq || 0)}')">Goruntule</button>
+                            ${showPlanAction ? `<button class="btn-sm" onclick="${closeActionPrefix('', { reopenAfterRender: false })}UnitModule.openWorkOrderPlanModal('${r.order.id}','${r.line.id}','${r.metrics.stationId}')" style="border-color:#cbd5e1;">Planla</button>` : ''}
+                            ${showTakeAction ? (UnitModule.isFirstRouteMetrics(r.metrics)
+                                ? UnitModule.renderFirstRouteStockTakeAction(r, options)
+                                : `
+                                    <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                                        <input id="${UnitModule.escapeHtml(takeInputId)}" type="number" min="1" max="${takeInputMax}" value="${takeInputDefault}" ${canTake ? '' : 'disabled'} style="width:82px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:700;">
+                                        <button class="btn-sm" onclick="${closeActionPrefix(takeInputId)}UnitModule.takeWorkOrderQtyFromInput('${r.order.id}','${r.line.id}','${r.metrics.stationId}','${takeInputId}','${Number(r.metrics?.routeSeq || 0)}')" ${canTake ? '' : 'disabled'} style="${canTake ? 'border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;' : 'opacity:0.45; cursor:not-allowed;'}">Teslim al</button>
+                                    </span>
+                                `
+                            ) : ''}
+                        </div>
+                        ${completeActionBlock}
+                    </td>
+                </tr>
+            `;
+            }).join('');
+        };
+        const planningDemandList = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+        const getPlanningDemandForWorkOrder = (order) => {
+            const sourceId = String(order?.sourceId || '').trim();
+            const sourceCode = String(order?.sourceCode || '').trim().toUpperCase();
+            return planningDemandList.find((demand) => {
+                const demandId = String(demand?.id || '').trim();
+                const demandCode = String(demand?.demandCode || '').trim().toUpperCase();
+                return (sourceId && demandId === sourceId) || (sourceCode && demandCode === sourceCode);
+            }) || null;
+        };
+        const getWorkOrderDemandVisibleSourceCode = (order, demand = null) => {
+            const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+            const sourceCode = sourceType === 'SALES_ORDER'
+                ? String(demand?.sourceOrderNo || order?.sourceCode || demand?.demandCode || '').trim().toUpperCase()
+                : String(order?.sourceCode || demand?.demandCode || demand?.sourceOrderNo || '').trim().toUpperCase();
+            return sourceCode;
+        };
+        const getWorkOrderDemandGroupKey = (row) => {
+            const order = row?.order || {};
+            const demand = getPlanningDemandForWorkOrder(order);
+            const sourceCode = getWorkOrderDemandVisibleSourceCode(order, demand);
+            if (sourceCode) {
+                const sourceTypeForKey = String(demand?.sourceType || order?.sourceType || 'SOURCE').trim().toUpperCase() || 'SOURCE';
+                return `SOURCE::${sourceTypeForKey}::${sourceCode}`;
+            }
+            const demandId = String(demand?.id || order?.sourceId || '').trim();
+            if (demandId) return `DEMAND::${demandId}`;
+            return `ORDER::${String(order?.id || order?.workOrderCode || row?.line?.id || '').trim()}`;
+        };
+        const getWorkOrderDemandItemKey = (row) => {
+            const order = row?.order || {};
+            return String(
+                order?.sourceItemKey
+                || order?.sourceItemCode
+                || order?.sourceItemName
+                || order?.productCode
+                || row?.line?.id
+                || row?.line?.lineCode
+                || ''
+            ).trim();
+        };
+        const getWorkOrderDemandSourceMeta = (order) => {
+            const demand = getPlanningDemandForWorkOrder(order);
+            const demandSourceType = String(demand?.sourceType || '').trim().toUpperCase();
+            const visibleSourceCode = getWorkOrderDemandVisibleSourceCode(order, demand);
+            if (demandSourceType === 'SALES_ORDER') {
+                return {
+                    demand,
+                    code: visibleSourceCode || '-',
+                    sourceLabel: 'Satış Siparişi'
+                };
+            }
+            if (demandSourceType === 'STOCK') {
+                return {
+                    demand,
+                    code: visibleSourceCode || '-',
+                    sourceLabel: 'Stok İçin Üretim'
+                };
+            }
+            return {
+                demand,
+                code: visibleSourceCode || String(order?.workOrderCode || '-').trim() || '-',
+                sourceLabel: UnitModule.getWorkOrderSourceTypeLabel(order?.sourceType || '')
+            };
+        };
+        const getWorkOrderDemandGroupStatusText = (group) => {
+            const activeCount = group.rows.filter((row) => Number(row?.metrics?.inProcessQty || 0) > 0 || Number(row?.metrics?.transferPendingQty || 0) > 0 || Number(row?.metrics?.depotPendingQty || 0) > 0).length;
+            if (activeCount > 0) return `${activeCount} devam ediyor`;
+            const waitingCount = group.rows.filter((row) => Number(row?.metrics?.availableQty || 0) > 0).length;
+            if (waitingCount > 0) return `${waitingCount} bekliyor`;
+            const poolCount = group.rows.filter((row) => Number(row?.upcomingQty || 0) > 0).length;
+            if (poolCount > 0) return `${poolCount} atölyeye gelecek`;
+            const allDone = group.rows.length > 0 && group.rows.every((row) => Number(row?.metrics?.doneQty || 0) > 0 && Number(row?.remainingQty || 0) <= 0);
+            if (allDone) return 'tamamlandı';
+            return 'açık';
+        };
+        const buildWorkOrderDemandGroups = (sourceRows = []) => {
+            const groups = new Map();
+            sourceRows.forEach((row) => {
+                const order = row?.order || {};
+                const key = getWorkOrderDemandGroupKey(row);
+                if (!groups.has(key)) {
+                    const meta = getWorkOrderDemandSourceMeta(order);
+                    groups.set(key, {
+                        key,
+                        sourceCode: meta.code,
+                        sourceLabel: meta.sourceLabel,
+                        itemKeys: new Set(),
+                        orderIds: new Set(),
+                        sourceQtyKeys: new Set(),
+                        totalQty: 0,
+                        dueDate: String(order?.dueDate || meta.demand?.dueDate || '').trim(),
+                        rows: []
+                    });
+                }
+                const group = groups.get(key);
+                const itemKey = getWorkOrderDemandItemKey(row);
+                if (itemKey) group.itemKeys.add(itemKey);
+                const orderId = String(order?.id || '').trim();
+                if (orderId) group.orderIds.add(orderId);
+                const qtyKey = itemKey || orderId || String(row?.line?.id || '');
+                if (!group.sourceQtyKeys.has(qtyKey)) {
+                    group.sourceQtyKeys.add(qtyKey);
+                    const itemQty = Number(order?.sourceItemQty || 0);
+                    const fallbackQty = Number(order?.lotQty || row?.targetQty || row?.metrics?.stepTarget || 0);
+                    group.totalQty += Math.max(0, Number.isFinite(itemQty) && itemQty > 0 ? itemQty : fallbackQty);
+                }
+                const dueDate = String(order?.dueDate || '').trim();
+                if (dueDate && (!group.dueDate || dueDate.localeCompare(group.dueDate) < 0)) group.dueDate = dueDate;
+                group.rows.push(row);
+            });
+            return Array.from(groups.values()).map((group) => ({
+                ...group,
+                itemCount: group.itemKeys.size || 1,
+                woCount: group.orderIds.size || group.rows.length,
+                statusText: getWorkOrderDemandGroupStatusText(group)
+            }));
+        };
+        const renderWorkOrderDemandGroupedRowsHtml = (groups = []) => {
+            UnitModule.state.workOrderDemandGroupModalByKey = {};
+            if (!groups.length) {
+                UnitModule.tryReopenWorkOrderDemandGroupModalAfterRender();
+                return `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>`;
+            }
+            const modalMap = UnitModule.state.workOrderDemandGroupModalByKey;
+            const rowsHtml = groups.map((group) => {
+                const summaryItems = [
+                    ['SOR / PLN', group.sourceCode || '-'],
+                    ['Kaynak', group.sourceLabel || '-'],
+                    ['Kalem', Number(group.itemCount || 0)],
+                    ['Toplam adet', Number(group.totalQty || 0)],
+                    ['WO', Number(group.woCount || 0)],
+                    ['Durum', group.statusText || '-']
+                ];
+                const summaryHtml = summaryItems.map(([label, value]) => `
+                    <div style="border:1px solid #e2e8f0; border-radius:0.65rem; padding:0.62rem 0.72rem; background:#f8fafc;">
+                        <div style="font-size:0.68rem; color:#64748b; font-weight:900; text-transform:uppercase;">${UnitModule.escapeHtml(label)}</div>
+                        <div style="margin-top:0.18rem; font-size:0.95rem; color:#0f172a; font-weight:900; ${label === 'SOR / PLN' ? 'font-family:monospace; color:#1d4ed8;' : ''}">${UnitModule.escapeHtml(String(value))}</div>
+                    </div>
+                `).join('');
+                modalMap[group.key] = {
+                    groupKey: group.key,
+                    unitId,
+                    tab,
+                    sourceCode: group.sourceCode || '',
+                    sourceLabel: group.sourceLabel || '',
+                    title: `Is Emri Paketi - ${UnitModule.escapeHtml(group.sourceCode || '-')}`,
+                    maxWidth: '1280px',
+                    html: `
+                        <div style="display:grid; gap:0.85rem;">
+                            <div style="display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:0.55rem;">
+                                ${summaryHtml}
+                            </div>
+                            <div style="border:1px solid #e2e8f0; border-radius:0.75rem; overflow:auto; max-height:68vh;">
+                                <table style="width:100%; min-width:1120px; border-collapse:collapse; background:white;">
+                                    <thead><tr style="position:sticky; top:0; z-index:1; background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;"><th style="padding:0.5rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.5rem; text-align:left;">Urun</th><th style="padding:0.5rem; text-align:left;">Bilesen</th><th style="padding:0.5rem; text-align:left;">Rota adimi</th><th style="padding:0.5rem; text-align:center;">Bekleyen</th><th style="padding:0.5rem; text-align:center;">Islemde</th><th style="padding:0.5rem; text-align:center;">Tamamlanan</th><th style="padding:0.5rem; text-align:right;">Islem</th></tr></thead>
+                                    <tbody>${renderWorkOrderPlanningDetailRowsHtml(group.rows, { closeModalBeforeAction: true })}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    `
+                };
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0; background:white;">
+                        <td style="padding:0.65rem;">
+                            <div style="font-family:monospace; font-weight:900; color:#1d4ed8;">${UnitModule.escapeHtml(group.sourceCode || '-')}</div>
+                        </td>
+                        <td style="padding:0.65rem; font-weight:800; color:#334155;">${UnitModule.escapeHtml(group.sourceLabel || '-')}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#334155;">${Number(group.itemCount || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; font-weight:900; color:#0f172a;">${Number(group.totalQty || 0)}</td>
+                        <td style="padding:0.65rem; text-align:center; color:#334155;">${UnitModule.escapeHtml(group.dueDate || '-')}</td>
+                        <td style="padding:0.65rem; text-align:center;"><span style="display:inline-block; border-radius:999px; padding:0.16rem 0.55rem; font-size:0.72rem; font-weight:800; background:#eef2ff; color:#3730a3; border:1px solid #c7d2fe;">${UnitModule.escapeHtml(group.statusText || '-')}</span></td>
+                        <td style="padding:0.65rem; text-align:center;"><div style="font-weight:900; color:#0f172a;">${Number(group.woCount || 0)}</div><div style="font-size:0.7rem; color:#64748b;">WO</div></td>
+                        <td style="padding:0.65rem; text-align:right;"><button type="button" class="btn-sm" onclick="UnitModule.openWorkOrderDemandGroupModal('${UnitModule.escapeJsString(group.key)}')" style="border-color:#cbd5e1;">Goruntule</button></td>
+                    </tr>
+                `;
+            }).join('');
+            UnitModule.tryReopenWorkOrderDemandGroupModalAfterRender();
+            return rowsHtml;
+        };
+        const useDemandGroupedView = !isMontajPlanningUnit && !useCncGroupedView && !useDepoTransferGroupedView;
+        const demandGroupedRows = useDemandGroupedView ? buildWorkOrderDemandGroups(visible) : [];
+        const workOrderTableHeaderHtml = useDemandGroupedView
+            ? `<thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Talep / Siparis / PLN</th><th style="padding:0.55rem; text-align:left;">Kaynak</th><th style="padding:0.55rem; text-align:center;">Kalem</th><th style="padding:0.55rem; text-align:center;">Toplam adet</th><th style="padding:0.55rem; text-align:center;">Termin</th><th style="padding:0.55rem; text-align:center;">Durum</th><th style="padding:0.55rem; text-align:center;">WO</th><th style="padding:0.55rem; text-align:right;">Detay</th></tr></thead>`
+            : `<thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>`;
+        const cncGroupedRows = useCncGroupedView ? buildCncGroupedRows(visible) : [];
+        const cncGroupedTableHtml = useCncGroupedView ? `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                <div class="card-table">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">CNC işlem grubu</th>
+                                <th style="padding:0.55rem; text-align:left;">CNC işlem</th>
+                                <th style="padding:0.55rem; text-align:center;">Bekleyen</th>
+                                <th style="padding:0.55rem; text-align:center;">İşlemde</th>
+                                <th style="padding:0.55rem; text-align:center;">Tamamlanan</th>
+                                <th style="padding:0.55rem; text-align:center;">Kalan</th>
+                                <th style="padding:0.55rem; text-align:center;">WO</th>
+                                <th style="padding:0.55rem; text-align:right;">Detay</th>
+                            </tr>
+                        </thead>
+                        <tbody>${renderCncGroupedRowsHtml(cncGroupedRows)}</tbody>
+                    </table>
+                </div>
+                <div style="margin-top:0.55rem; font-size:0.76rem; color:#64748b;">Toplu görünüm salt okunurdur. Teslim alma veya tamamlama işlemi için İş Emirlerine Göre Göster görünümünü kullanın.</div>
+            </div>
+        ` : '';
+
+        const depoTransferGroupedRows = useDepoTransferGroupedView ? buildDepoTransferGroupedRows(visible) : [];
+        const depoTransferGroupedTableHtml = useDepoTransferGroupedView ? `
+            <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                <div class="card-table">
+                    <table style="width:100%; border-collapse:collapse;">
+                        <thead>
+                            <tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;">
+                                <th style="padding:0.55rem; text-align:left;">Ürün / parça ailesi</th>
+                                <th style="padding:0.55rem; text-align:left;">Hedef istasyon</th>
+                                <th style="padding:0.55rem; text-align:center;">Bekleyen</th>
+                                <th style="padding:0.55rem; text-align:center;">İşlemde</th>
+                                <th style="padding:0.55rem; text-align:center;">Tamamlanan</th>
+                                <th style="padding:0.55rem; text-align:center;">Kalan</th>
+                                <th style="padding:0.55rem; text-align:center;">WO</th>
+                                <th style="padding:0.55rem; text-align:right;">Detay</th>
+                            </tr>
+                        </thead>
+                        <tbody>${renderDepoTransferGroupedRowsHtml(depoTransferGroupedRows)}</tbody>
+                    </table>
+                </div>
+                <div style="margin-top:0.55rem; font-size:0.76rem; color:#64748b;">Depo Transfer gruplu görünümü salt okunurdur. Sevk irsaliyesi veya satır işlemi için İş Emirlerine Göre Göster görünümünü kullanın.</div>
+            </div>
+        ` : '';
 
         if (tab === 'FASON' && isDepoTransferPlanning) {
             const supplierById = new Map(
@@ -6500,6 +7379,7 @@ const UnitModule = {
                 </div>
 
                 ${renderWorkOrderToolbar(doneQty)}
+                ${cncViewToggleHtml}
 
                 <div style="display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0.7rem; margin-bottom:1rem;">
                     <div style="background:white; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.7rem 0.85rem;"><div style="font-size:0.74rem; color:#64748b;">Is emri</div><div style="font-size:1.1rem; font-weight:800; color:#0f172a;">${totalOrders}</div></div>
@@ -6518,21 +7398,27 @@ const UnitModule = {
                         <div style="font-size:1.05rem; color:#334155; font-weight:600;">sevkiyat icin liste olustur</div>
                     </div>
                 ` : ''}
+                ${depoTransferViewToggleHtml}
 
                 <div style="background:#f8fafc; border:1px solid #dbeafe; color:#334155; border-radius:0.75rem; padding:0.65rem 0.8rem; margin-bottom:0.8rem; font-size:0.82rem;">
                     ${UnitModule.escapeHtml(getWorkOrderTabDescription(tab))}
                 </div>
 
-                <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
+                ${cncGroupedTableHtml}
+                ${depoTransferGroupedTableHtml}
+
+                <div style="display:${useCncGroupedView || useDepoTransferGroupedView ? 'none' : 'block'}; background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     <div class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
-                            <thead><tr style="border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.74rem; text-transform:uppercase;"><th style="padding:0.55rem; text-align:left;">Is emri no / satir no</th><th style="padding:0.55rem; text-align:left;">Urun</th><th style="padding:0.55rem; text-align:left;">Bilesen</th><th style="padding:0.55rem; text-align:left;">Rota adimi</th><th style="padding:0.55rem; text-align:center;">Bekleyen</th><th style="padding:0.55rem; text-align:center;">Islemde</th><th style="padding:0.55rem; text-align:center;">Tamamlanan</th><th style="padding:0.55rem; text-align:right;">Islem</th></tr></thead>
+                            ${workOrderTableHeaderHtml}
                             <tbody>
                                 ${visible.length === 0
                                     ? `<tr><td colspan="8" style="padding:1rem; text-align:center; color:#94a3b8;">Bu sekme icin kayit yok.</td></tr>`
                                     : (isMontajPlanningUnit
                                         ? UnitModule.buildMontageWorkOrderPlanningRowsHtml(visible, unitId)
-                                        : visible.map((r) => {
+                                        : (useDemandGroupedView
+                                            ? renderWorkOrderDemandGroupedRowsHtml(demandGroupedRows)
+                                            : visible.map((r) => {
                                     const hasUnitPlan = !!(r.plan && (
                                         String(r.plan.machine || '').trim()
                                         || String(r.plan.personnel || '').trim()
@@ -6693,13 +7579,13 @@ const UnitModule = {
                                             </td>
                                         </tr>
                                     `;
-                                }).join(''))}
+                                }).join('')))}
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                ${isDepoTransferPlanning && tab === 'AKTIF' ? `
+                ${isDepoTransferPlanning && tab === 'AKTIF' && !useDepoTransferGroupedView ? `
                     <div style="margin-top:0.75rem; display:flex; align-items:center; justify-content:flex-end; gap:0.6rem; flex-wrap:wrap;">
                         <div style="font-size:0.78rem; color:#475569; font-weight:700;">
                             Secili satir: ${Number(dispatchSelectionStats?.rowCount || 0)} | Toplam sevk adedi: ${Number(dispatchSelectionStats?.totalQty || 0)}

@@ -2331,6 +2331,44 @@
         const approvedConsumedQty = approvedRows.reduce((sum, row) => sum + PlanningModule.getPoolRowConsumedQty(row), 0);
         return { approvedRows, approvedNetQty, approvedConsumedQty };
     },
+    validateStockModelDemandPoolCompletion: (demand, rows) => {
+        const demandSourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        if (demandSourceType !== 'STOCK' || !PlanningModule.isDemandModelOnly(demand)) {
+            return { ok: true, active: false, missingRows: [] };
+        }
+
+        const tolerance = 0.000001;
+        const missingLabels = [];
+        const addMissing = (row) => {
+            const label = String(row?.code || row?.missingRefCode || row?.name || '-').trim() || '-';
+            if (!missingLabels.includes(label)) missingLabels.push(label);
+        };
+
+        (Array.isArray(rows) ? rows : [])
+            .map((row) => PlanningModule.normalizePoolRow(row))
+            .filter((row) => PlanningModule.parseQty(row?.requiredQty, 0) > 0)
+            .forEach((row) => {
+                const requiredQty = PlanningModule.parseQty(row?.requiredQty, 0);
+                const coveredQty = PlanningModule.getPoolRowConsumedQty(row) + PlanningModule.getPoolRowEffectiveNetQty(row);
+                const hasValidRef = !row?.missingRef && !!String(row?.componentId || '').trim();
+                const hasApproval = row?.approved === true;
+                const hasCoverage = coveredQty + tolerance >= requiredQty;
+                if (!hasValidRef || !hasApproval || !hasCoverage) addMissing(row);
+            });
+
+        if (missingLabels.length > 0) {
+            const preview = missingLabels.slice(0, 8).join(', ');
+            const suffix = missingLabels.length > 8 ? ' ...' : '';
+            return {
+                ok: false,
+                active: true,
+                missingRows: missingLabels,
+                message: `Bu planlama iş emrine dönüştürülemez. Stok için üretim talebinde tüm zorunlu bileşen satırları planlanmış ve onaylanmış olmalıdır. Eksik satırlar: ${preview}${suffix}`
+            };
+        }
+
+        return { ok: true, active: true, missingRows: [] };
+    },
     getPoolRowMatchKeys: (row) => {
         const normalized = PlanningModule.normalizePoolRow(row || {});
         const itemKey = String(normalized?.itemKey || '').trim();
@@ -3464,10 +3502,14 @@
             return fail('Bu talepte patlatma satiri bulunamadi.');
         }
         const { approvedRows } = PlanningModule.getApprovedPoolRowsMetrics(rows);
+        const stockModelCompletion = PlanningModule.validateStockModelDemandPoolCompletion(demand, rows);
+        if (!stockModelCompletion.ok) {
+            return fail(stockModelCompletion.message);
+        }
         if (!approvedRows.length) {
             return fail('Lutfen is emrine donecek satirlari onay kutusundan seciniz.');
         }
-        if (approvedRows.length < rows.length) {
+        if (!stockModelCompletion.active && approvedRows.length < rows.length) {
             const totalCount = rows.length;
             const approvedCount = approvedRows.length;
             const message = `Bu talepte ${totalCount} kalem var, sadece ${approvedCount} kalem onayli. Sadece onayli kalemler is emrine donecek. Devam etmek istiyor musunuz?`;
@@ -5758,7 +5800,20 @@
             if (!group) return renderEmpty('Detay kaydi bulunamadi.');
             const rows = Array.isArray(group?.rows) ? group.rows : [];
             const groupReleaseState = PlanningModule.getPlanningPoolOpenGroupReleaseState(rows);
-            const canReleaseGroup = !!groupReleaseState.allDraftSaved;
+            const stockModelCompletionResults = rows.map((row) => {
+                const demandId = String(row?.id || '').trim();
+                const poolRows = demandId
+                    ? PlanningModule.getPlanningPoolRows(demandId).map((poolRow) => PlanningModule.normalizePoolRow(poolRow))
+                    : [];
+                return PlanningModule.validateStockModelDemandPoolCompletion(row, poolRows);
+            });
+            const incompleteStockModelResult = stockModelCompletionResults.find((result) => result?.active && !result?.ok) || null;
+            const canReleaseGroup = !!groupReleaseState.allDraftSaved && !incompleteStockModelResult;
+            const releaseDisabledReason = !groupReleaseState.allDraftSaved
+                ? 'Tüm satırlar planlanmadan iş emrine dönüştürülemez.'
+                : (incompleteStockModelResult
+                    ? 'Tüm zorunlu satırlar planlanıp onaylanmadan iş emrine dönüştürülemez.'
+                    : '');
             const workOrderSet = new Set();
             rows.forEach((row) => PlanningModule.getLinkedWorkOrdersForDemand(row).forEach((order) => {
                 const code = String(order?.workOrderCode || '').trim();
@@ -5822,9 +5877,9 @@
                     </table>
                 </div>
                 <div style="display:flex; justify-content:flex-end; margin-top:0.75rem;">
-                    <button class="btn-primary" onclick="PlanningModule.releasePlanningPoolOpenGroupFromDetail()" ${canReleaseGroup ? '' : 'disabled'} style="${canReleaseGroup ? '' : 'opacity:0.45; cursor:not-allowed;'}">is emrine donustur</button>
+                    <button class="btn-primary" onclick="PlanningModule.releasePlanningPoolOpenGroupFromDetail()" ${canReleaseGroup ? '' : 'disabled'} title="${PlanningModule.escapeHtml(releaseDisabledReason)}" style="${canReleaseGroup ? '' : 'opacity:0.45; cursor:not-allowed;'}">is emrine donustur</button>
                 </div>
-                ${canReleaseGroup ? '' : '<div style="margin-top:0.45rem; border:1px solid #bfdbfe; background:#eff6ff; color:#1e3a8a; border-radius:0.55rem; padding:0.45rem 0.6rem; font-size:0.76rem; font-weight:600;">Tum satirlar planlanmadan is emrine donusturulemez.</div>'}
+                ${canReleaseGroup ? '' : `<div style="margin-top:0.45rem; border:1px solid #bfdbfe; background:#eff6ff; color:#1e3a8a; border-radius:0.55rem; padding:0.45rem 0.6rem; font-size:0.76rem; font-weight:600;">${PlanningModule.escapeHtml(releaseDisabledReason || 'İş emrine dönüştürmek için planlama tamamlanmalıdır.')}</div>`}
             `;
             return shellStart('planlama havuzu - detay', summary) + body + shellEnd;
         }

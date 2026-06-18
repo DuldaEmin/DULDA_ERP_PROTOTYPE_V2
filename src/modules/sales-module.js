@@ -836,6 +836,7 @@
             globalDiscountRate: SalesModule.parsePercent(discountRaw),
             vatRate,
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
+            deliveryDate: SalesModule.normalizeSalesDeliveryDate(source.deliveryDate || ''),
             deliveryAddress: SalesModule.resolveSalesOrderDeliveryAddress(source),
             paymentMethod: String(source.paymentMethod || source.deliveryMethod || 'Nakit').trim() || 'Nakit',
             note: String(source.manualNote || source.note || '').trim(),
@@ -2055,6 +2056,11 @@
         }
         if (key === 'deliveryLeadDays') {
             draft.deliveryLeadDays = SalesModule.parseDays(value || 0);
+            SalesModule.refreshSalesOrderUi();
+            return;
+        }
+        if (key === 'deliveryDate') {
+            draft.deliveryDate = SalesModule.normalizeSalesDeliveryDate(value || '');
             SalesModule.refreshSalesOrderUi();
             return;
         }
@@ -3398,6 +3404,7 @@
         if (!source || typeof source !== 'object') return false;
         if (String(source.customerId || '').trim()) return true;
         if (String(source.deliveryAddress || '').trim()) return true;
+        if (String(source.deliveryDate || '').trim()) return true;
         if (String(source.note || '').trim()) return true;
         if (String(source.paymentMethod || '').trim() && SalesModule.normalize(String(source.paymentMethod || '')) !== 'nakit') return true;
         if (Number(source.globalDiscountRate || 0) > 0) return true;
@@ -3589,6 +3596,7 @@
             globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
             vatRate: SalesModule.normalizeSalesVatRate(source.vatRate),
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
+            deliveryDate: SalesModule.normalizeSalesDeliveryDate(source.deliveryDate || ''),
             deliveryAddress: SalesModule.resolveSalesOrderDeliveryAddress(source),
             paymentMethod: String(source.paymentMethod || '').trim(),
             note: String(source.note || '').trim(),
@@ -3699,6 +3707,7 @@
             globalDiscountRate: Number(Number(source.globalDiscountRate || 0).toFixed(2)),
             vatRate: SalesModule.normalizeSalesVatRate(source.vatRate),
             deliveryLeadDays: SalesModule.parseDays(source.deliveryLeadDays || 0),
+            deliveryDate: SalesModule.normalizeSalesDeliveryDate(source.deliveryDate || ''),
             deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(source.paymentMethod || 'Nakit').trim() || 'Nakit',
             note: composedNote,
@@ -3963,8 +3972,9 @@
         if (SalesModule.normalizeSalesCurrency(draft.currency) !== 'TL' && !(Number(draft.exchangeRate || 0) > 0)) {
             return alert('USD/EUR icin kur alani zorunludur.');
         }
-        if (!(Number(draft.deliveryLeadDays || 0) > 0)) {
-            return alert('Teslim tarihi kurali (onaydan sonra kac gun) zorunludur.');
+        const normalizedDeliveryDate = SalesModule.normalizeSalesDeliveryDate(draft.deliveryDate || '');
+        if (!normalizedDeliveryDate && !(Number(draft.deliveryLeadDays || 0) > 0)) {
+            return alert('Teslim tarihi zorunludur.');
         }
         const totals = SalesModule.computeSalesOrderTotals(draft);
         const lineIssues = [];
@@ -4013,6 +4023,7 @@
             globalDiscountRate: Number(Number(draft.globalDiscountRate || 0).toFixed(2)),
             vatRate: SalesModule.normalizeSalesVatRate(draft.vatRate),
             deliveryLeadDays: SalesModule.parseDays(draft.deliveryLeadDays || 0),
+            deliveryDate: normalizedDeliveryDate,
             deliveryAddress: resolvedDeliveryAddress,
             paymentMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
             deliveryMethod: String(draft.paymentMethod || 'Nakit').trim() || 'Nakit',
@@ -4413,6 +4424,8 @@
         const kdvTitle = vatRate === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${vatRate})`;
         const kurText = currency === 'TL' ? '-' : (exchangeRate > 0 ? Number(exchangeRate).toFixed(4) : '-');
         const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
+        const deliveryDateText = SalesModule.formatSalesDeliveryDate(order.deliveryDate || '');
+        const deliveryText = SalesModule.getSalesDeliveryText(order);
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
         const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
         const hasSavedCustomTemplate = customTemplateHtml.length > 0;
@@ -4510,7 +4523,7 @@
 
                     <div style="margin-top:1.25rem; font-size:0.9rem; color:#0f172a;">
                         <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>ODEME SEKLI</strong><span>${SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit'))}</span></div>
-                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>Siparis onayindan ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun</span></div>
+                        <div style="display:grid; grid-template-columns:180px 1fr; gap:0.35rem; padding:0.16rem 0;"><strong>TESLIM KOSULLARI</strong><span>${SalesModule.escapeHtml(deliveryText)}</span></div>
                     </div>
 
                     <div style="margin-top:0.95rem;">
@@ -4543,6 +4556,7 @@
             CUSTOMER_NAME: SalesModule.escapeHtml(String(order.customerName || '-')),
             CUSTOMER_DISPLAY_ID: SalesModule.escapeHtml(String(order.customerDisplayId || '-')),
             DELIVERY_ADDRESS: SalesModule.escapeHtml(String(deliveryAddress)),
+            DELIVERY_DATE: SalesModule.escapeHtml(deliveryDateText || ''),
             PREPARED_BY: SalesModule.escapeHtml(String(order.preparedBy || '-')),
             CURRENCY: SalesModule.escapeHtml(currency),
             EXCHANGE_RATE: SalesModule.escapeHtml(kurText),
@@ -4562,8 +4576,8 @@
             GRAND_TOTAL_TL: fmtMoney(totalTl, 'TL'),
             DELIVERY_LEAD_DAYS: SalesModule.escapeHtml(String(order.deliveryLeadDays || 0)),
             PAYMENT_METHOD: SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit')),
-            DELIVERY_TEXT: `Siparis onayindan ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun`,
-            DELIVERY_TEXT_WITH_ADDRESS: `Onaydan sonra ${SalesModule.escapeHtml(String(order.deliveryLeadDays || 0))} gun / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
+            DELIVERY_TEXT: SalesModule.escapeHtml(deliveryText),
+            DELIVERY_TEXT_WITH_ADDRESS: `${SalesModule.escapeHtml(deliveryText)} / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
             UPDATED_AT: SalesModule.escapeHtml(updateDateText),
             LINE_ROWS_HTML: lineRowsHtml,
             BANK_ROWS_HTML: bankRowsHtml
@@ -4623,6 +4637,26 @@
         const num = Number(String(value || '').replace(',', '.'));
         if (!Number.isFinite(num)) return 0;
         return Math.max(0, Math.floor(num));
+    },
+
+    normalizeSalesDeliveryDate: (value = '') => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        return Number.isFinite(SalesModule.parseIsoDayToMs(raw)) ? raw : '';
+    },
+
+    formatSalesDeliveryDate: (value = '') => {
+        const normalized = SalesModule.normalizeSalesDeliveryDate(value);
+        if (!normalized) return '';
+        const ms = SalesModule.parseIsoDayToMs(normalized);
+        return Number.isFinite(ms) ? new Date(ms).toLocaleDateString('tr-TR') : '';
+    },
+
+    getSalesDeliveryText: (order = {}) => {
+        const deliveryDateText = SalesModule.formatSalesDeliveryDate(order?.deliveryDate || '');
+        if (deliveryDateText) return `Teslim tarihi: ${deliveryDateText}`;
+        const leadDays = SalesModule.parseDays(order?.deliveryLeadDays || 0);
+        return leadDays > 0 ? `Siparis onayindan ${leadDays} gun` : '-';
     },
 
     generateCustomerCode: () => {
@@ -9558,7 +9592,7 @@
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Kur ${currency === 'TL' ? '' : '<span style="color:#e11d48;">*</span>'}</label><input class="stock-input stock-input-tall" type="text" inputmode="decimal" ${currency === 'TL' ? 'disabled' : ''} value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(exchangeRateInputValue, { maxFractionDigits: 4, emptyWhenZero: true }))}" onchange="SalesModule.setSalesOrderDraftField('exchangeRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Genel Iskonto (%)</label><input class="stock-input stock-input-tall" type="text" inputmode="decimal" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(draft.globalDiscountRate || 0, { maxFractionDigits: 2 }))}" onchange="SalesModule.setSalesOrderDraftField('globalDiscountRate', this.value)"></div>
                     <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">KDV</label><select class="stock-input stock-input-tall" onchange="SalesModule.setSalesOrderDraftField('vatRate', this.value)"><option value="20" ${normalizedVatRate === 20 ? 'selected' : ''}>%20</option><option value="0" ${normalizedVatRate === 0 ? 'selected' : ''}>%0</option></select></div>
-                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim (gun) <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="text" inputmode="numeric" value="${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(draft.deliveryLeadDays || '', { maxFractionDigits: 0, emptyWhenZero: true }))}" onchange="SalesModule.setSalesOrderDraftField('deliveryLeadDays', this.value)"></div>
+                    <div><label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Teslim Tarihi <span style="color:#e11d48;">*</span></label><input class="stock-input stock-input-tall" type="date" value="${SalesModule.escapeHtml(SalesModule.normalizeSalesDeliveryDate(draft.deliveryDate || ''))}" onchange="SalesModule.setSalesOrderDraftField('deliveryDate', this.value)"></div>
                     <div>
                         <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Odeme Sekli</label>
                         <div style="display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.35rem;">

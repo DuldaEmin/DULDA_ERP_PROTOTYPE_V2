@@ -30,6 +30,24 @@ Iletisim protokolu:
 
 ## 3) Kayitlar
 
+### 2026-04-27 - Satilan Urun Kutuphanesi Ana Omurga Kurali Sabitlendi
+- Ne degisti:
+  - Satilan Urun Kutuphanesi icin "tek ortak kutuphane" karari proje hafizasina net karar metni olarak eklendi.
+  - Satisci ve planlamaci ayriminin veri kopyasiyla degil, rol/yetki ve gorunur alan farkiyla yapilacagi sabitlendi.
+- Neden degisti:
+  - Satis ve uretim akisinin ayni urun gercekliginde kalmasini garanti etmek.
+  - Stok/uretim/siparis zincirinde ileride olusabilecek veri bolunmesi ve akis karisimi riskini onlemek.
+- Etkilenen ekran/modul:
+  - Satilan Urun Kutuphanesi is kurali (Satis & Pazarlama ve Urun/Parca Olusturma/Planlama taraflari).
+  - Dokumantasyon/hafiza katmani (bu kayitta kod davranisi degistirilmedi).
+- Beklenen sonuc:
+  - Ayni urun, ayni kart ve ayni genel gorunum iki tarafta ortak kalir.
+  - Satisci urunu gorur, urun kartini acar, satis varyasyonu uretir; teknik uretim alanlarina mudahale edemez.
+  - Planlamaci ayni urunu gorur; varyasyonu uretilebilir hale getirir (parca/bilesen bagi, montaj karti, teknik dosya/resim, uretim plani).
+- Risk/Not:
+  - Bu omurga bozulursa satis ve uretim birbirine karisir, urun verisi ikiye bolunur.
+  - Satilan Urun Kutuphanesiyle ilgili her degisiklikte bu omurga kuralina uyum kontrolu zorunludur.
+
 ### 2026-04-15 - Omurga Koruma Paketi Aktif Edildi
 - Ne degisti:
   - `tests/backbone.guard.test.cjs` eklendi.

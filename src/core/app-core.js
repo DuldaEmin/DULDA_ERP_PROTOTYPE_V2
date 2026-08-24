@@ -6,6 +6,49 @@ const STORAGE_KEY = "DULDA_ERP_STATE";
 const CONFLICT_DRAFT_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT";
 const BROWSER_MIRROR_IDB_KEY = "DULDA_ERP_STATE_IDB_MIRROR";
 const CONFLICT_DRAFT_IDB_KEY = "DULDA_ERP_STATE_CONFLICT_DRAFT_IDB";
+const CRITICAL_STATE_COLLECTIONS = [
+    "partComponentCards",
+    "salesProductVariants",
+    "orders",
+    "planningDemands",
+    "semiFinishedCards",
+    "workOrders",
+    "workOrderTransactions",
+    "stock_movements",
+    "stockDepotItems",
+    "montageDispatchPlans",
+    "montageDispatchShipments",
+    "montageCompletionTransfers",
+    "salesShipmentPlans",
+    "salesShipments",
+    "sanalTaksimAllocationInstructions",
+];
+const CRITICAL_STATE_DROP_THRESHOLD = 0.30;
+const CRITICAL_SAVE_BLOCK_MESSAGE = "Kritik veri kaybı riski nedeniyle kayıt engellendi.";
+const CRITICAL_DROP_APPROVAL_COLLECTIONS = {
+    sales_order_demo_cleanup: new Set([
+        "orders",
+        "planningDemands",
+        "workOrders",
+        "workOrderTransactions",
+        "stock_movements",
+        "stockDepotItems",
+    ]),
+    stock_demand_demo_cleanup: new Set([
+        "planningDemands",
+        "workOrders",
+        "workOrderTransactions",
+        "stock_movements",
+        "stockDepotItems",
+    ]),
+    sor000001_montage_demo_cleanup: new Set([
+        "montageDispatchPlans",
+        "montageDispatchShipments",
+        "montageCompletionTransfers",
+        "stock_movements",
+        "stockDepotItems",
+    ])
+};
 
 const TextStylePolicy = {
     targetSelector: [
@@ -36,6 +79,8 @@ const TextStylePolicy = {
         ['satis & pazarlama', 'Satış & Pazarlama'],
         ['satış / sipariş oluşturma', 'Satış / Sipariş Oluşturma'],
         ['satis / siparis olusturma', 'Satış / Sipariş Oluşturma'],
+        ['satış & sipariş oluşturma', 'Satış & Sipariş Oluşturma'],
+        ['satis & siparis olusturma', 'Satış & Sipariş Oluşturma'],
         ['yeni sipariş', 'Yeni Sipariş'],
         ['yeni siparis', 'Yeni Sipariş'],
         ['siparişi kaydet', 'Siparişi Kaydet'],
@@ -809,7 +854,15 @@ const DB = {
             depoTransferTasks: [],
             workOrders: [],
             workOrderTransactions: [],
+            workOrderExternalSupplierAssignments: [],
             outsourceTransfers: [],
+            outsourceDispatchDrafts: [],
+            montageDispatchPlans: [],
+            montageDispatchShipments: [],
+            montageCompletionTransfers: [],
+            salesShipmentPlans: [],
+            salesShipments: [],
+            sanalTaksimAllocationInstructions: [],
             depoTransferLogs: [],
             depoRoutes: []
         }
@@ -820,7 +873,12 @@ const DB = {
     storageMode: "localStorage",
     saveInProgress: false,
     saveQueued: false,
+    saveQueuedCriticalDropApproval: null,
+    savePromise: null,
     baseRevision: 0,
+    lastAcceptedDiskState: null,
+    lastCriticalSaveBlockSignature: "",
+    criticalSaveBlockActive: false,
     clientSessionId: (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
         ? globalThis.crypto.randomUUID()
         : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -887,6 +945,124 @@ const DB = {
         };
     },
 
+    cloneState: (state) => JSON.parse(JSON.stringify(state || {})),
+
+    getStateDataRoot: (state) => {
+        const data = state?.data;
+        return data && typeof data === "object" && !Array.isArray(data) ? data : {};
+    },
+
+    getCollectionCount: (state, collection) => {
+        const rows = DB.getStateDataRoot(state)?.[collection];
+        return Array.isArray(rows) ? rows.length : 0;
+    },
+
+    analyzeCriticalCollectionDrops: (currentState, incomingState) => {
+        if (!currentState || !incomingState) return [];
+
+        const issues = [];
+        for (const collection of CRITICAL_STATE_COLLECTIONS) {
+            const beforeCount = DB.getCollectionCount(currentState, collection);
+            const afterCount = DB.getCollectionCount(incomingState, collection);
+            if (beforeCount <= 0 || afterCount >= beforeCount) continue;
+
+            const dropRatio = (beforeCount - afterCount) / beforeCount;
+            if (afterCount === 0 || dropRatio > CRITICAL_STATE_DROP_THRESHOLD) {
+                issues.push({
+                    collection,
+                    beforeCount,
+                    afterCount,
+                    dropRatio: Number(dropRatio.toFixed(4)),
+                    reason: afterCount === 0 ? "collection_cleared" : "collection_drop_over_threshold",
+                });
+            }
+        }
+
+        return issues;
+    },
+
+    normalizeCriticalDropIssuesForApproval: (issues) => (Array.isArray(issues) ? issues : [])
+        .map((issue) => ({
+            collection: String(issue?.collection || '').trim(),
+            beforeCount: Number(issue?.beforeCount),
+            afterCount: Number(issue?.afterCount),
+            reason: String(issue?.reason || '').trim(),
+            dropRatio: Number(issue?.dropRatio)
+        }))
+        .filter((issue) => issue.collection
+            && Number.isFinite(issue.beforeCount)
+            && Number.isFinite(issue.afterCount)
+            && issue.beforeCount >= 0
+            && issue.afterCount >= 0
+            && issue.reason)
+        .sort((a, b) => a.collection.localeCompare(b.collection)),
+
+    areCriticalDropIssuesApproved: (issues, approval) => {
+        const type = String(approval?.type || '').trim();
+        const allowedCollections = CRITICAL_DROP_APPROVAL_COLLECTIONS[type];
+        if (!allowedCollections) return false;
+        const actual = DB.normalizeCriticalDropIssuesForApproval(issues);
+        const expected = DB.normalizeCriticalDropIssuesForApproval(approval?.issues);
+        if (!actual.length || actual.length !== expected.length) return false;
+        for (let i = 0; i < actual.length; i += 1) {
+            const a = actual[i];
+            const e = expected[i];
+            if (!allowedCollections.has(a.collection)) return false;
+            if (a.collection !== e.collection
+                || a.beforeCount !== e.beforeCount
+                || a.afterCount !== e.afterCount
+                || a.reason !== e.reason
+                || a.dropRatio !== e.dropRatio) {
+                return false;
+            }
+        }
+        return true;
+    },
+
+    createCriticalDropApproval: (type, beforeState, afterState, meta = {}) => {
+        const approvalType = String(type || '').trim();
+        if (!CRITICAL_DROP_APPROVAL_COLLECTIONS[approvalType]) return null;
+        const issues = DB.analyzeCriticalCollectionDrops(beforeState, afterState);
+        const normalizedIssues = DB.normalizeCriticalDropIssuesForApproval(issues);
+        if (!normalizedIssues.length) return null;
+        const approval = {
+            type: approvalType,
+            issues: normalizedIssues,
+            meta: {
+                createdAt: new Date().toISOString(),
+                ...meta
+            }
+        };
+        return DB.areCriticalDropIssuesApproved(issues, approval) ? approval : null;
+    },
+
+    formatCriticalDropIssues: (issues) => {
+        return (Array.isArray(issues) ? issues : [])
+            .map((issue) => `${issue.collection}: ${issue.beforeCount} -> ${issue.afterCount}`)
+            .join(", ");
+    },
+
+    blockCriticalSave: (issues) => {
+        const detail = DB.formatCriticalDropIssues(issues);
+        const message = detail ? `${CRITICAL_SAVE_BLOCK_MESSAGE} (${detail})` : CRITICAL_SAVE_BLOCK_MESSAGE;
+        const signature = JSON.stringify(issues || []);
+
+        DB.criticalSaveBlockActive = true;
+        UI.updateStatus(`🔴 ${CRITICAL_SAVE_BLOCK_MESSAGE}`);
+        console.error(CRITICAL_SAVE_BLOCK_MESSAGE, issues);
+        if (signature !== DB.lastCriticalSaveBlockSignature) {
+            alert(message);
+            DB.lastCriticalSaveBlockSignature = signature;
+        }
+
+        return {
+            ok: false,
+            code: "critical_data_loss_risk",
+            error: new Error(CRITICAL_SAVE_BLOCK_MESSAGE),
+            issues,
+        };
+    },
+
     normalizeData: () => {
         if (!DB.data || typeof DB.data !== "object") {
             DB.data = { schema_version: 1, meta: {}, data: {} };
@@ -895,6 +1071,17 @@ const DB = {
         if (!DB.data.meta || typeof DB.data.meta !== "object") DB.data.meta = {};
         if (!DB.data.meta.created_at) DB.data.meta.created_at = new Date().toISOString();
         if (!Number.isInteger(DB.data.meta.revision) || DB.data.meta.revision < 0) DB.data.meta.revision = 0;
+        // PROTOTYPE BOOTSTRAP ONLY:
+        // Login/oturum sistemi henuz olmadigi icin, yetki guardlarinin demoda kilitlenmemesi adina
+        // aktif rol varsayilan olarak super-admin atanir. Canli geciste gercek oturum/kimlik
+        // altyapisi devreye alindiginda bu gecici fallback kaldirilmalidir.
+        if (!String(DB.data.meta.activeRole || '').trim()) DB.data.meta.activeRole = 'super-admin';
+        if (!String(DB.data.meta.activeUserName || '').trim()
+            && !String(DB.data.meta.activeUsername || '').trim()
+            && !String(DB.data.meta.currentUserName || '').trim()
+            && !String(DB.data.meta.currentUser || '').trim()) {
+            DB.data.meta.activeUserName = 'demo-super-admin';
+        }
 
         if (!DB.data.data || typeof DB.data.data !== "object") DB.data.data = {};
         const d = DB.data.data;
@@ -925,7 +1112,15 @@ const DB = {
         if (!Array.isArray(d.depoTransferTasks)) d.depoTransferTasks = [];
         if (!Array.isArray(d.workOrders)) d.workOrders = [];
         if (!Array.isArray(d.workOrderTransactions)) d.workOrderTransactions = [];
+        if (!Array.isArray(d.workOrderExternalSupplierAssignments)) d.workOrderExternalSupplierAssignments = [];
         if (!Array.isArray(d.outsourceTransfers)) d.outsourceTransfers = [];
+        if (!Array.isArray(d.outsourceDispatchDrafts)) d.outsourceDispatchDrafts = [];
+        if (!Array.isArray(d.montageDispatchPlans)) d.montageDispatchPlans = [];
+        if (!Array.isArray(d.montageDispatchShipments)) d.montageDispatchShipments = [];
+        if (!Array.isArray(d.montageCompletionTransfers)) d.montageCompletionTransfers = [];
+        if (!Array.isArray(d.salesShipmentPlans)) d.salesShipmentPlans = [];
+        if (!Array.isArray(d.salesShipments)) d.salesShipments = [];
+        if (!Array.isArray(d.sanalTaksimAllocationInstructions)) d.sanalTaksimAllocationInstructions = [];
         if (!Array.isArray(d.depoTransferLogs)) d.depoTransferLogs = [];
         if (!Array.isArray(d.depoRoutes)) d.depoRoutes = [];
         if (!Array.isArray(d.productCategories)) d.productCategories = [];
@@ -999,30 +1194,31 @@ const DB = {
             }
         }
 
-        // Decide best source:
-        // Prefer higher revision. On ties, prefer newest timestamp. On full ties, prefer disk.
-        if (diskState && localState) {
-            const diskRevision = stateRevision(diskState);
-            const localRevision = stateRevision(localState);
-            const diskTime = stateTime(diskState);
-            const localTime = stateTime(localState);
-
-            if (localRevision > diskRevision) {
-                loaded = localState;
-                DB.storageMode = "localStorage";
-            } else if (diskRevision > localRevision) {
-                loaded = diskState;
-                DB.storageMode = "disk";
-            } else if (localTime > diskTime) {
-                loaded = localState;
-                DB.storageMode = "localStorage";
-            } else {
-                loaded = diskState;
-                DB.storageMode = "disk";
-            }
-        } else if (diskState) {
+        // Disk varsa guvenli kaynak disktir. Tarayici aynasi daha yeni gorunse bile
+        // acik kullanici onayi olmadan demo_state.json uzerine senkronlanmaz.
+        if (diskState) {
             loaded = diskState;
             DB.storageMode = "disk";
+
+            if (localState) {
+                const diskRevision = stateRevision(diskState);
+                const localRevision = stateRevision(localState);
+                const diskTime = stateTime(diskState);
+                const localTime = stateTime(localState);
+                if (localRevision > diskRevision || (localRevision === diskRevision && localTime > diskTime)) {
+                    console.warn("Tarayıcıdaki state diskten yeni görünüyor; otomatik disk senkronu güvenlik nedeniyle engellendi.", {
+                        source: localStateSource,
+                        diskRevision,
+                        localRevision,
+                        diskTime,
+                        localTime,
+                    });
+                }
+            }
+
+            if (recoveryDraftState) {
+                console.warn("Tarayıcıda senkronlanmamış kurtarma taslağı var; otomatik disk senkronu güvenlik nedeniyle yapılmadı.");
+            }
         } else if (localState) {
             loaded = localState;
             DB.storageMode = "localStorage";
@@ -1035,18 +1231,12 @@ const DB = {
         if (loaded) DB.data = loaded;
         DB.normalizeData();
         DB.baseRevision = Number(DB.data?.meta?.revision || 0);
-        // localStorage kazandiysa, ilk disk kaydini diskteki revizyona gore yap.
-        if (loaded && DB.storageMode === "localStorage" && diskState) {
-            DB.baseRevision = stateRevision(diskState);
-        }
-        const repairedMojibake = MojibakeFix.sanitizeObjectStrings(DB.data);
-        if (repairedMojibake) {
-            console.warn("Mojibake metinler bulundu ve otomatik duzeltildi.");
+        if (loaded && DB.storageMode === "disk") {
+            DB.lastAcceptedDiskState = DB.cloneState(DB.data);
         }
 
-        // If local wins, sync it to disk so next run is consistent.
-        if (loaded && (DB.storageMode === "localStorage" || repairedMojibake)) {
-            await DB.save();
+        if (loaded && DB.storageMode === "localStorage") {
+            console.warn("Tarayıcı state'i disk yokken yüklendi; otomatik disk senkronu yapılmadı.");
         }
 
         if (!loaded) {
@@ -1064,6 +1254,7 @@ const DB = {
         const baseRevision = Number.isInteger(overrideRevision) && overrideRevision >= 0
             ? overrideRevision
             : DB.baseRevision;
+        const criticalDropApproval = options?.criticalDropApproval || null;
         let resp;
         try {
             resp = await fetch("/api/state", {
@@ -1072,7 +1263,8 @@ const DB = {
                 body: JSON.stringify({
                     state,
                     baseRevision,
-                    sessionId: DB.clientSessionId
+                    sessionId: DB.clientSessionId,
+                    criticalDropApproval
                 })
             });
         } catch (networkErr) {
@@ -1121,46 +1313,85 @@ const DB = {
         DB.storageMode = "disk";
         const backup = await DB.mirrorStateToBrowserBackup(DB.data);
         UI.updateStatus(backup.mirrored ? "🟢 Otomatik Kayit" : "🟢 Otomatik Kayit (Tarayici yedegi sinirli)");
+        DB.lastAcceptedDiskState = DB.cloneState(DB.data);
+        DB.criticalSaveBlockActive = false;
         console.warn("Save conflict auto-resolved with latest snapshot.");
         return result;
     },
 
-    save: async () => {
+    save: async (options = {}) => {
         if (DB.shouldShowSavingUi()) UI.showSavingIndicator(true);
         DB.data.meta.updated_at = new Date().toISOString();
         DB.normalizeData();
+        DB.criticalSaveBlockActive = false;
+        const criticalDropApproval = options?.criticalDropApproval || null;
+        const conflictStrategy = String(options?.conflictStrategy || '').trim().toLowerCase();
+
+        const criticalDropIssues = DB.analyzeCriticalCollectionDrops(DB.lastAcceptedDiskState, DB.data);
+        if (criticalDropIssues.length && !DB.areCriticalDropIssuesApproved(criticalDropIssues, criticalDropApproval)) {
+            return DB.blockCriticalSave(criticalDropIssues);
+        }
 
         if (DB.saveInProgress) {
+            if (criticalDropApproval) DB.saveQueuedCriticalDropApproval = criticalDropApproval;
             DB.saveQueued = true;
-            return;
+            return DB.savePromise || { ok: false, code: "save_in_progress", error: null };
         }
 
         DB.saveInProgress = true;
-        try {
+        DB.savePromise = (async () => {
+            let finalResult = { ok: false, code: "not_saved", error: null };
+            let activeCriticalDropApproval = criticalDropApproval;
             do {
                 DB.saveQueued = false;
+                const iterationCriticalDropApproval = activeCriticalDropApproval;
+                activeCriticalDropApproval = null;
                 const snapshot = JSON.parse(JSON.stringify(DB.data));
+                const iterationCriticalDropIssues = DB.analyzeCriticalCollectionDrops(DB.lastAcceptedDiskState, snapshot);
+                if (iterationCriticalDropIssues.length
+                    && !DB.areCriticalDropIssuesApproved(iterationCriticalDropIssues, iterationCriticalDropApproval)) {
+                    finalResult = DB.blockCriticalSave(iterationCriticalDropIssues);
+                    break;
+                }
                 try {
-                    const result = await DB.saveToDisk(snapshot);
+                    const result = await DB.saveToDisk(snapshot, { criticalDropApproval: iterationCriticalDropApproval });
                     const nextRevision = Number(result?.revision);
                     if (Number.isInteger(nextRevision) && nextRevision >= 0) {
                         DB.baseRevision = nextRevision;
                         DB.data.meta.revision = nextRevision;
                     }
                     DB.storageMode = "disk";
+                    DB.lastAcceptedDiskState = DB.cloneState(DB.data);
+                    DB.lastCriticalSaveBlockSignature = "";
+                    DB.criticalSaveBlockActive = false;
                     // Keep local copy as backup mirror of the accepted disk state.
                     const backup = await DB.mirrorStateToBrowserBackup(DB.data);
                     UI.updateStatus(backup.mirrored ? "🟢 Dosyaya Otomatik Kayıt" : "🟢 Dosyaya Otomatik Kayıt (Tarayici yedegi sinirli)");
                     console.log("Data saved to demo_state.json");
+                    finalResult = { ok: true, code: "saved_to_disk", result };
                 } catch (diskError) {
                     if (diskError?.code === "save_conflict") {
+                        if (conflictStrategy === "fail") {
+                            finalResult = {
+                                ok: false,
+                                code: "save_conflict",
+                                error: diskError,
+                                conflict: true,
+                                currentRevision: Number(diskError?.payload?.currentRevision)
+                            };
+                            break;
+                        }
                         try {
-                            await DB.resolveConflictAndSaveLatest(snapshot, diskError?.payload || null);
+                            const result = await DB.resolveConflictAndSaveLatest(snapshot, diskError?.payload || null);
+                            finalResult = { ok: true, code: "save_conflict_resolved", result };
                         } catch (retryError) {
                             const draftResult = await DB.storeConflictDraft(snapshot);
                             UI.updateStatus(draftResult.saved ? "🟠 Kayit cakismasi - veri korunuyor" : "🔴 Kayit cakismasi - yedek alinamadi");
                             console.warn("Save conflict could not be auto-resolved.", retryError);
+                            finalResult = { ok: false, code: "save_conflict", error: retryError, draftResult };
                         }
+                    } else if (diskError?.code === "critical_data_loss_risk") {
+                        finalResult = DB.blockCriticalSave(diskError?.payload?.issues || []);
                     } else {
                         const draftResult = await DB.storeConflictDraft(snapshot);
                         const serviceDown = diskError?.code === "state_service_unreachable";
@@ -1174,12 +1405,27 @@ const DB = {
                             UI.updateStatus("🔴 Disk kaydi ve tarayici yedegi basarisiz");
                             console.error("Save failed", diskError);
                         }
+                        finalResult = { ok: false, code: diskError?.code || "disk_save_failed", error: diskError, draftResult };
                     }
                 }
+                if (DB.saveQueued) {
+                    activeCriticalDropApproval = DB.saveQueuedCriticalDropApproval;
+                    DB.saveQueuedCriticalDropApproval = null;
+                }
             } while (DB.saveQueued);
+            return finalResult;
+        })();
+
+        try {
+            return await DB.savePromise;
         } finally {
             DB.saveInProgress = false;
-            if (DB.shouldShowSavingUi()) UI.showSavingIndicator(false);
+            DB.savePromise = null;
+            DB.saveQueuedCriticalDropApproval = null;
+            if (DB.shouldShowSavingUi()) {
+                if (DB.criticalSaveBlockActive) UI.updateManualSaveButton(false);
+                else UI.showSavingIndicator(false);
+            }
         }
     },
 
@@ -1189,7 +1435,7 @@ const DB = {
             DB.saveTimeout = null;
         }
         if (DB.shouldShowSavingUi()) UI.showSavingIndicator(true);
-        await DB.save();
+        return await DB.save();
     },
 
     flushOnUnload: () => {
@@ -1318,14 +1564,16 @@ const Router = {
         if (isBurstDuplicate) return;
         if (!requestRefresh && targetPage === currentPage) return;
 
+        if (currentPage === 'stock' && targetPage !== 'stock'
+            && typeof StockModule !== 'undefined'
+            && StockModule
+            && typeof StockModule.clearSanalTaksimPrioritySession === 'function') {
+            StockModule.clearSanalTaksimPrioritySession();
+        }
+
         const { fromBack = false, skipHistory = false } = options;
         if (!skipHistory && !fromBack && currentPage && currentPage !== targetPage) {
             Router.history.push(Router.currentPage);
-        }
-        // Fresh open rule: entering Units from another page should start at unit list.
-        if (targetPage === 'units' && currentPage !== 'units' && !fromBack) {
-            UnitModule.state.view = 'list';
-            UnitModule.state.activeUnitId = null;
         }
         // Fresh open rule: entering Product workspace resets open panels/forms unless caller explicitly preserves UI state.
         if (targetPage === 'products' && currentPage !== 'products') {
@@ -1338,19 +1586,47 @@ const Router = {
                 }
             }
         }
-        // Fresh open rule: entering Stock workspace starts from menu.
-        if (targetPage === 'stock' && currentPage !== 'stock' && !fromBack) {
-            StockModule.state.workspaceView = 'menu';
-            StockModule.state.selectedKey = 'all';
-        }
-        if (targetPage === 'planlama' && currentPage !== 'planlama' && !fromBack) {
-            PlanningModule.state.workspaceView = 'menu';
-        }
-        if (targetPage === 'sales' && currentPage !== 'sales' && !fromBack) {
-            SalesModule.state.workspaceView = 'menu';
-            SalesModule.state.customerDetailId = null;
-            SalesModule.state.customerDetailMode = 'view';
-            SalesModule.state.customerEditDraft = null;
+        const isFreshModuleEntry = currentPage !== targetPage && !fromBack;
+        if (isFreshModuleEntry) {
+            if (targetPage === 'units') {
+                if (typeof UnitModule?.resetWorkspaceEntryUiState === 'function') {
+                    UnitModule.resetWorkspaceEntryUiState();
+                } else {
+                    UnitModule.state.view = 'list';
+                    UnitModule.state.activeUnitId = null;
+                }
+            }
+            if (targetPage === 'stock') {
+                if (typeof StockModule?.resetWorkspaceEntryUiState === 'function') {
+                    StockModule.resetWorkspaceEntryUiState();
+                } else {
+                    StockModule.state.workspaceView = 'menu';
+                    StockModule.state.selectedKey = 'all';
+                }
+            }
+            if (targetPage === 'planlama') {
+                if (typeof PlanningModule?.resetWorkspaceEntryUiState === 'function') {
+                    PlanningModule.resetWorkspaceEntryUiState();
+                } else {
+                    PlanningModule.state.workspaceView = 'menu';
+                }
+            }
+            if (targetPage === 'sales') {
+                if (typeof SalesModule?.resetWorkspaceEntryUiState === 'function') {
+                    SalesModule.resetWorkspaceEntryUiState();
+                } else {
+                    SalesModule.state.workspaceView = 'menu';
+                    SalesModule.state.customerDetailId = null;
+                    SalesModule.state.customerDetailMode = 'view';
+                    SalesModule.state.customerEditDraft = null;
+                }
+            }
+            if (targetPage === 'purchasing' && typeof PurchasingModule?.resetWorkspaceEntryUiState === 'function') {
+                PurchasingModule.resetWorkspaceEntryUiState();
+            }
+            if (targetPage === 'personnel' && typeof PersonnelModule?.resetWorkspaceEntryUiState === 'function') {
+                PersonnelModule.resetWorkspaceEntryUiState();
+            }
         }
         Router.currentPage = targetPage;
         UI.renderCurrentPage();
@@ -1364,6 +1640,16 @@ const Router = {
             return;
         }
         if (Router.currentPage === 'products') {
+            if (
+                String(ProductLibraryModule.state.workspaceView || '') === 'colors'
+                && String(ProductLibraryModule.state.colorEntrySource || '') === 'settings'
+            ) {
+                ProductLibraryModule.state.colorEntrySource = '';
+                ProductLibraryModule.state.workspaceView = 'menu';
+                const previous = Router.history.pop();
+                Router.navigate(previous || 'settings', { fromBack: true });
+                return;
+            }
             if (ProductLibraryModule.state.workspaceView && ProductLibraryModule.state.workspaceView !== 'menu') {
                 ProductLibraryModule.state.workspaceView = 'menu';
                 UI.renderCurrentPage();
@@ -1377,6 +1663,9 @@ const Router = {
         }
 
         if (Router.currentPage === 'stock' && String(StockModule.state.workspaceView || 'menu') !== 'menu') {
+            if (typeof StockModule.clearSanalTaksimPrioritySession === 'function') {
+                StockModule.clearSanalTaksimPrioritySession();
+            }
             StockModule.state.workspaceView = 'menu';
             UI.renderCurrentPage();
             return;
@@ -1425,8 +1714,18 @@ const UI = {
         const manualSaveButton = document.getElementById('manualSaveButton');
         if (manualSaveButton && !manualSaveButton.dataset.bound) {
             manualSaveButton.dataset.bound = 'true';
-            manualSaveButton.addEventListener('click', () => {
-                void DB.saveNow();
+            manualSaveButton.addEventListener('click', async () => {
+                try {
+                    const result = await DB.saveNow();
+                    if (result?.ok === false && result?.code !== "critical_data_loss_risk") {
+                        alert("Kayıt diske yazılamadı. Sayfayı yenilemeyin. Tekrar kaydedin.");
+                    }
+                } catch (error) {
+                    console.error("Manual save failed.", error);
+                    if (error?.code !== "critical_data_loss_risk") {
+                        alert("Kayıt diske yazılamadı. Sayfayı yenilemeyin. Tekrar kaydedin.");
+                    }
+                }
             });
         }
         UI.updateManualSaveButton(false);
@@ -1503,12 +1802,20 @@ const UI = {
             const workspaceView = String(ProductLibraryModule.state.workspaceView || 'menu');
             pageTitle.innerText = workspaceView === 'master'
                 ? 'ÜRÜN KÜTÜPHANESİ'
-                : 'ÜRÜN VE PARÇA OLUŞTURMA';
+                : (workspaceView === 'colors' ? 'AYARLAR / RENK KÜTÜPHANESİ' : 'ÜRÜN VE PARÇA OLUŞTURMA');
             ProductLibraryModule.render(container);
+        }
+        else if (page === 'settings') {
+            pageTitle.innerText = 'AYARLAR';
+            UI.renderSettings(container);
         }
         else if (page === 'aluminum-inventory') {
             pageTitle.innerText = 'ALÜMİNYUM PROFİL ENVANTERİ';
             AluminumModule.render(container);
+        }
+        else if (page === 'accounting') {
+            pageTitle.innerText = 'MUHASEBE';
+            UI.renderAccountingPlaceholder(container);
         }
         else container.innerHTML = `<div style="text-align:center; padding:4rem; color:#94a3b8;"><h3>🚧 Modül Hazırlanıyor: ${page}</h3></div>`;
 
@@ -1525,6 +1832,7 @@ const UI = {
             { id: 'units', title: 'Birimler & Atölyeler', icon: 'hammer', gradient: 'g-yellow' },
             { id: 'products', title: 'Ürün ve Parça Oluşturma', icon: 'boxes', gradient: 'g-pink' },
             { id: 'personnel', title: 'Personel', icon: 'users', gradient: 'g-cyan' },
+            { id: 'accounting', title: 'Muhasebe', icon: 'calculator', gradient: 'g-gray' },
             { id: 'settings', title: 'Ayarlar', icon: 'settings', gradient: 'g-gray' },
         ];
 
@@ -1534,14 +1842,51 @@ const UI = {
                 <p style="color:#64748b; font-size:1.1rem;">ASIL - Fabrika Yönetim Sistemi</p>
             </div>
             <div class="apps-grid">
-                ${apps.map(app => `
-                    <a href="#" onclick="Router.navigate('${app.id}'); return false;" class="app-card">
+                ${apps.map((app) => {
+                    const onClick = `Router.navigate('${app.id}'); return false;`;
+                    return `
+                    <a href="#" onclick="${onClick}" class="app-card">
                         <div class="icon-box ${app.gradient}"><i data-lucide="${app.icon}" width="32" height="32"></i></div>
                         <div class="app-name">${app.title}</div>
                     </a>
-                `).join('')}
+                `;
+                }).join('')}
             </div>
             <div style="text-align:center; margin-top:4rem; color:#94a3b8; font-size:0.8rem">Faz 1 - Temel Yapı</div>
+        `;
+    },
+
+    renderSettings: (container) => {
+        container.innerHTML = `
+            <div style="max-width:1050px; margin:0 auto;">
+                <div style="text-align:center; margin:0.5rem 0 2rem 0;">
+                    <h2 class="page-title" style="margin:0; font-size:2rem;">Ayarlar</h2>
+                    <div style="color:#64748b; margin-top:0.4rem;">Sistem genelinde kullanılan yardımcı tanımları buradan yönetin</div>
+                </div>
+
+                <div class="apps-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:1.35rem;">
+                    <a href="#" onclick="ProductLibraryModule.openColorLibraryFromSettings(); return false;" class="app-card" style="min-height:220px;">
+                        <div class="icon-box g-cyan"><i data-lucide="palette" width="30" height="30"></i></div>
+                        <div class="app-name">Renk Kütüphanesi</div>
+                    </a>
+                </div>
+            </div>
+        `;
+    },
+
+    renderAccountingPlaceholder: (container) => {
+        container.innerHTML = `
+            <section style="max-width:960px; margin:0 auto; padding:1.5rem;">
+                <div style="background:#fff; border:1px solid #e2e8f0; border-radius:1rem; padding:2rem; text-align:center; box-shadow:0 8px 20px rgba(15,23,42,0.04);">
+                    <div style="display:inline-flex; align-items:center; justify-content:center; width:64px; height:64px; border-radius:999px; background:#f8fafc; border:1px solid #e2e8f0; color:#475569; margin-bottom:1rem;">
+                        <i data-lucide="calculator" width="30" height="30"></i>
+                    </div>
+                    <h2 style="margin:0; font-size:1.35rem; color:#0f172a; font-weight:800;">Muhasebe</h2>
+                    <p style="margin:0.8rem auto 0; max-width:640px; color:#64748b; font-size:0.98rem;">
+                        Muhasebe modülü ileri fazda tasarlanacaktır.
+                    </p>
+                </div>
+            </section>
         `;
     }
 };

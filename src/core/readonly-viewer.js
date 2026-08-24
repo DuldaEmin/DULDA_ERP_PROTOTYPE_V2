@@ -312,6 +312,100 @@ const ReadOnlyViewer = {
         return true;
     },
 
+    openCardByRef: (ref = {}) => {
+        const source = ref && typeof ref === 'object' ? ref : {};
+        const code = ReadOnlyViewer.normalizeCode(source.code || '');
+        const id = String(source.id || '').trim();
+        const productId = String(source.productId || '').trim();
+        const variationId = String(source.variationId || '').trim();
+        const rawType = String(source.type || '').trim().toUpperCase();
+        const typeAliases = {
+            SVR: 'SALES_VARIATION',
+            MODEL: 'SALES_VARIATION',
+            SALES_VARIATION: 'SALES_VARIATION',
+            PRC: 'COMPONENT',
+            PART: 'COMPONENT',
+            COMPONENT: 'COMPONENT',
+            MASTER: 'MASTER',
+            MON: 'MONTAGE',
+            MONTAGE: 'MONTAGE'
+        };
+        const explicitType = typeAliases[rawType] || '';
+        const d = ReadOnlyViewer.getData();
+        const parts = Array.isArray(d.partComponentCards) ? d.partComponentCards : [];
+        const salesProducts = Array.isArray(d.salesCatalogProducts) ? d.salesCatalogProducts : [];
+        const salesVariations = Array.isArray(d.salesProductVariants) ? d.salesProductVariants : [];
+        const masters = Array.isArray(d.products)
+            ? d.products.filter((row) => String(row?.type || '').trim().toUpperCase() === 'MASTER')
+            : [];
+        const montageCards = Array.isArray(d.montageCards) ? d.montageCards : [];
+        const result = (ok, type, reason = '') => ({ ok, type, ...(reason ? { reason } : {}) });
+
+        const openComponent = () => {
+            const row = parts.find((item) => (id && String(item?.id || '').trim() === id)
+                || (code && ReadOnlyViewer.normalizeCode(item?.code) === code)) || null;
+            if (!row) return result(false, 'COMPONENT', 'NOT_FOUND');
+            ReadOnlyViewer.openComponentModal(row, 'Parca & Bilesen', { modalOptions: { closeExisting: false } });
+            return result(true, 'COMPONENT');
+        };
+        const openSalesVariation = () => {
+            const targetVariationId = variationId || id;
+            const variation = salesVariations.find((item) => (targetVariationId && String(item?.id || '').trim() === targetVariationId)
+                || (code && ReadOnlyViewer.normalizeCode(item?.variantCode) === code)) || null;
+            const targetProductId = productId || String(variation?.sourceCatalogProductId || '').trim();
+            const product = salesProducts.find((item) => targetProductId && String(item?.id || '').trim() === targetProductId) || null;
+            if (!product || !variation) return result(false, 'SALES_VARIATION', 'NOT_FOUND');
+            if (typeof PlanningModule === 'undefined' || !PlanningModule || typeof PlanningModule.openPlanningSalesVariationReadonlyModal !== 'function') {
+                return result(false, 'SALES_VARIATION', 'VIEWER_UNAVAILABLE');
+            }
+            PlanningModule.openPlanningSalesVariationReadonlyModal(String(product.id || ''), String(variation.id || ''));
+            return result(true, 'SALES_VARIATION');
+        };
+        const openMaster = () => {
+            const row = masters.find((item) => (id && String(item?.id || '').trim() === id)
+                || (code && ReadOnlyViewer.normalizeCode(item?.code) === code)) || null;
+            if (!row) return result(false, 'MASTER', 'NOT_FOUND');
+            ReadOnlyViewer.openMasterModal(row, { modalOptions: { closeExisting: false } });
+            return result(true, 'MASTER');
+        };
+        const openMontage = () => {
+            const row = montageCards.find((item) => (id && String(item?.id || '').trim() === id)
+                || (code && (ReadOnlyViewer.normalizeCode(item?.cardCode) === code || ReadOnlyViewer.normalizeCode(item?.productCode) === code))) || null;
+            if (!row) return result(false, 'MONTAGE', 'NOT_FOUND');
+            const montageModule = typeof MontageLibraryModule !== 'undefined'
+                ? MontageLibraryModule
+                : ReadOnlyViewer.getGlobalModule('MontageLibraryModule');
+            if (!montageModule || typeof montageModule.previewRow !== 'function') return result(false, 'MONTAGE', 'VIEWER_UNAVAILABLE');
+            montageModule.previewRow(String(row.id || ''));
+            return result(true, 'MONTAGE');
+        };
+        const openByType = (type) => {
+            if (type === 'SALES_VARIATION') return openSalesVariation();
+            if (type === 'COMPONENT') return openComponent();
+            if (type === 'MASTER') return openMaster();
+            if (type === 'MONTAGE') return openMontage();
+            return result(false, type || '', 'NOT_FOUND');
+        };
+
+        if (explicitType) return openByType(explicitType);
+        if (productId || variationId) return openSalesVariation();
+        if (id) {
+            const idMatches = [
+                { type: 'SALES_VARIATION', hit: salesVariations.some((item) => String(item?.id || '').trim() === id) },
+                { type: 'COMPONENT', hit: parts.some((item) => String(item?.id || '').trim() === id) },
+                { type: 'MASTER', hit: masters.some((item) => String(item?.id || '').trim() === id) },
+                { type: 'MONTAGE', hit: montageCards.some((item) => String(item?.id || '').trim() === id) }
+            ].filter((item) => item.hit);
+            if (idMatches.length === 1) return openByType(idMatches[0].type);
+            if (idMatches.length > 1) return result(false, '', 'AMBIGUOUS_REF');
+        }
+        if (code.startsWith('SVR-')) return openSalesVariation();
+        if (code.startsWith('PRC-')) return openComponent();
+        if (code.startsWith('MON-')) return openMontage();
+        if (code && masters.some((item) => ReadOnlyViewer.normalizeCode(item?.code) === code)) return openMaster();
+        return result(false, '', 'NOT_FOUND');
+    },
+
     openByCode: (rawCode, options = {}) => {
         const code = ReadOnlyViewer.normalizeCode(rawCode);
         const silent = !!options?.silentNotFound;

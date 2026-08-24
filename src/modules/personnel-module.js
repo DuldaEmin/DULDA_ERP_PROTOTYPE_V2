@@ -5,6 +5,12 @@ const PersonnelModule = {
         filterStatus: 'all'
     },
 
+    resetWorkspaceEntryUiState: () => {
+        PersonnelModule.state.search = '';
+        PersonnelModule.state.filterUnitId = 'all';
+        PersonnelModule.state.filterStatus = 'all';
+    },
+
     permissionOps: ['view', 'create', 'edit', 'delete', 'approve'],
 
     permissionLabels: {
@@ -788,28 +794,80 @@ const PersonnelModule = {
         if (duplicateUsername) return alert('Bu kullanici adi zaten kullaniliyor.');
         if ((password || repeat) && password !== repeat) return alert('Sifreler ayni degil.');
 
-        person.username = username;
-        person.rolePreset = rolePreset;
-        person.isAccountActive = isAccountActive;
-        person.modulePermissions = PersonnelModule.normalizeModulePermissions(person.modulePermissions);
-        person.unitPermissions = PersonnelModule.buildDefaultUnitPermissions();
+        const currentRolePreset = String(person?.rolePreset || 'operator').trim();
+        const currentModulePermissions = PersonnelModule.normalizeModulePermissions(person?.modulePermissions);
+        const currentUnitPermissions = PersonnelModule.normalizeUnitPermissions(person?.unitPermissions);
+        const nextModulePermissions = PersonnelModule.normalizeModulePermissions(person?.modulePermissions);
+        const nextUnitPermissions = PersonnelModule.buildDefaultUnitPermissions();
 
         PersonnelModule.moduleDefs.forEach((mod) => {
             if (mod.id === 'units') return;
-            if (!person.modulePermissions[mod.id]) person.modulePermissions[mod.id] = PersonnelModule.getEmptyPermissionSet();
+            if (!nextModulePermissions[mod.id]) nextModulePermissions[mod.id] = PersonnelModule.getEmptyPermissionSet();
             PersonnelModule.permissionOps.forEach((op) => {
-                person.modulePermissions[mod.id][op] = !!document.getElementById(`perm_${mod.id}_${op}`)?.checked;
+                nextModulePermissions[mod.id][op] = !!document.getElementById(`perm_${mod.id}_${op}`)?.checked;
             });
         });
         PersonnelModule.getPermissionUnits().forEach((unit) => {
             const unitId = String(unit?.id || '').trim();
             if (!unitId) return;
-            if (!person.unitPermissions[unitId]) person.unitPermissions[unitId] = PersonnelModule.getEmptyPermissionSet();
+            if (!nextUnitPermissions[unitId]) nextUnitPermissions[unitId] = PersonnelModule.getEmptyPermissionSet();
             PersonnelModule.permissionOps.forEach((op) => {
-                person.unitPermissions[unitId][op] = !!document.getElementById(`perm_unit_${unitId}_${op}`)?.checked;
+                nextUnitPermissions[unitId][op] = !!document.getElementById(`perm_unit_${unitId}_${op}`)?.checked;
             });
         });
-        person.modulePermissions.units = PersonnelModule.aggregateUnitPermissions(person.unitPermissions);
+        nextModulePermissions.units = PersonnelModule.aggregateUnitPermissions(nextUnitPermissions);
+        currentModulePermissions.units = PersonnelModule.aggregateUnitPermissions(currentUnitPermissions);
+
+        const hasRoleChange = rolePreset !== currentRolePreset;
+        const hasModulePermissionChange = JSON.stringify(nextModulePermissions) !== JSON.stringify(currentModulePermissions);
+        const hasUnitPermissionChange = JSON.stringify(nextUnitPermissions) !== JSON.stringify(currentUnitPermissions);
+        const hasPermissionMutation = hasRoleChange || hasModulePermissionChange || hasUnitPermissionChange;
+
+        const meta = DB.data?.meta || {};
+        const activeRole = String(meta?.activeRole || '').trim().toLowerCase();
+        const isSuperAdmin = activeRole === 'super-admin';
+        const allPersonnel = Array.isArray(DB.data?.data?.personnel) ? DB.data.data.personnel : [];
+        const actorIdCandidates = [
+            meta?.activePersonId,
+            meta?.currentPersonId,
+            meta?.activeUserId,
+            meta?.currentUserId
+        ].map((value) => String(value || '').trim()).filter(Boolean);
+        const actorById = allPersonnel.find((row) => actorIdCandidates.includes(String(row?.id || '').trim())) || null;
+        const actorUsernameCandidates = [
+            meta?.activeUserName,
+            meta?.activeUsername,
+            meta?.currentUserName,
+            meta?.currentUser,
+            meta?.loggedUserName,
+            meta?.loggedUser,
+            meta?.operatorName
+        ].map((value) => String(value || '').trim()).filter(Boolean);
+        const actorByUsername = allPersonnel.find((row) => {
+            const rowUsername = String(row?.username || '').trim();
+            if (!rowUsername) return false;
+            return actorUsernameCandidates.some((candidate) => PersonnelModule.normalize(candidate) === PersonnelModule.normalize(rowUsername));
+        }) || null;
+        const actorPerson = actorById || actorByUsername;
+        const isSelfTarget = actorPerson ? String(actorPerson?.id || '') === String(personId || '') : false;
+
+        if (hasPermissionMutation) {
+            if (!activeRole) {
+                return alert('Rol/yetki degisikligi icin aktif rol bilgisi bulunamadi. Islem durduruldu.');
+            }
+            if (!isSuperAdmin) {
+                return alert('Rol/yetki degisikligi sadece super-admin tarafindan yapilabilir.');
+            }
+            if (isSelfTarget) {
+                return alert('Super-admin kendi rol/yetkisini degistiremez. Lutfen baska bir super-admin hesabi kullanin.');
+            }
+        }
+
+        person.username = username;
+        person.rolePreset = rolePreset;
+        person.isAccountActive = isAccountActive;
+        person.modulePermissions = nextModulePermissions;
+        person.unitPermissions = nextUnitPermissions;
 
         if (password) person.password = password;
         if (!person.title) person.title = rolePreset === 'tam_yetkili' ? 'Bolum Yetkilisi' : 'Operator';

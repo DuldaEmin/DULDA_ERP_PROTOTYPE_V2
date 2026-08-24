@@ -1,5 +1,7 @@
 const AluminumModule = {
+    tempImage: null,
     state: {
+        focusId: null,
         filters: { name: '', code: '', supplier: '', colorType: 'all', color: '' },
         activeProfileId: null,
         editingId: null,

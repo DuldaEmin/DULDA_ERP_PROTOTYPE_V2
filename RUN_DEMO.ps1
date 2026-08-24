@@ -22,21 +22,22 @@ function Invoke-ExitBackupPrompt {
     }
 
     Write-Host ""
-    $answer = Read-Host "Backup almak istiyor musun? (E/H)"
+    Write-Host "Not: Bu adim otomatik GitHub push yapmaz." -ForegroundColor Yellow
+    $answer = Read-Host "Guvenli Git kontrol raporu calistirilsin mi? (E/H)"
     $normalized = ($answer | ForEach-Object { $_.ToString().Trim().ToLowerInvariant() })
 
     if ($normalized -in @("e", "evet", "y", "yes")) {
-        Write-Host "Backup calistiriliyor..." -ForegroundColor Cyan
+        Write-Host "Guvenli kontrol calistiriliyor..." -ForegroundColor Cyan
         try {
             & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $backupScript
         }
         catch {
-            Write-Host "Backup calisirken hata olustu: $($_.Exception.Message)" -ForegroundColor Red
+            Write-Host "Guvenli kontrol calisirken hata olustu: $($_.Exception.Message)" -ForegroundColor Red
         }
         return
     }
 
-    Write-Host "Backup atlandi." -ForegroundColor Yellow
+    Write-Host "Guvenli kontrol atlandi." -ForegroundColor Yellow
 }
 
 $port = $preferredPort

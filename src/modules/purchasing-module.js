@@ -12,6 +12,19 @@ const PurchasingModule = {
         supplierTypeOutsideHandler: null
     }, // orders | requests | suppliers
 
+    resetWorkspaceEntryUiState: () => {
+        PurchasingModule.unbindSupplierTypeOutsideClick();
+        PurchasingModule.state.activeTab = 'orders';
+        PurchasingModule.state.searchTerm = '';
+        PurchasingModule.state.supplierContactRowsDraft = [];
+        PurchasingModule.state.supplierContactModal = null;
+        PurchasingModule.state.supplierTypePanelOpen = false;
+        PurchasingModule.state.supplierTypeSearch = '';
+        PurchasingModule.state.supplierTypeManageEditId = '';
+        PurchasingModule.state.supplierImportPreview = null;
+        PurchasingModule.state.supplierModalEditId = '';
+    },
+
     escapeHtml: (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -69,6 +82,33 @@ const PurchasingModule = {
         return Math.max(0, Number(num.toFixed(2)));
     },
 
+    getExternalProcessTypeOptions: () => ([
+        'Polisaj',
+        'Eloksal kaplama',
+        'PVD kaplama',
+        'Boya kaplama',
+        'Kromaj kaplama'
+    ]),
+
+    normalizeExternalProcessTypes: (values = []) => {
+        const allowed = new Set(PurchasingModule.getExternalProcessTypeOptions().map((item) => String(item || '').trim()));
+        const source = Array.isArray(values) ? values : [values];
+        const unique = [];
+        source.forEach((item) => {
+            const text = String(item || '').trim();
+            if (!text || !allowed.has(text)) return;
+            if (!unique.includes(text)) unique.push(text);
+        });
+        return unique;
+    },
+
+    toBoolean: (value) => {
+        if (value === true) return true;
+        if (value === false) return false;
+        const text = String(value ?? '').trim().toLowerCase();
+        return text === 'true' || text === '1' || text === 'yes' || text === 'on';
+    },
+
     normalizeImportToken: (value) => {
         const raw = String(value || '').trim().toLocaleLowerCase('tr-TR');
         if (!raw) return '';
@@ -91,6 +131,78 @@ const PurchasingModule = {
         .trim()
         .toLocaleUpperCase('tr-TR')
         .replace(/\s+/g, ''),
+
+    normalizeSupplierRefId: (value) => String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[\s_]+/g, '-')
+        .replace(/-+/g, '-'),
+
+    isValidSupplierRefId: (value) => /^TREF-\d{6}$/i.test(String(value || '').trim()),
+
+    collectUsedSupplierRefIds: (excludeSupplierId = '') => {
+        const rows = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
+        const excludedId = String(excludeSupplierId || '').trim();
+        const used = new Set();
+        rows.forEach((row) => {
+            const rowId = String(row?.id || '').trim();
+            if (excludedId && rowId && rowId === excludedId) return;
+            const normalized = PurchasingModule.normalizeSupplierRefId(row?.supplierRefId || '');
+            if (!PurchasingModule.isValidSupplierRefId(normalized)) return;
+            if (used.has(normalized)) return;
+            used.add(normalized);
+        });
+        return used;
+    },
+
+    generateSupplierRefId: (options = {}) => {
+        const excludeSupplierId = String(options?.excludeSupplierId || '').trim();
+        const usedIds = options?.usedIds instanceof Set
+            ? options.usedIds
+            : PurchasingModule.collectUsedSupplierRefIds(excludeSupplierId);
+
+        let maxSeq = 0;
+        usedIds.forEach((code) => {
+            const match = String(code || '').trim().toUpperCase().match(/^TREF-(\d{6})$/);
+            if (!match) return;
+            const seq = Number(match[1] || 0);
+            if (seq > maxSeq) maxSeq = seq;
+        });
+
+        let seq = maxSeq + 1;
+        let candidate = `TREF-${String(seq).padStart(6, '0')}`;
+        while (usedIds.has(candidate)) {
+            seq += 1;
+            candidate = `TREF-${String(seq).padStart(6, '0')}`;
+        }
+        usedIds.add(candidate);
+        return candidate;
+    },
+
+    ensureSupplierRefIds: () => {
+        const rows = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
+        const used = new Set();
+        let changed = false;
+
+        rows.forEach((row) => {
+            if (!row || typeof row !== 'object') return;
+            const current = PurchasingModule.normalizeSupplierRefId(row?.supplierRefId || '');
+            if (PurchasingModule.isValidSupplierRefId(current) && !used.has(current)) {
+                if (String(row?.supplierRefId || '') !== current) {
+                    row.supplierRefId = current;
+                    changed = true;
+                }
+                used.add(current);
+                return;
+            }
+            const next = PurchasingModule.generateSupplierRefId({ usedIds: used });
+            if (String(row?.supplierRefId || '') !== next) {
+                row.supplierRefId = next;
+                changed = true;
+            }
+        });
+        return changed;
+    },
 
     normalizeTaxKey: (value) => String(value || '')
         .trim()
@@ -558,14 +670,20 @@ const PurchasingModule = {
         const firstPhone = Array.isArray(firstContact?.phones) && firstContact.phones.length
             ? String(firstContact.phones[0] || '').trim()
             : '';
+        const isOutsourceVendor = PurchasingModule.toBoolean(src?.isOutsourceVendor);
+        const externalProcessTypes = PurchasingModule.normalizeExternalProcessTypes(src?.externalProcessTypes || []);
+        const supplierRefId = PurchasingModule.normalizeSupplierRefId(src?.supplierRefId || '');
         return {
             ...src,
             id: String(src.id || crypto.randomUUID()).trim(),
             name: (src.name || '').trim() || `Tedarikci ${index + 1}`,
+            supplierRefId: PurchasingModule.isValidSupplierRefId(supplierRefId) ? supplierRefId : '',
             externalCode: String(src.externalCode || src.cariCode || '').trim(),
             entityType: src.entityType || 'company',
             supplierTypes,
             supplierTypeNames,
+            isOutsourceVendor,
+            externalProcessTypes,
             tags,
             notes: typeof src.notes === 'string' ? src.notes : String(src.note || '').trim(),
             discountRate: PurchasingModule.parsePercent(src.discountRate || 0),
@@ -741,6 +859,8 @@ const PurchasingModule = {
             changed = true;
         }
 
+        if (PurchasingModule.ensureSupplierRefIds()) changed = true;
+
         DB.data.data.suppliers = (DB.data.data.suppliers || []).map((supplier, index) => {
             const normalized = PurchasingModule.normalizeSupplierRecord(supplier, index);
             if (
@@ -788,6 +908,28 @@ const PurchasingModule = {
         const raw = String(hidden?.value || '').trim();
         if (!raw) return [];
         return PurchasingModule.normalizeSupplierTypeIds(raw.split('|').map((x) => String(x || '').trim()).filter(Boolean));
+    },
+
+    getSelectedExternalProcessTypesFromDom: () => {
+        const select = document.getElementById('new_sup_external_process_types');
+        if (!select) return [];
+        const selected = Array.from(select.selectedOptions || []).map((opt) => String(opt?.value || '').trim()).filter(Boolean);
+        return PurchasingModule.normalizeExternalProcessTypes(selected);
+    },
+
+    toggleSupplierOutsourceFields: (enabled) => {
+        const select = document.getElementById('new_sup_external_process_types');
+        const note = document.getElementById('new_sup_external_process_hint');
+        const isEnabled = !!enabled;
+        if (select) {
+            select.disabled = !isEnabled;
+            select.style.opacity = isEnabled ? '1' : '0.55';
+        }
+        if (note) {
+            note.textContent = isEnabled
+                ? 'Bir veya birden fazla dış işlem türü seçebilirsiniz.'
+                : 'Fasoncu işaretlenmeden dış işlem türü seçilemez.';
+        }
     },
 
     setSelectedSupplierTypeIdsToDom: (typeIds = []) => {
@@ -1847,6 +1989,8 @@ const PurchasingModule = {
     renderSupplierModalFormHtml: (supplier = null) => {
         const src = supplier || {};
         const selectedTypeIds = Array.isArray(src?.supplierTypes) ? src.supplierTypes : [];
+        const supplierRefId = PurchasingModule.normalizeSupplierRefId(src?.supplierRefId || '');
+        const supplierRefDisplay = PurchasingModule.isValidSupplierRefId(supplierRefId) ? supplierRefId : 'otomatik olusturulacak';
         const contacts = PurchasingModule.normalizeSupplierContactList(
             PurchasingModule.state.supplierContactRowsDraft,
             { allowEmptyRow: false, keepEmptyPhoneSlot: false }
@@ -1894,6 +2038,10 @@ const PurchasingModule = {
                         <div style="border:1px solid #e2e8f0; border-radius:0.8rem; background:#f8fafc; padding:0.65rem;">
                             <div style="font-size:0.66rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:800; color:#64748b; margin-bottom:0.45rem;">Cari ve vergi bilgileri</div>
                             <div style="display:flex; flex-direction:column; gap:0.5rem;">
+                                <div>
+                                    <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Tedarikci ID</label>
+                                    <input id="new_sup_ref_id" class="stock-input stock-input-tall" value="${PurchasingModule.escapeHtml(supplierRefDisplay)}" readonly style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; background:#eef2ff; border-color:#bfdbfe;">
+                                </div>
                                 <div>
                                     <label style="display:block; font-size:0.7rem; text-transform:uppercase; font-weight:700; color:#64748b; margin-bottom:0.2rem;">Vergi dairesi</label>
                                     <input id="new_sup_tax_office" class="stock-input stock-input-tall" value="${PurchasingModule.escapeHtml(String(src?.contact?.taxOffice || ''))}">
@@ -2065,9 +2213,12 @@ const PurchasingModule = {
             const idx = DB.data.data.suppliers.findIndex(s => String(s?.id || '').trim() === String(editId || '').trim());
             if (idx !== -1) {
                 const prev = PurchasingModule.normalizeSupplierRecord(DB.data.data.suppliers[idx], idx);
+                const preservedSupplierRefId = PurchasingModule.normalizeSupplierRefId(prev?.supplierRefId || '')
+                    || PurchasingModule.generateSupplierRefId({ excludeSupplierId: String(prev?.id || '').trim() });
                 const payload = {
                     ...prev,
                     ...draft,
+                    supplierRefId: preservedSupplierRefId,
                     tags: PurchasingModule.mergeTagsWithTypes(prev?.tags || [], draft.supplierTypes || []),
                     updated_at: now
                 };
@@ -2077,6 +2228,7 @@ const PurchasingModule = {
             const payload = {
                 id: crypto.randomUUID(),
                 ...draft,
+                supplierRefId: PurchasingModule.generateSupplierRefId(),
                 tags: PurchasingModule.mergeTagsWithTypes([], draft.supplierTypes || []),
                 created_at: now,
                 updated_at: now

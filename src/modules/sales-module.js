@@ -37,6 +37,9 @@
         },
         salesWorkspaceTab: 'ORDERS',
         salesOrderEditorModalOpen: false,
+        salesOrderSavePendingByOrderId: {},
+        salesOrderDeliveryDateConfirmation: null,
+        salesOrderDeliveryDateApprovedSave: null,
         salesPendingFocusLineId: '',
         salesOrderLinePicker: null,
         salesOrderLineLibraryPickerPending: false,
@@ -45,6 +48,8 @@
         salesOrderAnchoragePickerContext: null,
         salesPaymentMethodDraft: '',
         salesStockAnalysisModal: null,
+        salesProductionStatusModal: null,
+        priceListsSuspended: true,
         priceListDraft: null,
         priceListLineDraft: {
             productId: '',
@@ -65,6 +70,8 @@
         proformaSettingsSnapshot: '',
         proformaSettingsMode: 'preview'
     },
+
+    isPriceListsSuspended: () => SalesModule.state?.priceListsSuspended !== false,
 
     resetWorkspaceEntryUiState: () => {
         SalesModule.state.workspaceView = 'menu';
@@ -102,11 +109,15 @@
         SalesModule.state.salesOrderHistoryFilters = SalesModule.buildSalesOrderHistoryFilters();
         SalesModule.state.salesWorkspaceTab = 'ORDERS';
         SalesModule.state.salesOrderEditorModalOpen = false;
+        SalesModule.state.salesOrderSavePendingByOrderId = {};
+        SalesModule.state.salesOrderDeliveryDateConfirmation = null;
+        SalesModule.state.salesOrderDeliveryDateApprovedSave = null;
         SalesModule.state.salesPendingFocusLineId = '';
         SalesModule.clearSalesOrderLineLibraryPickerState();
         SalesModule.state.salesOrderLinePicker = null;
         SalesModule.state.salesPaymentMethodDraft = '';
         SalesModule.state.salesStockAnalysisModal = null;
+        SalesModule.state.salesProductionStatusModal = null;
 
         SalesModule.state.priceListDraft = null;
         SalesModule.state.priceListLineDraft = {
@@ -161,6 +172,19 @@
             .replace(/\s+/g, ' ')
             .trim();
     },
+
+    getSalesCatalogDisplayCode: (row = {}) => {
+        const idCode = String(row?.idCode || '').trim();
+        const productCode = String(row?.productCode || '').trim();
+        return idCode || productCode || '-';
+    },
+
+    renderSalesSystemIdInputHtml: (draft = {}) => `
+        <div class="sales-catalog-field-block">
+            <label class="sales-catalog-label">Sistem ID</label>
+            <input id="sales_catalog_id_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
+        </div>
+    `,
 
     buildCustomerSearchIndex: (row = {}) => {
         const contacts = Array.isArray(row?.customerContacts)
@@ -534,6 +558,7 @@
     },
 
     setActivePriceList: (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const targetId = String(id || '').trim();
         if (!targetId) return;
         const store = SalesModule.getMutablePriceListStore();
@@ -550,6 +575,7 @@
     },
 
     createQuickPriceList: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const raw = prompt('Yeni fiyat listesi adi');
         const name = String(raw || '').trim();
@@ -582,6 +608,7 @@
     },
 
     deleteActivePriceList: async () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const active = SalesModule.getActivePriceList();
         if (!active) return;
@@ -649,10 +676,36 @@
         return SalesModule.buildSalesOrderDefaultDeliveryAddress(customer);
     },
 
-    parseSalesQuantity: (value, fallback = 1) => {
+    normalizeSalesDeliveryDate: (value = '') => {
+        const raw = String(value || '').trim();
+        if (!raw) return '';
+        const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return '';
+        const date = new Date(`${raw}T00:00:00`);
+        if (Number.isNaN(date.getTime())) return '';
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}` === raw ? raw : '';
+    },
+
+    formatSalesDeliveryDate: (value = '') => {
+        const normalized = SalesModule.normalizeSalesDeliveryDate(value);
+        if (!normalized) return '';
+        return new Date(`${normalized}T00:00:00`).toLocaleDateString('tr-TR');
+    },
+
+    buildSalesDeliveryText: (source = {}) => {
+        const deliveryDateText = SalesModule.formatSalesDeliveryDate(source?.deliveryDate || '');
+        if (deliveryDateText) return `Teslim tarihi: ${deliveryDateText}`;
+        return `Siparis onayindan ${String(SalesModule.parseDays(source?.deliveryLeadDays || 0))} gun`;
+    },
+
+    parseSalesQuantity: (value, fallback = 0) => {
         const parsed = Number(String(value ?? '').replace(',', '.'));
-        if (!Number.isFinite(parsed)) return Number(fallback || 1);
-        return Math.max(0.01, Number(parsed.toFixed(2)));
+        const fallbackNumber = Number(String(fallback ?? 0).replace(',', '.'));
+        if (!Number.isFinite(parsed)) return Number.isFinite(fallbackNumber) ? fallbackNumber : 0;
+        return Math.max(0, Number(parsed.toFixed(2)));
     },
 
     formatEditableNumberInput: (value, options = {}) => {
@@ -802,7 +855,7 @@
             productId: String(seed.productId || '').trim(),
             variationId: String(seed.variationId || '').trim(),
             unit: SalesModule.normalizeSalesLineUnit(seed.unit || seed.quantityUnit || 'adet'),
-            qty: SalesModule.parseSalesQuantity(seed.qty, 1),
+            qty: SalesModule.parseSalesQuantity(seed.qty, 0),
             unitPrice: Number(seed.unitPrice || 0) > 0 ? Number(Number(seed.unitPrice || 0).toFixed(2)) : 0,
             isManualPrice: !!seed.isManualPrice,
             defaultAnchorageCatalogIdCode: String(seed.defaultAnchorageCatalogIdCode || '').trim(),
@@ -873,8 +926,11 @@
         return 'WAITING';
     },
 
-    getSalesOrderStatusMeta: (status) => {
-        const group = SalesModule.normalizeSalesOrderStatusGroup(status);
+    getSalesOrderStatusMeta: (status, statusGroup = '') => {
+        const requestedGroup = String(statusGroup || '').trim().toUpperCase();
+        const group = new Set(['WAITING', 'APPROVED', 'ARCHIVED', 'CANCELLED']).has(requestedGroup)
+            ? requestedGroup
+            : SalesModule.normalizeSalesOrderStatusGroup(status);
         const rawLabel = String(status || '').trim();
         if (group === 'APPROVED') {
             return { group, text: rawLabel || 'Onaylandi', border: '#86efac', bg: '#f0fdf4', color: '#166534' };
@@ -906,6 +962,15 @@
                 const dateRaw = String(row?.orderDate || row?.created_at || '').trim();
                 const dateMs = Date.parse(dateRaw);
                 const lines = Array.isArray(row?.lines) ? row.lines : [];
+                const completionState = typeof PlanningModule !== 'undefined'
+                    && PlanningModule
+                    && typeof PlanningModule.getSalesOrderCompletionState === 'function'
+                    ? PlanningModule.getSalesOrderCompletionState(row)
+                    : null;
+                const isCompleted = !!(completionState?.ok && completionState.completed);
+                const effectiveStatus = isCompleted
+                    ? 'Tamamlandı / Sevk Edildi'
+                    : String(row?.status || 'Onay Bekliyor').trim();
                 return {
                     id: String(row?.id || '').trim(),
                     orderNo: String(row?.orderNo || row?.orderCode || row?.code || '-').trim(),
@@ -913,8 +978,9 @@
                     customerName: String(row?.customerName || row?.customer?.name || '-').trim(),
                     orderDate: dateRaw,
                     orderDateMs: Number.isFinite(dateMs) ? dateMs : 0,
-                    status: String(row?.status || 'Onay Bekliyor').trim(),
-                    statusGroup: SalesModule.normalizeSalesOrderStatusGroup(row?.status),
+                    status: effectiveStatus,
+                    statusGroup: isCompleted ? 'ARCHIVED' : SalesModule.normalizeSalesOrderStatusGroup(row?.status),
+                    completionState,
                     currency: String(row?.currency || 'USD').trim().toUpperCase() || 'USD',
                     lineCount: lines.length,
                     total: Number(row?.totalAmount ?? row?.total ?? row?.grandTotal ?? 0),
@@ -1008,6 +1074,7 @@
     },
 
     applyPriceSuggestionToOrderLine: (line, draft) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         if (!line || typeof line !== 'object') return;
         const suggestion = SalesModule.getSalesPriceSuggestion(
             String(draft?.customerId || '').trim(),
@@ -1376,11 +1443,20 @@
         SalesModule.state.priceListDraft = null;
         SalesModule.state.priceListLineDraft = { productId: '', unitPrice: '', minQty: '1', note: '' };
         SalesModule.state.priceListEditingId = '';
-        SalesModule.syncActivePriceListCategoryRows();
+        if (!SalesModule.isPriceListsSuspended()) {
+            SalesModule.syncActivePriceListCategoryRows();
+        }
+        UI.renderCurrentPage();
+    },
+
+    openOtherSettingsPage: () => {
+        SalesModule.ensureData();
+        SalesModule.state.workspaceView = 'settings-other';
         UI.renderCurrentPage();
     },
 
     startNewPriceListDraft: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const now = new Date().toISOString();
         SalesModule.state.priceListEditingId = '';
         SalesModule.state.priceListDraft = SalesModule.normalizePriceList({
@@ -1401,6 +1477,7 @@
     },
 
     editPriceListDraft: (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureData();
         const targetId = String(id || '').trim();
         if (!targetId) return;
@@ -1421,6 +1498,7 @@
     },
 
     setPriceListDraftField: (field, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const draft = SalesModule.state.priceListDraft;
         if (!draft || typeof draft !== 'object') return;
         const key = String(field || '').trim();
@@ -1446,6 +1524,7 @@
     },
 
     setPriceListLineDraftField: (field, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const key = String(field || '').trim();
         if (!key) return;
         const draft = SalesModule.state.priceListLineDraft && typeof SalesModule.state.priceListLineDraft === 'object'
@@ -1466,6 +1545,7 @@
     },
 
     addPriceListLineToDraft: () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const listDraft = SalesModule.state.priceListDraft;
         const lineDraft = SalesModule.state.priceListLineDraft;
         if (!listDraft || typeof listDraft !== 'object') return;
@@ -1492,6 +1572,7 @@
     },
 
     removePriceListLineFromDraft: (lineId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const targetId = String(lineId || '').trim();
         if (!targetId) return;
         const draft = SalesModule.state.priceListDraft;
@@ -1502,6 +1583,7 @@
     },
 
     savePriceListDraft: async () => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const draft = SalesModule.state.priceListDraft;
         if (!draft || typeof draft !== 'object') return;
@@ -1525,6 +1607,7 @@
     },
 
     deletePriceList: async (id) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         SalesModule.ensureSettingsData();
         const targetId = String(id || '').trim();
         if (!targetId) return;
@@ -1602,6 +1685,7 @@
     },
 
     syncActivePriceListCategoryRows: (options = {}) => {
+        if (SalesModule.isPriceListsSuspended()) return { changed: false, addedProductIds: [] };
         SalesModule.ensureSettingsData();
         const categoryId = String(options?.categoryId || SalesModule.state.catalogActiveCategoryId || '').trim();
         const active = SalesModule.getActivePriceList();
@@ -1672,6 +1756,7 @@
     },
 
     setPriceListMainProductPrice: (productId, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const id = String(productId || '').trim();
         if (!id) return;
         const active = SalesModule.getActivePriceList();
@@ -1704,6 +1789,7 @@
     },
 
     setPriceListVariantPrice: (productId, variationId, value) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         const variationKey = String(variationId || '').trim();
         if (!productKey || !variationKey) return;
@@ -1736,6 +1822,7 @@
     },
 
     resetPriceListVariantToInherited: (productId, variationId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         const variationKey = String(variationId || '').trim();
         if (!productKey || !variationKey) return;
@@ -1920,6 +2007,7 @@
     },
 
     renderSalesProductPriceModalHtml: (product = {}, line = {}, currency = 'USD', listName = '') => {
+        const isSuspended = SalesModule.isPriceListsSuspended();
         const pathText = SalesModule.getCatalogCategoryPathText(product?.categoryId || '');
         const productImage = String(product?.images?.product || product?.images?.application || '').trim();
         const technicalImage = String(product?.images?.technical || '').trim();
@@ -1947,8 +2035,7 @@
                         <div class="sales-catalog-detail-head">
                             <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(String(product?.name || '-'))}</div>
                             <div class="sales-catalog-detail-codes">
-                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(String(product?.productCode || '-'))}</span>
-                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(String(product?.idCode || '-'))}</span>
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(SalesModule.getSalesCatalogDisplayCode(product))}</span>
                             </div>
                         </div>
 
@@ -1958,11 +2045,14 @@
                             <div style="display:grid; grid-template-columns:1fr auto; gap:0.55rem; margin-top:0.55rem; align-items:end;">
                                 <div>
                                     <label style="display:block; font-size:0.74rem; color:#64748b; margin-bottom:0.2rem;">Ana urun birim fiyat (${SalesModule.escapeHtml(currency)})</label>
-                                    <input id="sales_price_list_main_price_modal_input" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(currentPrice)}">
+                                    <input id="sales_price_list_main_price_modal_input" type="number" min="0" step="0.01" class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(currentPrice)}" ${isSuspended ? 'disabled' : ''}>
                                 </div>
-                                <button class="btn-primary" type="button" onclick="SalesModule.setPriceListMainProductPriceFromModal('${SalesModule.escapeHtml(String(product?.id || ''))}')">kaydet</button>
+                                <button class="btn-primary" type="button" onclick="SalesModule.setPriceListMainProductPriceFromModal('${SalesModule.escapeHtml(String(product?.id || ''))}')" ${isSuspended ? 'disabled' : ''}>kaydet</button>
                             </div>
                             <div style="font-size:0.78rem; color:#64748b; margin-top:0.35rem;">Bu fiyat override olmayan varyasyonlara miras gider.</div>
+                            ${isSuspended
+                ? '<div style="margin-top:0.45rem; font-size:0.78rem; font-weight:800; color:#b91c1c;">Bu ekran gecici olarak pasif. Fiyat guncelleme kapali.</div>'
+                : ''}
                         </div>
 
                         <div style="margin-top:0.6rem;">
@@ -1992,6 +2082,7 @@
     },
 
     setPriceListMainProductPriceFromModal: (productId) => {
+        if (SalesModule.isPriceListsSuspended()) return;
         const productKey = String(productId || '').trim();
         if (!productKey) return;
         const input = document.getElementById('sales_price_list_main_price_modal_input');
@@ -2233,6 +2324,74 @@
         };
     },
 
+    getSalesOrderLineVariantCode: (line = {}, productId = '', variationId = '') => {
+        const direct = String(line?.variantCode || line?.variationCode || '').trim();
+        if (direct) return direct.toUpperCase();
+        const productKey = String(productId || line?.productId || '').trim();
+        const variationKey = String(variationId || line?.variationId || '').trim();
+        const scopedVariation = productKey && variationKey
+            ? SalesModule.getSalesVariationRowById(productKey, variationKey)
+            : null;
+        const rawVariation = variationKey ? SalesModule.getSalesVariantRowRawById(variationKey) : null;
+        return String(scopedVariation?.variantCode || rawVariation?.variantCode || '').trim().toUpperCase();
+    },
+
+    findDuplicateSalesOrderVariationLine: (draft, targetLineId = '', productId = '', variationId = '', variantCode = '') => {
+        const lines = Array.isArray(draft?.lines) ? draft.lines : [];
+        const targetId = String(targetLineId || '').trim();
+        const targetVariationId = String(variationId || '').trim();
+        const targetVariantCode = String(variantCode || SalesModule.getSalesOrderLineVariantCode({}, productId, variationId)).trim().toUpperCase();
+        return lines.find((line) => {
+            if (!line || typeof line !== 'object') return false;
+            if (String(line?.id || '').trim() === targetId) return false;
+            const lineVariationId = String(line?.variationId || '').trim();
+            if (targetVariationId && lineVariationId && lineVariationId === targetVariationId) return true;
+            if (!targetVariantCode) return false;
+            const lineVariantCode = SalesModule.getSalesOrderLineVariantCode(line);
+            return !!lineVariantCode && lineVariantCode === targetVariantCode;
+        }) || null;
+    },
+
+    isEmptySalesOrderLineDraft: (line = {}) => {
+        if (!line || typeof line !== 'object') return true;
+        if (String(line?.productId || '').trim()) return false;
+        if (String(line?.variationId || '').trim()) return false;
+        if (Number(line?.unitPrice || 0) > 0) return false;
+        const qty = Number(line?.qty || 0);
+        return Math.abs(qty) <= 0.0001;
+    },
+
+    focusSalesOrderDraftLine: (lineId = '') => {
+        const targetId = String(lineId || '').trim();
+        if (!targetId) return;
+        SalesModule.state.salesPendingFocusLineId = targetId;
+        setTimeout(() => {
+            const row = document.getElementById(`sales_order_line_${targetId}`);
+            if (row && typeof row.scrollIntoView === 'function') {
+                row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                row.style.outline = '2px solid #2563eb';
+                row.style.background = '#eff6ff';
+            }
+            const input = row ? row.querySelector('input, select, button') : null;
+            if (input && typeof input.focus === 'function') input.focus();
+            setTimeout(() => {
+                const highlighted = document.getElementById(`sales_order_line_${targetId}`);
+                if (highlighted) {
+                    highlighted.style.outline = '';
+                    highlighted.style.background = '';
+                }
+                if (String(SalesModule.state.salesPendingFocusLineId || '') === targetId) {
+                    SalesModule.state.salesPendingFocusLineId = '';
+                }
+            }, 1600);
+        }, 80);
+    },
+
+    warnDuplicateSalesOrderVariation: (lineId = '') => {
+        alert('Bu ürün/varyasyon zaten siparişe ekli. Lütfen mevcut satırdaki miktarı düzenleyin.');
+        SalesModule.focusSalesOrderDraftLine(lineId);
+    },
+
     openSalesOrderLineProductLibraryPicker: (lineId) => {
         SalesModule.ensureSalesOrderDraft();
         const draft = SalesModule.state.salesOrderDraft;
@@ -2293,6 +2452,17 @@
             return false;
         }
         const lines = Array.isArray(draft.lines) ? draft.lines : [];
+        const duplicateLine = SalesModule.findDuplicateSalesOrderVariationLine(draft, targetLineId, resolved.productId, resolved.variationId);
+        if (duplicateLine) {
+            const targetLine = lines.find((item) => String(item?.id || '').trim() === targetLineId);
+            if (SalesModule.isEmptySalesOrderLineDraft(targetLine)) {
+                draft.lines = lines.filter((item) => String(item?.id || '').trim() !== targetLineId);
+            }
+            SalesModule.clearSalesOrderLineLibraryPickerState();
+            SalesModule.warnDuplicateSalesOrderVariation(String(duplicateLine?.id || ''));
+            SalesModule.restoreSalesOrderAfterLibraryPicker(context.reopenModal !== false);
+            return false;
+        }
         let line = lines.find((item) => String(item?.id || '').trim() === targetLineId);
         if (!line) {
             line = SalesModule.createSalesOrderLineDraft();
@@ -2570,7 +2740,7 @@
             return `<option value="${SalesModule.escapeHtml(id)}" ${selected}>${SalesModule.escapeHtml(label)} (${count})</option>`;
         }).join('')}
                     </select>
-                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(picker.searchText || ''))}" oninput="SalesModule.setSalesOrderLinePickerField('searchText', this.value)" placeholder="urun adi / urun kodu / id kodu ara">
+                    <input class="stock-input stock-input-tall" value="${SalesModule.escapeHtml(String(picker.searchText || ''))}" oninput="SalesModule.setSalesOrderLinePickerField('searchText', this.value)" placeholder="urun adi / sistem ID ara">
                     <div style="overflow:auto; border:1px solid #e2e8f0; border-radius:0.65rem; background:#fff; min-height:350px;">
                         ${!categoryProducts.length
                 ? '<div style="padding:0.8rem; color:#94a3b8; font-size:0.84rem;">Aramaya uygun urun bulunamadi.</div>'
@@ -2578,10 +2748,11 @@
                     const id = String(row?.id || '').trim();
                     const active = id === selectedProductId;
                     const variantCount = SalesModule.getSalesVariationsForCatalogProduct(id).length;
+                    const displayCode = SalesModule.getSalesCatalogDisplayCode(row);
                     return `
                                     <button type="button" onclick="SalesModule.setSalesOrderLinePickerField('productId','${SalesModule.escapeHtml(id)}')" style="width:100%; text-align:left; border:none; border-bottom:1px solid #f1f5f9; background:${active ? '#eff6ff' : '#fff'}; padding:0.55rem 0.58rem; cursor:pointer;">
                                         <div style="font-weight:700; color:${active ? '#1d4ed8' : '#0f172a'};">${SalesModule.escapeHtml(String(row?.name || '-'))}</div>
-                                        <div style="font-size:0.73rem; color:#64748b; margin-top:0.14rem;">${SalesModule.escapeHtml(String(row?.productCode || '-'))} | ${SalesModule.escapeHtml(String(row?.idCode || '-'))}</div>
+                                        <div style="font-size:0.73rem; color:#64748b; margin-top:0.14rem;">${SalesModule.escapeHtml(displayCode)}</div>
                                         <div style="font-size:0.72rem; color:#475569; margin-top:0.12rem;">varyant: ${variantCount}</div>
                                     </button>
                                 `;
@@ -2604,7 +2775,7 @@
                     ${selectedProduct
                 ? `
                     <div style="font-size:0.9rem; font-weight:800; color:#0f172a;">${SalesModule.escapeHtml(String(selectedProduct?.name || '-'))}</div>
-                    <div style="font-size:0.76rem; color:#475569;">${SalesModule.escapeHtml(String(selectedProduct?.productCode || '-'))} | ${SalesModule.escapeHtml(String(selectedProduct?.idCode || '-'))}</div>
+                    <div style="font-size:0.76rem; color:#475569;">${SalesModule.escapeHtml(SalesModule.getSalesCatalogDisplayCode(selectedProduct))}</div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.7rem; overflow:auto;">
                         <table style="width:100%; min-width:900px; border-collapse:collapse;">
                             <thead>
@@ -2673,6 +2844,18 @@
         if (!draft || !targetLineId || !targetProductId || !targetVariationId) return;
         const line = (Array.isArray(draft.lines) ? draft.lines : []).find((item) => String(item?.id || '').trim() === targetLineId);
         if (!line) return;
+        const duplicateLine = SalesModule.findDuplicateSalesOrderVariationLine(draft, targetLineId, targetProductId, targetVariationId);
+        if (duplicateLine) {
+            if (SalesModule.isEmptySalesOrderLineDraft(line)) {
+                draft.lines = (Array.isArray(draft.lines) ? draft.lines : [])
+                    .filter((item) => String(item?.id || '').trim() !== targetLineId);
+            }
+            SalesModule.state.salesOrderLinePicker = null;
+            Modal.close();
+            SalesModule.refreshSalesOrderUi();
+            SalesModule.warnDuplicateSalesOrderVariation(String(duplicateLine?.id || ''));
+            return;
+        }
         line.productId = targetProductId;
         line.variationId = targetVariationId;
         line.isManualPrice = false;
@@ -2705,7 +2888,7 @@
         if (!line) return;
 
         if (key === 'qty') {
-            line.qty = SalesModule.parseSalesQuantity(value, 1);
+            line.qty = SalesModule.parseSalesQuantity(value, 0);
             if (!line.isManualPrice) SalesModule.applyPriceSuggestionToOrderLine(line, draft);
             SalesModule.refreshSalesOrderUi();
             return;
@@ -2887,6 +3070,295 @@
         if (!targetOrderId) return null;
         const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         return orders.find((row) => String(row?.id || '').trim() === targetOrderId) || null;
+    },
+
+    getPlanningDemandsReadOnly: () => (
+        Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : []
+    ),
+
+    isUuidLikeValue: (value) => {
+        const raw = String(value || '').trim();
+        if (!raw) return false;
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw);
+    },
+
+    getSalesOrderReleasedDemandsForTracking: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const orderId = String(source?.id || '').trim();
+        const orderNo = String(source?.orderNo || source?.orderCode || '').trim();
+        const orderNoKey = orderNo.toUpperCase();
+        if (!orderId && !orderNoKey) return [];
+        const salesReleasedDemands = SalesModule.getPlanningDemandsReadOnly()
+            .filter((demand) => {
+                const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+                const status = String(demand?.status || '').trim().toUpperCase();
+                return sourceType === 'SALES_ORDER' && status === 'RELEASED';
+            });
+        const byOrderId = orderId
+            ? salesReleasedDemands.filter((demand) => String(demand?.sourceOrderId || '').trim() === orderId)
+            : [];
+        if (byOrderId.length) return byOrderId;
+        if (!orderNoKey) return [];
+        return salesReleasedDemands.filter((demand) => {
+            const demandOrderId = String(demand?.sourceOrderId || '').trim();
+            if (demandOrderId) return false;
+            const demandOrderNoKey = String(demand?.sourceOrderNo || '').trim().toUpperCase();
+            return !!demandOrderNoKey && demandOrderNoKey === orderNoKey;
+        });
+    },
+
+    getSalesOrderReleasedGroupKey: (order = null, releasedDemands = []) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const rows = Array.isArray(releasedDemands) ? releasedDemands : [];
+        if (!source || !rows.length) return '';
+        const orderId = String(source?.id || '').trim();
+        const hasOrderIdLinkedDemand = !!(orderId && rows.some((demand) =>
+            String(demand?.sourceOrderId || '').trim() === orderId
+        ));
+        if (hasOrderIdLinkedDemand) return `sales:${orderId}`;
+        const orderNo = String(source?.orderNo || source?.orderCode || '').trim();
+        if (!orderNo || SalesModule.isUuidLikeValue(orderNo)) return '';
+        return `sales:${orderNo}`;
+    },
+
+    getSalesOrderProductionTrackingMeta: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        if (!source) return { hasReleased: false, groupKey: '', releasedDemands: [] };
+        const releasedDemands = SalesModule.getSalesOrderReleasedDemandsForTracking(source);
+        const groupKey = SalesModule.getSalesOrderReleasedGroupKey(source, releasedDemands);
+        return {
+            hasReleased: releasedDemands.length > 0,
+            groupKey,
+            releasedDemands
+        };
+    },
+
+    getDemandTimelineMs: (demand = null) => {
+        const updatedMs = Date.parse(String(demand?.updated_at || '').trim());
+        if (Number.isFinite(updatedMs)) return updatedMs;
+        const createdMs = Date.parse(String(demand?.created_at || '').trim());
+        if (Number.isFinite(createdMs)) return createdMs;
+        return 0;
+    },
+
+    getSalesOrderLinePlanningDemands: (orderId, lineId) => {
+        const targetOrderId = String(orderId || '').trim();
+        const targetLineId = String(lineId || '').trim();
+        if (!targetOrderId || !targetLineId) return [];
+        return SalesModule.getPlanningDemandsReadOnly()
+            .filter((demand) => {
+                const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+                if (sourceType !== 'SALES_ORDER') return false;
+                if (String(demand?.sourceOrderId || '').trim() !== targetOrderId) return false;
+                return String(demand?.sourceLineId || '').trim() === targetLineId;
+            });
+    },
+
+    pickPreferredSalesLineDemand: (rows = []) => {
+        const source = Array.isArray(rows) ? rows.slice() : [];
+        if (!source.length) return null;
+        source.sort((a, b) => {
+            const aReleased = String(a?.status || '').trim().toUpperCase() === 'RELEASED';
+            const bReleased = String(b?.status || '').trim().toUpperCase() === 'RELEASED';
+            if (aReleased !== bReleased) return aReleased ? -1 : 1;
+            const timeDiff = SalesModule.getDemandTimelineMs(b) - SalesModule.getDemandTimelineMs(a);
+            if (timeDiff !== 0) return timeDiff;
+            return String(b?.demandCode || '').localeCompare(String(a?.demandCode || ''), 'tr');
+        });
+        return source[0] || null;
+    },
+
+    getDemandWorkOrderShortText: (demand = null) => {
+        if (!demand || typeof demand !== 'object') return '-';
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.getReleasedDemandWorkOrderText === 'function') {
+            const text = String(PlanningModule.getReleasedDemandWorkOrderText(demand) || '').trim();
+            if (text) return text;
+        }
+        const codes = Array.isArray(demand?.workOrderCodes)
+            ? demand.workOrderCodes.map((code) => String(code || '').trim()).filter(Boolean)
+            : [];
+        if (codes.length > 1) return `${codes[0]} +${codes.length - 1}`;
+        if (codes.length === 1) return codes[0];
+        const directCode = String(demand?.workOrderCode || '').trim();
+        if (directCode) return directCode;
+        const idList = Array.isArray(demand?.workOrderIds)
+            ? demand.workOrderIds.map((id) => String(id || '').trim()).filter(Boolean)
+            : [];
+        if (idList.length > 1) return `${idList[0]} +${idList.length - 1}`;
+        if (idList.length === 1) return idList[0];
+        const directId = String(demand?.workOrderId || '').trim();
+        return directId || '-';
+    },
+
+    getSalesLineProductionStatusRows: (order = null) => {
+        const source = order && typeof order === 'object' ? order : null;
+        const orderId = String(source?.id || '').trim();
+        const lines = Array.isArray(source?.lines) ? source.lines : [];
+        return lines.map((line, index) => {
+            const lineId = String(line?.id || '').trim();
+            const demands = lineId ? SalesModule.getSalesOrderLinePlanningDemands(orderId, lineId) : [];
+            const preferredDemand = SalesModule.pickPreferredSalesLineDemand(demands);
+            const releasedDemands = demands.filter((demand) => String(demand?.status || '').trim().toUpperCase() === 'RELEASED');
+            const isReleased = String(preferredDemand?.status || '').trim().toUpperCase() === 'RELEASED';
+            const statusKey = isReleased ? 'RELEASED' : (preferredDemand ? 'WAITING' : 'NOT_SENT');
+            const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
+            const productName = String(line?.productName || line?.name || '-').trim() || '-';
+            const variationName = String(line?.variationName || line?.variantName || '').trim();
+            const code = String(line?.variantCode || line?.variationCode || line?.productCode || line?.code || '-').trim() || '-';
+            return {
+                index,
+                lineId,
+                productName,
+                variationName,
+                code,
+                qty,
+                statusKey,
+                statusText: statusKey === 'RELEASED'
+                    ? 'Is emrine donusmus.'
+                    : (statusKey === 'WAITING'
+                        ? 'Bu siparis satiri planlama havuzunda bekliyor. Henuz is emrine donusmemis.'
+                        : 'Bu siparis satiri henuz planlama havuzuna gonderilmemis.'),
+                demandId: String(preferredDemand?.id || '').trim(),
+                demandCode: String(preferredDemand?.demandCode || '-').trim() || '-',
+                demandStatus: String(preferredDemand?.status || '').trim() || '-',
+                workOrderShort: isReleased ? SalesModule.getDemandWorkOrderShortText(preferredDemand) : '-',
+                canTrack: isReleased && !!String(preferredDemand?.id || '').trim(),
+                releasedCount: releasedDemands.length,
+                demandCount: demands.length
+            };
+        });
+    },
+
+    closeSalesOrderProductionStatusModal: () => {
+        const modalState = SalesModule.state.salesProductionStatusModal;
+        SalesModule.state.salesProductionStatusModal = null;
+        const shouldReopenEditor = !!modalState?.returnToEditor;
+        if (shouldReopenEditor) {
+            SalesModule.state.salesOrderEditorModalOpen = true;
+            SalesModule.renderSalesOrderEditorModal();
+            return;
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') UI.renderCurrentPage();
+    },
+
+    openSalesOrderLineProductionTracking: (demandId) => {
+        const targetDemandId = String(demandId || '').trim();
+        if (!targetDemandId) return;
+        const demands = SalesModule.getPlanningDemandsReadOnly();
+        const demand = demands.find((row) => String(row?.id || '').trim() === targetDemandId) || null;
+        if (!demand) {
+            alert('Planlama talebi bulunamadi.');
+            return;
+        }
+        if (String(demand?.status || '').trim().toUpperCase() !== 'RELEASED') {
+            alert('Bu satir henuz is emrine donusmedigi icin detay takip acilamiyor.');
+            return;
+        }
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openReleasedDemandTrackingModal !== 'function') {
+            alert('Planlama takip modulu hazir degil.');
+            return;
+        }
+        PlanningModule.openReleasedDemandTrackingModal(targetDemandId);
+    },
+
+    openSalesOrderProductionStatusModal: (orderId = '') => {
+        SalesModule.ensureData();
+        SalesModule.ensureSalesOrderDraft();
+        const explicitOrderId = String(orderId || '').trim();
+        const draftOrderId = String(SalesModule.state?.salesOrderDraft?.editingOrderId || '').trim();
+        const resolvedOrderId = explicitOrderId || draftOrderId;
+        if (!resolvedOrderId) {
+            alert('Uretim durumu sadece kaydedilmis siparisler icin goruntulenebilir.');
+            return;
+        }
+        const order = SalesModule.getSavedSalesOrderById(resolvedOrderId);
+        if (!order) {
+            alert('Siparis kaydi bulunamadi.');
+            return;
+        }
+        const statusRows = SalesModule.getSalesLineProductionStatusRows(order);
+        const orderNo = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
+        const releasedCount = statusRows.filter((row) => row.statusKey === 'RELEASED').length;
+        const waitingCount = statusRows.filter((row) => row.statusKey === 'WAITING').length;
+        const notSentCount = Math.max(0, statusRows.length - releasedCount - waitingCount);
+        const returnToEditor = !!SalesModule.state.salesOrderEditorModalOpen && draftOrderId === resolvedOrderId;
+        SalesModule.state.salesProductionStatusModal = { orderId: resolvedOrderId, returnToEditor };
+        if (returnToEditor) SalesModule.state.salesOrderEditorModalOpen = false;
+        const rowsHtml = statusRows.length
+            ? statusRows.map((row) => {
+                const lineLabel = `${Number(row?.index || 0) + 1}. satir`;
+                const statusBadgeStyle = row.statusKey === 'RELEASED'
+                    ? 'background:#ecfdf5; color:#047857; border:1px solid #86efac;'
+                    : (row.statusKey === 'WAITING'
+                        ? 'background:#fff7ed; color:#b45309; border:1px solid #fdba74;'
+                        : 'background:#f8fafc; color:#475569; border:1px solid #cbd5e1;');
+                const displayName = row.variationName
+                    ? `${row.productName} / ${row.variationName}`
+                    : row.productName;
+                const statusNote = row.releasedCount > 1
+                    ? '<div style="margin-top:0.2rem; font-size:0.72rem; color:#b45309;">Birden fazla RELEASED kaydi bulundu; en guncel kayit gosteriliyor.</div>'
+                    : '';
+                return `
+                    <tr style="border-bottom:1px solid #e2e8f0;">
+                        <td style="padding:0.52rem; color:#64748b; font-weight:700;">${SalesModule.escapeHtml(lineLabel)}</td>
+                        <td style="padding:0.52rem;">
+                            <div style="font-weight:700; color:#0f172a;">${SalesModule.escapeHtml(displayName)}</div>
+                            <div style="font-size:0.74rem; color:#64748b; font-family:monospace;">${SalesModule.escapeHtml(row.code || '-')}</div>
+                        </td>
+                        <td style="padding:0.52rem; text-align:center; font-weight:700;">${SalesModule.escapeHtml(SalesModule.formatEditableNumberInput(row.qty || 0, { maxFractionDigits: 2 }))}</td>
+                        <td style="padding:0.52rem;">
+                            <span style="display:inline-flex; border-radius:999px; padding:0.14rem 0.5rem; font-size:0.72rem; font-weight:700; ${statusBadgeStyle}">${SalesModule.escapeHtml(row.demandStatus || row.statusKey)}</span>
+                            <div style="margin-top:0.22rem; font-size:0.76rem; color:#334155;">${SalesModule.escapeHtml(row.statusText || '-')}</div>
+                            ${statusNote}
+                        </td>
+                        <td style="padding:0.52rem; font-family:monospace; font-weight:700; color:#1d4ed8;">${SalesModule.escapeHtml(row.demandCode || '-')}</td>
+                        <td style="padding:0.52rem; font-family:monospace; color:#1e40af; font-weight:700;">${SalesModule.escapeHtml(row.workOrderShort || '-')}</td>
+                        <td style="padding:0.52rem; text-align:right;">
+                            <button class="btn-sm" type="button" ${row.canTrack ? '' : 'disabled'} style="${row.canTrack ? '' : 'opacity:0.5; cursor:not-allowed;'}" onclick="SalesModule.openSalesOrderLineProductionTracking('${SalesModule.escapeHtml(String(row.demandId || ''))}')">Durumu Goruntule</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('')
+            : '<tr><td colspan="7" style="padding:0.9rem; text-align:center; color:#94a3b8;">Bu sipariste izlenecek satir bulunamadi.</td></tr>';
+
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.7rem;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.6rem; flex-wrap:wrap;">
+                    <div>
+                        <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">Uretim Durumu</div>
+                        <div style="font-size:0.78rem; color:#64748b; margin-top:0.15rem;">Siparis: <strong style="font-family:Consolas,monospace; color:#1d4ed8;">${SalesModule.escapeHtml(orderNo)}</strong></div>
+                    </div>
+                    <button class="btn-sm" type="button" style="height:36px; min-width:96px; border-color:#0f172a; background:#0f172a; color:#ffffff; font-weight:800;" onclick="SalesModule.closeSalesOrderProductionStatusModal()">kapat</button>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:0.55rem;">
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Is emrine donusen</div><div style="font-size:1.02rem; font-weight:800; color:#047857;">${releasedCount}</div></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Planlama havuzunda bekleyen</div><div style="font-size:1.02rem; font-weight:800; color:#b45309;">${waitingCount}</div></div>
+                    <div style="border:1px solid #cbd5e1; border-radius:0.7rem; background:#ffffff; padding:0.58rem;"><div style="font-size:0.72rem; color:#64748b;">Henuz gonderilmeyen</div><div style="font-size:1.02rem; font-weight:800; color:#475569;">${notSentCount}</div></div>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:0.8rem; overflow:auto; background:#ffffff;">
+                    <table style="width:100%; min-width:980px; border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
+                                <th style="padding:0.5rem; text-align:left;">Satir</th>
+                                <th style="padding:0.5rem; text-align:left;">Urun / varyasyon</th>
+                                <th style="padding:0.5rem; text-align:center;">Adet</th>
+                                <th style="padding:0.5rem; text-align:left;">Planlama durumu</th>
+                                <th style="padding:0.5rem; text-align:left;">PLN</th>
+                                <th style="padding:0.5rem; text-align:left;">WO</th>
+                                <th style="padding:0.5rem; text-align:right;">Islem</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        Modal.open(`Uretim Durumu - ${SalesModule.escapeHtml(orderNo)}`, html, { maxWidth: '1480px' });
     },
 
     buildSalesOrderStockAnalysisPayload: (order, candidate) => {
@@ -3221,7 +3693,7 @@
             ? 'Bu satirdaki stok miktari onayli siparis icin kesin ayrilmistir.'
             : (isApprovedOrder
                 ? 'Onayli sipariste gecici rezerv kapatilir; ayrim onay sirasinda otomatik hesaplanir.'
-                : 'Rezerv sadece stoktan karsilanan miktar icin gecerlidir. Uretilecek net miktar rezerve edilmez.');
+                : 'Rezerv sadece stoktan kullanılacak miktar icin gecerlidir. Üretilecek kalan miktar rezerve edilmez.');
         const orderNo = String(order?.orderNo || order?.orderCode || '-').trim() || '-';
         const html = `
             <div style="display:flex; flex-direction:column; gap:0.7rem;">
@@ -3240,7 +3712,7 @@
                         <div>
                             <div style="font-size:0.78rem; color:#475569;">Rezerv durumu</div>
                             <div style="font-size:0.86rem; font-weight:800; color:#0f172a; margin-top:0.1rem;">${reservationStatusText}</div>
-                            <div style="font-size:0.74rem; color:#475569; margin-top:0.16rem;">Stoktan karsilanan miktar: <strong>${SalesModule.escapeHtml(reserveQtyText)}</strong> (${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(selectedCandidate?.unit || 'adet'))})</div>
+                            <div style="font-size:0.74rem; color:#475569; margin-top:0.16rem;">Stoktan kullanılacak miktar: <strong>${SalesModule.escapeHtml(reserveQtyText)}</strong> (${SalesModule.escapeHtml(SalesModule.getSalesLineUnitLabel(selectedCandidate?.unit || 'adet'))})</div>
                         </div>
                         <div style="display:flex; align-items:flex-end; gap:0.35rem; flex-wrap:wrap;">
                             <div>
@@ -3284,6 +3756,59 @@
             reservationDateByLine: {}
         };
         SalesModule.renderSalesStockAnalysisModal();
+    },
+
+    openSalesOrderProductionTrackingFromList: (orderId) => {
+        SalesModule.ensureData();
+        const targetOrderId = String(orderId || '').trim();
+        if (!targetOrderId) return;
+        const order = SalesModule.getSavedSalesOrderById(targetOrderId);
+        if (!order) {
+            alert('Kaydedilmis siparis bulunamadi. Lutfen listeyi yenileyip tekrar deneyin.');
+            return;
+        }
+        const trackingMeta = SalesModule.getSalesOrderProductionTrackingMeta(order);
+        if (!trackingMeta.hasReleased) {
+            SalesModule.openSalesOrderStockAnalysisFromList(targetOrderId);
+            return;
+        }
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.openWorkspace !== 'function'
+            || typeof PlanningModule.openGroupDetailWorkspace !== 'function'
+            || typeof Router === 'undefined'
+            || !Router
+            || typeof Router.navigate !== 'function') {
+            alert('Planlama takip modulu hazir degil.');
+            return;
+        }
+
+        const demandRows = Array.isArray(trackingMeta.releasedDemands) ? trackingMeta.releasedDemands : [];
+        let completionView = 'ACTIVE';
+        if (demandRows.length
+            && typeof PlanningModule.getReleasedDemandItemGroups === 'function'
+            && typeof PlanningModule.getReleasedDemandStatusMeta === 'function') {
+            const hasActive = demandRows.some((demand) => {
+                const groups = PlanningModule.getReleasedDemandItemGroups(demand);
+                const statusMeta = PlanningModule.getReleasedDemandStatusMeta(groups, demand);
+                return !statusMeta?.archived;
+            });
+            completionView = hasActive ? 'ACTIVE' : 'ARCHIVE';
+        }
+        PlanningModule.state.releasedSourceFilter = 'SALES_ORDER';
+        PlanningModule.state.releasedSearchQuery = '';
+        PlanningModule.state.releasedCompletionView = completionView;
+        PlanningModule.state.releasedArchiveMode = completionView === 'ARCHIVE';
+        PlanningModule.state.releasedDetailInlineTrackingDemandId = '';
+
+        Router.navigate('planlama', { fromBack: true });
+
+        if (!trackingMeta.groupKey) {
+            PlanningModule.openWorkspace('released-orders');
+            alert('Bu siparis icin dogrudan detay grubu cozulmedi. Is Emrine Donusenler listesi acildi.');
+            return;
+        }
+        PlanningModule.openGroupDetailWorkspace('released-orders', trackingMeta.groupKey, 'released-orders');
     },
 
     openSavedSalesOrderLineStockAnalysis: (lineId, orderId = '') => {
@@ -3404,13 +3929,13 @@
         if (!source || typeof source !== 'object') return false;
         if (String(source.customerId || '').trim()) return true;
         if (String(source.deliveryAddress || '').trim()) return true;
-        if (String(source.deliveryDate || '').trim()) return true;
         if (String(source.note || '').trim()) return true;
         if (String(source.paymentMethod || '').trim() && SalesModule.normalize(String(source.paymentMethod || '')) !== 'nakit') return true;
         if (Number(source.globalDiscountRate || 0) > 0) return true;
         if (SalesModule.normalizeSalesCurrency(source.currency || 'USD') !== 'USD') return true;
         if (Number(source.exchangeRate || 0) > 0) return true;
         if (Number(source.deliveryLeadDays || 0) > 0) return true;
+        if (String(source.deliveryDate || '').trim()) return true;
         if (SalesModule.normalizeSalesVatRate(source.vatRate) === 0) return true;
         const lines = Array.isArray(source.lines) ? source.lines : [];
         return lines.some((line) => {
@@ -3529,21 +4054,67 @@
         SalesModule.ensureData();
         const targetId = String(orderId || '').trim();
         if (!targetId) return;
-        if (!confirm('Siparis kaydi kalici olarak silinsin mi?')) return;
         const editingOrderId = String(SalesModule.state?.salesOrderDraft?.editingOrderId || '').trim();
         const shouldCloseEditor = !!SalesModule.state.salesOrderEditorModalOpen && editingOrderId === targetId;
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        const targetOrder = rows.find((row) => String(row?.id || '').trim() === targetId) || null;
+        if (!targetOrder) return alert('Sipariş kaydı bulunamadı.');
         const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
-        let removedPlanningDemandCount = 0;
+        let cleanupSummary = null;
+        const beforeCleanupState = (typeof DB.cloneState === 'function')
+            ? DB.cloneState(DB.data)
+            : JSON.parse(JSON.stringify(DB.data || {}));
         if (typeof PlanningModule !== 'undefined'
             && PlanningModule
-            && typeof PlanningModule.cleanupOpenSalesOrderPlanningDemands === 'function') {
-            removedPlanningDemandCount = Number(PlanningModule.cleanupOpenSalesOrderPlanningDemands(targetId) || 0);
+            && typeof PlanningModule.cleanupSalesOrderCascadeForDemo === 'function') {
+            const targetLineIds = (Array.isArray(targetOrder?.lines) ? targetOrder.lines : [])
+                .map((line) => String(line?.id || line?.lineId || '').trim())
+                .filter(Boolean);
+            cleanupSummary = PlanningModule.cleanupSalesOrderCascadeForDemo(targetId, {
+                orderNo: String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim(),
+                lineIds: targetLineIds,
+                confirmBeforeApply: true
+            });
+            if (cleanupSummary?.cancelled) return;
+            if (cleanupSummary?.ok === false) {
+                const errors = Array.isArray(cleanupSummary?.errors) && cleanupSummary.errors.length
+                    ? cleanupSummary.errors.join('\n')
+                    : 'Güvenli demo temizliği tamamlanamadı.';
+                alert(`Sipariş silinemedi:\n\n${errors}`);
+                return;
+            }
+        } else if (!confirm('Sipariş kaydı kalıcı olarak silinsin mi?')) {
+            return;
         }
         DB.data.data.orders = next;
-        await DB.save();
-        if (removedPlanningDemandCount > 0) {
-            alert('Silinen siparise bagli acik planlama talepleri temizlendi.');
+        const criticalDropApproval = cleanupSummary
+            && typeof DB.createCriticalDropApproval === 'function'
+            ? DB.createCriticalDropApproval('sales_order_demo_cleanup', beforeCleanupState, DB.data, {
+                orderId: targetId,
+                orderNo: String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim()
+            })
+            : null;
+        const saveResult = await DB.save({ criticalDropApproval });
+        if (saveResult?.ok === false) return;
+        const cleanupWarnings = Array.isArray(cleanupSummary?.warnings) ? cleanupSummary.warnings : [];
+        if (cleanupSummary && (
+            Number(cleanupSummary?.removedDemandCount || 0) > 0
+            || Number(cleanupSummary?.removedWorkOrderCount || 0) > 0
+            || Number(cleanupSummary?.removedWorkOrderTxnCount || 0) > 0
+            || Number(cleanupSummary?.removedDispatchNoteRowCount || 0) > 0
+            || Number(cleanupSummary?.removedMontageDispatchCount || 0) > 0
+            || Number(cleanupSummary?.removedStockMovementCount || 0) > 0
+            || Number(cleanupSummary?.removedAssignmentCount || 0) > 0
+            || Number(cleanupSummary?.touchedDispatchDraftCount || 0) > 0
+            || cleanupWarnings.length > 0
+        )) {
+            const message = [
+                'Silinen siparişe bağlı demo/test izleri temizlendi.',
+                cleanupWarnings.length ? '' : null,
+                cleanupWarnings.length ? 'Uyarılar:' : null,
+                ...cleanupWarnings.map((warning) => `- ${warning}`)
+            ].filter((line) => line !== null).join('\n');
+            alert(message);
         }
         if (shouldCloseEditor) {
             SalesModule.state.salesOrderEditorModalOpen = false;
@@ -3962,11 +4533,276 @@
         return `SOR-${String(maxSeq + 1).padStart(6, '0')}`;
     },
 
+    cloneSalesOrderMutationValue: (value) => JSON.parse(JSON.stringify(value)),
+
+    isInactiveSalesOrderDeliveryLink: (row = {}) => {
+        const status = String(row?.status || '').trim().toLocaleUpperCase('tr-TR');
+        return !!row?.deleted
+            || !!row?.cancelled
+            || ['CANCELLED', 'CANCELED', 'İPTAL', 'IPTAL', 'ARCHIVED', 'ARŞİV', 'ARSIV'].includes(status);
+    },
+
+    validateSalesOrderManualPriorityAudit: (order = {}) => {
+        if (!Object.prototype.hasOwnProperty.call(order || {}, 'productionQueue')
+            || order?.productionQueue === null
+            || order?.productionQueue === undefined) {
+            return { ok: true, reasonCode: '' };
+        }
+        const queue = order.productionQueue;
+        if (!queue || typeof queue !== 'object' || Array.isArray(queue)) {
+            return { ok: false, reasonCode: 'SOR_MANUAL_QUEUE_INVALID' };
+        }
+        const hasManualOrder = Object.prototype.hasOwnProperty.call(queue, 'manualOrder')
+            && queue.manualOrder !== ''
+            && queue.manualOrder !== null
+            && queue.manualOrder !== undefined;
+        if (!hasManualOrder) return { ok: true, reasonCode: '' };
+        const manualOrder = Number(queue.manualOrder);
+        if (!Number.isSafeInteger(manualOrder) || manualOrder <= 0) {
+            return { ok: false, reasonCode: 'SOR_MANUAL_ORDER_INVALID' };
+        }
+        const updatedAt = Date.parse(String(queue.updatedAt || '').trim());
+        const updatedBy = String(queue.updatedBy || '').trim();
+        if (!Number.isFinite(updatedAt) || !updatedBy) {
+            return { ok: false, reasonCode: 'SOR_MANUAL_AUDIT_INVALID' };
+        }
+        return { ok: true, reasonCode: '' };
+    },
+
+    getSalesOrderPrioritySequenceFromResolverResult: (result = {}) => {
+        const seen = new Set();
+        const sequence = [];
+        (Array.isArray(result?.debts) ? result.debts : []).forEach((debt) => {
+            if (String(debt?.debtType || '').trim().toUpperCase() !== 'SALES') return;
+            if (debt?.allocationEligible !== true || !(Number(debt?.openDebtQty || 0) > 0.000001)) return;
+            const orderId = String(debt?.originOrderId || '').trim();
+            if (!orderId || seen.has(orderId)) return;
+            seen.add(orderId);
+            sequence.push(orderId);
+        });
+        return sequence;
+    },
+
+    preflightSalesOrderDeliveryDateChange: (orderId, nextDeliveryDate) => {
+        const targetOrderId = String(orderId || '').trim();
+        const normalizedNextDate = SalesModule.normalizeSalesDeliveryDate(nextDeliveryDate || '');
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : {};
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+        const demands = Array.isArray(data.planningDemands) ? data.planningDemands : [];
+        const orderMatches = orders.filter((row) => String(row?.id || '').trim() === targetOrderId);
+        if (!targetOrderId || orderMatches.length !== 1) {
+            return { ok: false, reasonCode: orderMatches.length > 1 ? 'SOR_ID_DUPLICATE' : 'SOR_NOT_FOUND', message: 'Sipariş kaydı tekil olarak doğrulanamadı.' };
+        }
+        const order = orderMatches[0];
+        const currentDate = SalesModule.normalizeSalesDeliveryDate(order?.deliveryDate || '');
+        if (currentDate === normalizedNextDate) {
+            return { ok: true, dateChanged: false, releasedChain: false, shouldWarn: false, linkedDemands: [] };
+        }
+
+        const orderNo = String(order?.orderNo || order?.orderCode || '').trim();
+        const activeDemands = demands.filter((row) => !SalesModule.isInactiveSalesOrderDeliveryLink(row));
+        const exactOrderDemands = activeDemands.filter((row) =>
+            String(row?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER'
+            && String(row?.sourceOrderId || '').trim() === targetOrderId
+        );
+        const legacyDemands = activeDemands.filter((row) => {
+            const sourceType = String(row?.sourceType || '').trim().toUpperCase();
+            if (!['SALES_ORDER', 'SALES'].includes(sourceType)) return false;
+            const sourceOrderId = String(row?.sourceOrderId || '').trim();
+            const sourceOrderNo = String(row?.sourceOrderNo || '').trim();
+            return !!orderNo && !!sourceOrderNo && sourceOrderNo === orderNo && sourceOrderId !== targetOrderId;
+        });
+        const hasReleasedSignal = [...exactOrderDemands, ...legacyDemands]
+            .some((row) => String(row?.status || '').trim().toUpperCase() === 'RELEASED');
+        if (!hasReleasedSignal) {
+            return { ok: true, dateChanged: true, releasedChain: false, shouldWarn: false, linkedDemands: [] };
+        }
+        if (legacyDemands.length) {
+            return { ok: false, reasonCode: 'SOR_PLN_LEGACY_AMBIGUOUS', message: 'Siparişin planlama bağlantısında legacy belirsizliği bulundu. Veri değiştirilmedi.' };
+        }
+
+        const positiveLines = [];
+        const lineIdCounts = new Map();
+        (Array.isArray(order?.lines) ? order.lines : []).forEach((line) => {
+            if (SalesModule.isInactiveSalesOrderDeliveryLink(line)) return;
+            const hasQty = Object.prototype.hasOwnProperty.call(line || {}, 'qty');
+            const hasQuantity = Object.prototype.hasOwnProperty.call(line || {}, 'quantity');
+            const qty = hasQty ? Number(line.qty) : Number(line?.quantity);
+            const quantity = hasQuantity ? Number(line.quantity) : qty;
+            if (!Number.isFinite(qty) || !Number.isFinite(quantity) || Math.abs(qty - quantity) > 0.000001) {
+                positiveLines.push({ invalid: true, line });
+                return;
+            }
+            if (!(qty > 0.000001)) return;
+            const lineId = String(line?.id || '').trim();
+            positiveLines.push({ invalid: !lineId, line, lineId });
+            if (lineId) lineIdCounts.set(lineId, (lineIdCounts.get(lineId) || 0) + 1);
+        });
+        if (!positiveLines.length
+            || positiveLines.some((entry) => entry.invalid)
+            || Array.from(lineIdCounts.values()).some((count) => count !== 1)) {
+            return { ok: false, reasonCode: 'SOR_LINE_IDENTITY_UNCERTAIN', message: 'Sipariş satırları planlama bağlantısı için güvenilir değil. Veri değiştirilmedi.' };
+        }
+
+        const positiveLineIds = new Set(positiveLines.map((entry) => entry.lineId));
+        if (exactOrderDemands.some((demand) => !positiveLineIds.has(String(demand?.sourceLineId || '').trim()))) {
+            return { ok: false, reasonCode: 'SOR_PLN_ORPHAN_RELEASED', message: 'Siparişe bağlı orphan planlama kaydı bulundu. Veri değiştirilmedi.' };
+        }
+
+        const demandIdCounts = new Map();
+        demands.forEach((demand) => {
+            const demandId = String(demand?.id || '').trim();
+            if (demandId) demandIdCounts.set(demandId, (demandIdCounts.get(demandId) || 0) + 1);
+        });
+        const linkedDemands = [];
+        for (const { lineId } of positiveLines) {
+            const matches = exactOrderDemands.filter((demand) => String(demand?.sourceLineId || '').trim() === lineId);
+            if (matches.length !== 1) {
+                return { ok: false, reasonCode: matches.length > 1 ? 'SOR_PLN_LINK_DUPLICATE' : 'SOR_PARTIAL_RELEASE', message: 'Siparişin RELEASED planlama zinciri eksik veya mükerrer. Veri değiştirilmedi.' };
+            }
+            const demand = matches[0];
+            const demandId = String(demand?.id || '').trim();
+            const releasedAt = Date.parse(String(demand?.released_at || '').trim());
+            if (String(demand?.status || '').trim().toUpperCase() !== 'RELEASED'
+                || !demandId
+                || demandIdCounts.get(demandId) !== 1
+                || (String(demand?.sourceOrderNo || '').trim() && String(demand.sourceOrderNo).trim() !== orderNo)
+                || !Number.isFinite(releasedAt)) {
+                return { ok: false, reasonCode: 'SOR_RELEASED_PLN_INVALID', message: 'Siparişin RELEASED planlama kaydı güvenilir değil. Veri değiştirilmedi.' };
+            }
+            linkedDemands.push(demand);
+        }
+
+        const manualAudit = SalesModule.validateSalesOrderManualPriorityAudit(order);
+        if (!manualAudit.ok) {
+            return { ok: false, reasonCode: manualAudit.reasonCode, message: `Manuel sıra audit bilgisi geçersiz (${manualAudit.reasonCode}). Veri değiştirilmedi.` };
+        }
+        if (typeof SanalTaksimResolver === 'undefined'
+            || !SanalTaksimResolver
+            || typeof SanalTaksimResolver.resolve !== 'function') {
+            return { ok: false, reasonCode: 'SANAL_TAKSIM_RESOLVER_UNAVAILABLE', message: 'Sanal Taksim resolver hazır değil. Veri değiştirilmedi.' };
+        }
+
+        let beforeResult;
+        let afterResult;
+        try {
+            const candidate = SalesModule.cloneSalesOrderMutationValue(data);
+            const candidateOrder = (Array.isArray(candidate.orders) ? candidate.orders : [])
+                .find((row) => String(row?.id || '').trim() === targetOrderId);
+            if (!candidateOrder) throw new Error('candidate_order_missing');
+            candidateOrder.deliveryDate = normalizedNextDate;
+            const linkedDemandIds = new Set(linkedDemands.map((demand) => String(demand?.id || '').trim()));
+            (Array.isArray(candidate.planningDemands) ? candidate.planningDemands : []).forEach((demand) => {
+                if (linkedDemandIds.has(String(demand?.id || '').trim())) demand.dueDate = normalizedNextDate;
+            });
+            beforeResult = SanalTaksimResolver.resolve(data);
+            afterResult = SanalTaksimResolver.resolve(candidate);
+        } catch (error) {
+            return { ok: false, reasonCode: 'SANAL_TAKSIM_PREFLIGHT_FAILED', message: `Sanal Taksim ön doğrulaması tamamlanamadı: ${String(error?.message || error || 'bilinmeyen hata')}` };
+        }
+
+        const targetDebts = [
+            ...(Array.isArray(beforeResult?.debts) ? beforeResult.debts : []),
+            ...(Array.isArray(afterResult?.debts) ? afterResult.debts : [])
+        ].filter((debt) => String(debt?.originOrderId || '').trim() === targetOrderId);
+        const manualReason = targetDebts
+            .flatMap((debt) => Array.isArray(debt?.reasonCodes) ? debt.reasonCodes : [])
+            .find((reasonCode) => String(reasonCode || '').startsWith('SOR_MANUAL_'));
+        if (manualReason) {
+            return { ok: false, reasonCode: manualReason, message: `Manuel sipariş sırası güvenilir değil (${manualReason}). Veri değiştirilmedi.` };
+        }
+        const chainReason = targetDebts
+            .flatMap((debt) => Array.isArray(debt?.reasonCodes) ? debt.reasonCodes : [])
+            .find((reasonCode) => /^(SOR_|PLN_)/.test(String(reasonCode || '')));
+        if (chainReason) {
+            return { ok: false, reasonCode: chainReason, message: `Siparişin resolver zinciri güvenilir değil (${chainReason}). Veri değiştirilmedi.` };
+        }
+
+        const beforeSequence = SalesModule.getSalesOrderPrioritySequenceFromResolverResult(beforeResult);
+        const afterSequence = SalesModule.getSalesOrderPrioritySequenceFromResolverResult(afterResult);
+        const beforePosition = beforeSequence.indexOf(targetOrderId);
+        const afterPosition = afterSequence.indexOf(targetOrderId);
+        return {
+            ok: true,
+            dateChanged: true,
+            releasedChain: true,
+            shouldWarn: beforePosition >= 0 && afterPosition >= 0 && beforePosition !== afterPosition,
+            beforePosition,
+            afterPosition,
+            linkedDemands
+        };
+    },
+
+    openSalesOrderDeliveryDatePriorityConfirm: (orderId, nextDeliveryDate) => {
+        const targetOrderId = String(orderId || '').trim();
+        const normalizedNextDate = SalesModule.normalizeSalesDeliveryDate(nextDeliveryDate || '');
+        const pending = SalesModule.state.salesOrderDeliveryDateConfirmation;
+        if (pending
+            && String(pending?.orderId || '').trim() === targetOrderId
+            && String(pending?.nextDeliveryDate || '').trim() === normalizedNextDate) return;
+        SalesModule.state.salesOrderDeliveryDateConfirmation = {
+            orderId: targetOrderId,
+            nextDeliveryDate: normalizedNextDate
+        };
+        const html = `
+            <div style="display:flex; flex-direction:column; gap:0.8rem;">
+                <div style="font-size:1.08rem; font-weight:800; color:#0f172a;">Sipariş Önceliği Değişecek</div>
+                <div style="display:flex; flex-direction:column; gap:0.65rem; color:#334155; line-height:1.55;">
+                    <div>Teslim tarihindeki bu değişiklik, siparişin üretim önceliğini değiştirecektir.</div>
+                    <div>Onayladığınızda sipariş önceliği güncellenecek ve Sanal Taksim mevcut güvenli tahsis kurallarına göre yeniden hesaplanacaktır.</div>
+                    <div>Bu işlem fiziksel stok hareketi oluşturmaz; SOR, PLN, iş emirleri ve geçmiş üretim kayıtları değiştirilmez.</div>
+                    <div style="font-weight:700; color:#0f172a;">Yeni teslim tarihini kaydedip Sanal Taksim’i yeniden hesaplamak istiyor musunuz?</div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:0.5rem; flex-wrap:wrap;">
+                    <button class="btn-sm" type="button" onclick="SalesModule.cancelSalesOrderDeliveryDatePriorityConfirm()">Vazgeç</button>
+                    <button class="btn-primary" type="button" onclick="SalesModule.confirmSalesOrderDeliveryDatePriorityChange()">Kaydet ve Yeniden Hesapla</button>
+                </div>
+            </div>
+        `;
+        Modal.open('Sipariş Önceliği Değişecek', html, { maxWidth: '620px', closeExisting: false, showHeader: false });
+    },
+
+    cancelSalesOrderDeliveryDatePriorityConfirm: () => {
+        SalesModule.state.salesOrderDeliveryDateConfirmation = null;
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+    },
+
+    confirmSalesOrderDeliveryDatePriorityChange: async () => {
+        const pending = SalesModule.state.salesOrderDeliveryDateConfirmation;
+        if (!pending) return;
+        const currentDraftDate = SalesModule.normalizeSalesDeliveryDate(SalesModule.state?.salesOrderDraft?.deliveryDate || '');
+        if (currentDraftDate !== String(pending?.nextDeliveryDate || '').trim()) {
+            SalesModule.cancelSalesOrderDeliveryDatePriorityConfirm();
+            alert('Teslim tarihi onay penceresi açıkken değişti. Lütfen kaydı yeniden başlatın.');
+            return;
+        }
+        SalesModule.state.salesOrderDeliveryDateConfirmation = null;
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        SalesModule.state.salesOrderDeliveryDateApprovedSave = {
+            deliveryPriorityConfirmed: true,
+            expectedOrderId: String(pending?.orderId || '').trim(),
+            expectedDeliveryDate: String(pending?.nextDeliveryDate || '').trim()
+        };
+        await SalesModule.saveSalesOrderDraft();
+    },
+
     saveSalesOrderDraft: async () => {
         SalesModule.ensureData();
         SalesModule.ensureSalesOrderDraft();
         const draft = SalesModule.state.salesOrderDraft;
         if (!draft || typeof draft !== 'object') return;
+        const options = SalesModule.state.salesOrderDeliveryDateApprovedSave || {};
+        SalesModule.state.salesOrderDeliveryDateApprovedSave = null;
+        const editingId = String(draft.editingOrderId || '').trim();
+        const lockKey = editingId || '__NEW_SALES_ORDER__';
+        if (!SalesModule.state.salesOrderSavePendingByOrderId
+            || typeof SalesModule.state.salesOrderSavePendingByOrderId !== 'object'
+            || Array.isArray(SalesModule.state.salesOrderSavePendingByOrderId)) {
+            SalesModule.state.salesOrderSavePendingByOrderId = {};
+        }
+        if (SalesModule.state.salesOrderSavePendingByOrderId[lockKey]) return;
+        SalesModule.state.salesOrderSavePendingByOrderId[lockKey] = true;
+        try {
         const customer = SalesModule.getCustomerById(draft.customerId);
         if (!customer) return alert('Proforma icin musteri secmelisin.');
         if (SalesModule.normalizeSalesCurrency(draft.currency) !== 'TL' && !(Number(draft.exchangeRate || 0) > 0)) {
@@ -4041,58 +4877,146 @@
         };
 
         const store = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
-        const editingId = String(draft.editingOrderId || '').trim();
         const idx = editingId ? store.findIndex((row) => String(row?.id || '').trim() === editingId) : -1;
-        let savedOrderNo = '';
-        if (idx >= 0) {
-            const prev = store[idx] || {};
-            const prevSignature = SalesModule.buildSalesOrderComparableSignature(prev);
-            const nextSignature = SalesModule.buildSalesOrderComparableSignature(basePayload);
-            const hasChange = prevSignature !== nextSignature;
-            const nextRevisionNo = hasChange ? (Math.max(1, Number(prev?.revisionNo || 1)) + 1) : Math.max(1, Number(prev?.revisionNo || 1));
-            const revisionHistory = Array.isArray(prev?.revisionHistory) ? prev.revisionHistory.slice() : [];
-            if (hasChange) {
-                revisionHistory.push({
-                    version: `v${nextRevisionNo}`,
-                    editor: editorName,
-                    at: now
-                });
+        if (options?.deliveryPriorityConfirmed === true) {
+            if (String(options?.expectedOrderId || '').trim() !== editingId
+                || String(options?.expectedDeliveryDate || '').trim() !== normalizedDeliveryDate) {
+                alert('Teslim tarihi onayı güncel sipariş taslağıyla eşleşmiyor. Veri değiştirilmedi.');
+                return;
             }
-            store[idx] = {
-                ...prev,
-                ...basePayload,
-                id: String(prev.id || editingId || crypto.randomUUID()),
-                orderNo: String(prev.orderNo || prev.orderCode || SalesModule.generateSalesOrderNo()),
-                created_at: String(prev.created_at || now),
-                revisionNo: nextRevisionNo,
-                revisionHistory
-            };
+        }
+        const deliveryPreflight = idx >= 0
+            ? SalesModule.preflightSalesOrderDeliveryDateChange(editingId, normalizedDeliveryDate)
+            : { ok: true, dateChanged: true, releasedChain: false, shouldWarn: false, linkedDemands: [] };
+        if (!deliveryPreflight.ok) {
+            alert(deliveryPreflight.message || `Teslim tarihi ön doğrulaması başarısız (${deliveryPreflight.reasonCode || 'UNKNOWN'}).`);
+            return;
+        }
+        if (idx >= 0 && deliveryPreflight.releasedChain && deliveryPreflight.dateChanged) {
+            const buildLineIdentitySignature = (lines = []) => JSON.stringify((Array.isArray(lines) ? lines : [])
+                .filter((line) => !SalesModule.isInactiveSalesOrderDeliveryLink(line) && Number(line?.qty ?? line?.quantity ?? 0) > 0.000001)
+                .map((line) => ({
+                    id: String(line?.id || '').trim(),
+                    qty: Number(line?.qty ?? line?.quantity ?? 0)
+                }))
+                .sort((left, right) => left.id.localeCompare(right.id, 'tr')));
+            const liveLineSignature = buildLineIdentitySignature(store[idx]?.lines);
+            const nextLineSignature = buildLineIdentitySignature(rowPayload);
+            if (liveLineSignature !== nextLineSignature) {
+                alert('RELEASED siparişin termin değişikliği, satır kimliği veya miktarı değişikliğiyle aynı kayıtta yapılamaz. Veri değiştirilmedi.');
+                return;
+            }
+        }
+        if (deliveryPreflight.shouldWarn && options?.deliveryPriorityConfirmed !== true) {
+            SalesModule.openSalesOrderDeliveryDatePriorityConfirm(editingId, normalizedDeliveryDate);
+            return;
+        }
+
+        let hasChange = true;
+        let nextRevisionNo = 1;
+        let revisionHistory = [];
+        let previousOrder = null;
+        if (idx >= 0) {
+            previousOrder = store[idx] || {};
+            const prevSignature = SalesModule.buildSalesOrderComparableSignature(previousOrder);
+            const nextSignature = SalesModule.buildSalesOrderComparableSignature(basePayload);
+            hasChange = prevSignature !== nextSignature;
             if (!hasChange) {
                 alert('Kayitta degisiklik algilanmadi.');
                 UI.renderCurrentPage();
                 return;
             }
-            savedOrderNo = String(store[idx].orderNo || '-');
-        } else {
-            const newOrder = {
-                ...basePayload,
-                id: crypto.randomUUID(),
-                orderNo: SalesModule.generateSalesOrderNo(),
-                created_at: now,
-                revisionNo: 1,
-                revisionHistory: [{
-                    version: 'v1',
-                    editor: editorName,
-                    at: now
-                }]
-            };
-            store.push(newOrder);
-            savedOrderNo = String(newOrder.orderNo || '-');
+            nextRevisionNo = Math.max(1, Number(previousOrder?.revisionNo || 1)) + 1;
+            revisionHistory = Array.isArray(previousOrder?.revisionHistory) ? previousOrder.revisionHistory.slice() : [];
+            revisionHistory.push({
+                version: `v${nextRevisionNo}`,
+                editor: editorName,
+                at: now
+            });
         }
-        customer.preferredCurrency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
-        customer.defaultPaymentMethod = String(draft.paymentMethod || 'Nakit').trim() || 'Nakit';
-        SalesModule.upsertSalesPaymentMethod(draft.paymentMethod || '');
-        await DB.save();
+
+        const orderSnapshot = idx >= 0
+            ? SalesModule.cloneSalesOrderMutationValue(store[idx])
+            : null;
+        const customerStore = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
+        const customerIndex = customerStore.indexOf(customer);
+        const customerSnapshot = SalesModule.cloneSalesOrderMutationValue(customer);
+        const hadSalesSettings = !!(DB.data?.data?.salesSettings && typeof DB.data.data.salesSettings === 'object');
+        const salesSettingsSnapshot = hadSalesSettings
+            ? SalesModule.cloneSalesOrderMutationValue(DB.data.data.salesSettings)
+            : null;
+        const demandStore = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+        const demandSnapshots = (Array.isArray(deliveryPreflight.linkedDemands) ? deliveryPreflight.linkedDemands : [])
+            .map((demand) => {
+                const demandIndex = demandStore.indexOf(demand);
+                return demandIndex >= 0
+                    ? { index: demandIndex, value: SalesModule.cloneSalesOrderMutationValue(demand) }
+                    : null;
+            })
+            .filter(Boolean);
+        let insertedOrderId = '';
+        let savedOrderNo = '';
+        try {
+            if (idx >= 0) {
+                const prev = previousOrder || {};
+                store[idx] = {
+                    ...prev,
+                    ...basePayload,
+                    id: String(prev.id || editingId || crypto.randomUUID()),
+                    orderNo: String(prev.orderNo || prev.orderCode || SalesModule.generateSalesOrderNo()),
+                    created_at: String(prev.created_at || now),
+                    revisionNo: nextRevisionNo,
+                    revisionHistory
+                };
+                savedOrderNo = String(store[idx].orderNo || '-');
+            } else {
+                const newOrder = {
+                    ...basePayload,
+                    id: crypto.randomUUID(),
+                    orderNo: SalesModule.generateSalesOrderNo(),
+                    created_at: now,
+                    revisionNo: 1,
+                    revisionHistory: [{
+                        version: 'v1',
+                        editor: editorName,
+                        at: now
+                    }]
+                };
+                store.push(newOrder);
+                insertedOrderId = String(newOrder.id || '').trim();
+                savedOrderNo = String(newOrder.orderNo || '-');
+            }
+            if (deliveryPreflight.releasedChain && deliveryPreflight.dateChanged) {
+                (Array.isArray(deliveryPreflight.linkedDemands) ? deliveryPreflight.linkedDemands : []).forEach((demand) => {
+                    demand.dueDate = normalizedDeliveryDate;
+                    demand.updated_at = now;
+                });
+            }
+            customer.preferredCurrency = SalesModule.normalizeSalesCurrency(draft.currency || 'USD');
+            customer.defaultPaymentMethod = String(draft.paymentMethod || 'Nakit').trim() || 'Nakit';
+            SalesModule.upsertSalesPaymentMethod(draft.paymentMethod || '');
+            const saveResult = await DB.save();
+            if (saveResult && saveResult.ok === false) {
+                const saveError = new Error(String(saveResult.code || saveResult.message || 'DB_SAVE_REJECTED'));
+                saveError.result = saveResult;
+                throw saveError;
+            }
+        } catch (error) {
+            if (idx >= 0 && orderSnapshot) {
+                store[idx] = SalesModule.cloneSalesOrderMutationValue(orderSnapshot);
+            } else if (insertedOrderId) {
+                const insertedIndex = store.findIndex((row) => String(row?.id || '').trim() === insertedOrderId);
+                if (insertedIndex >= 0) store.splice(insertedIndex, 1);
+            }
+            demandSnapshots.forEach((snapshot) => {
+                demandStore[snapshot.index] = SalesModule.cloneSalesOrderMutationValue(snapshot.value);
+            });
+            if (customerIndex >= 0) customerStore[customerIndex] = SalesModule.cloneSalesOrderMutationValue(customerSnapshot);
+            if (hadSalesSettings) DB.data.data.salesSettings = SalesModule.cloneSalesOrderMutationValue(salesSettingsSnapshot);
+            else delete DB.data.data.salesSettings;
+            alert(`Sipariş kaydedilemedi. Yapılan değişiklikler geri alındı: ${String(error?.message || error || 'bilinmeyen hata')}`);
+            return;
+        }
         alert(`Proforma kaydedildi: ${savedOrderNo}`);
         SalesModule.state.salesOrderDraft = SalesModule.buildSalesOrderDraft({
             customerId: String(customer.id || '').trim(),
@@ -4105,6 +5029,9 @@
             Modal.close();
         }
         UI.renderCurrentPage();
+        } finally {
+            delete SalesModule.state.salesOrderSavePendingByOrderId[lockKey];
+        }
     },
 
     hasPendingProformaBankDraft: () => {
@@ -4309,6 +5236,7 @@
             globalDiscountRate: 0,
             vatRate: 20,
             deliveryLeadDays: 7,
+            deliveryDate: '',
             deliveryAddress: '-',
             paymentMethod: 'Nakit',
             note: '',
@@ -4424,9 +5352,8 @@
         const kdvTitle = vatRate === 0 ? 'KDV (0%) - KDV Haric' : `KDV (%${vatRate})`;
         const kurText = currency === 'TL' ? '-' : (exchangeRate > 0 ? Number(exchangeRate).toFixed(4) : '-');
         const orderDateText = order.orderDate ? new Date(order.orderDate).toLocaleDateString('tr-TR') : '-';
-        const deliveryDateText = SalesModule.formatSalesDeliveryDate(order.deliveryDate || '');
-        const deliveryText = SalesModule.getSalesDeliveryText(order);
         const updateDateText = order.updated_at ? new Date(order.updated_at).toLocaleString('tr-TR') : '-';
+        const deliveryText = SalesModule.buildSalesDeliveryText(order);
         const customTemplateHtml = String(settings.customTemplateHtml || '').trim();
         const hasSavedCustomTemplate = customTemplateHtml.length > 0;
         const shipmentAddressHtml = [
@@ -4556,7 +5483,6 @@
             CUSTOMER_NAME: SalesModule.escapeHtml(String(order.customerName || '-')),
             CUSTOMER_DISPLAY_ID: SalesModule.escapeHtml(String(order.customerDisplayId || '-')),
             DELIVERY_ADDRESS: SalesModule.escapeHtml(String(deliveryAddress)),
-            DELIVERY_DATE: SalesModule.escapeHtml(deliveryDateText || ''),
             PREPARED_BY: SalesModule.escapeHtml(String(order.preparedBy || '-')),
             CURRENCY: SalesModule.escapeHtml(currency),
             EXCHANGE_RATE: SalesModule.escapeHtml(kurText),
@@ -4575,6 +5501,7 @@
             GRAND_TOTAL: fmtMoney(grandTotal),
             GRAND_TOTAL_TL: fmtMoney(totalTl, 'TL'),
             DELIVERY_LEAD_DAYS: SalesModule.escapeHtml(String(order.deliveryLeadDays || 0)),
+            DELIVERY_DATE: SalesModule.escapeHtml(SalesModule.formatSalesDeliveryDate(order.deliveryDate || '')),
             PAYMENT_METHOD: SalesModule.escapeHtml(String(order.paymentMethod || 'Nakit')),
             DELIVERY_TEXT: SalesModule.escapeHtml(deliveryText),
             DELIVERY_TEXT_WITH_ADDRESS: `${SalesModule.escapeHtml(deliveryText)} / ${SalesModule.escapeHtml(String(deliveryAddress))}`,
@@ -4637,26 +5564,6 @@
         const num = Number(String(value || '').replace(',', '.'));
         if (!Number.isFinite(num)) return 0;
         return Math.max(0, Math.floor(num));
-    },
-
-    normalizeSalesDeliveryDate: (value = '') => {
-        const raw = String(value || '').trim();
-        if (!raw) return '';
-        return Number.isFinite(SalesModule.parseIsoDayToMs(raw)) ? raw : '';
-    },
-
-    formatSalesDeliveryDate: (value = '') => {
-        const normalized = SalesModule.normalizeSalesDeliveryDate(value);
-        if (!normalized) return '';
-        const ms = SalesModule.parseIsoDayToMs(normalized);
-        return Number.isFinite(ms) ? new Date(ms).toLocaleDateString('tr-TR') : '';
-    },
-
-    getSalesDeliveryText: (order = {}) => {
-        const deliveryDateText = SalesModule.formatSalesDeliveryDate(order?.deliveryDate || '');
-        if (deliveryDateText) return `Teslim tarihi: ${deliveryDateText}`;
-        const leadDays = SalesModule.parseDays(order?.deliveryLeadDays || 0);
-        return leadDays > 0 ? `Siparis onayindan ${leadDays} gun` : '-';
     },
 
     generateCustomerCode: () => {
@@ -7120,7 +8027,7 @@
         return {
             categoryId: String(categoryId || '').trim(),
             name: String(row.name || '').trim(),
-            productCode: String(row.productCode || `KRL-${String(now).padStart(4, '0')}`).trim(),
+            productCode: String(row.productCode || '').trim(),
             idCode: String(row.idCode || SalesModule.generateCatalogPublicId({ rowId: String(row.id || '').trim() })).trim(),
             diameters: draftDiameters,
             selectedDiameter: draftDiameters.includes(draftSelectedDiameter) ? draftSelectedDiameter : String(draftDiameters[0] || ''),
@@ -7219,17 +8126,11 @@
             && IdentityPolicy
             && typeof IdentityPolicy.collectGlobalCodes === 'function') {
             const usedCodes = IdentityPolicy.collectGlobalCodes(DB.data, exclude);
-            if (typeof IdentityPolicy.makeId === 'function') {
-                for (let i = 0; i < 30; i += 1) {
-                    const candidate = String(IdentityPolicy.makeId('SAL', usedCodes) || '').trim();
-                    if (!candidate) continue;
-                    const normalized = normalizeCode(candidate);
-                    if (!normalized || usedCodes.has(normalized)) continue;
-                    return normalized;
-                }
-            }
             if (typeof IdentityPolicy.getNextGlobalCode === 'function') {
                 return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'SAL', digits: 6, exclude });
+            }
+            if (typeof IdentityPolicy.nextCodeFromUsed === 'function') {
+                return IdentityPolicy.nextCodeFromUsed(usedCodes, 'SAL', 6);
             }
         }
         const rows = Array.isArray(DB.data?.data?.salesCatalogProducts) ? DB.data.data.salesCatalogProducts : [];
@@ -7240,18 +8141,6 @@
                 .filter(Boolean)
         );
 
-        const buildRandomCandidate = () => {
-            const token = (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
-                ? globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()
-                : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
-            return `SAL-${token}`;
-        };
-
-        for (let i = 0; i < 30; i += 1) {
-            const candidate = normalizeCode(buildRandomCandidate());
-            if (!candidate || used.has(candidate)) continue;
-            return candidate;
-        }
         let seq = rows.length + 1;
         let candidate = normalizeCode(`SAL-${String(seq).padStart(6, '0')}`);
         while (used.has(candidate)) {
@@ -7693,7 +8582,7 @@
                         </div>
                         <div class="sales-catalog-card-body">
                             <div class="sales-catalog-card-title">${SalesModule.escapeHtml(row.name || '-')}</div>
-                            <div class="sales-catalog-card-code">${SalesModule.escapeHtml(row.productCode || row.idCode || '-')}</div>
+                            <div class="sales-catalog-card-code">${SalesModule.escapeHtml(SalesModule.getSalesCatalogDisplayCode(row))}</div>
                             <div class="sales-catalog-card-meta-row">
                                 ${badgeHtml}
                             </div>
@@ -7812,7 +8701,6 @@
                                     <td class="sales-catalog-table-actions">
                                         <button type="button" class="sales-catalog-card-action-btn" onclick="${selectAction}">${SalesModule.escapeHtml(viewButtonLabel)}</button>
                                         <button type="button" class="sales-catalog-card-action-btn" onclick="SalesModule.openEditCatalogModal('${id}')">duzenle</button>
-                                        <button type="button" class="sales-catalog-card-action-btn" style="color:#b91c1c; border-color:#fecaca; background:#fef2f2;" onclick="SalesModule.deleteCatalogProduct('${id}')">sil</button>
                                     </td>
                                 </tr>
                             `;
@@ -7920,7 +8808,7 @@
                 : 'Sag panel kategori secimi sonrasinda urun kartlarini listeler.'}</div>
                                     ${supportsCrud ? `
                                         <div class="sales-catalog-search-row">
-                                            <input id="sales_catalog_search_input" class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, urun kodu, id kodu veya kayit id ara">
+                                            <input id="sales_catalog_search_input" class="sales-catalog-search-input" value="${SalesModule.escapeHtml(searchText)}" oninput="SalesModule.setCatalogSearchText(this.value)" placeholder="isim, sistem ID veya kayit id ara">
                                             ${String(searchText || '').trim() ? '<button class="btn-sm" type="button" onclick="SalesModule.clearCatalogSearch()">temizle</button>' : ''}
                                         </div>
                                     ` : ''}
@@ -8290,6 +9178,7 @@
         ) || '';
         const packagingBoxMeta = [packagingBox?.code, packagingBox?.name].filter(Boolean).join(' - ');
         const isPackagingBoxMissingInCatalog = !!(packagingBox && !packagingBoxMatch);
+        const isEdit = !!String(SalesModule.state.catalogEditingProductId || '').trim();
         return `
             <div class="sales-catalog-create-wrap">
                 <div class="sales-catalog-modal-kicker">${SalesModule.escapeHtml(categoryText)}</div>
@@ -8298,14 +9187,7 @@
                         <label class="sales-catalog-label">Urun adi *</label>
                         <input id="sales_catalog_name" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.name || '')}" oninput="SalesModule.setCatalogDraftField('name', this.value)" placeholder="or: Kral 2034">
                     </div>
-                    <div>
-                        <label class="sales-catalog-label">Urun kodu</label>
-                        <input id="sales_catalog_product_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.productCode || '')}" oninput="SalesModule.setCatalogDraftField('productCode', this.value)">
-                    </div>
-                    <div>
-                        <label class="sales-catalog-label">ID kodu</label>
-                        <input id="sales_catalog_id_code" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
-                    </div>
+                    ${SalesModule.renderSalesSystemIdInputHtml(draft)}
                 </div>
 
                 <div class="sales-catalog-create-grid-mid">
@@ -8324,6 +9206,7 @@
                             ${SalesModule.renderCatalogDiameterButtonsHtml(draft.diameters, draft.selectedDiameter, 'SalesModule.selectCatalogDiameter', 'SalesModule.removeCatalogDiameterFromDraft')}
                         </div>
                     </div>
+                    ${isEdit ? `
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Kabarcik</label>
                         <div id="sales_catalog_bubble_toggle" class="sales-catalog-toggle">
@@ -8335,6 +9218,7 @@
                         <label class="sales-catalog-label">Alt boru uzunlugu</label>
                         <input id="sales_catalog_lower_tube" class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.lowerTubeLength || 'standart')}" oninput="SalesModule.setCatalogDraftField('lowerTubeLength', this.value)" placeholder="standart veya ozel olcu">
                     </div>
+                    ` : ''}
                     <div class="sales-catalog-field-block">
                         <label class="sales-catalog-label">Koli tipi / koli karti</label>
                         <select id="sales_catalog_packaging_box" class="sales-catalog-select" onchange="SalesModule.setCatalogPackagingBoxProduct(this.value)">
@@ -8361,6 +9245,7 @@
                     ` : ''}
                 </div>
 
+                ${isEdit ? `
                 <div class="sales-catalog-color-grid">
                     ${['accessory', 'tube', 'plexi'].map((field) => {
             const titleMap = {
@@ -8384,6 +9269,7 @@
                         `;
         }).join('')}
                 </div>
+                ` : ''}
 
                 <div class="sales-catalog-upload-grid">
                     ${['product', 'technical', 'application'].map((kind) => `
@@ -8438,10 +9324,7 @@
                             </select>
                         </div>
                     </div>
-                    <div class="sales-catalog-field-block">
-                        <label class="sales-catalog-label">Urun ID</label>
-                        <input class="sales-catalog-input" value="${SalesModule.escapeHtml(draft.idCode || '')}" readonly disabled>
-                    </div>
+                    ${SalesModule.renderSalesSystemIdInputHtml(draft)}
                 </div>
 
                 <div class="sales-catalog-create-grid-mid">
@@ -8891,6 +9774,8 @@
             ? DB.data.data.salesCatalogProducts.findIndex((item) => String(item?.id || '').trim() === editingId)
             : -1;
         const existingRow = existingIdx >= 0 ? (DB.data.data.salesCatalogProducts[existingIdx] || {}) : {};
+        const isCreate = !editingId;
+        let resolvedProductCode = String(existingRow.productCode || draft.productCode || '').trim();
         const existingPackagingBox = SalesModule.normalizeCatalogPackagingBox(existingRow.packagingBox || null);
         const draftPackagingBox = SalesModule.normalizeCatalogPackagingBox(draft.packagingBox || null);
         const packagingBoxClearRequested = !!draft.packagingBoxClearRequested;
@@ -8938,6 +9823,11 @@
                 SalesModule.state.catalogDraft.idCode = normalizedIdCode;
             }
         }
+        if (isCreate) {
+            resolvedProductCode = normalizedIdCode;
+        } else if (!resolvedProductCode) {
+            resolvedProductCode = normalizedIdCode;
+        }
         let resolvedPackagingBox = null;
         if (packagingBoxClearRequested) {
             resolvedPackagingBox = null;
@@ -8968,7 +9858,7 @@
             id: SalesModule.generateCatalogRowId(),
             categoryId,
             name,
-            productCode: String(draft.productCode || '').trim(),
+            productCode: resolvedProductCode,
             idCode: normalizedIdCode,
             diameters: isPipeFamily
                 ? ((isBoru || isCubuk) && normalizedDiameter ? [normalizedDiameter] : [])
@@ -9009,6 +9899,11 @@
             created_at: nowIso,
             updated_at: nowIso
         };
+        if (isCreate) {
+            delete row.bubble;
+            delete row.lowerTubeLength;
+            delete row.colors;
+        }
         if (resolvedPackagingBox) {
             row.packagingBox = {
                 productId: String(resolvedPackagingBox.productId || '').trim(),
@@ -9117,8 +10012,7 @@
                         <div class="sales-catalog-detail-head">
                             <div class="sales-catalog-detail-title">${SalesModule.escapeHtml(product.name || '-')}</div>
                             <div class="sales-catalog-detail-codes">
-                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(product.productCode || '-')}</span>
-                                <span class="sales-catalog-code-secondary">ID: ${SalesModule.escapeHtml(product.idCode || '-')}</span>
+                                <span class="sales-catalog-code-primary">${SalesModule.escapeHtml(SalesModule.getSalesCatalogDisplayCode(product))}</span>
                             </div>
                         </div>
 
@@ -9128,12 +10022,8 @@
                                 <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.name || '-')}" readonly>
                             </div>
                             <div class="sales-catalog-field-block">
-                                <label class="sales-catalog-label">Urun kodu</label>
-                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.productCode || '-')}" readonly>
-                            </div>
-                            <div class="sales-catalog-field-block">
-                                <label class="sales-catalog-label">ID kodu</label>
-                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(product.idCode || '-')}" readonly>
+                                <label class="sales-catalog-label">Sistem ID</label>
+                                <input class="sales-catalog-input" value="${SalesModule.escapeHtml(SalesModule.getSalesCatalogDisplayCode(product))}" readonly>
                             </div>
                             <div class="sales-catalog-field-block">
                                 <label class="sales-catalog-label">Caplar</label>
@@ -9210,15 +10100,11 @@
                         <h2 class="stock-title" style="margin:0;">satis & pazarlama</h2>
                         <div style="font-size:0.84rem; color:#64748b; margin-top:0.22rem;">Proforma ve diger genel ayarlar icin Ayarlar ekranini kullan.</div>
                     </div>
-                    <button class="btn-primary" onclick="SalesModule.openSettingsPage()" style="display:inline-flex; align-items:center; gap:0.45rem;">
-                        <i data-lucide="settings" width="15" height="15"></i>
-                        Ayarlar
-                    </button>
                 </div>
                 <div class="stock-hub-grid" style="justify-content:flex-start;">
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('sales')">
                         <div class="stock-hub-icon" style="background:linear-gradient(135deg,#16a34a 0%, #15803d 100%);"><i data-lucide="shopping-cart" width="24" height="24"></i></div>
-                        <div class="stock-hub-label">Satis</div>
+                        <div class="stock-hub-label">Satis & Siparis</div>
                     </button>
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('customers')">
                         <div class="stock-hub-icon stock-hub-icon-blue"><i data-lucide="users" width="24" height="24"></i></div>
@@ -9231,6 +10117,10 @@
                     <button class="stock-hub-card" onclick="SalesModule.openWorkspace('products')">
                         <div class="stock-hub-icon" style="background:linear-gradient(135deg,#f97316 0%, #ef4444 100%);"><i data-lucide="boxes" width="24" height="24"></i></div>
                         <div class="stock-hub-label">Satis Urun Kutuphanesi</div>
+                    </button>
+                    <button class="stock-hub-card" onclick="SalesModule.openSettingsPage()">
+                        <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="settings" width="24" height="24"></i></div>
+                        <div class="stock-hub-label">Ayarlar</div>
                     </button>
                 </div>
             </div>
@@ -9246,11 +10136,11 @@
             return `${out} TL`;
         };
         if (!Array.isArray(rows) || rows.length === 0) {
-            return '<tr><td colspan="9" style="padding:0.8rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>';
+            return '<div style="border:1px dashed #cbd5e1; border-radius:0.8rem; background:#f8fafc; padding:0.95rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</div>';
         }
         return rows.map((row) => {
             const source = row?.source || {};
-            const statusMeta = SalesModule.getSalesOrderStatusMeta(row?.status || '');
+            const statusMeta = SalesModule.getSalesOrderStatusMeta(row?.status || '', row?.statusGroup || '');
             const updatedMs = Date.parse(String(source?.updated_at || source?.created_at || row?.orderDate || ''));
             const daysPassed = Number.isFinite(updatedMs)
                 ? Math.max(0, Math.floor((Date.now() - updatedMs) / (24 * 60 * 60 * 1000)))
@@ -9265,9 +10155,19 @@
                 const qty = SalesModule.parseSalesQuantity(line?.qty, 1);
                 return !!(productId && variationId && qty > 0);
             });
-            const stockButtonTitle = hasStockAnalysisLine
-                ? 'Kayitli siparis satiri stok analizini goruntule.'
-                : 'Bu sipariste stok analizi acilabilecek satir bulunamadi.';
+            const trackingMeta = SalesModule.getSalesOrderProductionTrackingMeta(source);
+            const hasReleasedProduction = !!trackingMeta.hasReleased;
+            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            const stockButtonTitle = hasReleasedProduction
+                ? 'Bu siparis is emrine donusmus satirlar iceriyor. Planlama detay ekranini ac.'
+                : (hasStockAnalysisLine
+                    ? 'Kayitli siparis satiri stok analizini goruntule.'
+                    : 'Bu sipariste stok analizi acilabilecek satir bulunamadi.');
+            const stockButtonDisabled = hasReleasedProduction ? '' : (hasStockAnalysisLine ? '' : 'disabled');
+            const stockButtonOnClick = hasReleasedProduction
+                ? `SalesModule.openSalesOrderProductionTrackingFromList('${id}')`
+                : `SalesModule.openSalesOrderStockAnalysisFromList('${id}')`;
+            const stockButtonLabel = hasReleasedProduction ? 'uretim durumu goruntule' : 'stok durumu goruntule';
             const reservationSummaryStatus = SalesModule.getSalesOrderReservationSummaryStatus(source);
             const reservationSummaryText = reservationSummaryStatus === 'CONFIRMED'
                 ? 'Onayli siparise ayrildi'
@@ -9281,27 +10181,56 @@
                 : (reservationSummaryStatus === 'EXPIRED'
                     ? 'color:#b91c1c; background:#fff1f2; border:1px solid #fecaca;'
                     : 'color:#475569; background:#f8fafc; border:1px solid #e2e8f0;'));
-            const id = SalesModule.escapeHtml(String(row?.id || ''));
+            const orderNo = SalesModule.escapeHtml(String(row?.orderNo || '-'));
+            const customerName = SalesModule.escapeHtml(String(row?.customerName || '-'));
+            const orderDate = SalesModule.escapeHtml(String(row?.orderDate || '-'));
+            const currency = SalesModule.escapeHtml(String(row?.currency || 'USD'));
+            const revision = SalesModule.escapeHtml(String(revisionNo));
+            const days = SalesModule.escapeHtml(String(daysPassed));
             return `
-                <tr style="border-bottom:1px solid #f1f5f9;">
-                    <td style="padding:0.42rem; font-family:Consolas,monospace; font-weight:800; color:#1d4ed8;">${SalesModule.escapeHtml(String(row?.orderNo || '-'))}</td>
-                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.customerName || '-'))}</td>
-                    <td style="padding:0.42rem;">${SalesModule.escapeHtml(String(row?.orderDate || '-'))}</td>
-                    <td style="padding:0.42rem;"><span style="display:inline-flex; padding:0.12rem 0.45rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span></td>
-                    <td style="padding:0.42rem; text-align:right;">${fmtMoney(row?.total || 0, String(row?.currency || 'USD'))}</td>
-                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(row?.currency || 'USD'))}</td>
-                    <td style="padding:0.42rem; text-align:center;">v${SalesModule.escapeHtml(String(revisionNo))}</td>
-                    <td style="padding:0.42rem; text-align:center;">${SalesModule.escapeHtml(String(daysPassed))}</td>
-                    <td style="padding:0.42rem; text-align:right;">
-                        <div style="display:flex; gap:0.3rem; flex-wrap:wrap; justify-content:flex-end;">
-                            <span style="display:inline-flex; align-items:center; padding:0 0.52rem; height:30px; border-radius:999px; font-size:0.7rem; font-weight:800; ${reservationSummaryStyle}">${SalesModule.escapeHtml(reservationSummaryText)}</span>
-                            <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
-                            <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
-                            <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" title="${SalesModule.escapeHtml(stockButtonTitle)}" ${hasStockAnalysisLine ? '' : 'disabled'} onclick="SalesModule.openSalesOrderStockAnalysisFromList('${id}')">stok durumu goruntule</button>
-                            ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
+                <article style="border:1px solid #dbe4ee; border-radius:0.86rem; background:#f8fafc; padding:0.72rem 0.78rem; box-shadow:0 1px 2px rgba(15,23,42,0.06);">
+                    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:0.55rem; align-items:start;">
+                        <div style="min-width:0;">
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Siparis No</div>
+                            <div style="margin-top:0.14rem; font-family:Consolas,monospace; font-weight:900; color:#1d4ed8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${orderNo}</div>
                         </div>
-                    </td>
-                </tr>
+                        <div style="min-width:0;">
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Musteri</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${customerName}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Tarih</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${orderDate}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Durum</div>
+                            <div style="margin-top:0.14rem;"><span style="display:inline-flex; padding:0.12rem 0.45rem; border:1px solid ${SalesModule.escapeHtml(statusMeta.border)}; border-radius:999px; background:${SalesModule.escapeHtml(statusMeta.bg)}; color:${SalesModule.escapeHtml(statusMeta.color)}; font-size:0.72rem; font-weight:800;">${SalesModule.escapeHtml(statusMeta.text)}</span></div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Toplam</div>
+                            <div style="margin-top:0.14rem; font-weight:800; color:#0f172a;">${fmtMoney(row?.total || 0, String(row?.currency || 'USD'))}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Kur</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${currency}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Revizyon</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">v${revision}</div>
+                        </div>
+                        <div>
+                            <div style="font-size:0.66rem; text-transform:uppercase; color:#64748b; font-weight:800;">Gecen Gun</div>
+                            <div style="margin-top:0.14rem; font-weight:700; color:#334155;">${days}</div>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:0.3rem; flex-wrap:wrap; margin-top:0.62rem; padding-top:0.48rem; border-top:1px solid #e2e8f0;">
+                        <span style="display:inline-flex; align-items:center; padding:0 0.52rem; height:30px; border-radius:999px; font-size:0.7rem; font-weight:800; ${reservationSummaryStyle}">${SalesModule.escapeHtml(reservationSummaryText)}</span>
+                        <button class="btn-sm" type="button" onclick="SalesModule.previewSavedSalesOrderProforma('${id}')">proforma</button>
+                        <button class="btn-sm" type="button" onclick="SalesModule.openSalesOrderForEdit('${id}')">duzenle</button>
+                        <button class="btn-sm" type="button" style="border-color:#bfdbfe; color:#1d4ed8; background:#eff6ff;" title="${SalesModule.escapeHtml(stockButtonTitle)}" ${stockButtonDisabled} onclick="${stockButtonOnClick}">${stockButtonLabel}</button>
+                        ${canApprove ? `<button class="btn-sm" type="button" style="color:#166534; border-color:#86efac; background:#f0fdf4;" onclick="SalesModule.setSalesOrderStatus('${id}','Onaylandi')">onayla</button>` : ''}
+                    </div>
+                </article>
             `;
         }).join('');
     },
@@ -9340,8 +10269,8 @@
             const lineTotal = Number((qty * unitPrice).toFixed(2));
             const summaryColumns = [
                 { label: 'urun adi', value: String(product?.name || (productId ? '-' : 'urun secilmedi')) },
-                { label: 'urun kodu', value: String(variation?.variantCode || product?.productCode || '-') },
-                { label: 'id kodu', value: String(product?.idCode || '-') },
+                { label: 'varyasyon ID', value: String(variation?.variantCode || '-') },
+                { label: 'sistem ID', value: SalesModule.getSalesCatalogDisplayCode(product) },
                 { label: 'cap', value: String(variation?.selectedDiameter || product?.selectedDiameter || '-') },
                 { label: 'aksesuar rengi', value: resolveColor(accessory) },
                 { label: 'boru rengi', value: resolveColor(tube) },
@@ -9372,7 +10301,7 @@
                 ? 'Bu satirda ankraj secimi kullanilamaz.'
                 : String(anchorageState?.selected?.name || 'Ankraj sec');
             return `
-                <tr style="border-bottom:1px solid #f1f5f9;">
+                <tr id="sales_order_line_${SalesModule.escapeHtml(lineId)}" style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:0.34rem; text-align:center; color:#64748b; min-width:42px;">${index + 1}</td>
                     <td style="padding:0.34rem; min-width:680px;">
                         <div style="max-width:100%; overflow:auto; padding-bottom:0.06rem;">
@@ -9562,7 +10491,7 @@
         return `
             <div class="card-table" style="padding:0.95rem; border:none; box-shadow:none; background:transparent;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:0.6rem; flex-wrap:wrap;">
-                    <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">siparis olusturma ekrani</div>
+                    <div style="font-size:1.02rem; font-weight:800; color:#0f172a;">satis & siparis olusturma ekrani</div>
                     <div style="display:flex; align-items:center; gap:0.45rem;">
                         <div style="display:flex; gap:0.45rem; font-size:0.76rem; color:#64748b;">
                             <span>hazirlayan: <strong>${SalesModule.escapeHtml(String(draft.preparedBy || '-'))}</strong></span>
@@ -9631,7 +10560,7 @@
                 <div style="display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:0.65rem; margin-top:0.72rem;">
                     <div style="font-size:0.8rem; color:#64748b;">
                         <div><span style="color:#e11d48;">*</span> zorunlu alanlar kayit sirasinda kontrol edilir.</div>
-                        <div style="margin-top:0.22rem;">Fiyat = onceki siparis / fiyat listesi / manuel giris. Fiyat 0 ise kayit olmaz.</div>
+                        <div style="margin-top:0.22rem;">Fiyat ilk fazda manuel girilir. Fiyat 0 ise kayit alinmaz.</div>
                     </div>
                     <div style="border:1px solid #e2e8f0; border-radius:0.72rem; padding:0.62rem; background:#f8fafc;">
                         <div style="display:flex; justify-content:space-between; padding:0.12rem 0; font-size:0.84rem;"><span>Ara Toplam</span><strong>${fmtMoney(totals.subtotal)}</strong></div>
@@ -9646,8 +10575,8 @@
                     ${destructiveActionsHtml}
                     <div style="display:flex; gap:0.42rem; flex-wrap:wrap;">
                         <button class="btn-sm" type="button" onclick="SalesModule.previewCurrentSalesOrderProforma()">PDF Goruntule</button>
+                        <button class="btn-sm" type="button" ${isSavedOrder ? '' : 'disabled'} style="${isSavedOrder ? 'border-color:#1d4ed8; background:#eff6ff; color:#1d4ed8; font-weight:700;' : 'border-color:#cbd5e1; background:#f8fafc; color:#94a3b8; cursor:not-allowed;'}" onclick="SalesModule.openSalesOrderProductionStatusModal('${SalesModule.escapeHtml(editingOrderId)}')">Üretim Durumu</button>
                         <button class="btn-primary" type="button" onclick="SalesModule.saveSalesOrderDraft()">kaydet</button>
-                        <button class="btn-sm" type="button" style="border-color:#86efac; color:#166534; background:#f0fdf4;" onclick="SalesModule.convertSalesOrderPlaceholder()">siparise donustur +</button>
                     </div>
                 </div>
             </div>
@@ -9666,7 +10595,7 @@
             <section class="stock-shell">
                 <div class="stock-subpage-shell">
                     <div class="stock-subpage-head">
-                        <h2 class="stock-title">satis / siparis olusturma</h2>
+                        <h2 class="stock-title">satis & siparis olusturma</h2>
                         <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                     </div>
 
@@ -9695,23 +10624,10 @@
                                 <button class="btn-primary" type="button" onclick="SalesModule.openNewOrderModal()">yeni siparis +</button>
                             </div>
                         </div>
-                        <div style="overflow:auto; margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem;">
-                            <table style="width:100%; min-width:980px; border-collapse:collapse;">
-                                <thead>
-                                    <tr style="background:#f8fafc; border-bottom:1px solid #e2e8f0; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
-                                        <th style="padding:0.42rem; text-align:left;">Siparis No</th>
-                                        <th style="padding:0.42rem; text-align:left;">Musteri</th>
-                                        <th style="padding:0.42rem; text-align:left;">Tarih</th>
-                                        <th style="padding:0.42rem; text-align:left;">Durum</th>
-                                        <th style="padding:0.42rem; text-align:right;">Toplam</th>
-                                        <th style="padding:0.42rem; text-align:center;">Kur</th>
-                                        <th style="padding:0.42rem; text-align:center;">Revizyon</th>
-                                        <th style="padding:0.42rem; text-align:center;">Gecen Gun</th>
-                                        <th style="padding:0.42rem; text-align:right;">Islem</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${orderRowsHtml}</tbody>
-                            </table>
+                        <div style="margin-top:0.62rem; border:1px solid #e2e8f0; border-radius:0.75rem; background:#ffffff; padding:0.55rem;">
+                            <div style="display:grid; gap:0.55rem;">
+                                ${orderRowsHtml}
+                            </div>
                         </div>
                     </div>
 
@@ -9728,31 +10644,26 @@
                     <button class="btn-sm" onclick="SalesModule.openWorkspace('menu')">geri</button>
                 </div>
 
-                <div class="card-table" style="padding:1rem 1.1rem;">
-                    <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
-                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.25rem;">Proforma, fiyat listeleri ve yeni eklenecek ayarlar bu ekrandan yonetilecek.</div>
+                <div style="max-width:980px; margin:0 auto;">
+                    <div style="text-align:center; margin:0.35rem 0 1.35rem 0;">
+                        <div style="font-size:1.06rem; font-weight:800; color:#0f172a;">Ayarlar Merkezi</div>
+                    </div>
 
-                    <div style="margin-top:0.9rem; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:0.8rem;">
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openProformaSettingsPage()">
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#1d4ed8 0%, #1e40af 100%);"><i data-lucide="file-text" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Proforma Ayarlari</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Logo, banka hesaplari ve varsayilan notlari yonet.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
-                        </button>
+                    <div style="display:flex; justify-content:center; align-items:stretch; gap:1.15rem; flex-wrap:nowrap; overflow-x:auto; padding-bottom:0.2rem;">
+                        <a href="#" onclick="SalesModule.openProformaSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-blue"><i data-lucide="file-text" width="30" height="30"></i></div>
+                            <div class="app-name">Proforma Ayarlari</div>
+                        </a>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem;" onclick="SalesModule.openPriceListsSettingsPage()">
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#334155 0%, #0f172a 100%);"><i data-lucide="list-todo" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Fiyat Listeleri</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Genel ve musteri bazli liste fiyatlarini yonet.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #86efac; border-radius:999px; background:#f0fdf4; color:#166534; font-size:0.72rem; font-weight:800;">aktif</div>
-                        </button>
+                        <a href="#" onclick="SalesModule.openPriceListsSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-gray"><i data-lucide="list-todo" width="30" height="30"></i></div>
+                            <div class="app-name">Fiyat Listeleri</div>
+                        </a>
 
-                        <button class="stock-hub-card" style="width:100%; text-align:left; align-items:flex-start; min-height:160px; padding:1rem; opacity:0.78; cursor:not-allowed;" disabled>
-                            <div class="stock-hub-icon" style="background:linear-gradient(135deg,#7c3aed 0%, #4338ca 100%);"><i data-lucide="sliders-horizontal" width="22" height="22"></i></div>
-                            <div style="font-size:1rem; font-weight:800; color:#0f172a; margin-top:0.55rem;">Diger Ayarlar</div>
-                            <div style="font-size:0.82rem; color:#64748b; margin-top:0.3rem;">Ihtiyaca gore yeni ayar bolumleri bu alana eklenecek.</div>
-                            <div style="margin-top:0.5rem; display:inline-flex; align-items:center; padding:0.14rem 0.52rem; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; font-size:0.72rem; font-weight:800;">yakinda</div>
-                        </button>
+                        <a href="#" onclick="SalesModule.openOtherSettingsPage(); return false;" class="app-card" style="min-height:210px; width:240px; min-width:240px;">
+                            <div class="icon-box g-purple"><i data-lucide="sliders-horizontal" width="30" height="30"></i></div>
+                            <div class="app-name">Diger Ayarlar</div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -9762,7 +10673,10 @@
     renderPriceListsSettingsLayout: () => {
         SalesModule.ensureCatalogState();
         SalesModule.ensurePriceListActiveSelection();
-        SalesModule.syncActivePriceListCategoryRows();
+        const isSuspended = SalesModule.isPriceListsSuspended();
+        if (!isSuspended) {
+            SalesModule.syncActivePriceListCategoryRows();
+        }
 
         const activeList = SalesModule.getActivePriceList();
         const priceLists = SalesModule.getPriceLists()
@@ -9812,10 +10726,20 @@
                                 </span>
                             </div>
 
+                            ${isSuspended ? `
+                                <div style="margin-top:0.72rem; margin-bottom:0.35rem; border:2px solid #dc2626; background:#fff1f2; color:#7f1d1d; border-radius:0.9rem; padding:0.85rem 0.95rem; box-shadow:0 8px 24px rgba(127,29,29,0.16);">
+                                    <div style="font-size:1.1rem; font-weight:900; letter-spacing:0.01em; line-height:1.45;">
+                                        FİYAT LİSTELERİ GEÇİCİ OLARAK ASKIYA ALINMIŞTIR.<br>
+                                        SATIŞ & SİPARİŞ İLE OLAN OTOMATİK FİYAT BAĞLANTISI KOPARILMIŞTIR.<br>
+                                        BU SAYFA İLERİDE YENİDEN TASARLANACAKTIR.
+                                    </div>
+                                </div>
+                            ` : ''}
+
                             <div style="display:grid; grid-template-columns:minmax(220px,1fr) 130px 130px; gap:0.55rem; align-items:end;">
                                 <div>
                                     <label style="display:block; font-size:0.72rem; color:#64748b; margin-bottom:0.2rem;">Aktif fiyat listesi</label>
-                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setActivePriceList(this.value)">
+                                    <select class="stock-input stock-input-tall" onchange="SalesModule.setActivePriceList(this.value)" ${isSuspended ? 'disabled' : ''}>
                                         ${priceLists.map((row) => {
                     const id = String(row?.id || '').trim();
                     const selected = id === activeListId ? 'selected' : '';
@@ -9823,8 +10747,8 @@
                 }).join('')}
                                     </select>
                                 </div>
-                                <button class="btn-sm" type="button" onclick="SalesModule.createQuickPriceList()">yeni liste +</button>
-                                <button class="btn-sm" type="button" onclick="SalesModule.deleteActivePriceList()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;">listeyi sil</button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.createQuickPriceList()" ${isSuspended ? 'disabled' : ''}>yeni liste +</button>
+                                <button class="btn-sm" type="button" onclick="SalesModule.deleteActivePriceList()" style="color:#b91c1c; border-color:#fecaca; background:#fff1f2;" ${isSuspended ? 'disabled' : ''}>listeyi sil</button>
                             </div>
 
                             <div style="display:flex; align-items:center; justify-content:space-between; gap:0.7rem; flex-wrap:wrap; border:1px solid #e2e8f0; border-radius:0.75rem; padding:0.55rem 0.65rem; background:#f8fafc;">
@@ -9840,17 +10764,16 @@
                                         <tr style="border-bottom:1px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:0.72rem; text-transform:uppercase;">
                                             <th style="padding:0.52rem; text-align:center; width:74px;">Detay</th>
                                             <th style="padding:0.52rem; text-align:left;">Urun</th>
-                                            <th style="padding:0.52rem; text-align:left; width:170px;">Urun kodu</th>
-                                            <th style="padding:0.52rem; text-align:left; width:180px;">ID kodu</th>
+                                            <th style="padding:0.52rem; text-align:left; width:180px;">Sistem ID</th>
                                             <th style="padding:0.52rem; text-align:right; width:180px;">Birim fiyat (${SalesModule.escapeHtml(currency)})</th>
                                             <th style="padding:0.52rem; text-align:left; width:260px;">Durum</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${!activeLeaf
-                ? '<tr><td colspan="6" style="padding:1.2rem; text-align:center; color:#94a3b8;">Soldan once bir alt urun grubu sec.</td></tr>'
+                ? '<tr><td colspan="5" style="padding:1.2rem; text-align:center; color:#94a3b8;">Soldan once bir alt urun grubu sec.</td></tr>'
                 : (!products.length
-                    ? '<tr><td colspan="6" style="padding:1.2rem; text-align:center; color:#94a3b8;">Bu kategoride ana urun yok.</td></tr>'
+                    ? '<tr><td colspan="5" style="padding:1.2rem; text-align:center; color:#94a3b8;">Bu kategoride ana urun yok.</td></tr>'
                     : products.map((product) => {
                         const productId = String(product?.id || '').trim();
                         const line = lineMap.get(productId) || SalesModule.normalizePriceListLine({
@@ -9869,8 +10792,7 @@
                         const isOpen = !!expanded[productId];
                         const productIdEsc = SalesModule.escapeHtml(productId);
                         const productName = SalesModule.escapeHtml(String(product?.name || '-'));
-                        const productCode = SalesModule.escapeHtml(String(product?.productCode || '-'));
-                        const idCodeRaw = String(product?.idCode || '-');
+                        const idCodeRaw = SalesModule.getSalesCatalogDisplayCode(product);
                         const idCode = SalesModule.escapeHtml(idCodeRaw);
                         const badgeHtml = productBadges.length
                             ? productBadges.map((badge) => SalesModule.renderPriceListBadgeHtml(badge)).join(' ')
@@ -9884,12 +10806,11 @@
                                 <td style="padding:0.5rem;">
                                     <div style="font-weight:800; color:#0f172a;">${productName}</div>
                                 </td>
-                                <td style="padding:0.5rem; font-family:Consolas,monospace; color:#334155;">${productCode}</td>
                                 <td style="padding:0.5rem; font-family:Consolas,monospace; color:#1d4ed8; font-weight:800;">
                                     <button class="btn-sm" type="button" style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="SalesModule.openSalesProductFromPriceList('${productIdEsc}')">${idCode}</button>
                                 </td>
                                 <td style="padding:0.5rem; text-align:right;">
-                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)">
+                                    <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(line.unitPrice))}" onchange="SalesModule.setPriceListMainProductPrice('${productIdEsc}', this.value)" ${isSuspended ? 'disabled' : ''}>
                                 </td>
                                 <td style="padding:0.5rem;">
                                     <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">${badgeHtml}</div>
@@ -9913,16 +10834,15 @@
                                     <td style="padding:0.45rem;">
                                         <button class="btn-sm" type="button" style="font-family:Consolas,monospace; font-weight:800; color:#1d4ed8; border-color:#bfdbfe; background:#eff6ff;" onclick="SalesModule.openSalesVariationFromPriceList('${productIdEsc}', '${variationId}')">${variantCode}</button>
                                     </td>
-                                    <td style="padding:0.45rem; color:#64748b;">varyasyon</td>
                                     <td style="padding:0.45rem; color:#64748b;">ana urun: ${idCode}</td>
                                     <td style="padding:0.45rem; text-align:right;">
-                                        <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(variant?.unitPrice || 0))}" onchange="SalesModule.setPriceListVariantPrice('${productIdEsc}', '${variationId}', this.value)">
+                                        <input type="number" min="0" step="0.01" class="stock-input stock-input-tall" style="text-align:right; max-width:160px; margin-left:auto;" value="${SalesModule.escapeHtml(SalesModule.formatPriceListInputValue(variant?.unitPrice || 0))}" onchange="SalesModule.setPriceListVariantPrice('${productIdEsc}', '${variationId}', this.value)" ${isSuspended ? 'disabled' : ''}>
                                     </td>
                                     <td style="padding:0.45rem;">
                                         <div style="display:flex; gap:0.32rem; flex-wrap:wrap; align-items:center;">
                                             ${variationBadgeHtml}
                                             ${isOverride
-                    ? `<button class="btn-sm" type="button" onclick="SalesModule.resetPriceListVariantToInherited('${productIdEsc}', '${variationId}')">mirasa don</button>`
+                    ? `<button class="btn-sm" type="button" onclick="SalesModule.resetPriceListVariantToInherited('${productIdEsc}', '${variationId}')" ${isSuspended ? 'disabled' : ''}>mirasa don</button>`
                     : ''}
                                         </div>
                                     </td>
@@ -10161,6 +11081,23 @@
             </section>
         `;
     },
+
+    renderOtherSettingsLayout: () => `
+        <section class="stock-shell">
+            <div class="stock-subpage-shell">
+                <div class="stock-subpage-head">
+                    <h2 class="stock-title">satis & pazarlama / diger ayarlar</h2>
+                    <button class="btn-sm" onclick="SalesModule.openWorkspace('settings')">geri</button>
+                </div>
+                <div class="card-table" style="padding:1rem 1.1rem;">
+                    <div style="font-size:1.2rem; font-weight:800; color:#0f172a;">Diger Ayarlar</div>
+                    <div style="font-size:0.88rem; color:#64748b; margin-top:0.3rem;">
+                        Bu alan ikinci seviye ayar detay ekrani olarak ayrildi. Yeni ayar kartlari ve icerikleri sonraki fazda bu sayfaya eklenecek.
+                    </div>
+                </div>
+            </div>
+        </section>
+    `,
 
     renderCustomerInlineEditFormHtml: (draft = {}) => `
         ${SalesModule.renderCountryDatalistHtml('sales_customer_country_options_detail')}
@@ -10525,6 +11462,7 @@
         if (view === 'settings') return SalesModule.renderSettingsLayout();
         if (view === 'settings-price-lists') return SalesModule.renderPriceListsSettingsLayout();
         if (view === 'settings-proforma') return SalesModule.renderProformaSettingsLayout();
+        if (view === 'settings-other') return SalesModule.renderOtherSettingsLayout();
         return SalesModule.renderMenuLayout();
     }
 };

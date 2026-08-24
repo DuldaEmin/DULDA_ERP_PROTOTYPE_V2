@@ -53,3 +53,14 @@ Asagidaki 3 kosul saglanmadan omurga degisikligi tamam sayilmaz:
 1. `npm run guard:backbone` gecti.
 2. PR checklist tamamlandi.
 3. Rollback plani yazili olarak mevcut.
+
+## 7) Git Guvenlik Notu (Zorunlu)
+1. `COMMIT ONAY` olmadan commit atilmaz.
+2. `PUSH ONAY` olmadan GitHub'a push atilmaz.
+3. Otomatik `git add -A`, otomatik commit ve otomatik push kullanilmaz.
+4. Varsayilan commit kapsaminda veri/history/log dosyalari yer almaz:
+   - `.state-history/**`
+   - `demo_state.json`
+   - `demo_state.backup-*.json`
+   - `backup.log`, `health_check.log`, `*.log`
+5. Push oncesi degisiklik ozeti ve `npm run guard:backbone` kontrolu zorunludur.

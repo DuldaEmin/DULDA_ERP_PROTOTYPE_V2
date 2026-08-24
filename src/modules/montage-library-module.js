@@ -1,8 +1,6 @@
 const MontageLibraryModule = {
     state: {
-        searchName: '',
-        searchCode: '',
-        searchId: '',
+        searchQuery: '',
         formOpen: false,
         editingId: null,
         selectedId: null,
@@ -18,9 +16,7 @@ const MontageLibraryModule = {
     },
 
     resetState: () => {
-        MontageLibraryModule.state.searchName = '';
-        MontageLibraryModule.state.searchCode = '';
-        MontageLibraryModule.state.searchId = '';
+        MontageLibraryModule.state.searchQuery = '';
         MontageLibraryModule.state.formOpen = false;
         MontageLibraryModule.state.editingId = null;
         MontageLibraryModule.state.selectedId = null;
@@ -56,10 +52,8 @@ const MontageLibraryModule = {
         return candidate;
     },
 
-    setSearch: (field, value, focusId) => {
-        if (field === 'name') MontageLibraryModule.state.searchName = value || '';
-        if (field === 'code') MontageLibraryModule.state.searchCode = value || '';
-        if (field === 'id') MontageLibraryModule.state.searchId = value || '';
+    setSearch: (value, focusId) => {
+        MontageLibraryModule.state.searchQuery = value || '';
         UI.renderCurrentPage();
         if (!focusId) return;
         setTimeout(() => {
@@ -550,17 +544,22 @@ const MontageLibraryModule = {
             .filter(row => row.unitId === unitId)
             .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
 
-        const qName = String(MontageLibraryModule.state.searchName || '').trim().toLowerCase();
-        const qCode = String(MontageLibraryModule.state.searchCode || '').trim().toLowerCase();
-        const qId = String(MontageLibraryModule.state.searchId || '').trim().toLowerCase();
+        const query = String(MontageLibraryModule.state.searchQuery || '').trim().toLocaleLowerCase('tr-TR');
         const filtered = cards.filter(row => {
-            const nameOk = !qName || String(row.productName || '').toLowerCase().includes(qName);
-            const codeOk = !qCode || String(row.productCode || '').toLowerCase().includes(qCode);
-            const idOk = !qId || String(row.cardCode || row.id || '').toLowerCase().includes(qId);
-            return nameOk && codeOk && idOk;
+            if (!query) return true;
+            const searchText = [row.productName, row.productCode, row.cardCode, row.id]
+                .map(value => String(value || '').trim())
+                .filter(Boolean)
+                .join(' ')
+                .toLocaleLowerCase('tr-TR');
+            return searchText.includes(query);
         });
 
         const picker = MontageLibraryModule.state.pickerContext;
+        const routePicker = typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.getActiveComponentRoutePicker === 'function'
+            ? UnitModule.getActiveComponentRoutePicker()
+            : null;
+        const isPickerMode = !!picker || (!!routePicker && String(routePicker.stationId || '') === String(unitId || ''));
         const pickerSelectedId = picker?.source === 'model'
             ? (ProductLibraryModule?.state?.modelDraftMontageCard?.id || '')
             : MontageLibraryModule.state.selectedId;
@@ -588,9 +587,7 @@ const MontageLibraryModule = {
                 <div style="background:white; border:1px solid #e2e8f0; border-radius:1rem; padding:0.9rem;">
                     ${picker ? `<div style="background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; border-radius:0.75rem; padding:0.55rem 0.7rem; font-weight:700; margin-bottom:0.65rem;">Montaj karti secim modundasin. Kart secince ${picker.source === 'model' ? 'urun modeli formuna' : 'ilgili ekrana'} geri donecektir.</div>` : ''}
                     <div style="display:flex; gap:0.65rem; margin-bottom:0.8rem; flex-wrap:wrap;">
-                        <input id="montage_search_name" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchName || '')}" oninput="MontageLibraryModule.setSearch('name', this.value, 'montage_search_name')" placeholder="isim ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
-                        <input id="montage_search_code" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchCode || '')}" oninput="MontageLibraryModule.setSearch('code', this.value, 'montage_search_code')" placeholder="kod ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
-                        <input id="montage_search_id" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchId || '')}" oninput="MontageLibraryModule.setSearch('id', this.value, 'montage_search_id')" placeholder="ID ile ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:220px; font-weight:600;">
+                        <input id="montage_search_query" value="${UnitModule.escapeHtml(MontageLibraryModule.state.searchQuery || '')}" oninput="MontageLibraryModule.setSearch(this.value, 'montage_search_query')" placeholder="ürün adı, kod veya ID ara" style="height:38px; border:1px solid #cbd5e1; border-radius:0.6rem; padding:0 0.75rem; min-width:300px; flex:1 1 360px; font-weight:600;">
                     </div>
                     <div class="card-table">
                         <table style="width:100%; border-collapse:collapse;">
@@ -601,18 +598,20 @@ const MontageLibraryModule = {
                                     <th style="padding:0.65rem; text-align:left;">ID kodu</th>
                                     <th style="padding:0.65rem; text-align:center;">Goruntule</th>
                                     <th style="padding:0.65rem; text-align:right;">Duzenle</th>
-                                    <th style="padding:0.65rem; text-align:right;">Sec</th>
+                                    ${isPickerMode ? '<th style="padding:0.65rem; text-align:right;">Sec</th>' : ''}
                                 </tr>
                             </thead>
                             <tbody>
-                                ${filtered.length === 0 ? `<tr><td colspan="6" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
-                                    <tr style="border-bottom:1px solid #f1f5f9; ${UnitModule.getRoutePickerSelectedRowStyle(pickerSelectedId === row.id)}">
+                                ${filtered.length === 0 ? `<tr><td colspan="${isPickerMode ? 6 : 5}" style="padding:1rem; text-align:center; color:#94a3b8;">Kayit bulunamadi.</td></tr>` : filtered.map(row => `
+                                    <tr style="border-bottom:1px solid #f1f5f9; ${isPickerMode ? UnitModule.getRoutePickerSelectedRowStyle(pickerSelectedId === row.id) : ''}">
                                         <td style="padding:0.65rem; font-weight:700; color:#334155;">${UnitModule.escapeHtml(row.productName || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#475569;">${UnitModule.escapeHtml(row.productCode || '-')}</td>
                                         <td style="padding:0.65rem; font-family:monospace; color:#1d4ed8; font-weight:700;">${UnitModule.escapeHtml(row.cardCode || '-')}</td>
                                         <td style="padding:0.65rem; text-align:center;"><button onclick="MontageLibraryModule.previewRow('${row.id}')" class="btn-sm" style="border-color:#93c5fd; background:#dbeafe; color:#1d4ed8;">goruntule</button></td>
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.startEdit('${row.id}')" class="btn-sm">duzenle</button></td>
+                                        ${isPickerMode ? `
                                         <td style="padding:0.65rem; text-align:right;"><button onclick="MontageLibraryModule.selectRow('${row.id}')" class="btn-sm" style="${UnitModule.getRoutePickerSelectButtonStyle(pickerSelectedId === row.id)}">sec</button></td>
+                                        ` : ''}
                                     </tr>
                                 `).join('')}
                             </tbody>

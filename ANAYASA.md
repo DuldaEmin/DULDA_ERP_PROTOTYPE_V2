@@ -120,3 +120,15 @@ Zorunlu kurallar:
 - referans kirma riski olan silme/tasima
 - dry-run ve yedek olmadan toplu import
 - bir seyi anlamadiysam sormadan uygulamaya gecmeyecegim
+
+## 10) Müşteri ID ve Planlama Gizliliği Yasası
+
+- Her müşteri, kullanıcıya görünen benzersiz bir Müşteri ID taşır.
+- Müşteri ID formatı `MREF-000001` şeklindedir.
+- Müşteri ID program tarafından üretilir; kullanıcı manuel girmez ve değiştiremez.
+- Müşteri ID müşteri adı, firma adı veya Cari Kodu’ndan türetilmez.
+- Cari Kodu muhasebesel/ticari alan olarak kalır; Müşteri ID ile karıştırılmaz.
+- Müşteri adı, firma adı veya Cari Kodu değişse bile Müşteri ID değişmez.
+- Planlama ve üretim ekranlarında müşteri adı, firma adı, telefon, adres, fiyat, iskonto, ödeme bilgisi ve ticari satış notları görünmez.
+- Siparişten planlamaya aktarılan kayıtlarda gerekirse yalnız Müşteri ID gösterilir.
+- Bu kural satış, planlama ve üretim ayrımının gizlilik omurgasıdır.

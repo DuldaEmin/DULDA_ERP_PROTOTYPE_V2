@@ -143,6 +143,31 @@
         workspaceView: 'menu' // menu | models | components | semi-components | assembly | master | colors | sales-products
     },
 
+    getNextBusinessCode: (prefix, records, field, excludeId = '') => {
+        const safePrefix = String(prefix || '').trim().toUpperCase();
+        const excludedId = String(excludeId || '').trim();
+        const usedCodes = new Set((Array.isArray(records) ? records : [])
+            .filter((row) => !excludedId || String(row?.id || '').trim() !== excludedId)
+            .map((row) => String(row?.[field] || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: safePrefix, usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, safePrefix, Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.[safePrefix] || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        const pattern = new RegExp(`^${safePrefix}-(\\d{6}|[1-9]\\d{6,})$`);
+        usedCodes.forEach((value) => {
+            const match = value.match(pattern);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `${safePrefix}-${(maximum + 1n).toString().padStart(6, '0')}`;
+    },
+
     render: (container) => {
         ProductLibraryModule.ensureModelDefaults();
         ProductLibraryModule.ensureMasterDefaults();
@@ -949,27 +974,7 @@
     generateSalesVariantCode: (product, excludeId = '') => {
         ProductLibraryModule.ensureSalesVariationDefaults();
         const rows = Array.isArray(DB.data?.data?.salesProductVariants) ? DB.data.data.salesProductVariants : [];
-        const regex = /^SVR-(\d{6})$/;
-        let maxSeq = 0;
-        const used = new Set();
-        rows.forEach((row) => {
-            if (excludeId && String(row?.id || '') === String(excludeId || '')) return;
-            const code = String(row?.variantCode || '').trim().toUpperCase();
-            if (!code) return;
-            used.add(code);
-            const match = code.match(regex);
-            if (!match) return;
-            const seq = Number(match[1] || 0);
-            if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
-        });
-        let next = maxSeq + 1;
-        let candidate = `SVR-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)
-            || (typeof ProductLibraryModule.isGlobalCodeTaken === 'function' && ProductLibraryModule.isGlobalCodeTaken(candidate))) {
-            next += 1;
-            candidate = `SVR-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return ProductLibraryModule.getNextBusinessCode('SVR', rows, 'variantCode', excludeId);
     },
 
     buildSalesVariationDraft: (product, source = null, options = {}) => {
@@ -2838,8 +2843,8 @@
 
     getComponentCodeRegex: (kind) => {
         return ProductLibraryModule.normalizeComponentLibraryKind(kind) === 'SEMI'
-            ? /^YRM-\d{6}$/
-            : /^PRC-\d{6}$/;
+            ? /^YRM-(?:\d{6}|[1-9]\d{6,})$/
+            : /^PRC-(?:\d{6}|[1-9]\d{6,})$/;
     },
 
     getComponentLibraryTitle: (kind) => {
@@ -3685,22 +3690,7 @@
         const key = ProductLibraryModule.getComponentCollectionKey(normalizedKind);
         const prefix = ProductLibraryModule.getComponentCodePrefix(normalizedKind);
         const all = DB.data.data[key] || [];
-        let maxNum = 0;
-        all.forEach(row => {
-            if (exclude && String(exclude) === String(row?.id || '')) return;
-            const code = String(row?.code || '').trim().toUpperCase();
-            const m = code.match(new RegExp(`^${prefix}-(\\d{6})$`));
-            if (!m) return;
-            const n = Number(m[1]);
-            if (Number.isFinite(n) && n > maxNum) maxNum = n;
-        });
-        let nextNum = maxNum + 1;
-        let candidate = `${prefix}-${String(nextNum).padStart(6, '0')}`;
-        while (ProductLibraryModule.isGlobalCodeTaken(candidate, exclude ? { collection: key, id: exclude, field: 'code' } : null)) {
-            nextNum += 1;
-            candidate = `${prefix}-${String(nextNum).padStart(6, '0')}`;
-        }
-        return candidate;
+        return ProductLibraryModule.getNextBusinessCode(prefix, all, 'code', exclude || '');
     },
 
     buildComponentRouteSignature: (routes = []) => {
@@ -3731,15 +3721,11 @@
     },
 
     buildComponentRouteNormalizedKinshipLineageIdentity: (row = {}) => {
-        const masterCode = ProductLibraryModule.normalizeAsciiUpper(row?.masterCode || '') || '-';
-        const processCodes = (Array.isArray(row?.routes) ? row.routes : [])
-            .map(route => {
-                const processCode = String(ProductLibraryModule.getRouteProcessDisplayValue(route) || '').trim().toUpperCase();
-                return /^DTR-\d{6}$/.test(processCode) ? 'DTR' : processCode;
-            })
-            .filter(Boolean);
-        const finalCode = String(row?.code || '').trim().toUpperCase() || '-';
-        return `${[masterCode, ...processCodes].join(' / ')} = ${finalCode}`;
+        if (typeof CanonicalRouteLineageCore === 'undefined'
+            || typeof CanonicalRouteLineageCore.buildNormalizedKinshipLineageIdentity !== 'function') {
+            return `UNCERTAIN:ROUTE_CORE_MISSING = ${String(row?.code || '').trim().toUpperCase() || '-'}`;
+        }
+        return CanonicalRouteLineageCore.buildNormalizedKinshipLineageIdentity(row);
     },
 
     buildComponentDuplicateSignature: (row = {}) => {
@@ -5332,22 +5318,7 @@
 
     generateAssemblyCode: (exclude = null) => {
         const all = DB.data.data.assemblyGroups || [];
-        let maxNum = 0;
-        all.forEach(row => {
-            if (exclude && String(exclude) === String(row?.id || '')) return;
-            const code = String(row?.code || '').trim().toUpperCase();
-            const m = code.match(/^GRP-(\d{6})$/);
-            if (!m) return;
-            const n = Number(m[1]);
-            if (Number.isFinite(n) && n > maxNum) maxNum = n;
-        });
-        let nextNum = maxNum + 1;
-        let candidate = `GRP-${String(nextNum).padStart(6, '0')}`;
-        while (ProductLibraryModule.isGlobalCodeTaken(candidate, exclude ? { collection: 'assemblyGroups', id: exclude, field: 'code' } : null)) {
-            nextNum += 1;
-            candidate = `GRP-${String(nextNum).padStart(6, '0')}`;
-        }
-        return candidate;
+        return ProductLibraryModule.getNextBusinessCode('GRP', all, 'code', exclude || '');
     },
 
     setAssemblyFilter: (field, value, focusId = '') => {
@@ -5846,7 +5817,7 @@
         if (!name) return alert('Parca grup adi zorunlu.');
 
         const code = String(s.assemblyDraftCode || ProductLibraryModule.generateAssemblyCode(s.assemblyEditingId || null)).trim().toUpperCase();
-        if (!/^(GRP|MNT)-\d{6}$/.test(code)) return alert('ID kod formati gecersiz. Beklenen: GRP-000001');
+        if (!/^(GRP|MNT)-(?:\d{6}|[1-9]\d{6,})$/.test(code)) return alert('ID kod formati gecersiz. Beklenen: GRP-000001');
 
         const exclude = s.assemblyEditingId
             ? { collection: 'assemblyGroups', id: s.assemblyEditingId, field: 'code' }
@@ -6543,18 +6514,8 @@
     },
 
     generateModelFamilyCode: () => {
-        const max = ProductLibraryModule.getCatalogProductVariants().reduce((acc, row) => {
-            const match = String(row.familyCode || '').match(/^URM-(\d{6})$/);
-            if (!match) return acc;
-            return Math.max(acc, Number(match[1]));
-        }, 0);
-        let next = max + 1;
-        let candidate = `URM-${String(next).padStart(6, '0')}`;
-        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
-            next += 1;
-            candidate = `URM-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        const rows = ProductLibraryModule.getCatalogProductVariants();
+        return ProductLibraryModule.getNextBusinessCode('URM', rows, 'familyCode');
     },
 
     generateModelVariantCode: (familyCode, excludeId = '') => {
@@ -11241,21 +11202,7 @@
 
     generateConsumableCode: () => {
         const all = ProductLibraryModule.getConsumableProducts();
-        let maxNum = 0;
-        all.forEach(p => {
-            const code = String(p?.code || '').toUpperCase();
-            const m = code.match(/^SRF-(\d{1,12})$/);
-            if (!m) return;
-            const n = Number(m[1]);
-            if (Number.isFinite(n) && n > maxNum) maxNum = n;
-        });
-        let nextNum = maxNum + 1;
-        let candidate = `SRF-${String(nextNum).padStart(6, '0')}`;
-        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
-            nextNum += 1;
-            candidate = `SRF-${String(nextNum).padStart(6, '0')}`;
-        }
-        return candidate;
+        return ProductLibraryModule.getNextBusinessCode('SRF', all, 'code');
     },
 
     getBoxProducts: () => {
@@ -11523,21 +11470,7 @@
 
     generateBoxCode: () => {
         const all = ProductLibraryModule.getBoxProducts();
-        let maxNum = 0;
-        all.forEach(p => {
-            const code = String(p?.code || '').toUpperCase();
-            const m = code.match(/^KLI-(\d{1,12})$/);
-            if (!m) return;
-            const n = Number(m[1]);
-            if (Number.isFinite(n) && n > maxNum) maxNum = n;
-        });
-        let nextNum = maxNum + 1;
-        let candidate = `KLI-${String(nextNum).padStart(6, '0')}`;
-        while (ProductLibraryModule.isGlobalCodeTaken(candidate)) {
-            nextNum += 1;
-            candidate = `KLI-${String(nextNum).padStart(6, '0')}`;
-        }
-        return candidate;
+        return ProductLibraryModule.getNextBusinessCode('KLI', all, 'code');
     },
 
     escapeHtml: (value) => {

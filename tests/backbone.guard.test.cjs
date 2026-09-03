@@ -122,7 +122,10 @@ function buildSanalTaksimPhase1Snapshot() {
 }
 
 function loadSanalTaksimResolver() {
-  return loadModule('src/core/sanal-taksim-resolver.js', 'SanalTaksimResolver').exported;
+  const CanonicalRouteLineageCore = require('../src/core/canonical-route-lineage-core.js');
+  return loadModule('src/core/sanal-taksim-resolver.js', 'SanalTaksimResolver', {
+    CanonicalRouteLineageCore
+  }).exported;
 }
 
 function buildSourceAwarePoolRow({
@@ -483,13 +486,14 @@ test('SanalTaksimResolver Faz B doğal SOR örneğinde ticari çapraz tahsisi he
     return result.readinessByDemandItem.find((row) => row.demandId === demand.id);
   };
 
-  assert.equal(getReady('SOR-000007').allocatableQty, 5);
-  assert.equal(getReady('SOR-000008').allocatableQty, 0);
-  assert.equal(getReady('SOR-000008').allocatable, false);
+  assert.equal(getReady('SOR-000007').finishedReadyQty, 10);
+  assert.equal(getReady('SOR-000007').residualSetQty, 0);
+  assert.equal(getReady('SOR-000008').finishedReadyQty, 5);
+  assert.equal(getReady('SOR-000008').residualSetQty, 0);
   assert.equal(
-    result.allocations.some((row) =>
+    result.finishedReadyAllocations.some((row) =>
       row.targetDemandId === '9060f821-7e1f-44fb-8109-80e81121d289'
-      && row.originDemandId === '1faa79e6-2490-4a3b-8372-788908f62437'
+      && row.originOrderId !== row.targetOrderId
     ),
     true
   );
@@ -557,12 +561,12 @@ test('Faz B doğal listede çapraz tahsisi salt okunur hesaplar, operasyonel haz
   const sor7 = harness.buildResult('SOR-000007');
   const sor8 = harness.buildResult('SOR-000008');
 
-  assert.equal(sor7.job.readySetQty, 5);
-  assert.equal(sor7.job.missingSetQty, 5);
+  assert.equal(sor7.job.readySetQty, 0);
+  assert.equal(sor7.job.missingSetQty, 0);
   assert.equal(sor7.job.resolverAvailability.trusted, true);
-  assert.equal(sor7.job.resolverAvailability.readyQty, 5);
+  assert.equal(sor7.job.resolverAvailability.readyQty, 0);
   assert.equal(sor8.job.readySetQty, 0);
-  assert.equal(sor8.job.missingSetQty, 5);
+  assert.equal(sor8.job.missingSetQty, 0);
   assert.equal(sor8.job.resolverAvailability.trusted, true);
   assert.equal(sor8.job.resolverAvailability.allocatable, false);
   assert.equal(JSON.stringify(harness.data), before);
@@ -575,8 +579,8 @@ test('Faz B operasyonel montaj gönderimini kaynak bağlı ve fail-closed tutar'
   const sor7 = harness.buildResult('SOR-000007');
   const sor8 = harness.buildResult('SOR-000008');
 
-  assert.equal(sor7.detailRow.readySetQty, 5);
-  assert.equal(sor7.detailRow.sendableQty, 5);
+  assert.equal(sor7.detailRow.readySetQty, 0);
+  assert.equal(sor7.detailRow.sendableQty, 0);
   assert.equal(sor8.detailRow.readySetQty, 0);
   assert.equal(sor8.detailRow.sendableQty, 0);
   assert.equal(sor8.detailRow.sendableCalculable, false);
@@ -764,14 +768,17 @@ test('SanalTaksimResolver gerçek kayıtta SOR-000009 hayalet stoku kapatır ve 
     row.originDemandId === sor9.id && row.prcCode === 'PRC-000021'
   );
   assert.ok(sor9Prc21Debt);
-  assert.equal(sor9Prc21Debt.openDebtQty, 5);
+  assert.equal(sor9Prc21Debt.originalOpenDebtQty, 5);
+  assert.equal(sor9Prc21Debt.finishedReadyCoveredPrcQty, 5);
+  assert.equal(sor9Prc21Debt.openDebtQty, 0);
+  assert.equal(result.productDebts.find((row) => row.originDemandId === sor9.id).finishedReadyQty, 5);
 
   for (const prcCode of ['PRC-000001', 'PRC-000021']) {
     const entitlement = entitlementsFor(sor11, prcCode);
     assert.equal(entitlement.length, 1);
     assert.equal(entitlement[0].sourceBucket, 'FROM_STOCK');
     assert.equal(entitlement[0].plannedQty, 1);
-    assert.equal(entitlement[0].allocatedQty, 1);
+    assert.equal(entitlement[0].allocatedQty, 0);
   }
   const sor11Readiness = result.readinessByDemandItem.find((row) => row.demandId === sor11.id);
   assert.ok(sor11Readiness);
@@ -1428,7 +1435,9 @@ function buildSanalTaksimPhase5ALifecycleSnapshot(stage = 'DRAFT') {
     }],
     componentMovementIds: ['movement-consume-phase5a'],
     finishedProductStockItemId: 'finished-stock-phase5a',
-    finishedProductMovementId: 'movement-finished-phase5a'
+    finishedProductMovementId: 'movement-finished-phase5a',
+    targetDepotId: 'depot_profil',
+    targetLocationId: 'finished-location'
   });
   snapshot.stockDepotItems.push({
     id: transfer.finishedProductStockItemId,
@@ -1475,8 +1484,12 @@ function buildSanalTaksimPhase5ALifecycleSnapshot(stage = 'DRAFT') {
     completionTransferId: transfer.id,
     transferId: transfer.id,
     stockDepotItemId: transfer.finishedProductStockItemId,
+    productId: item.productId,
+    variantId: item.variantId,
     variantCode: item.variantCode,
     productCode: item.variantCode,
+    targetDepotId: 'depot_profil',
+    targetLocationId: 'finished-location',
     qty: 12,
     quantity: 12,
     unit: 'ADET'
@@ -1934,9 +1947,9 @@ test('SanalTaksimResolver Faz 2 kismi release SORu tahsis kuyruguna almaz', () =
   });
   const result = Resolver.resolve(snapshot);
   const debt = result.debts.find((row) => row.debtType === 'SALES');
-  assert.equal(debt.allocationEligible, false);
-  assert.ok(debt.reasonCodes.includes('SOR_PARTIAL_RELEASE'));
-  assert.equal(result.allocations.some((row) => row.targetDebtKey === debt.debtKey), false);
+  assert.equal(debt.allocationEligible, true);
+  assert.equal(debt.reasonCodes.includes('SOR_PARTIAL_RELEASE'), false);
+  assert.equal(result.allocations.some((row) => row.targetDebtKey === debt.debtKey), true);
 });
 
 test('SanalTaksimResolver Faz 2 eksik ve mukerrer PLN baglantisini fail-closed tutar', () => {
@@ -1964,6 +1977,7 @@ test('SanalTaksimResolver Faz 2 gercek kismi TF sevkiyatini yalniz SALES acik bo
   snapshot.salesShipments = [{
     id: 'tf-partial',
     shipmentNo: 'TF-PARTIAL',
+    shipmentPlanId: 'svp-partial',
     status: 'DISPATCHED',
     sourceOrderId: 'sor-sales',
     sourceOrderNo: 'SOR-SALES',
@@ -1977,11 +1991,30 @@ test('SanalTaksimResolver Faz 2 gercek kismi TF sevkiyatini yalniz SALES acik bo
         productId: 'sal-a',
         variantId: 'svr-a-id',
         svrCode: 'SVR-A',
+        unit: 'ADET',
         dispatchQty: 15,
-        recipeParts: [{ refId: 'prc-a', code: 'PRC-A', unit: 'ADET', qtyPerSet: 1 }]
+        stockAllocations: [{
+          stockItemId: 'finished-stock-partial',
+          allocatedQty: 15,
+          stockMovementId: 'sales-out-partial'
+        }]
       }]
     }
   }];
+  snapshot.stock_movements.push({
+    id: 'sales-out-partial',
+    movementType: 'SALES_SHIPMENT_OUT',
+    shipmentId: 'tf-partial',
+    shipmentPlanId: 'svp-partial',
+    stockDepotItemId: 'finished-stock-partial',
+    sourceOrderId: 'sor-sales',
+    sourceLineId: 'sor-sales-line',
+    productId: 'sal-a',
+    variantId: 'svr-a-id',
+    variantCode: 'SVR-A',
+    qty: 15,
+    unit: 'ADET'
+  });
   let result = Resolver.resolve(snapshot);
   let salesDebt = result.debts.find((row) => row.debtType === 'SALES');
   const stockDebt = result.debts.find((row) => row.debtType === 'STOCK');
@@ -1990,13 +2023,15 @@ test('SanalTaksimResolver Faz 2 gercek kismi TF sevkiyatini yalniz SALES acik bo
   assert.equal(stockDebt.dispatchedQty, 0);
   assert.equal(stockDebt.openDebtQty, 100);
 
-  delete snapshot.salesShipments[0].snapshot.items[0].recipeParts;
+  snapshot.stock_movements.find((row) => row.id === 'sales-out-partial').shipmentPlanId = 'svp-conflict';
   result = Resolver.resolve(snapshot);
   salesDebt = result.debts.find((row) => row.debtType === 'SALES');
   assert.equal(salesDebt.dispatchedQty, null);
   assert.equal(salesDebt.openDebtQty, null);
   assert.equal(salesDebt.allocationEligible, false);
-  assert.ok(salesDebt.reasonCodes.includes('DISPATCH_FROZEN_RECIPE_MISSING'));
+  assert.ok(salesDebt.reasonCodes.includes('PRODUCT_DEBT_FAIL_CLOSED'));
+  assert.ok(result.productDebts.find((row) => row.originOrderId === 'sor-sales')
+    .reasonCodes.includes('PRODUCT_DISPATCH_MOVEMENT_CONFLICT'));
 });
 
 test('SanalTaksimResolver Faz 2 gercek snapshotta kesin ticari zinciri ve donmus MCT recetesini cozer', () => {
@@ -2325,17 +2360,12 @@ test('SanalTaksimResolver Faz 3 belirsiz borcu sifir tahsis gibi gostermeden kis
     SanalTaksimResolver: Resolver
   });
   const model = PlanningModule.getReleasedSalesSanalTaksimModel(demand);
-  assert.equal(model.ok, true);
-  assert.equal(model.rows[0].allocatedQty, null);
-  assert.equal(model.rows[0].uncoveredQty, null);
-  assert.equal(model.rows[0].uncertainQty, 40);
-  assert.ok(model.rows[0].reasonCodes.includes('WO_PLN_LINK_MISSING'));
+  assert.equal(model.ok, false);
+  assert.equal(model.reasonCode, 'COMMERCIAL_DEBT_NOT_FOUND');
+  assert.equal(model.rows.length, 0);
   const html = PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
-  assert.match(html, /data-sanal-taksim-allocation-eligible="false"/);
-  assert.match(html, /Tahsis edilemez/);
-  assert.match(html, /data-sanal-taksim-uncertain="true"[^>]*>40 ADET</);
-  assert.match(html, /PLN bağlantısı eksik, mükerrer veya çelişkili/);
-  assert.doesNotMatch(html, /data-sanal-taksim-allocated="true"[^>]*>0 ADET</);
+  assert.match(html, /data-sanal-taksim-state="uncertain"/);
+  assert.doesNotMatch(html, /data-sanal-taksim-allocated="true"/);
 });
 
 function buildSanalTaksimPhase4Snapshot() {
@@ -2416,12 +2446,13 @@ function getPhase4AllocatedSalesOrderId(result) {
   return String(debt?.originOrderId || '');
 }
 
-test('SanalTaksimResolver Faz 4 manuel SOR sirasini fallback ve termin onunde deterministik uygular', () => {
+test('SanalTaksimResolver Paket 3B legacy manualOrder varken termin ve dogal sirayi korur', () => {
   const Resolver = loadSanalTaksimResolver();
   const { snapshot, added } = buildSanalTaksimPhase4Snapshot();
   const before = JSON.stringify(snapshot);
-  let result = Resolver.resolve(snapshot);
-  assert.equal(getPhase4AllocatedSalesOrderId(result), added.orderId);
+  const baseline = Resolver.resolve(snapshot);
+  assert.equal(getPhase4AllocatedSalesOrderId(baseline), added.orderId);
+  const baselineOrder = baseline.diagnostics.evaluatedDebtOrder.slice();
 
   snapshot.orders.find((row) => row.id === 'sor-sales').productionQueue = {
     manualOrder: 1,
@@ -2433,8 +2464,9 @@ test('SanalTaksimResolver Faz 4 manuel SOR sirasini fallback ve termin onunde de
     updatedAt: '2026-07-24T10:01:00.000Z',
     updatedBy: 'Planlama Kullanıcısı'
   };
-  result = Resolver.resolve(snapshot);
-  assert.equal(getPhase4AllocatedSalesOrderId(result), 'sor-sales');
+  let result = Resolver.resolve(snapshot);
+  assert.equal(getPhase4AllocatedSalesOrderId(result), added.orderId);
+  assert.deepEqual(result.diagnostics.evaluatedDebtOrder, baselineOrder);
   const baseDebt = result.debts.find((row) => row.originOrderId === 'sor-sales');
   assert.equal(baseDebt.manualOrder, 1);
   assert.equal(baseDebt.manualOrderUpdatedBy, 'Planlama Kullanıcısı');
@@ -2442,11 +2474,11 @@ test('SanalTaksimResolver Faz 4 manuel SOR sirasini fallback ve termin onunde de
   snapshot.orders.find((row) => row.id === 'sor-sales').deliveryDate = '2026-12-31';
   snapshot.planningDemands.find((row) => row.id === 'pln-sales').dueDate = '2026-12-31';
   result = Resolver.resolve(snapshot);
-  assert.equal(getPhase4AllocatedSalesOrderId(result), 'sor-sales');
+  assert.equal(getPhase4AllocatedSalesOrderId(result), added.orderId);
   assert.notEqual(JSON.stringify(snapshot), before);
 });
 
-test('SanalTaksimResolver Faz 4 ayni SORun tum kalemlerine tek manualOrder uygular ve unreleased kalemi bekletir', () => {
+test('SanalTaksimResolver Paket 3B legacy manualOrder verisini yazmadan etkisiz birakir', () => {
   const Resolver = loadSanalTaksimResolver();
   const snapshot = buildSanalTaksimPhase2Snapshot();
   const added = addPhase4UnreleasedSalesLine(snapshot);
@@ -2463,10 +2495,11 @@ test('SanalTaksimResolver Faz 4 ayni SORun tum kalemlerine tek manualOrder uygul
   let orderDebts = result.debts.filter((row) => row.originOrderId === 'sor-sales');
   assert.equal(orderDebts.length, 2);
   assert.equal(orderDebts.every((row) => row.manualOrder === 1), true);
-  assert.equal(orderDebts.every((row) => row.allocationEligible === false), true);
+  assert.equal(orderDebts.find((row) => row.originDemandId === 'pln-sales').allocationEligible, true);
+  assert.equal(orderDebts.find((row) => row.originDemandId === 'pln-sales-b').allocationEligible, false);
   assert.equal(result.allocations.some((allocation) =>
-    orderDebts.some((debt) => debt.debtKey === allocation.targetDebtKey)
-  ), false);
+    allocation.targetDebtKey === orderDebts.find((row) => row.originDemandId === 'pln-sales').debtKey
+  ), true);
 
   added.demand.status = 'RELEASED';
   added.demand.released_at = '2026-08-04T09:00:00.000Z';
@@ -2489,7 +2522,7 @@ test('SanalTaksimResolver Faz 4 ayni SORun tum kalemlerine tek manualOrder uygul
   ), false);
 });
 
-test('PlanningModule Faz 4 Siparis Akisinda tek SOR editoru ve PRC kartlarinda ayni salt okunur onceligi gosterir', () => {
+test('PlanningModule Paket 3B Siparis Akisindan manuel SOR onceligi UIini tamamen kaldirir', () => {
   const Resolver = loadSanalTaksimResolver();
   const snapshot = buildSanalTaksimPhase2Snapshot();
   addPhase4SecondPrcLine(snapshot);
@@ -2525,23 +2558,23 @@ test('PlanningModule Faz 4 Siparis Akisinda tek SOR editoru ve PRC kartlarinda a
   PlanningModule.state.planningDetailItemCode = '';
   PlanningModule.state.releasedProductionStatusTab = 'production';
 
+  assert.equal(typeof PlanningModule.saveSalesProductionQueueManualOrderFromInput, 'undefined');
+  assert.equal(typeof PlanningModule.clearSalesProductionQueueManualOrder, 'undefined');
   const html = PlanningModule.renderGroupDetailWorkspace();
-  assert.equal((html.match(/data-sanal-taksim-production-queue="true"/g) || []).length, 1);
-  assert.equal((html.match(/data-sanal-taksim-manual-order-input="true"/g) || []).length, 1);
-  assert.equal((html.match(/data-sanal-taksim-manual-order-save="true"/g) || []).length, 1);
+  assert.doesNotMatch(html, /data-sanal-taksim-production-queue="true"/);
+  assert.doesNotMatch(html, /data-sanal-taksim-manual-order-input="true"/);
+  assert.doesNotMatch(html, /data-sanal-taksim-manual-order-save="true"/);
+  assert.doesNotMatch(html, /data-sanal-taksim-manual-order-clear="true"/);
+  assert.doesNotMatch(html, /Manuel SOR Önceliği|Pozitif tam sayı|Sırayı Kaydet|SOR manuel önceliği/);
+  assert.match(html, /data-sanal-taksim-detail="true"/);
   assert.equal((html.match(/data-sanal-taksim-prc="/g) || []).length, 2);
-  assert.equal((html.match(/data-sanal-taksim-sor-priority="true"/g) || []).length, 2);
+  assert.equal((html.match(/data-sanal-taksim-sor-priority="true"/g) || []).length, 0);
   const prcCards = html.match(/<article data-sanal-taksim-prc=[\s\S]*?<\/article>/g) || [];
   assert.equal(prcCards.length, 2);
-  prcCards.forEach((card) => {
-    assert.match(card, /SOR manuel önceliği: 1/);
-    assert.doesNotMatch(card, /data-sanal-taksim-manual-order-input/);
-    assert.doesNotMatch(card, /data-sanal-taksim-manual-order-save/);
-  });
   assert.doesNotMatch(html, /Fallback sıra:/);
 });
 
-test('SanalTaksimResolver Faz 4 gecersiz audit ve mukerrer aktif manuel sirayi fail-closed tutar', () => {
+test('SanalTaksimResolver Paket 3B gecersiz veya mukerrer legacy manualOrder nedeniyle fail-closed olmaz', () => {
   const Resolver = loadSanalTaksimResolver();
   const invalid = buildSanalTaksimPhase4Snapshot();
   invalid.snapshot.orders[0].productionQueue = {
@@ -2551,8 +2584,8 @@ test('SanalTaksimResolver Faz 4 gecersiz audit ve mukerrer aktif manuel sirayi f
   };
   let result = Resolver.resolve(invalid.snapshot);
   let debt = result.debts.find((row) => row.originOrderId === 'sor-sales');
-  assert.equal(debt.allocationEligible, false);
-  assert.ok(debt.reasonCodes.includes('SOR_MANUAL_AUDIT_INVALID'));
+  assert.equal(debt.allocationEligible, true);
+  assert.equal(debt.reasonCodes.includes('SOR_MANUAL_AUDIT_INVALID'), false);
 
   const duplicate = buildSanalTaksimPhase4Snapshot();
   duplicate.snapshot.orders.forEach((order) => {
@@ -2564,11 +2597,9 @@ test('SanalTaksimResolver Faz 4 gecersiz audit ve mukerrer aktif manuel sirayi f
   });
   result = Resolver.resolve(duplicate.snapshot);
   const duplicateDebts = result.debts.filter((row) => row.debtType === 'SALES');
-  assert.equal(duplicateDebts.every((row) => row.allocationEligible === false), true);
-  assert.equal(duplicateDebts.every((row) => row.reasonCodes.includes('SOR_MANUAL_ORDER_DUPLICATE')), true);
-  assert.equal(result.allocations.some((allocation) =>
-    duplicateDebts.some((row) => row.debtKey === allocation.targetDebtKey)
-  ), false);
+  assert.equal(duplicateDebts.every((row) => row.allocationEligible === true), true);
+  assert.equal(duplicateDebts.every((row) => !row.reasonCodes.includes('SOR_MANUAL_ORDER_DUPLICATE')), true);
+  assert.equal(getPhase4AllocatedSalesOrderId(result), duplicate.added.orderId);
 });
 
 test('PlanningModule Faz 4 tek amacli kayitla yalniz hedef SOR productionQueue metadatasini yazar', async () => {
@@ -2638,7 +2669,7 @@ test('PlanningModule Faz 4 tek amacli kayitla yalniz hedef SOR productionQueue m
   const model = refreshed.getReleasedSalesSanalTaksimModel(demand);
   assert.equal(model.productionQueue.mode, 'MANUAL');
   assert.equal(model.productionQueue.manualOrder, 1);
-  assert.equal(getPhase4AllocatedSalesOrderId(Resolver.resolve(snapshot)), 'sor-sales');
+  assert.equal(getPhase4AllocatedSalesOrderId(Resolver.resolve(snapshot)), 'sor-manual-peer');
 });
 
 test('PlanningModule Faz 4 mukerrer manuel sirayi veri yazmadan reddeder', async () => {
@@ -2725,7 +2756,7 @@ test('PlanningModule Faz 4 DB save hatasinda productionQueue metadatasini geri a
   assert.equal(PlanningModule.state.productionQueueSavePendingOrderId, '');
 });
 
-test('PlanningModule Faz 4 SOR baslik kontrolunden otomatik oncelige doner ve PRC panelinde editor gostermez', async () => {
+test('PlanningModule Paket 3B legacy manualOrder verisini korurken editor ve rozeti gostermez', async () => {
   const Resolver = loadSanalTaksimResolver();
   const { snapshot, added } = buildSanalTaksimPhase4Snapshot();
   const targetOrder = snapshot.orders.find((row) => row.id === 'sor-sales');
@@ -2744,30 +2775,17 @@ test('PlanningModule Faz 4 SOR baslik kontrolunden otomatik oncelige doner ve PR
     SanalTaksimResolver: Resolver
   });
   const demand = snapshot.planningDemands.find((row) => row.id === 'pln-sales');
-  let headerHtml = PlanningModule.renderSalesProductionQueueHeaderHtml(demand);
-  let panelHtml = PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
-  assert.match(headerHtml, /data-sanal-taksim-production-queue="true"/);
-  assert.match(headerHtml, /data-sanal-taksim-queue-mode="MANUAL"/);
-  assert.match(headerHtml, /data-sanal-taksim-manual-order-save="true"/);
-  assert.match(headerHtml, /data-sanal-taksim-manual-order-clear="true"/);
+  const headerHtml = PlanningModule.renderSalesProductionQueueHeaderHtml(demand);
+  const panelHtml = PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
+  assert.equal(headerHtml, '');
   assert.doesNotMatch(panelHtml, /data-sanal-taksim-production-queue/);
   assert.doesNotMatch(panelHtml, /data-sanal-taksim-manual-order-input/);
   assert.doesNotMatch(panelHtml, /data-sanal-taksim-manual-order-save/);
-  assert.match(panelHtml, /data-sanal-taksim-sor-priority="true"[^>]*>SOR manuel önceliği: 1</);
+  assert.doesNotMatch(panelHtml, /data-sanal-taksim-sor-priority|SOR manuel önceliği/);
   assert.doesNotMatch(panelHtml, /Fallback sıra:/);
-
-  const cleared = await PlanningModule.clearSalesProductionQueueManualOrder('sor-sales');
-  assert.equal(cleared.ok, true);
-  assert.equal(saveCalls, 1);
-  assert.equal(Object.prototype.hasOwnProperty.call(targetOrder, 'productionQueue'), false);
+  assert.equal(saveCalls, 0);
+  assert.equal(targetOrder.productionQueue.manualOrder, 1);
   assert.equal(getPhase4AllocatedSalesOrderId(Resolver.resolve(snapshot)), added.orderId);
-  headerHtml = PlanningModule.renderSalesProductionQueueHeaderHtml(demand);
-  panelHtml = PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
-  assert.match(headerHtml, /data-sanal-taksim-queue-mode="FALLBACK"/);
-  assert.match(headerHtml, /Otomatik öncelik kullanılıyor/);
-  assert.doesNotMatch(headerHtml, /data-sanal-taksim-manual-order-clear="true"/);
-  assert.doesNotMatch(panelHtml, /data-sanal-taksim-sor-priority/);
-  assert.doesNotMatch(panelHtml, /Fallback sıra:/);
 });
 
 test('SalesModule Faz 4 mevcut SOR revizyonunda productionQueue metadatasini koruyan merge davranisini surdurur', () => {
@@ -3432,6 +3450,1468 @@ test('Uretim STORE DB.save exception ve ok:false sonucunda tam rollback yapar', 
   }
 });
 
+function buildPhase1LegacyCleanupHarness({ sourceType = 'STOCK', saveMode = 'success' } = {}) {
+  const alerts = [];
+  const confirms = [];
+  let saveCount = 0;
+  let renderCount = 0;
+  const demand = {
+    id: 'demand-phase1-cleanup',
+    demandCode: 'PLN-PHASE1-CLEANUP',
+    sourceType,
+    status: 'RELEASED',
+    workOrderIds: ['wo-phase1-cleanup'],
+    items: [{ id: 'item-phase1-cleanup' }],
+    poolAnalysis: { stockAccountingMode: 'VIRTUAL_V1', rows: [] },
+    ...(sourceType === 'SALES_ORDER' ? {
+      sourceOrderId: 'order-phase1-cleanup',
+      sourceOrderNo: 'SOR-PHASE1-CLEANUP',
+      sourceLineId: 'sales-line-phase1-cleanup'
+    } : {})
+  };
+  const workOrder = {
+    id: 'wo-phase1-cleanup',
+    workOrderCode: 'WO-PHASE1-CLEANUP',
+    sourceId: demand.id,
+    sourceCode: demand.demandCode,
+    sourceItemKey: 'item-phase1-cleanup',
+    lines: [{
+      id: 'wo-line-phase1-cleanup',
+      componentCode: 'PRC-PHASE1-OUT',
+      componentName: 'Faz 1 Ürün',
+      unit: 'ADET'
+    }]
+  };
+  const canonicalSource = {
+    sourceType,
+    demandId: demand.id,
+    itemKey: 'item-phase1-cleanup',
+    ...(sourceType === 'SALES_ORDER' ? {
+      sourceOrderId: demand.sourceOrderId,
+      sourceLineId: demand.sourceLineId
+    } : {})
+  };
+  const data = {
+    orders: sourceType === 'SALES_ORDER' ? [{
+      id: demand.sourceOrderId,
+      orderNo: demand.sourceOrderNo,
+      lines: [{ id: demand.sourceLineId }]
+    }] : [],
+    planningDemands: [demand],
+    workOrders: [workOrder],
+    workOrderTransactions: [
+      { id: 'txn-phase1-take', workOrderId: workOrder.id, lineId: workOrder.lines[0].id, type: 'TAKE', qty: 4 },
+      { id: 'txn-phase1-complete', workOrderId: workOrder.id, lineId: workOrder.lines[0].id, type: 'COMPLETE', qty: 4 },
+      { id: 'txn-phase1-store', workOrderId: workOrder.id, lineId: workOrder.lines[0].id, type: 'STORE', qty: 4 }
+    ],
+    stockDepotLocations: [
+      { id: 'loc-phase1-raw', depotId: 'main', locationCode: 'RAW-A1' },
+      { id: 'loc-phase1-out', depotId: 'main', locationCode: 'OUT-A1' }
+    ],
+    stockDepotItems: [
+      {
+        id: 'stock-phase1-raw', productCode: 'RAW-PHASE1', code: 'RAW-PHASE1',
+        depotId: 'main', locationId: 'loc-phase1-raw', locationCode: 'RAW-A1', unit: 'KG',
+        qty: 2, quantity: 2, amount: 2
+      },
+      {
+        id: 'stock-phase1-output', productCode: 'PRC-PHASE1-OUT', code: 'PRC-PHASE1-OUT',
+        depotId: 'main', locationId: 'loc-phase1-out', locationCode: 'OUT-A1', unit: 'ADET',
+        qty: 4, quantity: 4, amount: 4, ...canonicalSource
+      },
+      {
+        id: 'stock-phase1-foreign', productCode: 'PRC-PHASE1-OUT', code: 'PRC-PHASE1-OUT',
+        depotId: 'main', locationId: 'loc-phase1-out', locationCode: 'OUT-A1', unit: 'ADET',
+        qty: 9, quantity: 9, amount: 9,
+        sourceType: 'STOCK', demandId: 'foreign-demand', itemKey: 'foreign-item'
+      }
+    ],
+    stock_movements: [
+      {
+        id: 'movement-phase1-issue', movementType: 'WORK_ORDER_ISSUE', type: 'WORK_ORDER_ISSUE',
+        workOrderId: workOrder.id, workOrderCode: workOrder.workOrderCode,
+        productCode: 'RAW-PHASE1', code: 'RAW-PHASE1', sourceQty: 8, sourceUnit: 'KG',
+        sourceDepotId: 'main', sourceLocationId: 'loc-phase1-raw', sourceLocationCode: 'RAW-A1',
+        sourceStockItemId: 'stock-phase1-raw'
+      },
+      {
+        id: 'movement-phase1-store', movementType: 'STORE', type: 'STORE',
+        workOrderId: workOrder.id, workOrderCode: workOrder.workOrderCode,
+        productCode: 'PRC-PHASE1-OUT', code: 'PRC-PHASE1-OUT', qty: 4, quantity: 4, unit: 'ADET',
+        depotId: 'main', locationId: 'loc-phase1-out', locationCode: 'OUT-A1',
+        stockDepotItemId: 'stock-phase1-output', outputStockItemId: 'stock-phase1-output',
+        ...canonicalSource
+      }
+    ],
+    montageJobDispatches: [{ id: 'legacy-phase1', demandId: demand.id, workOrderId: workOrder.id }],
+    workOrderExternalSupplierAssignments: [],
+    outsourceDispatchDrafts: [],
+    workOrderDispatchNotes: [],
+    montageDispatchPlans: [],
+    montageDispatchShipments: [],
+    sanalTaksimAllocationInstructions: [],
+    montageCompletionTransfers: [],
+    salesShipmentPlans: [],
+    salesShipments: []
+  };
+  const DB = {
+    data: { data },
+    cloneState: (state) => JSON.parse(JSON.stringify(state)),
+    createCriticalDropApproval: () => ({ token: 'phase1-cleanup' }),
+    save: async () => {
+      saveCount += 1;
+      if (saveMode === 'throw') throw new Error('phase1 disk exception');
+      if (saveMode === 'failure') return { ok: false, code: 'phase1_save_failure', error: new Error('phase1 disk failure') };
+      return { ok: true };
+    }
+  };
+  const { exported: PlanningModule, context } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB,
+    UI: { renderCurrentPage: () => { renderCount += 1; } },
+    Modal: { close: () => {} },
+    alert: (message) => { alerts.push(String(message)); },
+    confirm: (message) => { confirms.push(String(message)); return true; }
+  });
+  return {
+    DB, data, demand, workOrder, PlanningModule, context, alerts, confirms,
+    get saveCount() { return saveCount; },
+    get renderCount() { return renderCount; }
+  };
+}
+
+test('FAZ 1 LEGACY CLEANUP STOCK reset exact stok ve kayit durumunu baslangica dondurur', async () => {
+  const harness = buildPhase1LegacyCleanupHarness();
+  await harness.PlanningModule.cleanupStockDemandForDemo(harness.demand.id);
+
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.workOrders.length, 0);
+  assert.equal(harness.data.workOrderTransactions.length, 0);
+  assert.equal(harness.data.stock_movements.length, 0);
+  assert.equal(harness.data.montageJobDispatches.length, 0);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-raw').qty, 10);
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === 'stock-phase1-output'), false);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-foreign').qty, 9);
+  assert.equal(harness.saveCount, 1);
+  assert.equal(harness.renderCount, 1);
+});
+
+test('FAZ 1 LEGACY CLEANUP STORE ambiguous canonical kaynakta hic mutation yapmadan fail-closed kalir', async () => {
+  const harness = buildPhase1LegacyCleanupHarness();
+  const movement = harness.data.stock_movements.find((row) => row.id === 'movement-phase1-store');
+  delete movement.stockDepotItemId;
+  delete movement.outputStockItemId;
+  harness.data.stockDepotItems.push({
+    ...JSON.parse(JSON.stringify(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-output'))),
+    id: 'stock-phase1-output-duplicate'
+  });
+  const before = JSON.stringify(harness.data);
+
+  await harness.PlanningModule.cleanupStockDemandForDemo(harness.demand.id);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.equal(harness.confirms.length, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('birden fazla aday')));
+});
+
+test('FAZ 1 LEGACY CLEANUP WORK_ORDER_ISSUE sourceStockItemId olmadan tekil metadata ile exact geri alinir', async () => {
+  const harness = buildPhase1LegacyCleanupHarness();
+  delete harness.data.stock_movements.find((row) => row.id === 'movement-phase1-issue').sourceStockItemId;
+
+  await harness.PlanningModule.cleanupStockDemandForDemo(harness.demand.id);
+
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-raw').qty, 10);
+  assert.equal(harness.saveCount, 1);
+});
+
+test('FAZ 1 LEGACY CLEANUP WORK_ORDER_ISSUE metadata adayi birden fazlaysa fail-closed kalir', async () => {
+  const harness = buildPhase1LegacyCleanupHarness();
+  delete harness.data.stock_movements.find((row) => row.id === 'movement-phase1-issue').sourceStockItemId;
+  harness.data.stockDepotItems.push({
+    ...JSON.parse(JSON.stringify(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-raw'))),
+    id: 'stock-phase1-raw-duplicate'
+  });
+  const before = JSON.stringify(harness.data);
+
+  await harness.PlanningModule.cleanupStockDemandForDemo(harness.demand.id);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('birden fazla aday')));
+});
+
+test('FAZ 1 LEGACY CLEANUP SALES_ORDER ayni motorla legacy zinciri temizler ve modern koleksiyonlari degistirmez', async () => {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER' });
+  const modernBefore = JSON.stringify({
+    montageDispatchPlans: harness.data.montageDispatchPlans,
+    montageDispatchShipments: harness.data.montageDispatchShipments,
+    sanalTaksimAllocationInstructions: harness.data.sanalTaksimAllocationInstructions,
+    montageCompletionTransfers: harness.data.montageCompletionTransfers,
+    salesShipmentPlans: harness.data.salesShipmentPlans,
+    salesShipments: harness.data.salesShipments
+  });
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB,
+    PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => {} },
+    Modal: { close: () => {} },
+    alert: (message) => { harness.alerts.push(String(message)); },
+    confirm: () => true
+  });
+
+  await SalesModule.deleteSalesOrder('order-phase1-cleanup');
+
+  assert.equal(harness.data.orders.length, 0);
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.workOrders.length, 0);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-raw').qty, 10);
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === 'stock-phase1-output'), false);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-foreign').qty, 9);
+  assert.equal(JSON.stringify({
+    montageDispatchPlans: harness.data.montageDispatchPlans,
+    montageDispatchShipments: harness.data.montageDispatchShipments,
+    sanalTaksimAllocationInstructions: harness.data.sanalTaksimAllocationInstructions,
+    montageCompletionTransfers: harness.data.montageCompletionTransfers,
+    salesShipmentPlans: harness.data.salesShipmentPlans,
+    salesShipments: harness.data.salesShipments
+  }), modernBefore);
+  assert.equal(harness.saveCount, 1);
+});
+
+test('FAZ 1 LEGACY CLEANUP save exception ve ok:false sonucunda tum memory state rollback yapar', async () => {
+  for (const saveMode of ['throw', 'failure']) {
+    const harness = buildPhase1LegacyCleanupHarness({ saveMode });
+    const before = JSON.stringify(harness.data);
+
+    await harness.PlanningModule.cleanupStockDemandForDemo(harness.demand.id);
+
+    assert.equal(JSON.stringify(harness.data), before);
+    assert.equal(harness.saveCount, 1);
+    assert.equal(harness.renderCount, 0);
+    assert.ok(harness.alerts.some((message) => message.includes('bellek geri yüklendi')));
+  }
+});
+
+test('FAZ 1 LEGACY CLEANUP SALES_ORDER save failure siparis ve legacy zinciri birlikte rollback yapar', async () => {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER', saveMode: 'failure' });
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB,
+    PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => {} },
+    Modal: { close: () => {} },
+    alert: (message) => { harness.alerts.push(String(message)); },
+    confirm: () => true
+  });
+  SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+
+  await SalesModule.deleteSalesOrder('order-phase1-cleanup');
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 1);
+  assert.ok(harness.alerts.some((message) => message.includes('bellek geri yüklendi')));
+});
+
+function buildPhase2ModernMontageCleanupHarness({ mctStatus = '', foreignFinishedUse = false, saveMode = 'success' } = {}) {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER', saveMode });
+  const { data, demand } = harness;
+  const identity = {
+    sourceType: 'SALES_ORDER', sourceOrderId: demand.sourceOrderId, sourceLineId: demand.sourceLineId,
+    demandId: demand.id, itemKey: 'item-phase1-cleanup'
+  };
+  const ids = {
+    planId: 'mgp-phase2-cleanup', shipmentId: 'mgs-phase2-cleanup', instructionId: 'stai-phase2-cleanup',
+    sourceStockId: 'stock-phase2-source', outMovementId: 'movement-phase2-out',
+    receiptStockId: 'stock-phase2-receipt', receiptMovementId: 'movement-phase2-receipt',
+    transferId: 'mct-phase2-cleanup', componentMovementId: 'movement-phase2-consumption',
+    finishedStockId: 'stock-phase2-finished', finishedMovementId: 'movement-phase2-finished'
+  };
+  const reservationKey = 'reservation-phase2-cleanup';
+  const receiptKey = 'receipt-phase2-cleanup';
+  const receiptLineKey = `${receiptKey}|0|prc-phase2|PRC-PHASE2`;
+
+  data.stockDepotLocations.push(
+    { id: 'loc-phase2-source', depotId: 'main', locationCode: 'P2-SOURCE' },
+    { id: 'loc-phase2-receipt', depotId: 'unit:u3', locationCode: 'P2-RECEIPT' },
+    { id: 'loc-phase2-finished', depotId: 'depot_profil', locationCode: 'R01-A1' }
+  );
+  data.stockDepotItems.push({
+    id: ids.sourceStockId, refId: 'prc-phase2', productCode: 'PRC-PHASE2', code: 'PRC-PHASE2',
+    depotId: 'main', locationId: 'loc-phase2-source', unit: 'ADET', qty: 8, quantity: 8, amount: 8
+  });
+  data.montageDispatchPlans.push({
+    id: ids.planId, planNo: 'MGP-PHASE2-CLEANUP', status: 'DISPATCHED_TO_MONTAGE',
+    items: [{ ...identity, plannedQty: 1 }],
+    exactReservations: [{
+      ...identity, reservationKey, planId: ids.planId, instructionId: ids.instructionId,
+      instructionSliceKey: 'slice-phase2-cleanup', stockRowId: ids.sourceStockId, qty: 5
+    }]
+  });
+  data.sanalTaksimAllocationInstructions.push({
+    id: ids.instructionId, status: 'COMPLETED',
+    slices: [{
+      sliceKey: 'slice-phase2-cleanup', planId: ids.planId, reservationKey,
+      stockRowId: ids.sourceStockId, qty: 5
+    }]
+  });
+  data.montageDispatchShipments.push({
+    id: ids.shipmentId, shipmentNo: 'MGS-PHASE2-CLEANUP', planId: ids.planId,
+    planNo: 'MGP-PHASE2-CLEANUP', status: 'RECEIVED', receiptKey,
+    items: [{ ...identity, shippedQty: 1 }],
+    parts: [{
+      refId: 'prc-phase2', code: 'PRC-PHASE2', unit: 'ADET', shippedQty: 5,
+      allocations: [{
+        stockRowId: ids.sourceStockId, stockDepotItemId: ids.sourceStockId,
+        stockMovementId: ids.outMovementId, sourceDepotId: 'main',
+        sourceLocationId: 'loc-phase2-source', qty: 5,
+        exactReservationKeys: [reservationKey],
+        segmentRanges: [{ reservationKey, planId: ids.planId, stockRowId: ids.sourceStockId, qty: 5 }]
+      }]
+    }]
+  });
+  data.stock_movements.push({
+    id: ids.outMovementId, movementType: 'MONTAGE_DISPATCH_OUT', shipmentId: ids.shipmentId,
+    planId: ids.planId, stockDepotItemId: ids.sourceStockId, sourceDepotId: 'main',
+    sourceLocationId: 'loc-phase2-source', refId: 'prc-phase2', code: 'PRC-PHASE2', qty: 5
+  });
+  const posted = mctStatus === 'POSTED';
+  data.stockDepotItems.push({
+    id: ids.receiptStockId, sourceShipmentId: ids.shipmentId, shipmentId: ids.shipmentId,
+    sourcePlanId: ids.planId, planId: ids.planId, depotId: 'unit:u3', locationId: 'loc-phase2-receipt',
+    refId: 'prc-phase2', code: 'PRC-PHASE2', productCode: 'PRC-PHASE2', receiptKey, receiptLineKey,
+    stockClass: 'MONTAGE_RECEIVED', qty: posted ? 0 : 5, quantity: posted ? 0 : 5, amount: posted ? 0 : 5
+  });
+  data.stock_movements.push({
+    id: ids.receiptMovementId, movementType: 'MONTAGE_DISPATCH_RECEIPT', shipmentId: ids.shipmentId,
+    planId: ids.planId, receiptKey, receiptLineKey, sourceMovementIds: [ids.outMovementId],
+    refId: 'prc-phase2', code: 'PRC-PHASE2', qty: 5
+  });
+
+  if (mctStatus) {
+    const transfer = {
+      id: ids.transferId, transferNo: 'MCT-PHASE2-CLEANUP',
+      status: posted ? 'POSTED' : 'PENDING_DEPOT_RECEIPT', sourceShipmentId: ids.shipmentId,
+      sourcePlanId: ids.planId, ...identity, qty: 1, quantity: 1
+    };
+    if (posted) {
+      Object.assign(transfer, {
+        componentMovementIds: [ids.componentMovementId],
+        componentAllocations: [{ stockDepotItemId: ids.receiptStockId, stockMovementId: ids.componentMovementId, qty: 5 }],
+        finishedProductStockItemId: ids.finishedStockId,
+        finishedProductMovementId: ids.finishedMovementId
+      });
+      data.stockDepotItems.push({
+        id: ids.finishedStockId, completionTransferId: ids.transferId, transferId: ids.transferId,
+        sourceShipmentId: ids.shipmentId, ...identity, depotId: 'depot_profil',
+        locationId: 'loc-phase2-finished', variantCode: 'SVR-PHASE2', qty: 1, quantity: 1, amount: 1
+      });
+      data.stock_movements.push(
+        {
+          id: ids.componentMovementId, movementType: 'MONTAGE_COMPONENT_CONSUMPTION',
+          completionTransferId: ids.transferId, transferId: ids.transferId,
+          sourceShipmentId: ids.shipmentId, stockDepotItemId: ids.receiptStockId, qty: 5
+        },
+        {
+          id: ids.finishedMovementId, movementType: 'MONTAGE_FINISHED_PRODUCT_IN',
+          completionTransferId: ids.transferId, transferId: ids.transferId,
+          sourceShipmentId: ids.shipmentId, stockDepotItemId: ids.finishedStockId, qty: 1
+        }
+      );
+      const surplusSource = data.stockDepotItems.find((row) => row.id === 'stock-phase1-output');
+      Object.assign(surplusSource, { qty: 3, quantity: 3, amount: 3 });
+      data.stockDepotItems.push({
+        id: 'stock-phase2-surplus-target', depotId: 'main', locationId: 'loc-phase1-out',
+        productCode: 'PRC-PHASE1-OUT', code: 'PRC-PHASE1-OUT', qty: 1, quantity: 1, amount: 1
+      });
+      data.stock_movements.push({
+        id: 'movement-phase2-surplus', movementType: 'SALES_COMPONENT_SURPLUS_RELEASE',
+        sourceStockDepotItemId: 'stock-phase1-output', targetStockDepotItemId: 'stock-phase2-surplus-target',
+        stockDepotItemId: 'stock-phase2-surplus-target', triggerMontageCompletionTransferId: ids.transferId,
+        triggerMontageCompletionTransferIds: [ids.transferId], ...identity, qty: 1
+      });
+    }
+    data.montageCompletionTransfers.push(transfer);
+  }
+  if (foreignFinishedUse === true || foreignFinishedUse === 'SVP') {
+    data.salesShipmentPlans.push({
+      id: 'svp-foreign-phase2', sourceOrderId: 'foreign-order',
+      allocations: [{ stockDepotItemId: ids.finishedStockId }]
+    });
+  } else if (foreignFinishedUse === 'SHIPMENT') {
+    data.salesShipments.push({
+      id: 'sales-shipment-foreign-phase2', sourceOrderId: 'foreign-order',
+      allocations: [{ stockDepotItemId: ids.finishedStockId }]
+    });
+  } else if (foreignFinishedUse === 'CONSUMER') {
+    data.stock_movements.push({
+      id: 'movement-foreign-consumer-phase2', movementType: 'FOREIGN_COMPONENT_USE',
+      stockDepotItemId: ids.finishedStockId, qty: 1
+    });
+  }
+
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB, PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => {} }, Modal: { close: () => {} },
+    alert: (message) => { harness.alerts.push(String(message)); }, confirm: () => true
+  });
+  harness.SalesModule = SalesModule;
+  harness.ids = ids;
+  return harness;
+}
+
+function buildPrototypeDetachDemoHarness() {
+  const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const data = JSON.parse(JSON.stringify(raw.data || raw));
+  const DB = { data: { data }, save: async () => ({ ok: true }) };
+  const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB,
+    SanalTaksimResolver: loadSanalTaksimResolver()
+  });
+  const build = (orderNo) => {
+    const order = data.orders.find((row) => row.orderNo === orderNo);
+    assert.ok(order, `${orderNo} demo state içinde bulunamadı.`);
+    return PlanningModule.buildSalesOrderPrototypeDetachPlan(order.id);
+  };
+  return { DB, data, PlanningModule, build };
+}
+
+function getDetachClassification(plan, collection, id) {
+  return Object.values(plan.classifications).flat()
+    .find((row) => row.collection === collection && row.id === id)?.classification || '';
+}
+
+test('PROTOTYPE DETACH PREFLIGHT SOR-000014 shared MGS MCT ve rebind kanitini korur', () => {
+  const harness = buildPrototypeDetachDemoHarness();
+  const before = JSON.stringify(harness.data);
+  const plan = harness.build('SOR-000014');
+  const shipment = harness.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  const transfer = harness.data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000011');
+
+  assert.equal(plan.ok, true, plan.uncertainties.map((row) => row.message).join(' | '));
+  assert.equal(getDetachClassification(plan, 'montageDispatchShipments', shipment.id), 'RETAIN_SHARED');
+  assert.equal(getDetachClassification(plan, 'montageCompletionTransfers', transfer.id), 'RETAIN_SHARED');
+  assert.equal(plan.classifications.DELETE_EXCLUSIVE.some((row) =>
+    row.id === shipment.id || row.id === transfer.id), false);
+  assert.equal(plan.classifications['HIDE/TOMBSTONE_IDENTITY'].filter((row) =>
+    row.collection === 'workOrders').length, plan.target.workOrderIds.length);
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(plan.readOnly, true);
+  assert.equal(plan.writes, 0);
+});
+
+test('PROTOTYPE DETACH PREFLIGHT SOR-000012 WO ve physical kanitini SOR-000013 exact hold icin silmez', () => {
+  const harness = buildPrototypeDetachDemoHarness();
+  const plan = harness.build('SOR-000012');
+  const targetPlan = harness.data.montageDispatchPlans.find((row) => row.planNo === 'MGP-000021');
+  const sourceOrder = harness.data.orders.find((row) => row.orderNo === 'SOR-000012');
+  const reboundRanges = (targetPlan?.rebindAudit?.exactReservations || [])
+    .filter((row) => row.sourceOrderId === sourceOrder.id);
+
+  assert.ok(reboundRanges.length > 0);
+  assert.equal(getDetachClassification(plan, 'montageDispatchPlans', targetPlan.id), 'RETAIN_SHARED');
+  plan.target.workOrderIds.forEach((workOrderId) => {
+    assert.equal(getDetachClassification(plan, 'workOrders', workOrderId), 'HIDE/TOMBSTONE_IDENTITY');
+  });
+  reboundRanges.forEach((range) => {
+    assert.notEqual(getDetachClassification(plan, 'stockDepotItems', range.stockRowId), 'DELETE_EXCLUSIVE');
+    assert.ok(plan.retainedRanges.some((row) => row.rangeKey ===
+      `${range.physicalSegmentId}|${Number(range.segmentOffsetStart).toFixed(6)}|${Number(range.segmentOffsetEnd).toFixed(6)}`));
+  });
+});
+
+test('PROTOTYPE DETACH PREFLIGHT restore movement ve physical range etkilerini tekillestirir', () => {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' });
+  const reservation = harness.data.montageDispatchPlans[0].exactReservations[0];
+  Object.assign(reservation, {
+    physicalSegmentId: `STOCK|${harness.ids.sourceStockId}`,
+    segmentOffsetStart: 0,
+    segmentOffsetEnd: 5
+  });
+  const shipmentRange = harness.data.montageDispatchShipments[0].parts[0].allocations[0].segmentRanges[0];
+  Object.assign(shipmentRange, {
+    physicalSegmentId: `STOCK|${harness.ids.sourceStockId}`,
+    segmentOffsetStart: 0,
+    segmentOffsetEnd: 5
+  });
+
+  const plan = harness.PlanningModule.buildSalesOrderPrototypeDetachPlan(harness.demand.sourceOrderId);
+  const effectKeys = plan.restoreEffects.map((row) => row.effectKey);
+  const movementIds = plan.restoreEffects.flatMap((row) => row.movementIds);
+  const rangeKeys = plan.releasedRanges.map((row) => row.rangeKey);
+
+  assert.equal(plan.ok, true, plan.uncertainties.map((row) => row.message).join(' | '));
+  assert.equal(new Set(effectKeys).size, effectKeys.length);
+  assert.equal(new Set(movementIds).size, movementIds.length);
+  assert.equal(new Set(rangeKeys).size, rangeKeys.length);
+  assert.equal(rangeKeys.filter((key) => key ===
+    `STOCK|${harness.ids.sourceStockId}|0.000000|5.000000`).length, 1);
+});
+
+test('PROTOTYPE DETACH PREFLIGHT eksik physical range kanitinda UNCERTAIN fail closed kalir', () => {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' });
+  const reservation = harness.data.montageDispatchPlans[0].exactReservations[0];
+  Object.assign(reservation, {
+    physicalSegmentId: `STOCK|${harness.ids.sourceStockId}`,
+    segmentOffsetStart: 0
+  });
+  const before = JSON.stringify(harness.data);
+
+  const plan = harness.PlanningModule.buildSalesOrderPrototypeDetachPlan(harness.demand.sourceOrderId);
+
+  assert.equal(plan.ok, false);
+  assert.equal(plan.failClosed, true);
+  assert.ok(plan.uncertainties.some((row) => row.reasonCode === 'PHYSICAL_RANGE_INVALID'));
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(plan.writes, 0);
+});
+
+test('PROTOTYPE DETACH PREFLIGHT bozuk operational rebind consumer kanitinda UNCERTAIN kalir', () => {
+  const harness = buildPrototypeDetachDemoHarness();
+  const shipment = harness.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  assert.ok(shipment?.operationalRebindEvents?.length > 0);
+  delete shipment.operationalRebindEvents[0].toTarget.sourceOrderId;
+  const before = JSON.stringify(harness.data);
+
+  const plan = harness.build('SOR-000014');
+
+  assert.equal(plan.ok, false);
+  assert.equal(plan.failClosed, true);
+  assert.ok(plan.uncertainties.some((row) => row.reasonCode === 'OPERATIONAL_REBIND_INVALID'));
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(plan.writes, 0);
+});
+
+test('PROTOTYPE DETACH PREFLIGHT exclusive normal siparisi DELETE_EXCLUSIVE sinifinda tutar', () => {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER' });
+  const before = JSON.stringify(harness.data);
+
+  const plan = harness.PlanningModule.buildSalesOrderPrototypeDetachPlan(harness.demand.sourceOrderId);
+
+  assert.equal(plan.ok, true, plan.uncertainties.map((row) => row.message).join(' | '));
+  assert.equal(getDetachClassification(plan, 'orders', harness.demand.sourceOrderId), 'DELETE_EXCLUSIVE');
+  assert.equal(getDetachClassification(plan, 'planningDemands', harness.demand.id), 'DELETE_EXCLUSIVE');
+  assert.equal(getDetachClassification(plan, 'workOrders', harness.workOrder.id), 'DELETE_EXCLUSIVE');
+  assert.equal(plan.classifications.RETAIN_SHARED.length, 0);
+  assert.equal(plan.classifications['HIDE/TOMBSTONE_IDENTITY'].length, 0);
+  assert.equal(JSON.stringify(harness.data), before);
+});
+
+function buildPrototypeResetApplyDemoHarness({ saveMode = 'success', onConfirm = null } = {}) {
+  const harness = buildPrototypeDetachDemoHarness();
+  const alerts = [];
+  const confirms = [];
+  let saveCount = 0;
+  let renderCount = 0;
+  let approval = null;
+  let savedState = null;
+  harness.DB.cloneState = (value) => JSON.parse(JSON.stringify(value));
+  harness.DB.createCriticalDropApproval = (type, beforeState, afterState, meta) => {
+    approval = { type, issues: [], meta: { ...meta } };
+    return approval;
+  };
+  harness.DB.save = async () => {
+    saveCount += 1;
+    if (saveMode === 'throw') throw new Error('prototype reset disk exception');
+    if (saveMode === 'failure') return { ok: false, code: 'prototype_reset_save_failure' };
+    savedState = JSON.parse(JSON.stringify(harness.DB.data));
+    return { ok: true };
+  };
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB,
+    PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => { renderCount += 1; } },
+    Modal: { close: () => {} },
+    alert: (message) => alerts.push(String(message)),
+    confirm: (message) => {
+      confirms.push(String(message));
+      if (typeof onConfirm === 'function') onConfirm(harness);
+      return true;
+    }
+  });
+  return {
+    ...harness,
+    SalesModule,
+    alerts,
+    confirms,
+    get saveCount() { return saveCount; },
+    get renderCount() { return renderCount; },
+    get approval() { return approval; },
+    get savedState() { return savedState; }
+  };
+}
+
+test('PROTOTYPE RESET APPLY shared SOR-000014 kimligini gizler ve MGS MCT movement stogu korur', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness();
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+  const demand = harness.data.planningDemands.find((row) => row.sourceOrderId === order.id);
+  const shipment = harness.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  const transfer = harness.data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000011');
+  const physicalCollections = [
+    'workOrderTransactions', 'stock_movements', 'stockDepotItems',
+    'montageDispatchPlans', 'montageDispatchShipments', 'montageCompletionTransfers',
+    'sanalTaksimAllocationInstructions', 'salesShipmentPlans', 'salesShipments'
+  ];
+  const physicalBefore = Object.fromEntries(physicalCollections.map((key) => [key, JSON.stringify(harness.data[key])]));
+  const shipmentBefore = JSON.stringify(shipment);
+  const transferBefore = JSON.stringify(transfer);
+  const beforeState = JSON.parse(JSON.stringify(harness.DB.data));
+
+  await harness.SalesModule.deleteSalesOrder(order.id);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(harness.confirms.length, 1);
+  assert.equal(String(order?.prototypeResetTombstone?.type), 'PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE');
+  assert.equal(demand.status, 'PROTOTYPE_RESET_TOMBSTONE');
+  assert.ok(harness.data.workOrders.filter((row) => demand.workOrderIds.includes(row.id))
+    .every((row) => row.prototypeResetTombstone?.orderId === order.id));
+  assert.equal(harness.SalesModule.getSalesOrderHistoryRows().some((row) => row.id === order.id), false);
+  assert.equal(JSON.stringify(shipment), shipmentBefore);
+  assert.equal(JSON.stringify(transfer), transferBefore);
+  physicalCollections.forEach((key) => assert.equal(JSON.stringify(harness.data[key]), physicalBefore[key], key));
+  assert.equal(harness.approval?.meta?.prototypeResetVersion, 4);
+  assert.equal(harness.approval?.meta?.prototypeResetMode, 'RETAINED_EVIDENCE_DETACH');
+  const reloadDb = { data: JSON.parse(JSON.stringify(harness.savedState)) };
+  const { exported: ReloadedSalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: reloadDb,
+    PlanningModule: harness.PlanningModule
+  });
+  assert.equal(ReloadedSalesModule.getSalesOrderHistoryRows().some((row) => row.id === order.id), false);
+  const server = require('../serve.js');
+  assert.equal(server.isVerifiedSalesOrderPrototypeReset(beforeState, harness.DB.data, harness.approval), true);
+});
+
+test('PROTOTYPE RESET APPLY SOR-000012 detach SOR-000013 exact hold ve rebind range kanitini korur', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness();
+  const sourceOrder = harness.data.orders.find((row) => row.orderNo === 'SOR-000012');
+  const foreignOrder = harness.data.orders.find((row) => row.orderNo === 'SOR-000013');
+  const targetPlan = harness.data.montageDispatchPlans.find((row) => row.planNo === 'MGP-000021');
+  const targetPlanBefore = JSON.stringify(targetPlan);
+  const rangeStockIds = new Set((targetPlan?.rebindAudit?.exactReservations || [])
+    .filter((row) => row.sourceOrderId === sourceOrder.id)
+    .map((row) => row.stockRowId));
+  const stockBefore = new Map(harness.data.stockDepotItems
+    .filter((row) => rangeStockIds.has(row.id)).map((row) => [row.id, JSON.stringify(row)]));
+
+  await harness.SalesModule.deleteSalesOrder(sourceOrder.id);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(JSON.stringify(targetPlan), targetPlanBefore);
+  stockBefore.forEach((value, id) => {
+    assert.equal(JSON.stringify(harness.data.stockDepotItems.find((row) => row.id === id)), value);
+  });
+  assert.equal(foreignOrder.prototypeResetTombstone, undefined);
+  const resolved = loadSanalTaksimResolver().resolve(harness.data);
+  assert.equal(resolved?.diagnostics?.exactHoldLedger?.valid, true);
+  assert.equal(resolved?.diagnostics?.invariants?.exactHoldKeysConsumedOnce, true);
+});
+
+test('PROTOTYPE RESET APPLY shared physical koleksiyonlarda double restore ve hayalet stok uretmez', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness();
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+  const stockBefore = JSON.stringify(harness.data.stockDepotItems);
+  const movementsBefore = JSON.stringify(harness.data.stock_movements);
+  const freeBefore = harness.data.stockDepotItems.filter((row) =>
+    String(row?.stockClass || '').toUpperCase().includes('FREE')).length;
+
+  await harness.SalesModule.deleteSalesOrder(order.id);
+
+  assert.equal(JSON.stringify(harness.data.stockDepotItems), stockBefore);
+  assert.equal(JSON.stringify(harness.data.stock_movements), movementsBefore);
+  assert.equal(harness.data.stockDepotItems.filter((row) =>
+    String(row?.stockClass || '').toUpperCase().includes('FREE')).length, freeBefore);
+});
+
+test('PROTOTYPE RESET APPLY UNCERTAIN rebind kanitinda onay save ve mutation yapmaz', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness();
+  const shipment = harness.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  delete shipment.operationalRebindEvents[0].toTarget.sourceOrderId;
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+  const before = JSON.stringify(harness.DB.data);
+
+  await harness.SalesModule.deleteSalesOrder(order.id);
+
+  assert.equal(JSON.stringify(harness.DB.data), before);
+  assert.equal(harness.confirms.length, 0);
+  assert.equal(harness.saveCount, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('Sipariş silinemedi')));
+});
+
+test('PROTOTYPE RESET APPLY save hatasinda shared tombstonelari ve tum statei geri alir', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness({ saveMode: 'failure' });
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+  const before = JSON.stringify(harness.DB.data);
+
+  await harness.SalesModule.deleteSalesOrder(order.id);
+
+  assert.equal(harness.saveCount, 1);
+  assert.equal(JSON.stringify(harness.DB.data), before);
+  assert.ok(harness.alerts.some((message) => message.includes('bellek geri yüklendi')));
+});
+
+test('PROTOTYPE RESET APPLY onay sonrasi degisen plani stale kabul eder ve mutation yapmaz', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness({
+    onConfirm: ({ data }) => {
+      const shipment = data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+      shipment.status = 'CANCELLED';
+    }
+  });
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+
+  await harness.SalesModule.deleteSalesOrder(order.id);
+
+  assert.equal(harness.confirms.length, 1);
+  assert.equal(harness.saveCount, 0);
+  assert.equal(order.prototypeResetTombstone, undefined);
+  assert.equal(harness.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007')
+    .status, 'CANCELLED');
+  assert.ok(harness.alerts.some((message) => message.includes('onaydan sonra değişti')));
+});
+
+test('PROTOTYPE RESET APPLY server v4 fiziksel veya retained kayit degisikligini reddeder', async () => {
+  const harness = buildPrototypeResetApplyDemoHarness();
+  const order = harness.data.orders.find((row) => row.orderNo === 'SOR-000014');
+  const before = JSON.parse(JSON.stringify(harness.DB.data));
+  await harness.SalesModule.deleteSalesOrder(order.id);
+  const server = require('../serve.js');
+
+  assert.equal(server.isVerifiedSalesOrderPrototypeReset(before, harness.DB.data, harness.approval), true);
+  const stockTamper = JSON.parse(JSON.stringify(harness.DB.data));
+  stockTamper.data.stockDepotItems[0].qty = Number(stockTamper.data.stockDepotItems[0].qty || 0) + 1;
+  assert.equal(server.isVerifiedSalesOrderPrototypeReset(before, stockTamper, harness.approval), false);
+  const retainedTamper = JSON.parse(JSON.stringify(harness.DB.data));
+  retainedTamper.data.montageDispatchShipments = retainedTamper.data.montageDispatchShipments
+    .filter((row) => row.shipmentNo !== 'MGS-000007');
+  assert.equal(server.isVerifiedSalesOrderPrototypeReset(before, retainedTamper, harness.approval), false);
+});
+
+test('PROTOTYPE RESET APPLY exclusive siparisi mevcut tam cleanup ile tek onayda siler', async () => {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER' });
+  const orderId = harness.demand.sourceOrderId;
+
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB,
+    PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => {} },
+    Modal: { close: () => {} },
+    alert: (message) => harness.alerts.push(String(message)),
+    confirm: (message) => { harness.confirms.push(String(message)); return true; }
+  });
+  await SalesModule.deleteSalesOrder(orderId);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(harness.confirms.length, 1);
+  assert.equal(harness.data.orders.some((row) => row.id === orderId), false);
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.workOrders.length, 0);
+  assert.equal(harness.data.workOrderTransactions.length, 0);
+});
+
+function buildOrderScopedPhase2CleanupHarness({ partialReservationMetadata = false, crossOrderTransfer = false } = {}) {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' });
+  const { data, demand, ids } = harness;
+  const secondDemand = {
+    id: 'demand-phase2-second', demandCode: 'PLN-PHASE2-SECOND', sourceType: 'SALES_ORDER',
+    sourceOrderId: demand.sourceOrderId, sourceOrderNo: demand.sourceOrderNo,
+    sourceLineId: 'sales-line-phase2-second', status: 'RELEASED', workOrderIds: [],
+    items: [{ id: 'item-phase2-second' }], poolAnalysis: { stockAccountingMode: 'VIRTUAL_V1', rows: [] }
+  };
+  const secondIdentity = {
+    sourceType: 'SALES_ORDER', sourceOrderId: demand.sourceOrderId,
+    sourceLineId: secondDemand.sourceLineId, demandId: secondDemand.id, itemKey: 'item-phase2-second'
+  };
+  const secondIds = {
+    sourceStockId: 'stock-phase2-source-second', outMovementId: 'movement-phase2-out-second',
+    receiptStockId: 'stock-phase2-receipt-second', receiptMovementId: 'movement-phase2-receipt-second',
+    transferId: 'mct-phase2-second', componentMovementId: 'movement-phase2-consumption-second',
+    finishedStockId: 'stock-phase2-finished-second', finishedMovementId: 'movement-phase2-finished-second'
+  };
+  const plan = data.montageDispatchPlans[0];
+  const shipment = data.montageDispatchShipments[0];
+  const firstAllocation = shipment.parts[0].allocations[0];
+  delete plan.exactReservations;
+  delete firstAllocation.exactReservationKeys;
+  delete firstAllocation.segmentRanges;
+  data.sanalTaksimAllocationInstructions = [];
+  if (partialReservationMetadata) firstAllocation.exactReservationKeys = [];
+
+  data.planningDemands.push(secondDemand);
+  data.orders[0].lines.push({ id: secondDemand.sourceLineId });
+  plan.items.push({ ...secondIdentity, plannedQty: 1 });
+  shipment.items.push({ ...secondIdentity, shippedQty: 1 });
+  shipment.parts.push({
+    refId: 'prc-phase2-second', code: 'PRC-PHASE2-SECOND', unit: 'ADET', shippedQty: 3,
+    allocations: [{
+      stockRowId: secondIds.sourceStockId, stockDepotItemId: secondIds.sourceStockId,
+      stockMovementId: secondIds.outMovementId, sourceDepotId: 'main',
+      sourceLocationId: 'loc-phase2-source', qty: 3
+    }]
+  });
+  const receiptKey = shipment.receiptKey;
+  const receiptLineKey = `${receiptKey}|1|prc-phase2-second|PRC-PHASE2-SECOND`;
+  data.stockDepotItems.push(
+    {
+      id: secondIds.sourceStockId, refId: 'prc-phase2-second', productCode: 'PRC-PHASE2-SECOND',
+      code: 'PRC-PHASE2-SECOND', depotId: 'main', locationId: 'loc-phase2-source',
+      unit: 'ADET', qty: 7, quantity: 7, amount: 7
+    },
+    {
+      id: secondIds.receiptStockId, sourceShipmentId: ids.shipmentId, shipmentId: ids.shipmentId,
+      sourcePlanId: ids.planId, planId: ids.planId, depotId: 'unit:u3', locationId: 'loc-phase2-receipt',
+      refId: 'prc-phase2-second', code: 'PRC-PHASE2-SECOND', productCode: 'PRC-PHASE2-SECOND',
+      receiptKey, receiptLineKey, stockClass: 'MONTAGE_RECEIVED', qty: 0, quantity: 0, amount: 0
+    },
+    {
+      id: secondIds.finishedStockId, completionTransferId: secondIds.transferId, transferId: secondIds.transferId,
+      sourceShipmentId: ids.shipmentId, ...secondIdentity, depotId: 'depot_profil',
+      locationId: 'loc-phase2-finished', variantCode: 'SVR-PHASE2-SECOND', qty: 1, quantity: 1, amount: 1
+    }
+  );
+  data.stock_movements.push(
+    {
+      id: secondIds.outMovementId, movementType: 'MONTAGE_DISPATCH_OUT', shipmentId: ids.shipmentId,
+      planId: ids.planId, stockDepotItemId: secondIds.sourceStockId, sourceDepotId: 'main',
+      sourceLocationId: 'loc-phase2-source', refId: 'prc-phase2-second', code: 'PRC-PHASE2-SECOND', qty: 3
+    },
+    {
+      id: secondIds.receiptMovementId, movementType: 'MONTAGE_DISPATCH_RECEIPT', shipmentId: ids.shipmentId,
+      planId: ids.planId, receiptKey, receiptLineKey, sourceMovementIds: [secondIds.outMovementId],
+      refId: 'prc-phase2-second', code: 'PRC-PHASE2-SECOND', qty: 3
+    },
+    {
+      id: secondIds.componentMovementId, movementType: 'MONTAGE_COMPONENT_CONSUMPTION',
+      completionTransferId: secondIds.transferId, transferId: secondIds.transferId,
+      sourceShipmentId: ids.shipmentId, stockDepotItemId: secondIds.receiptStockId, qty: 3
+    },
+    {
+      id: secondIds.finishedMovementId, movementType: 'MONTAGE_FINISHED_PRODUCT_IN',
+      completionTransferId: secondIds.transferId, transferId: secondIds.transferId,
+      sourceShipmentId: ids.shipmentId, stockDepotItemId: secondIds.finishedStockId, qty: 1
+    }
+  );
+  data.montageCompletionTransfers.push({
+    id: secondIds.transferId, transferNo: 'MCT-PHASE2-SECOND', status: 'POSTED',
+    sourceShipmentId: ids.shipmentId, sourcePlanId: ids.planId, ...secondIdentity,
+    qty: 1, quantity: 1, componentMovementIds: [secondIds.componentMovementId],
+    componentAllocations: [{
+      stockDepotItemId: secondIds.receiptStockId,
+      stockMovementId: secondIds.componentMovementId,
+      qty: 3
+    }],
+    finishedProductStockItemId: secondIds.finishedStockId,
+    finishedProductMovementId: secondIds.finishedMovementId
+  });
+  if (crossOrderTransfer) {
+    data.montageCompletionTransfers.find((row) => row.id === secondIds.transferId).sourceOrderId = 'foreign-order';
+  }
+  harness.secondDemand = secondDemand;
+  harness.secondIds = secondIds;
+  return harness;
+}
+
+test('FAZ 2 ORDER-SCOPED CLEANUP ortak MGP MGS ve iki POSTED MCTyi tek planla bir kez geri alir', async () => {
+  const harness = buildOrderScopedPhase2CleanupHarness();
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.montageDispatchPlans.length, 0);
+  assert.equal(harness.data.montageDispatchShipments.length, 0);
+  assert.equal(harness.data.montageCompletionTransfers.length, 0);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.secondIds.sourceStockId)?.qty, 10);
+  assert.equal(harness.data.stockDepotItems.some((row) => [
+    harness.ids.receiptStockId, harness.ids.finishedStockId,
+    harness.secondIds.receiptStockId, harness.secondIds.finishedStockId
+  ].includes(row.id)), false);
+  assert.equal(harness.data.stock_movements.some((row) => row.movementType?.startsWith('MONTAGE_')), false);
+});
+
+test('FAZ 2 ORDER-SCOPED CLEANUP kismi reservation metadata mutation baslamadan bloklanir', async () => {
+  const harness = buildOrderScopedPhase2CleanupHarness({ partialReservationMetadata: true });
+  harness.SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.ok(harness.alerts.some((message) => /reservation metadata|exactReservations lineage/.test(message)));
+});
+
+test('FAZ 2 ORDER-SCOPED CLEANUP cross-order MCT lineage celiskisini fail-closed tutar', async () => {
+  const harness = buildOrderScopedPhase2CleanupHarness({ crossOrderTransfer: true });
+  harness.SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('MCT exact kimliği/lineage')));
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP MGS RECEIVED MCT yokken receipt kalkar ve exact kaynak stok geri gelir', async () => {
+  const harness = buildPhase2ModernMontageCleanupHarness();
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13);
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === harness.ids.receiptStockId), false);
+  assert.equal(harness.data.stock_movements.some((row) => [harness.ids.outMovementId, harness.ids.receiptMovementId].includes(row.id)), false);
+  assert.equal(harness.data.montageDispatchPlans.length, 0);
+  assert.equal(harness.data.montageDispatchShipments.length, 0);
+  assert.equal(harness.data.sanalTaksimAllocationInstructions.length, 0);
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP MCT PENDING fiziksel POSTED etkisi olmadan kaldırılır', async () => {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'PENDING' });
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.data.montageCompletionTransfers.length, 0);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13);
+  assert.equal(harness.data.stock_movements.length, 0);
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP MCT POSTED downstream etkileri exact geri alır ve double-count bırakmaz', async () => {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' });
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === harness.ids.finishedStockId), false, harness.alerts.join(' | '));
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === harness.ids.receiptStockId), false);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === 'stock-phase2-surplus-target')?.qty || 0, 0);
+  assert.equal(harness.data.montageCompletionTransfers.length, 0);
+  assert.equal(harness.data.montageDispatchShipments.length, 0);
+  assert.equal(harness.data.montageDispatchPlans.length, 0);
+  assert.equal(harness.data.sanalTaksimAllocationInstructions.length, 0);
+  assert.equal(harness.data.stock_movements.length, 0);
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP MGP DRAFT ve MGS IN_TRANSIT fiziksel etki uydurmadan temizlenir', async () => {
+  for (const stage of ['DRAFT', 'IN_TRANSIT']) {
+    const harness = buildPhase2ModernMontageCleanupHarness();
+    const plan = harness.data.montageDispatchPlans[0];
+    const shipment = harness.data.montageDispatchShipments[0];
+    const source = harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId);
+    Object.assign(source, { qty: 13, quantity: 13, amount: 13 });
+    harness.data.stockDepotItems = harness.data.stockDepotItems.filter((row) => row.id !== harness.ids.receiptStockId);
+    harness.data.stock_movements = harness.data.stock_movements.filter((row) =>
+      ![harness.ids.outMovementId, harness.ids.receiptMovementId].includes(row.id));
+    if (stage === 'DRAFT') {
+      plan.status = 'DRAFT';
+      harness.data.montageDispatchShipments = [];
+      delete plan.exactReservations[0].instructionId;
+      delete plan.exactReservations[0].instructionSliceKey;
+      harness.data.sanalTaksimAllocationInstructions = [];
+    } else {
+      shipment.status = 'IN_TRANSIT';
+      delete shipment.receiptKey;
+      delete shipment.parts[0].allocations[0].stockMovementId;
+    }
+
+    await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+    assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13, stage);
+    assert.equal(harness.data.montageDispatchPlans.length, 0, stage);
+    assert.equal(harness.data.montageDispatchShipments.length, 0, stage);
+    assert.equal(harness.saveCount, 1, `${stage}: ${harness.alerts.join(' | ')}`);
+  }
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP finished stok yabancı SVP shipment veya consumer kullanımında mutation başlamadan bloklanır', async () => {
+  for (const foreignFinishedUse of ['SVP', 'SHIPMENT', 'CONSUMER']) {
+    const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED', foreignFinishedUse });
+    harness.SalesModule.ensureData();
+    const before = JSON.stringify(harness.data);
+    await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+    assert.equal(JSON.stringify(harness.data), before, foreignFinishedUse);
+    assert.equal(harness.saveCount, 0, foreignFinishedUse);
+    assert.equal(harness.confirms.length, 0, foreignFinishedUse);
+    assert.ok(harness.alerts.some((message) => /SVP Faz 3|Gerçek shipment Faz 3|yabancı movement referansı/.test(message)), foreignFinishedUse);
+  }
+});
+
+test('FAZ 2 MODERN MONTAJ CLEANUP save hatasında modern ve legacy zinciri atomik geri yükler', async () => {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED', saveMode: 'failure' });
+  harness.SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 1);
+  assert.ok(harness.alerts.some((message) => message.includes('bellek geri yüklendi')));
+});
+
+function installPhase3ShipmentCleanupFixture(harness, { status = 'PLANNED', foreignConsumer = false } = {}) {
+  const { data, demand } = harness;
+  const dispatched = status === 'DISPATCHED';
+  const stockItemId = dispatched ? harness.ids.finishedStockId : 'stock-phase3-planned';
+  const planId = 'svp-phase3-cleanup';
+  const shipmentId = 'sales-shipment-phase3-cleanup';
+  const movementId = 'movement-phase3-sales-out';
+  const productId = 'product-phase3';
+  const variantId = 'variant-phase3';
+  const salCode = 'SAL-PHASE3';
+  const svrCode = 'SVR-PHASE3';
+  const depotId = 'depot_profil';
+  const locationId = 'loc-phase2-finished';
+  Object.assign(data.orders[0].lines[0], {
+    productId, variationId: variantId, variantCode: svrCode,
+    idCode: salCode, productCode: salCode, qty: 1, quantity: 1, amount: 1
+  });
+  if (!dispatched) {
+    data.stockDepotItems.push({
+      id: stockItemId, sourceType: 'SALES_ORDER', sourceOrderId: demand.sourceOrderId,
+      sourceLineId: demand.sourceLineId, productId, variantId, variantCode: svrCode,
+      productCode: svrCode, code: svrCode, depotId, locationId, unit: 'ADET',
+      stockClass: 'KULLANILABILIR', status: 'KULLANILABILIR', qty: 4, quantity: 4, amount: 4
+    });
+  } else {
+    const finished = data.stockDepotItems.find((row) => row.id === stockItemId);
+    Object.assign(finished, {
+      productId, variantId, variationId: variantId, variantCode: svrCode,
+      productCode: svrCode, code: svrCode, unit: 'ADET', stockClass: 'KULLANILABILIR',
+      status: 'KULLANILABILIR', qty: 0, quantity: 0, amount: 0
+    });
+    const transfer = data.montageCompletionTransfers.find((row) => row.id === harness.ids.transferId);
+    Object.assign(transfer, { productId, variantId, variationId: variantId, variantCode: svrCode });
+    const input = data.stock_movements.find((row) => row.id === harness.ids.finishedMovementId);
+    Object.assign(input, {
+      sourceType: 'SALES_ORDER', sourceOrderId: demand.sourceOrderId,
+      sourceLineId: demand.sourceLineId, productId, variantId, variantCode: svrCode, unit: 'ADET',
+      targetDepotId: depotId, targetLocationId: locationId
+    });
+  }
+  const allocation = {
+    stockItemId, allocatedQty: 1, depotId, locationId,
+    sourceOrderId: demand.sourceOrderId, sourceLineId: demand.sourceLineId
+  };
+  const item = {
+    sourceLineId: demand.sourceLineId,
+    lineKey: `SALES_ORDER|${demand.sourceOrderId}|${demand.sourceLineId}`,
+    productId, productCode: salCode, salCode, variantId, variantCode: svrCode,
+    svrCode, productName: 'Phase 3 Urun', orderQty: 1, plannedQty: 1,
+    unit: 'ADET', stockAllocations: [allocation]
+  };
+  const plan = {
+    id: planId, planNo: 'SVP-000003', status,
+    sourceOrderId: demand.sourceOrderId, sourceOrderNo: demand.sourceOrderNo,
+    idempotencyKey: 'svp-phase3-idempotency', createdAt: '2026-08-25T09:00:00.000Z',
+    updatedAt: '2026-08-25T09:00:00.000Z',
+    items: [item]
+  };
+  if (dispatched) {
+    Object.assign(plan, {
+      shipmentId, shipmentNo: 'TF-000003', dispatchedAt: '2026-08-25T10:00:00.000Z',
+      updatedAt: '2026-08-25T10:00:00.000Z'
+    });
+    const snapshotAllocation = { ...allocation, stockMovementId: movementId };
+    const snapshotItem = {
+      ...item, dispatchQty: 1, packageCount: 1, weightKg: 2,
+      stockAllocations: [snapshotAllocation]
+    };
+    data.stock_movements.push({
+      id: movementId, movementType: 'SALES_SHIPMENT_OUT', type: 'SALES_SHIPMENT_OUT',
+      shipmentId, shipmentNo: plan.shipmentNo, shipmentPlanId: planId, shipmentPlanNo: plan.planNo,
+      sourceType: 'SALES_ORDER', sourceOrderId: demand.sourceOrderId, sourceOrderNo: demand.sourceOrderNo,
+      sourceLineId: demand.sourceLineId, stockItemId, stockDepotItemId: stockItemId,
+      depotId, sourceDepotId: depotId, locationId, sourceLocationId: locationId,
+      productId, productCode: salCode, salCode, variantId, variantCode: svrCode, svrCode,
+      qty: 1, quantity: 1, unit: 'ADET'
+    });
+    data.salesShipments.push({
+      id: shipmentId, shipmentNo: plan.shipmentNo, shipmentPlanId: planId,
+      shipmentPlanNo: plan.planNo, sourceOrderId: demand.sourceOrderId,
+      sourceOrderNo: demand.sourceOrderNo, status: 'DISPATCHED',
+      dispatchedAt: plan.dispatchedAt, createdAt: plan.dispatchedAt,
+      idempotencyKey: `SALES_SHIPMENT_DISPATCH|${planId}`,
+      snapshot: {
+        shipmentNo: plan.shipmentNo, shipmentPlanNo: plan.planNo,
+        sourceOrderId: demand.sourceOrderId, sourceOrderNo: demand.sourceOrderNo,
+        dispatchedAt: plan.dispatchedAt, customerName: 'Phase 3 Musteri',
+        deliveryAddress: 'Phase 3 Adres', totalDispatchedQty: 1,
+        totalPackageCount: 1, totalWeightKg: 2,
+        items: [snapshotItem]
+      }
+    });
+  }
+  data.salesShipmentPlans.push(plan);
+  if (foreignConsumer) {
+    data.salesShipmentPlans.push({
+      id: 'svp-phase3-foreign', sourceOrderId: 'order-foreign',
+      items: [{ stockAllocations: [{ stockItemId }] }]
+    });
+  }
+  harness.phase3 = { stockItemId, planId, shipmentId, movementId };
+  return harness;
+}
+
+function buildLegacyStoreCompatibilityHarness({ foreignConsumer = false } = {}) {
+  const harness = buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' });
+  const { data, demand, ids } = harness;
+  const plan = data.montageDispatchPlans[0];
+  const shipment = data.montageDispatchShipments[0];
+  const transfer = data.montageCompletionTransfers[0];
+  const firstWorkOrder = data.workOrders[0];
+  const firstLine = firstWorkOrder.lines[0];
+  const firstStoreTxn = data.workOrderTransactions.find((row) => row.type === 'STORE');
+  Object.assign(firstLine, { componentCode: 'PRC-PHASE2', unit: 'ADET' });
+  firstStoreTxn.qty = 5;
+  const firstSource = data.stockDepotItems.find((row) => row.id === ids.sourceStockId);
+  Object.assign(firstSource, { qty: 0, quantity: 0, amount: 0 });
+  delete plan.exactReservations;
+  delete shipment.parts[0].allocations[0].exactReservationKeys;
+  delete shipment.parts[0].allocations[0].segmentRanges;
+  data.sanalTaksimAllocationInstructions = [];
+  data.stock_movements = data.stock_movements.filter((row) =>
+    !['movement-phase1-store', 'movement-phase2-surplus'].includes(row.id));
+  data.stockDepotItems = data.stockDepotItems.filter((row) =>
+    !['stock-phase1-output', 'stock-phase2-surplus-target'].includes(row.id));
+
+  const sourceStockIds = [ids.sourceStockId];
+  for (let index = 2; index <= 7; index += 1) {
+    const suffix = String(index).padStart(2, '0');
+    const code = `PRC-STORE-${suffix}`;
+    const storeQty = index === 7 ? 10 : 5;
+    const workOrderId = `wo-store-${suffix}`;
+    const lineId = `wo-store-line-${suffix}`;
+    const sourceStockId = `stock-store-source-${suffix}`;
+    const outMovementId = `movement-store-out-${suffix}`;
+    const receiptStockId = `stock-store-receipt-${suffix}`;
+    const receiptMovementId = `movement-store-receipt-${suffix}`;
+    const componentMovementId = `movement-store-consumption-${suffix}`;
+    const receiptLineKey = `${shipment.receiptKey}|${index - 1}|ref-store-${suffix}|${code}`;
+    demand.workOrderIds.push(workOrderId);
+    data.workOrders.push({
+      id: workOrderId, workOrderCode: `WO-STORE-${suffix}`, sourceId: demand.id,
+      sourceCode: demand.demandCode, sourceItemKey: demand.items[0].id,
+      lines: [{ id: lineId, componentCode: code, unit: 'ADET' }]
+    });
+    data.workOrderTransactions.push({
+      id: `txn-store-${suffix}`, workOrderId, lineId, type: 'STORE', qty: storeQty
+    });
+    data.stockDepotItems.push(
+      {
+        id: sourceStockId, refId: `ref-store-${suffix}`, productCode: code, code,
+        depotId: 'main', locationId: 'loc-phase2-source', unit: 'ADET', qty: 0, quantity: 0, amount: 0
+      },
+      {
+        id: receiptStockId, sourceShipmentId: ids.shipmentId, shipmentId: ids.shipmentId,
+        sourcePlanId: ids.planId, planId: ids.planId, depotId: 'unit:u3', locationId: 'loc-phase2-receipt',
+        refId: `ref-store-${suffix}`, code, productCode: code, receiptKey: shipment.receiptKey,
+        receiptLineKey, stockClass: 'MONTAGE_RECEIVED', qty: 0, quantity: 0, amount: 0
+      }
+    );
+    shipment.parts.push({
+      refId: `ref-store-${suffix}`, code, unit: 'ADET', shippedQty: storeQty,
+      allocations: [{
+        stockRowId: sourceStockId, stockDepotItemId: sourceStockId,
+        stockMovementId: outMovementId, sourceDepotId: 'main',
+        sourceLocationId: 'loc-phase2-source', qty: storeQty
+      }]
+    });
+    data.stock_movements.push(
+      {
+        id: outMovementId, movementType: 'MONTAGE_DISPATCH_OUT', shipmentId: ids.shipmentId,
+        planId: ids.planId, stockDepotItemId: sourceStockId, sourceDepotId: 'main',
+        sourceLocationId: 'loc-phase2-source', refId: `ref-store-${suffix}`, code, qty: storeQty
+      },
+      {
+        id: receiptMovementId, movementType: 'MONTAGE_DISPATCH_RECEIPT', shipmentId: ids.shipmentId,
+        planId: ids.planId, receiptKey: shipment.receiptKey, receiptLineKey,
+        sourceMovementIds: [outMovementId], refId: `ref-store-${suffix}`, code, qty: storeQty
+      },
+      {
+        id: componentMovementId, movementType: 'MONTAGE_COMPONENT_CONSUMPTION',
+        completionTransferId: ids.transferId, transferId: ids.transferId,
+        sourceShipmentId: ids.shipmentId, stockDepotItemId: receiptStockId, qty: storeQty
+      }
+    );
+    transfer.componentMovementIds.push(componentMovementId);
+    transfer.componentAllocations.push({
+      stockDepotItemId: receiptStockId, stockMovementId: componentMovementId, qty: storeQty
+    });
+    sourceStockIds.push(sourceStockId);
+  }
+  installPhase3ShipmentCleanupFixture(harness, { status: 'DISPATCHED' });
+  if (foreignConsumer) {
+    data.stock_movements.push({
+      id: 'movement-foreign-store-consumer', movementType: 'FOREIGN_STOCK_USE',
+      stockDepotItemId: ids.sourceStockId, qty: 1
+    });
+  }
+  harness.legacyStoreSourceStockIds = sourceStockIds;
+  return harness;
+}
+
+test('FAZ 2 LEGACY STORE COMPATIBILITY 40/0 exact yedi WO ve sourceReturns kanitiyla tam cleanup yapar', async () => {
+  const harness = buildLegacyStoreCompatibilityHarness();
+  const storeTxns = harness.data.workOrderTransactions.filter((row) => row.type === 'STORE');
+  const storeMovements = harness.data.stock_movements.filter((row) => row.movementType === 'STORE');
+  assert.equal(storeTxns.reduce((sum, row) => sum + row.qty, 0), 40);
+  assert.equal(storeMovements.length, 0);
+  assert.equal(harness.data.workOrders.length, 7);
+
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(harness.data.orders.length, 0);
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.workOrders.length, 0);
+  assert.equal(harness.data.workOrderTransactions.length, 0);
+  assert.equal(harness.data.salesShipmentPlans.length, 0);
+  assert.equal(harness.data.salesShipments.length, 0);
+  assert.equal(harness.data.montageDispatchPlans.length, 0);
+  assert.equal(harness.data.montageDispatchShipments.length, 0);
+  assert.equal(harness.data.montageCompletionTransfers.length, 0);
+  assert.equal(harness.data.stockDepotItems.some((row) =>
+    harness.legacyStoreSourceStockIds.includes(row.id)), false);
+});
+
+test('FAZ 2 LEGACY STORE COMPATIBILITY foreign canonical zero stok satirini global olarak silmez', async () => {
+  const harness = buildLegacyStoreCompatibilityHarness();
+  const targetPlan = harness.data.salesShipmentPlans[0];
+  const targetItem = targetPlan.items[0];
+  const targetAllocation = targetItem.stockAllocations[0];
+  const foreignOrderId = 'order-foreign-zero-stock';
+  const foreignOrderNo = 'SOR-FOREIGN-ZERO';
+  const foreignLineId = 'line-foreign-zero-stock';
+  const foreignStockId = 'stock-foreign-canonical-zero';
+  const foreignTransferId = 'mct-foreign-canonical-zero';
+  const foreignMovementId = 'movement-foreign-finished-in';
+  const foreignPlanId = 'svp-foreign-canonical-zero';
+
+  harness.data.orders.push({
+    id: foreignOrderId,
+    orderNo: foreignOrderNo,
+    lines: [{
+      id: foreignLineId,
+      productId: targetItem.productId,
+      variationId: targetItem.variantId,
+      variantCode: targetItem.variantCode,
+      idCode: targetItem.salCode,
+      productCode: targetItem.salCode,
+      qty: targetItem.orderQty,
+      quantity: targetItem.orderQty,
+      amount: targetItem.orderQty
+    }]
+  });
+
+  harness.data.stockDepotItems.push({
+    id: foreignStockId,
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: foreignOrderId,
+    sourceLineId: foreignLineId,
+    productId: targetItem.productId,
+    variantId: targetItem.variantId,
+    variationId: targetItem.variantId,
+    variantCode: targetItem.variantCode,
+    productCode: targetItem.variantCode,
+    code: targetItem.variantCode,
+    depotId: targetAllocation.depotId,
+    locationId: targetAllocation.locationId,
+    unit: 'ADET',
+    stockClass: 'KULLANILABILIR',
+    status: 'KULLANILABILIR',
+    qty: 0,
+    quantity: 0,
+    amount: 0
+  });
+  harness.data.montageCompletionTransfers.push({
+    id: foreignTransferId,
+    status: 'POSTED',
+    sourceOrderId: foreignOrderId,
+    sourceLineId: foreignLineId,
+    productId: targetItem.productId,
+    variantId: targetItem.variantId,
+    variationId: targetItem.variantId,
+    variantCode: targetItem.variantCode,
+    finishedProductStockItemId: foreignStockId,
+    finishedProductMovementId: foreignMovementId
+  });
+  harness.data.stock_movements.push({
+    id: foreignMovementId,
+    movementType: 'MONTAGE_FINISHED_PRODUCT_IN',
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: foreignOrderId,
+    sourceLineId: foreignLineId,
+    productId: targetItem.productId,
+    variantId: targetItem.variantId,
+    variantCode: targetItem.variantCode,
+    stockDepotItemId: foreignStockId,
+    targetDepotId: targetAllocation.depotId,
+    targetLocationId: targetAllocation.locationId,
+    qty: 1,
+    unit: 'ADET'
+  });
+  harness.data.salesShipmentPlans.push({
+    ...JSON.parse(JSON.stringify(targetPlan)),
+    id: foreignPlanId,
+    planNo: 'SVP-999999',
+    sourceOrderId: foreignOrderId,
+    sourceOrderNo: foreignOrderNo,
+    idempotencyKey: 'svp-foreign-canonical-zero-idempotency',
+    shipmentId: 'shipment-foreign-canonical-zero',
+    shipmentNo: 'TF-999999',
+    items: [{
+      ...JSON.parse(JSON.stringify(targetItem)),
+      sourceLineId: foreignLineId,
+      lineKey: `SALES_ORDER|${foreignOrderId}|${foreignLineId}`,
+      stockAllocations: [{
+        ...JSON.parse(JSON.stringify(targetAllocation)),
+        stockItemId: foreignStockId,
+        sourceOrderId: foreignOrderId,
+        sourceLineId: foreignLineId
+      }]
+    }]
+  });
+
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === foreignStockId), true);
+  assert.equal(harness.data.salesShipmentPlans.some((row) => row.id === foreignPlanId), true);
+  assert.equal(harness.data.stockDepotItems.some((row) =>
+    harness.legacyStoreSourceStockIds.includes(row.id)), false);
+  const server = require('../serve.js');
+  assert.deepEqual(server.validateSalesShipmentPlans({ data: harness.data }), []);
+});
+
+test('FAZ 2 LEGACY STORE COMPATIBILITY yabanci stock consumer varsa mutation baslamadan bloklanir', async () => {
+  const harness = buildLegacyStoreCompatibilityHarness({ foreignConsumer: true });
+  harness.SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('yabancı hareket/consumer')));
+});
+
+test('FAZ 2 LEGACY STORE COMPATIBILITY ambiguous exact target stock rowda fail-closed kalir', async () => {
+  const harness = buildPhase1LegacyCleanupHarness({ sourceType: 'SALES_ORDER' });
+  harness.data.stock_movements = harness.data.stock_movements.filter((row) => row.movementType !== 'STORE');
+  const target = harness.data.stockDepotItems.find((row) => row.id === 'stock-phase1-output');
+  harness.data.stockDepotItems.push({ ...target, id: 'stock-phase1-output-duplicate' });
+  const before = JSON.stringify(harness.data);
+  const result = harness.PlanningModule.cleanupSalesOrderCascadeForDemo(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((message) => /birden fazla aday|exact stok satırı doğrulanamadı/.test(message)));
+});
+
+test('FAZ 3 SHIPMENT CLEANUP SVP PLANNED kaydini kaldirir ve fiziksel stogu degistirmez', async () => {
+  const harness = installPhase3ShipmentCleanupFixture(buildPhase1LegacyCleanupHarness({
+    sourceType: 'SALES_ORDER'
+  }));
+  const beforeQty = harness.data.stockDepotItems.find((row) => row.id === harness.phase3.stockItemId).qty;
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', {
+    DB: harness.DB, PlanningModule: harness.PlanningModule,
+    UI: { renderCurrentPage: () => {} }, Modal: { close: () => {} },
+    alert: (message) => { harness.alerts.push(String(message)); }, confirm: () => true
+  });
+
+  await SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.data.salesShipmentPlans.length, 0, harness.alerts.join(' | '));
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.phase3.stockItemId)?.qty, beforeQty);
+  assert.equal(harness.data.orders.length, 0);
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+});
+
+test('FAZ 3 SHIPMENT CLEANUP DISPATCHED OUT hareketini geri alir ve Faz 2 Faz 1 zincirini tamamlar', async () => {
+  const harness = installPhase3ShipmentCleanupFixture(
+    buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' }),
+    { status: 'DISPATCHED' }
+  );
+
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(harness.data.salesShipmentPlans.length, 0, harness.alerts.join(' | '));
+  assert.equal(harness.data.salesShipments.length, 0);
+  assert.equal(harness.data.stock_movements.some((row) => row.id === harness.phase3.movementId), false);
+  assert.equal(harness.data.stockDepotItems.some((row) => row.id === harness.phase3.stockItemId), false);
+  assert.equal(harness.data.stockDepotItems.find((row) => row.id === harness.ids.sourceStockId)?.qty, 13);
+  assert.equal(harness.data.montageCompletionTransfers.length, 0);
+  assert.equal(harness.data.montageDispatchShipments.length, 0);
+  assert.equal(harness.data.montageDispatchPlans.length, 0);
+  assert.equal(harness.data.planningDemands.length, 0);
+  assert.equal(harness.data.orders.length, 0);
+  assert.equal(harness.saveCount, 1, harness.alerts.join(' | '));
+});
+
+test('FAZ 3 SHIPMENT CLEANUP yabanci stok consumer varsa mutation baslamadan fail-closed kalir', async () => {
+  const harness = installPhase3ShipmentCleanupFixture(
+    buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' }),
+    { status: 'DISPATCHED', foreignConsumer: true }
+  );
+  harness.SalesModule.ensureData();
+  const before = JSON.stringify(harness.data);
+
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+
+  assert.equal(JSON.stringify(harness.data), before);
+  assert.equal(harness.saveCount, 0);
+  assert.equal(harness.confirms.length, 0);
+  assert.ok(harness.alerts.some((message) => message.includes('yabanci SVP reservation')
+    || message.includes('yabancı SVP reservation')));
+});
+
+test('FAZ 3 SHIPMENT CLEANUP disinda normal shipment immutability degismeden bloklar', () => {
+  const { validateSalesShipmentImmutability } = require('../serve.js');
+  const currentState = { data: { salesShipments: [{
+    id: 'shipment-immutable', shipmentNo: 'TF-IMMUTABLE', status: 'DISPATCHED', snapshot: { items: [] }
+  }] } };
+  const incomingState = { data: { salesShipments: [] } };
+
+  const issues = validateSalesShipmentImmutability(currentState, incomingState);
+
+  assert.ok(issues.some((message) => message.includes('silinemez')));
+});
+
+test('FAZ 3 SHIPMENT CLEANUP sunucu yalniz exact prototype reset kanitini kabul eder', async () => {
+  const harness = installPhase3ShipmentCleanupFixture(
+    buildPhase2ModernMontageCleanupHarness({ mctStatus: 'POSTED' }),
+    { status: 'DISPATCHED' }
+  );
+  const before = JSON.parse(JSON.stringify(harness.DB.data));
+  await harness.SalesModule.deleteSalesOrder(harness.demand.sourceOrderId);
+  const after = JSON.parse(JSON.stringify(harness.DB.data));
+  const {
+    validateSalesShipmentPlans,
+    validateSalesShipments,
+    isVerifiedSalesOrderPrototypeReset
+  } = require('../serve.js');
+  const approval = {
+    type: 'sales_order_demo_cleanup',
+    meta: {
+      prototypeResetVersion: 3,
+      orderId: harness.demand.sourceOrderId,
+      orderNo: harness.demand.sourceOrderNo
+    }
+  };
+
+  assert.deepEqual(validateSalesShipmentPlans(before), []);
+  assert.deepEqual(validateSalesShipments(before), []);
+  assert.equal(isVerifiedSalesOrderPrototypeReset(before, after, approval), true);
+  assert.equal(isVerifiedSalesOrderPrototypeReset(before, after, {
+    ...approval, meta: { ...approval.meta, prototypeResetVersion: 2 }
+  }), false);
+  const beforeWithForeignConsumer = JSON.parse(JSON.stringify(before));
+  const afterWithForeignConsumer = JSON.parse(JSON.stringify(after));
+  const foreignMovement = {
+    id: 'movement-phase3-server-foreign', movementType: 'FOREIGN_USE',
+    stockDepotItemId: harness.phase3.stockItemId, qty: 1
+  };
+  beforeWithForeignConsumer.data.stock_movements.push(foreignMovement);
+  afterWithForeignConsumer.data.stock_movements.push(JSON.parse(JSON.stringify(foreignMovement)));
+  assert.equal(isVerifiedSalesOrderPrototypeReset(
+    beforeWithForeignConsumer, afterWithForeignConsumer, approval
+  ), false);
+});
+
 function buildMontagePlanHarness({
   failSave = false,
   saveReturnsFailure = false,
@@ -3548,22 +5028,31 @@ function buildMontagePlanHarness({
       };
     }
   };
-  const { exported: StockModule, context } = loadModule('src/modules/stock-module.js', 'StockModule', {
-    DB: {
-      data: { data },
-      save: async (options = {}) => {
-        saveCount += 1;
-        saveOptions.push(options);
-        if (deferSave) {
-          const deferredResult = await new Promise((resolve) => { releaseDeferredSave = resolve; });
-          return deferredResult;
-        }
-        if (failSave) throw new Error('save failed');
-        if (saveReturnsFailure) return { ok: false, error: new Error('save returned failure') };
-        if (saveResult) return saveResult;
-        return { ok: true };
+  const db = {
+    data: { meta: { activeUserName: 'Montaj Plan Test' }, data },
+    save: async (options = {}) => {
+      saveCount += 1;
+      saveOptions.push(options);
+      if (deferSave) {
+        const deferredResult = await new Promise((resolve) => { releaseDeferredSave = resolve; });
+        return deferredResult;
       }
-    },
+      if (failSave) throw new Error('save failed');
+      if (saveReturnsFailure) return { ok: false, error: new Error('save returned failure') };
+      if (saveResult) return saveResult;
+      return { ok: true };
+    }
+  };
+  const activeResolver = useRealMontagePreflight ? loadSanalTaksimResolver() : undefined;
+  const PlanningModule = useRealMontagePreflight
+    ? loadModule('src/modules/planning-module.js', 'PlanningModule', {
+        DB: db,
+        SanalTaksimResolver: activeResolver,
+        crypto: nodeCrypto
+      }).exported
+    : undefined;
+  const { exported: StockModule, context } = loadModule('src/modules/stock-module.js', 'StockModule', {
+    DB: db,
     UI: {
       renderCurrentPage: () => {
         renderCount += 1;
@@ -3571,13 +5060,14 @@ function buildMontagePlanHarness({
     },
     Modal,
     UnitModule,
-    SanalTaksimResolver: useRealMontagePreflight ? loadSanalTaksimResolver() : undefined,
+    PlanningModule,
+    SanalTaksimResolver: activeResolver,
     alert: (message) => alerts.push(String(message)),
     confirm: (message) => {
       confirmMessages.push(String(message || ''));
       return confirmResult;
     },
-    crypto: {
+    crypto: useRealMontagePreflight ? nodeCrypto : {
       randomUUID: () => {
         idCounter += 1;
         return `montage-plan-${idCounter}`;
@@ -5219,7 +6709,7 @@ test('Montaj Faz 5C ayni SOR satirindaki kismi MGPyi korur ve DRAFT asamasinda f
 
   await harness.StockModule.validateMontageReadyDetailSendPlan();
 
-  assert.equal(harness.context.DB.data.data.montageDispatchPlans.length, 2);
+  assert.equal(harness.context.DB.data.data.montageDispatchPlans.length, 2, harness.alerts.join(' | '));
   assert.equal(harness.saveCount, 1);
   assert.equal(JSON.stringify(harness.context.DB.data.data.stockDepotItems), stockBefore);
   assert.equal(JSON.stringify(harness.context.DB.data.data.stock_movements), movementsBefore);
@@ -5280,7 +6770,7 @@ test('Montaj Faz 5C exact miktar cakismasini engeller ama kalan miktara uyan kis
 
   assert.equal(allowed.ok, true);
   assert.equal(blocked.ok, false);
-  assert.match(blocked.message, /exact Ana Depo stoğu yetersiz/);
+  assert.match(blocked.message, /exact uygun PRC stok\/WIP miktarı yetersiz/);
   assert.equal(JSON.stringify(harness.context.DB.data.data), before);
 });
 
@@ -5298,7 +6788,7 @@ test('Faz 4 MGP DRAFT exact segment araligini bir kez rezerve eder, yenileme ve 
 
   await harness.StockModule.validateMontageReadyDetailSendPlan();
 
-  assert.equal(data.montageDispatchPlans.length, 1);
+  assert.equal(data.montageDispatchPlans.length, 1, harness.alerts.join(' | '));
   const plan = data.montageDispatchPlans[0];
   assert.equal(plan.status, 'DRAFT');
   assert.equal(plan.exactReservations.length, 1);
@@ -5421,7 +6911,7 @@ test('Faz 4 ikinci MGP yalnız kalan exact segment aralığını rezerve eder', 
   configureMontagePlanSave(harness.StockModule, { plannedQty: 5, sendableQty: 5, orderQty: 10 });
   await harness.StockModule.validateMontageReadyDetailSendPlan();
 
-  assert.equal(data.montageDispatchPlans.length, 2);
+  assert.equal(data.montageDispatchPlans.length, 2, harness.alerts.join(' | '));
   const intervals = data.montageDispatchPlans
     .flatMap((plan) => plan.exactReservations)
     .map((row) => [row.planId, row.physicalSegmentId, row.segmentOffsetStart, row.segmentOffsetEnd, row.qty])
@@ -5882,12 +7372,12 @@ test('Faz 4 resolver invariant hatasında MGP ve fiziksel etki oluşturmadan fai
   assert.equal(JSON.stringify(data), before);
 });
 
-test('Montaj Faz 5C Ana Depo disindaki ve rotadaki miktari hazir stok saymaz, UNCERTAIN kanitini wildcard yapmaz', async () => {
-  for (const mode of ['CUSTOM_DEPOT', 'ROUTE_ONLY']) {
+test('Montaj Faz 5C Ana Depo disindaki miktari ve UNCERTAIN kanitini exact kaynak wildcardi yapmaz', async () => {
+  for (const mode of ['CUSTOM_DEPOT']) {
     const harness = buildMontagePlanHarness({ useRealMontagePreflight: true });
     configureMontagePhase5CExactData(harness, {
-      stockQty: mode === 'ROUTE_ONLY' ? 2 : 20,
-      workInProcessQty: mode === 'ROUTE_ONLY' ? 18 : 0
+      stockQty: 20,
+      workInProcessQty: 0
     });
     configureMontagePlanSave(harness.StockModule, { plannedQty: 4, sendableQty: 10, orderQty: 10 });
     harness.StockModule.validateMontageDispatchPlanPartCapacity = () => ({ ok: true });
@@ -5996,6 +7486,26 @@ test('Montaj plani tam ve kismi miktari urun/parca snapshot ile kaydeder', async
   assert.equal(partial.context.DB.data.data.montageDispatchPlans[0].items[0].plannedQty, 4);
   assert.equal(partial.context.DB.data.data.montageDispatchPlans[0].items[0].recipeParts[0].qtyPerSet, 2);
   assert.equal(partial.context.DB.data.data.montageDispatchPlans[0].parts[0].requiredQty, 8);
+});
+
+test('Montaj MGP miktari kayitta canli inputtaki 2 degerini stale 3 stateine tercih eder', async () => {
+  const harness = buildMontagePlanHarness();
+  const configured = configureMontagePlanSave(harness.StockModule, { plannedQty: 3 });
+  configured.line.sourceType = 'STOCK';
+  configured.line.sourceOrderId = '';
+  configured.line.sourceOrderNo = '';
+  configured.line.sourceLineId = '';
+  harness.context.document.getElementById = (id) =>
+    id === `montage_send_qty_${harness.StockModule.escapeSafeId(configured.line.key)}`
+      ? { value: '2' }
+      : null;
+
+  const saved = await harness.StockModule.validateMontageReadyDetailSendPlan();
+
+  assert.equal(saved, true, harness.alerts.join(' | '));
+  const plan = harness.context.DB.data.data.montageDispatchPlans[0];
+  assert.equal(plan.items[0].plannedQty, 2);
+  assert.equal(plan.parts[0].requiredQty, 4);
 });
 
 test('Montaj plani iki farkli SVR recetesini item snapshotlarinda ayri tutar', async () => {
@@ -6239,6 +7749,254 @@ test('Yeni mod MGS exact hold fiziksel stogu resolverda bir kez sayar ve ayni bo
       .reduce((sum, row) => sum + row.qty, 0),
     12
   );
+});
+
+test('FAZ 3 aktif SALES-A snapshotinda 2 takim exact PRC WIP MGP ve ACTIVE STAI olusturur', async () => {
+  const server = require('../serve.js');
+  const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const data = JSON.parse(JSON.stringify(raw.data || raw));
+  const order = data.orders.find((row) => row.orderNo === 'SOR-000019');
+  const demand = data.planningDemands.find((row) => row.sourceOrderId === order?.id);
+  const demandItem = demand?.items?.[0];
+  const variant = data.salesProductVariants.find((row) => row.variantCode === 'SVR-000002');
+  assert.ok(order && demand && demandItem && variant);
+  const recipeParts = variant.items.map((item) => {
+    const card = data.partComponentCards.find((row) => row.id === item.refId && row.code === item.code);
+    assert.ok(card, item.code);
+    return {
+      source: 'component',
+      refId: card.id,
+      code: card.code,
+      name: card.name,
+      unit: String(card.unit || card.stockUnit || 'ADET').trim().toUpperCase(),
+      qtyPerSet: Number(item.qty)
+    };
+  });
+  const harness = buildMontagePlanHarness({ dataOverride: data, useRealMontagePreflight: true });
+  const result = harness.StockModule.runMontageExactAllocationPreflight({
+    items: [{
+      sourceType: 'SALES_ORDER',
+      sourceOrderId: order.id,
+      sourceLineId: order.lines[0].id,
+      demandId: demand.id,
+      itemKey: demandItem.id,
+      plannedQty: 2,
+      recipeParts
+    }],
+    qtyField: 'plannedQty',
+    planId: 'faz3-wip-preflight'
+  });
+  assert.equal(result.ok, true, `${result.reasonCode}: ${result.message}`);
+  assert.equal(result.exactReservations.reduce((sum, row) => sum + Number(row.qty || 0), 0), 16);
+  assert.equal(new Set(result.exactSegments.map((segment) => segment.prcCode)).size, 7);
+  assert.ok(result.exactSegments.every((segment) =>
+    segment.sourceKind === 'WORK_ORDER'
+    && segment.productionOriginVerified === true
+    && segment.physicalOrigin?.verified === true
+  ));
+  const prc18Qty = result.exactReservations
+    .filter((row) => row.prcCode === 'PRC-000018')
+    .reduce((sum, row) => sum + Number(row.qty || 0), 0);
+  assert.equal(prc18Qty, 2);
+
+  harness.context.DB.data.meta = { activeUserName: 'FAZ 3 WIP Test' };
+  const PlanningModule = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB: harness.context.DB,
+    SanalTaksimResolver: loadSanalTaksimResolver(),
+    crypto: nodeCrypto
+  }).exported;
+  const plan = {
+    id: 'faz3-wip-preflight',
+    planNo: 'MGP-FAZ3-WIP',
+    status: 'DRAFT',
+    createdAt: '2026-09-01T12:00:00.000Z',
+    updatedAt: '2026-09-01T12:00:00.000Z',
+    cancelledAt: '',
+    items: [{
+      sourceType: 'SALES_ORDER',
+      sourceOrderId: order.id,
+      sourceOrderNo: order.orderNo,
+      sourceLineId: order.lines[0].id,
+      demandId: demand.id,
+      demandCode: demand.demandCode,
+      itemKey: demandItem.id,
+      productId: order.lines[0].productId,
+      variantId: order.lines[0].variationId,
+      variantCode: order.lines[0].variantCode,
+      montageCardId: data.montageCards.find((row) => row.cardCode === variant.montageCard.cardCode).id,
+      montageCardCode: variant.montageCard.cardCode,
+      plannedQty: 2,
+      recipeParts
+    }],
+    parts: recipeParts.map((part) => ({ ...part, requiredQty: part.qtyPerSet * 2 })),
+    exactReservations: result.exactReservations
+  };
+  const instructionBundle = harness.StockModule.buildMontagePlanBoundInstructionRequests(plan);
+  assert.equal(instructionBundle.ok, true);
+  const physicalBefore = JSON.stringify({
+    workOrderTransactions: data.workOrderTransactions,
+    stockDepotItems: data.stockDepotItems,
+    stockMovements: data.stock_movements
+  });
+  const beforeCreate = { data: JSON.parse(JSON.stringify(data)) };
+  const created = await PlanningModule.createSanalTaksimPlanBoundMontageAllocation({
+    plan,
+    instructionRequests: instructionBundle.requests
+  });
+  assert.equal(created.ok, true, JSON.stringify(created));
+  assert.equal(data.montageDispatchPlans.length, 1);
+  assert.equal(data.sanalTaksimAllocationInstructions.length, 7);
+  assert.ok(data.sanalTaksimAllocationInstructions.every((instruction) =>
+    instruction.status === 'ACTIVE'
+    && instruction.slices.every((slice) => !slice.stockRowId && slice.physicalSegmentId.startsWith('WORK|'))
+  ));
+  assert.equal(JSON.stringify({
+    workOrderTransactions: data.workOrderTransactions,
+    stockDepotItems: data.stockDepotItems,
+    stockMovements: data.stock_movements
+  }), physicalBefore);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructions({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimPlanBoundMontageLinks({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructionTransitions(beforeCreate, { data }), []);
+  const tamperedOrigin = { data: JSON.parse(JSON.stringify(data)) };
+  tamperedOrigin.data.sanalTaksimAllocationInstructions[0]
+    .slices[0].physicalOriginAudit.originDemandId = 'tampered-demand';
+  assert.ok(server.validateSanalTaksimAllocationInstructions(tamperedOrigin).length > 0);
+  const overlappingWip = { data: JSON.parse(JSON.stringify(data)) };
+  const duplicateInstruction = JSON.parse(JSON.stringify(
+    overlappingWip.data.sanalTaksimAllocationInstructions[0]
+  ));
+  Object.assign(duplicateInstruction, {
+    id: '99999999-9999-4999-8999-999999999999',
+    instructionCode: 'STAI-999999',
+    idempotencyKey: 'faz3-wip-overlap'
+  });
+  duplicateInstruction.slices[0].sliceKey = 'faz3-wip-overlap-slice';
+  overlappingWip.data.sanalTaksimAllocationInstructions.push(duplicateInstruction);
+  assert.ok(server.validateSanalTaksimAllocationInstructions(overlappingWip)
+    .some((issue) => /kesişemez/.test(issue)));
+  const legacyWipConflict = { data: JSON.parse(JSON.stringify(data)) };
+  const conflictingReservation = JSON.parse(JSON.stringify(
+    legacyWipConflict.data.montageDispatchPlans[0].exactReservations[0]
+  ));
+  legacyWipConflict.data.montageDispatchPlans.push({
+    id: 'legacy-wip-conflict',
+    planNo: 'MGP-LEGACY-WIP-CONFLICT',
+    status: 'DRAFT',
+    exactReservations: [conflictingReservation]
+  });
+  assert.ok(server.validateSanalTaksimOperationalHoldConflicts(legacyWipConflict)
+    .some((issue) => /stok\/WIP dilimi/.test(issue)));
+  const held = loadSanalTaksimResolver().resolve(data);
+  assert.equal(held.diagnostics.exactHoldLedger.valid, true);
+  assert.equal(held.diagnostics.exactHoldLedger.activeInstructionCount, 7);
+  assert.equal(held.allocations
+    .filter((row) => row.fixedByExactHold === true)
+    .reduce((sum, row) => sum + Number(row.qty || 0), 0), 16);
+
+  harness.StockModule.canAccessMontageDispatchPlanFromCurrentDetail = () => true;
+  harness.StockModule.openMontageDispatchPlans = () => {};
+  const beforeCancel = { data: JSON.parse(JSON.stringify(data)) };
+  assert.deepEqual(server.validateSanalTaksimActiveStockRowProtection(beforeCancel, beforeCancel), []);
+  await harness.StockModule.cancelMontageDispatchPlan(plan.id);
+  assert.equal(data.montageDispatchPlans[0].status, 'CANCELLED');
+  assert.ok(data.sanalTaksimAllocationInstructions.every((instruction) => instruction.status === 'CANCELLED'));
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructions({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimPlanBoundMontageLinks({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructionTransitions(beforeCancel, { data }), []);
+  assert.deepEqual(server.validateSanalTaksimActiveStockRowProtection(beforeCancel, { data }), []);
+  const physicalMutationDuringCancel = { data: JSON.parse(JSON.stringify(data)) };
+  physicalMutationDuringCancel.data.workOrderTransactions.push({ id: 'forbidden-wip-cancel-side-write' });
+  assert.ok(server.validateSanalTaksimAllocationInstructionTransitions(
+    beforeCancel,
+    physicalMutationDuringCancel
+  ).length > 0);
+  const released = loadSanalTaksimResolver().resolve(data);
+  assert.equal(released.diagnostics.exactHoldLedger.activeInstructionCount, 0);
+  assert.equal(released.diagnostics.exactHoldLedger.holdCount, 0);
+
+  const retryPreflight = harness.StockModule.runMontageExactAllocationPreflight({
+    items: plan.items,
+    qtyField: 'plannedQty',
+    planId: 'faz3-wip-retry'
+  });
+  assert.equal(retryPreflight.ok, true, JSON.stringify(retryPreflight));
+  const activePlan = {
+    ...JSON.parse(JSON.stringify(plan)),
+    id: 'faz3-wip-retry',
+    planNo: 'MGP-FAZ3-WIP-RETRY',
+    exactReservations: retryPreflight.exactReservations
+  };
+  const retryInstructions = harness.StockModule.buildMontagePlanBoundInstructionRequests(activePlan);
+  assert.equal(retryInstructions.ok, true);
+  const beforeRetryCreate = { data: JSON.parse(JSON.stringify(data)) };
+  const retryCreated = await PlanningModule.createSanalTaksimPlanBoundMontageAllocation({
+    plan: activePlan,
+    instructionRequests: retryInstructions.requests
+  });
+  assert.equal(retryCreated.ok, true, JSON.stringify(retryCreated));
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructions({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimPlanBoundMontageLinks({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructionTransitions(beforeRetryCreate, { data }), []);
+
+  const beforeDispatch = { data: JSON.parse(JSON.stringify(data)) };
+  await harness.StockModule.dispatchMontagePlanToMontage(activePlan.id);
+  const shipment = data.montageDispatchShipments.find((row) => row.planId === activePlan.id);
+  assert.ok(shipment);
+  assert.equal(shipment.status, 'IN_TRANSIT');
+  const shipmentAllocations = shipment.parts.flatMap((part) => part.allocations || []);
+  assert.equal(shipmentAllocations.reduce((sum, row) => sum + Number(row.qty || 0), 0), 16);
+  assert.ok(shipmentAllocations.every((allocation) =>
+    allocation.sourceKind === 'WORK_ORDER'
+    && !allocation.stockRowId
+    && allocation.physicalSegmentId.startsWith('WORK|')
+    && allocation.sourceWorkOrderId
+    && allocation.sourceWorkOrderLineId
+  ));
+  assert.equal(data.stock_movements.filter((row) => row.type === 'MONTAGE_DISPATCH_OUT').length, 0);
+  assert.ok(data.sanalTaksimAllocationInstructions
+    .filter((instruction) => instruction.slices.some((slice) => slice.planId === activePlan.id))
+    .every((instruction) => instruction.status === 'COMPLETED'));
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructions({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimPlanBoundMontageLinks({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructionTransitions(beforeDispatch, { data }), []);
+
+  const inTransitResolved = loadSanalTaksimResolver().resolve(data);
+  const workQtyBeforeReceipt = inTransitResolved.segments
+    .filter((segment) => segment.sourceKind === 'WORK_ORDER')
+    .reduce((sum, segment) => sum + Number(segment.physicalQty || 0), 0);
+  const beforeFailedReceipt = JSON.stringify(data);
+  const originalSave = harness.context.DB.save;
+  harness.context.DB.save = async () => ({ ok: false, error: new Error('faz3-wip-receipt-save-failed') });
+  await harness.StockModule.receiveMontageDispatchShipment(shipment.id);
+  assert.equal(JSON.stringify(data), beforeFailedReceipt);
+  harness.context.DB.save = originalSave;
+  await harness.StockModule.receiveMontageDispatchShipment(shipment.id);
+  const receivedShipment = data.montageDispatchShipments.find((row) => row.id === shipment.id);
+  assert.equal(receivedShipment.status, 'RECEIVED');
+  const dispatchOut = data.stock_movements.filter((row) =>
+    row.type === 'MONTAGE_DISPATCH_OUT' && row.shipmentId === shipment.id
+  );
+  assert.equal(dispatchOut.reduce((sum, row) => sum + Number(row.qty || 0), 0), 16);
+  assert.ok(dispatchOut.every((row) =>
+    row.sourceKind === 'WORK_ORDER'
+    && row.physicalSegmentId.startsWith('WORK|')
+    && row.sourceWorkOrderId
+    && row.sourceWorkOrderLineId
+  ));
+  const receivedResolved = loadSanalTaksimResolver().resolve(data);
+  const workQtyAfterReceipt = receivedResolved.segments
+    .filter((segment) => segment.sourceKind === 'WORK_ORDER')
+    .reduce((sum, segment) => sum + Number(segment.physicalQty || 0), 0);
+  const montageReceivedQty = receivedResolved.segments
+    .filter((segment) => segment.stage === 'MONTAGE_RECEIVED')
+    .reduce((sum, segment) => sum + Number(segment.physicalQty || 0), 0);
+  assert.equal(workQtyBeforeReceipt - workQtyAfterReceipt, 16);
+  assert.equal(montageReceivedQty, 16);
+  assert.equal(receivedResolved.diagnostics.invariants.segmentKeysConsumedOnce, true);
+  assert.equal(receivedResolved.diagnostics.invariants.exactHoldKeysConsumedOnce, true);
+  assert.deepEqual(server.validateSanalTaksimAllocationInstructions({ data }), []);
+  assert.deepEqual(server.validateSanalTaksimPlanBoundMontageLinks({ data }), []);
 });
 
 test('Yeni mod MGS teslim almada exact kaynagi tek kez dusurur, Montaj girisini ve iki movementi atomik yazar', async () => {
@@ -7712,6 +9470,34 @@ test('Montaj plani ortak kimlikli parcalari birlestirir, farkli kimlikli ayni ad
   assert.equal(parts.find((part) => part.refId === 'ref-a').requiredQty, 10);
   assert.equal(parts.find((part) => part.refId === 'ref-b').requiredQty, 4);
   assert.equal(harness.StockModule.getMontagePlanPartReservationKey({ source: 'component', code: 'prc-c' }), 'component|code:PRC-C');
+});
+
+test('Montaj plan parca agregasyonu resolver birimini korur ve unit celiskisinde fail closed kalir', () => {
+  const harness = buildMontagePlanHarness();
+  const data = harness.context.DB.data.data;
+  const jobs = vm.runInContext(`new Map([
+    ['job-1', { partRows: [{ key: 'r1', source: 'part', refId: 'part-ref-a', code: 'PRC-A', name: 'Parca A', unit: 'adet', qtyPerSet: 2 }] }]
+  ])`, harness.context);
+  const selectedItems = [{
+    montageJobKey: 'job-1', plannedQty: 3, sourceType: 'SALES_ORDER',
+    sourceOrderId: 'sor-id-1', sourceLineId: 'sor-line-1'
+  }];
+
+  data.stockDepotItems = [];
+  const wipBackedParts = harness.StockModule.buildMontageDispatchPlanParts(selectedItems, jobs);
+  assert.equal(wipBackedParts.length, 1);
+  assert.equal(wipBackedParts[0].requiredQty, 6);
+  assert.equal(wipBackedParts[0].unit, 'ADET');
+
+  data.stockDepotItems = [{
+    id: 'stock-prc-a-conflict', refId: 'part-ref-a', productCode: 'PRC-A', code: 'PRC-A',
+    quantity: 10, qty: 10, stockClass: 'KULLANILABILIR', status: 'KULLANILABILIR',
+    allocationType: 'FREE', depotId: 'main', nodeKey: 'managed:main', locationId: 'loc-main-a',
+    unit: 'KG', created_at: '2026-01-01T00:00:00.000Z'
+  }];
+  const conflictingParts = harness.StockModule.buildMontageDispatchPlanParts(selectedItems, jobs);
+  assert.equal(conflictingParts.length, 1);
+  assert.equal(conflictingParts[0].unit, '');
 });
 
 test('Montaj plan sevk ve tamamlama koleksiyonlari varsayilan veri ve iki tarafli kritik korumada tanimlidir', () => {
@@ -9809,6 +11595,7 @@ test('SOR-000001 montage cleanup fingerprint sapmasinda durur ve DB.save hatasin
 
 test('Siparis akisi sekmeleri mevcut uretim ve montaj icerigini korurken sevkiyat arsivini exact siparise baglar', () => {
   let renderCount = 0;
+  let sanalTaksimRenderCount = 0;
   let shipmentRenderArgs = [];
   const StockModule = {
     renderCompletedSalesShipmentsForOrderHtml: (...args) => {
@@ -9834,6 +11621,11 @@ test('Siparis akisi sekmeleri mevcut uretim ve montaj icerigini korurken sevkiya
   PlanningModule.getDemandItems = (row) => row.items;
   PlanningModule.getDemandQtyForDisplay = (row) => row.qty;
   PlanningModule.getLinkedWorkOrdersForDemand = () => [{ id: 'wo-flow-1' }];
+  PlanningModule.renderSalesProductionQueueHeaderHtml = () => { throw new Error('Manuel sıra renderer çağrılmamalı'); };
+  PlanningModule.renderReleasedSalesSanalTaksimHtml = () => {
+    sanalTaksimRenderCount += 1;
+    return '<section data-existing-sanal-taksim="true">MEVCUT TEKNİK SANAL TAKSİM İÇERİĞİ</section>';
+  };
   PlanningModule.buildReleasedDemandTrackingContentHtml = () => '<div data-existing-production-content="true">MEVCUT ÜRETİM İÇERİĞİ</div>';
   PlanningModule.renderReleasedSalesMontageFlowHtml = () => '<div data-existing-montage-content="true">MEVCUT MONTAJ İÇERİĞİ</div>';
   const before = JSON.stringify(context.DB.data.data);
@@ -9848,7 +11640,16 @@ test('Siparis akisi sekmeleri mevcut uretim ve montaj icerigini korurken sevkiya
   assert.match(html, /aria-pressed="true"[^>]*[\s\S]*Parça &amp; Üretim Akışı/);
   assert.match(html, /Bu bölüm, siparişe ait parça ve bileşenlerin iş emrinden üretim sonu depoya alınmasına kadar olan hareketlerini gösterir\./);
   assert.match(html, /border-left:4px solid #dc2626; background:#ffffff; color:#1f2937;/);
+  assert.doesNotMatch(html, /data-existing-production-queue="true"/);
+  assert.doesNotMatch(html, /data-sanal-taksim-manual-order-save="true"|Sırayı Kaydet/);
+  const detailsTag = html.match(/<details[^>]*data-sanal-taksim-detail="true"[^>]*>/)?.[0] || '';
+  assert.ok(detailsTag);
+  assert.doesNotMatch(detailsTag, /\sopen(?:\s|=|>)/);
+  assert.match(html, /<summary[^>]*data-sanal-taksim-detail-toggle="true"[^>]*>Sanal Taksim Detayı<\/summary>/);
+  assert.match(html, /data-sanal-taksim-detail-content="true"[^>]*>[\s\S]*data-existing-sanal-taksim="true"/);
   assert.match(html, /data-existing-production-content="true"/);
+  assert.ok(html.indexOf('data-sanal-taksim-detail="true"') < html.indexOf('data-existing-production-content="true"'));
+  assert.equal(sanalTaksimRenderCount, 1);
 
   PlanningModule.setReleasedProductionStatusTab('montage');
   html = PlanningModule.renderGroupDetailWorkspace();
@@ -9862,10 +11663,13 @@ test('Siparis akisi sekmeleri mevcut uretim ve montaj icerigini korurken sevkiya
   assert.match(html, /data-existing-shipment-content="true">TF-000001/);
   assert.deepEqual(Array.from(shipmentRenderArgs), ['order-sor-000005', 'SOR-000005']);
   assert.doesNotMatch(html, /data-existing-production-content/);
+  assert.equal(sanalTaksimRenderCount, 1);
 
   PlanningModule.setReleasedProductionStatusTab('production');
   html = PlanningModule.renderGroupDetailWorkspace();
   assert.match(html, /data-existing-production-content="true"/);
+  assert.match(html, /data-sanal-taksim-detail="true"/);
+  assert.equal(sanalTaksimRenderCount, 2);
   assert.doesNotMatch(html, /Bu sayfa oluşturulacaktır\./);
   assert.equal(JSON.stringify(context.DB.data.data), before);
 });
@@ -12297,13 +14101,15 @@ test('Faz A.1 onay aninda preflighti yeniler ve exact SOR-PLN terminlerini tek s
     .some((row) => row.reasonCodes.includes('SOR_DUE_DATE_CONFLICT')), false);
 });
 
-test('Faz A.1 manualOrder degerini korur; sabit gercek sirada uyari gostermez ve bozuk auditte fail-closed kalir', async () => {
+test('Faz A.1 legacy manualOrderi korur ancak termin sirasini ve duplicate kararini etkilemez; bozuk audit fail-closed kalir', async () => {
   {
     const harness = buildSalesDeliveryDateReallocationHarness({ targetIndex: 4, nextDeliveryDate: '2026-08-01' });
     harness.data.orders[4].productionQueue = { manualOrder: 1, updatedAt: '2026-07-24T08:00:00.000Z', updatedBy: 'Termin Testi' };
     await harness.SalesModule.saveSalesOrderDraft();
+    assert.equal(harness.modal.openCount, 1);
+    assert.equal(harness.getSaveCount(), 0);
+    await harness.SalesModule.confirmSalesOrderDeliveryDatePriorityChange();
     const saved = harness.data.orders.find((row) => row.id === harness.targetOrderId);
-    assert.equal(harness.modal.openCount, 0);
     assert.equal(harness.getSaveCount(), 1);
     assert.equal(saved.productionQueue.manualOrder, 1);
   }
@@ -12323,9 +14129,11 @@ test('Faz A.1 manualOrder degerini korur; sabit gercek sirada uyari gostermez ve
     });
     const before = JSON.stringify(harness.data);
     await harness.SalesModule.saveSalesOrderDraft();
-    assert.equal(harness.getSaveCount(), 0);
-    assert.equal(JSON.stringify(harness.data), before);
-    assert.match(harness.alerts.at(-1), /SOR_MANUAL_ORDER_DUPLICATE/);
+    assert.equal(harness.getSaveCount(), 1);
+    assert.notEqual(JSON.stringify(harness.data), before);
+    assert.equal(harness.data.orders[3].productionQueue.manualOrder, 1);
+    assert.equal(harness.data.orders[4].productionQueue.manualOrder, 1);
+    assert.equal(harness.alerts.some((message) => /SOR_MANUAL_ORDER_DUPLICATE/.test(message)), false);
   }
 });
 
@@ -13476,6 +15284,7 @@ function buildD2B3UiHarness({ save, targetKey = 'sor7' } = {}) {
   return {
     ...planning,
     StockModule,
+    PlanningModule: planning.PlanningModule,
     context,
     Router,
     data,
@@ -14685,6 +16494,218 @@ test('D2C.1B-2 rebound IN_TRANSIT MGS current target ownership ile atomik receiv
     originalTarget
   );
   assert.equal((afterReceiveSelection.candidates || []).some((row) => row.shipmentId === shipment.id), false);
+});
+
+function attachRealMontageCompletionUnitModule(harness) {
+  const { exported: UnitModule } = loadModule('src/modules/unit-module.js', 'UnitModule', {
+    DB: harness.context.DB,
+    StockModule: harness.StockModule,
+    UI: { renderCurrentPage: () => {} },
+    Modal: { open: () => {}, close: () => {} },
+    alert: () => {}
+  });
+  harness.context.UnitModule = UnitModule;
+  return UnitModule;
+}
+
+function getMontageReadyDetailLines(harness) {
+  return harness.StockModule.getMontageReadyPlanRows(
+    harness.StockModule.buildMontageReadyJobCards()
+  ).flatMap((planRow) => harness.StockModule.getMontageReadyDetailOrderRows(planRow));
+}
+
+test('SOR-000012 rebound receipt kaniti Montaj completion ve MCT POSTED zincirini guvenli acar', async () => {
+  const demoPath = path.join(__dirname, '..', 'demo_state.json');
+  const beforeHash = nodeCrypto.createHash('sha256').update(fs.readFileSync(demoPath)).digest('hex');
+  const current = JSON.parse(fs.readFileSync(demoPath, 'utf8'));
+  const data = JSON.parse(JSON.stringify(current.data));
+  const harness = buildMontagePlanHarness({
+    dataOverride: data,
+    useRealMontagePreflight: true
+  });
+  const UnitModule = attachRealMontageCompletionUnitModule(harness);
+  const shipment = data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  assert.ok(shipment);
+  assert.equal(shipment.planNo, 'MGP-000023');
+  assert.equal(shipment.items[0].sourceOrderNo, 'SOR-000014');
+  const historicalItems = JSON.stringify(shipment.items);
+  const trustedItems = harness.StockModule.getTrustedMontageCompletionShipmentItems(shipment);
+  assert.equal(trustedItems.length, 1);
+  assert.equal(trustedItems[0].sourceOrderId, '41db885f-31ce-477e-9417-06232dbf6ac3');
+  assert.equal(trustedItems[0].demandId, '44728820-3855-43b7-9acc-b94dd4a3e17b');
+  const detailRows = getMontageReadyDetailLines(harness);
+  const line = detailRows.find((row) => row.sourceOrderId === '41db885f-31ce-477e-9417-06232dbf6ac3');
+  assert.ok(line);
+  for (const [orderNo, expectedQty] of [['SOR-000011', 1], ['SOR-000015', 3]]) {
+    const orderId = data.orders.find((row) => row.orderNo === orderNo)?.id;
+    const comparisonLine = detailRows.find((row) => row.sourceOrderId === orderId);
+    assert.ok(comparisonLine, orderNo);
+    const comparisonAvailability = harness.StockModule.getMontageCompletionAvailabilityForLine(comparisonLine);
+    assert.equal(comparisonAvailability.ok, true, `${orderNo}: ${JSON.stringify(comparisonAvailability)}`);
+    assert.equal(comparisonAvailability.availableQty, expectedQty, orderNo);
+  }
+
+  const availability = harness.StockModule.getMontageCompletionAvailabilityForLine(line);
+  assert.equal(availability.ok, true, JSON.stringify(availability));
+  assert.equal(availability.availableQty, 2);
+  assert.equal(availability.sourceShipment.shipmentNo, 'MGS-000007');
+  const historicalAvailability = harness.StockModule.getMontageCompletionAvailabilityForLine(shipment.items[0]);
+  assert.equal(historicalAvailability.ok, false);
+  assert.equal(historicalAvailability.availableQty, 0);
+  const completionState = UnitModule.getMontageJobLineCompletionState(line, [line]);
+  assert.equal(completionState.ok, true, JSON.stringify(completionState));
+  assert.equal(completionState.completed, false);
+  assert.equal(completionState.errors.length, 0);
+
+  const transfer = data.montageCompletionTransfers.find((row) =>
+    row.transferNo === 'MCT-000011'
+    && row.sourceShipmentId === shipment.id
+    && row.status === 'PENDING_DEPOT_RECEIPT'
+  );
+  assert.ok(transfer);
+  assert.equal(transfer.sourceOrderId, line.sourceOrderId);
+  assert.equal(transfer.sourceLineId, line.sourceLineId);
+  assert.equal(transfer.demandId, line.demandId);
+  assert.equal(transfer.itemKey, line.itemKey);
+  assert.equal(harness.StockModule.buildMontageCompletionDepotReceiptExecution(transfer.id).ok, true);
+  const historicalTransferCount = data.montageCompletionTransfers.filter((row) =>
+    row.sourceOrderNo === 'SOR-000014'
+  ).length;
+  const historicalFinishedMovementCount = data.stock_movements.filter((row) =>
+    row.sourceOrderId === shipment.items[0].sourceOrderId
+    && String(row.movementType || row.type || '').toUpperCase() === 'MONTAGE_FINISHED_PRODUCT_IN'
+  ).length;
+  assert.equal(await harness.StockModule.receiveMontageCompletionTransferToDepot(transfer.id), true);
+  assert.equal(transfer.status, 'POSTED');
+  assert.ok(transfer.finishedProductStockItemId);
+  assert.ok(transfer.finishedProductMovementId);
+  const finishedMovements = data.stock_movements.filter((row) =>
+    String(row.completionTransferId || row.transferId || '') === transfer.id
+    && String(row.movementType || row.type || '').toUpperCase() === 'MONTAGE_FINISHED_PRODUCT_IN'
+  );
+  assert.equal(finishedMovements.length, 1);
+  assert.equal(Number(finishedMovements[0].qty || finishedMovements[0].quantity || 0), 1);
+  const finishedStock = data.stockDepotItems.find((row) => row.id === transfer.finishedProductStockItemId);
+  assert.ok(finishedStock);
+  assert.equal(Number(finishedStock.qty || finishedStock.quantity || 0), 1);
+  assert.equal(harness.StockModule.getMontageShipmentReceivedQtyForLine(line), 3);
+  assert.equal(harness.StockModule.getMontageCompletionTransferredQtyForLine(line), 1);
+  assert.equal(harness.StockModule.getMontageReadyForShipmentQtyForLine(line), 1);
+  assert.equal(harness.StockModule.getMontageCompletionAvailabilityForLine(line).availableQty, 2);
+  assert.equal(harness.StockModule.getMontageReadyForShipmentQtyForLine(shipment.items[0]), 0);
+  assert.equal(data.montageCompletionTransfers.filter((row) => row.sourceOrderNo === 'SOR-000014').length,
+    historicalTransferCount);
+  assert.equal(data.stock_movements.filter((row) =>
+    row.sourceOrderId === shipment.items[0].sourceOrderId
+    && String(row.movementType || row.type || '').toUpperCase() === 'MONTAGE_FINISHED_PRODUCT_IN'
+  ).length, historicalFinishedMovementCount);
+  assert.equal(JSON.stringify(shipment.items), historicalItems);
+  assert.equal(
+    nodeCrypto.createHash('sha256').update(fs.readFileSync(demoPath)).digest('hex'),
+    beforeHash
+  );
+});
+
+test('SOR-000012 Montaj completion rebind ve receipt kaniti bozuldugunda fail-closed kalir', async () => {
+  const current = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const cleanData = JSON.parse(JSON.stringify(current.data));
+  const cleanHarness = buildMontagePlanHarness({ dataOverride: cleanData, useRealMontagePreflight: true });
+  const cleanShipment = cleanData.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+  const line = JSON.parse(JSON.stringify(
+    cleanHarness.StockModule.getTrustedMontageCompletionShipmentItems(cleanShipment)[0]
+  ));
+  assert.ok(line);
+
+  const cases = [
+    (data, shipment) => { delete shipment.receiptOwnership; },
+    (data, shipment) => { shipment.receiptOwnership.target.demandId = 'broken-demand'; },
+    (data, shipment) => { shipment.operationalRebindEvents.push({ ...shipment.operationalRebindEvents[0] }); },
+    (data, shipment) => { shipment.operationalRebindEvents[0].productFingerprint += '|BROKEN'; },
+    (data, shipment) => { shipment.operationalRebindEvents[0].recipeFingerprint += '|BROKEN'; },
+    (data, shipment) => { shipment.operationalRebindEvents[0].exactRangeFingerprint += '|BROKEN'; },
+    (data, shipment) => {
+      data.stockDepotItems.find((row) => row.receiptKey === shipment.receiptKey)
+        .receiptOwnership.target.sourceOrderId = 'broken-order';
+    },
+    (data, shipment) => {
+      const movement = data.stock_movements.find((row) =>
+        row.receiptKey === shipment.receiptKey && row.type === 'MONTAGE_DISPATCH_RECEIPT'
+      );
+      movement.qty -= 1;
+      movement.quantity -= 1;
+    },
+    (data, shipment) => {
+      const index = data.stockDepotItems.findIndex((row) => row.receiptKey === shipment.receiptKey);
+      data.stockDepotItems.splice(index, 1);
+    },
+    (data, shipment) => {
+      const index = data.stock_movements.findIndex((row) =>
+        row.receiptKey === shipment.receiptKey && row.type === 'MONTAGE_DISPATCH_RECEIPT'
+      );
+      data.stock_movements.splice(index, 1);
+    },
+    (data, shipment) => { shipment.items[0].recipeParts = []; }
+  ];
+  for (const mutate of cases) {
+    const data = JSON.parse(JSON.stringify(current.data));
+    const shipment = data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+    mutate(data, shipment);
+    const harness = buildMontagePlanHarness({ dataOverride: data, useRealMontagePreflight: true });
+    assert.deepEqual(Array.from(harness.StockModule.getTrustedMontageCompletionShipmentItems(shipment)), []);
+    const availability = harness.StockModule.getMontageCompletionAvailabilityForLine(line);
+    assert.equal(availability.ok, false);
+    assert.equal(availability.availableQty, 0);
+    const transfer = data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000011');
+    const beforeReceive = JSON.stringify(data);
+    assert.equal(await harness.StockModule.receiveMontageCompletionTransferToDepot(transfer.id), false);
+    assert.equal(JSON.stringify(data), beforeReceive);
+  }
+});
+
+test('SOR-000012 RECEIVED rebind ham MGP-MGS bagi bozuldugunda completion ve POSTED fail-closed kalir', async () => {
+  const current = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const cases = [
+    (data, shipment) => { shipment.planId = 'broken-plan-id'; },
+    (data, shipment) => { shipment.planNo = 'MGP-BROKEN'; },
+    (data, shipment) => {
+      data.montageDispatchPlans.find((row) => row.id === shipment.planId).items[0].plannedQty += 1;
+    }
+  ];
+  for (const mutate of cases) {
+    const data = JSON.parse(JSON.stringify(current.data));
+    const harness = buildMontagePlanHarness({ dataOverride: data, useRealMontagePreflight: true });
+    const shipment = data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000007');
+    const transfer = data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000011');
+    const line = getMontageReadyDetailLines(harness).find((row) =>
+      row.sourceOrderId === transfer.sourceOrderId && row.sourceLineId === transfer.sourceLineId
+    );
+    assert.ok(line);
+    mutate(data, shipment);
+    const UnitModule = attachRealMontageCompletionUnitModule(harness);
+    const completionState = UnitModule.getMontageJobLineCompletionState(line, [line]);
+    assert.equal(completionState.ok, false);
+    assert.ok(completionState.errors.some((row) => row.code === 'SHIPMENT_ITEM_CONFLICT'));
+    const beforeReceive = JSON.stringify(data);
+    assert.equal(await harness.StockModule.receiveMontageCompletionTransferToDepot(transfer.id), false);
+    assert.equal(JSON.stringify(data), beforeReceive);
+  }
+});
+
+test('MCT-000005 non-rebind completion-state davranisi degismez', () => {
+  const current = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const data = JSON.parse(JSON.stringify(current.data));
+  const harness = buildMontagePlanHarness({ dataOverride: data, useRealMontagePreflight: true });
+  const UnitModule = attachRealMontageCompletionUnitModule(harness);
+  const transfer = data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000005');
+  const line = getMontageReadyDetailLines(harness).find((row) =>
+    row.sourceOrderId === transfer.sourceOrderId && row.sourceLineId === transfer.sourceLineId
+  );
+  assert.ok(line);
+  const before = JSON.stringify(data);
+  const completionState = UnitModule.getMontageJobLineCompletionState(line, [line]);
+  assert.equal(completionState.ok, true, JSON.stringify(completionState));
+  assert.equal(completionState.errors.length, 0);
+  assert.equal(JSON.stringify(data), before);
 });
 
 test('D2C.1B-2 replay ve save hatasi mukerrer veya yarim ownership etkisi birakmaz', async () => {
@@ -15954,30 +17975,70 @@ test('D2A server schema duplicate overlap fiziksel kapsam ve operasyon holdlarin
   assert.ok(server.validateSanalTaksimOperationalHoldConflicts(exactHold).length > 0);
 });
 
-test('D2A server RECEIVED MGS tarihsel source rangeini yalnız doğrulanmış receipt join ile bırakır', () => {
+test('D2A frozen evidence MGS-000009 terminal POSTED MCT sonrasında SOR-000016 residual rangeini serbest bırakır', () => {
   const server = require('../serve.js');
   const Resolver = require('../src/core/sanal-taksim-resolver.js');
-  const current = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
-  const shipment = current.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000008');
+  const current = JSON.parse(fs.readFileSync(path.join(
+    __dirname,
+    '..',
+    '.state-evidence',
+    '2026-09-01_pre_e2e',
+    '2026-08-31T12-35-05-924Z_r011923_before-save.json'
+  ), 'utf8'));
+  assert.equal(current.meta.revision, 11923);
+  const shipment = current.data.montageDispatchShipments.find((row) => row.shipmentNo === 'MGS-000009');
   assert.ok(shipment);
   assert.equal(shipment.status, 'RECEIVED');
+  const transfer = current.data.montageCompletionTransfers.find((row) => row.transferNo === 'MCT-000014');
+  assert.ok(transfer);
+  assert.equal(transfer.status, 'POSTED');
   assert.deepEqual(server.validateSanalTaksimOperationalHoldConflicts(current), []);
 
+  const targetOrder = current.data.orders.find((row) => row.orderNo === 'SOR-000016');
+  const targetDemand = current.data.planningDemands.find((row) => row.demandCode === 'PLN-000024');
+  const targetLine = targetOrder?.lines?.find((row) => row.id === targetDemand?.sourceLineId);
+  const targetItem = targetDemand?.items?.[0];
   const item = shipment.items[0];
-  const planId = 'mgp-received-source-range-regression';
+  assert.ok(targetOrder && targetDemand && targetLine && targetItem && item);
+  assert.equal(targetLine.variantCode, 'SVR-000001');
+  const target = {
+    sourceOrderId: targetOrder.id,
+    sourceLineId: targetLine.id,
+    demandId: targetDemand.id,
+    itemKey: targetItem.id
+  };
+  const planId = 'mgp-terminal-received-source-range-regression';
   const plan = {
     id: planId,
-    planNo: 'MGP-RECEIVED-SOURCE-RANGE-REGRESSION',
+    planNo: 'MGP-TERMINAL-SOURCE-RANGE-REGRESSION',
     status: 'DRAFT',
+    createdAt: '2026-08-31T12:00:00.000Z',
+    updatedAt: '2026-08-31T12:00:00.000Z',
+    cancelledAt: '',
+    items: [{
+      ...JSON.parse(JSON.stringify(item)),
+      ...target,
+      sourceOrderNo: targetOrder.orderNo,
+      demandCode: targetDemand.demandCode,
+      orderQty: targetLine.qty,
+      plannedQty: 2
+    }],
+    parts: item.recipeParts.map((part, index) => ({
+      recipeItemId: `terminal-regression-part-${index + 1}`,
+      source: part.source,
+      refId: part.refId,
+      code: part.code,
+      name: part.name,
+      qtyPerSet: part.qtyPerSet,
+      requiredQty: Number(part.qtyPerSet) * 2,
+      unit: part.unit
+    })),
     exactReservations: []
   };
   const instructions = [];
   item.recipeParts.forEach((part, partIndex) => {
     const selection = Resolver.resolveExactSourceSelection(current.data, {
-      sourceOrderId: item.sourceOrderId,
-      sourceLineId: item.sourceLineId,
-      demandId: item.demandId,
-      itemKey: item.itemKey,
+      ...target,
       prcId: part.refId,
       prcCode: part.code,
       unit: part.unit
@@ -15987,17 +18048,18 @@ test('D2A server RECEIVED MGS tarihsel source rangeini yalnız doğrulanmış re
     const instruction = {
       id: `received-source-range-instruction-${partIndex + 1}`,
       instructionCode: `STAI-RECEIVED-SOURCE-RANGE-${partIndex + 1}`,
+      idempotencyKey: `received-source-range-idempotency-${partIndex + 1}`,
+      contractVersion: 1,
       status: 'ACTIVE',
-      target: {
-        sourceOrderId: item.sourceOrderId,
-        sourceLineId: item.sourceLineId,
-        demandId: item.demandId,
-        itemKey: item.itemKey
-      },
+      target,
       prcId: part.refId,
       prcCode: part.code,
       unit: part.unit,
       qty: remaining,
+      reason: 'Terminal MGS residual range regresyonu',
+      createdAt: '2026-08-31T12:00:00.000Z',
+      createdBy: 'Backbone Test',
+      events: [],
       slices: []
     };
     selection.slices.forEach((candidate, sliceIndex) => {
@@ -16014,9 +18076,12 @@ test('D2A server RECEIVED MGS tarihsel source rangeini yalnız doğrulanmış re
         reservationKey,
         stockRowId: candidate.stockRowId,
         physicalSegmentId: candidate.physicalSegmentId,
+        lineageKey: candidate.lineageKey,
+        segmentCapacityQtyAtCreate: candidate.segmentCapacityQtyAtCreate,
         segmentOffsetStart: Number(candidate.segmentOffsetStart),
         segmentOffsetEnd: Number(candidate.segmentOffsetStart) + qty,
-        qty
+        qty,
+        physicalOriginAudit: candidate.physicalOriginAudit
       };
       instruction.slices.push(slice);
       plan.exactReservations.push({
@@ -16029,40 +18094,80 @@ test('D2A server RECEIVED MGS tarihsel source rangeini yalnız doğrulanmış re
         prcId: instruction.prcId,
         prcCode: instruction.prcCode,
         unit: instruction.unit,
+        partSource: part.source,
         stockRowId: slice.stockRowId,
         physicalSegmentId: slice.physicalSegmentId,
+        sourceBucket: 'FROM_PRODUCTION',
         segmentOffsetStart: slice.segmentOffsetStart,
         segmentOffsetEnd: slice.segmentOffsetEnd,
         qty
       });
       remaining -= qty;
     });
-    assert.ok(remaining <= 0.000001);
+    assert.ok(remaining <= 0.000001, JSON.stringify({
+      partIndex,
+      partCode: part.code,
+      requiredQty: 2 * Number(part.qtyPerSet),
+      unresolvedQty: remaining,
+      slices: selection.slices
+    }));
     instructions.push(instruction);
   });
+  assert.equal(instructions.length, 7);
+  assert.equal(instructions.reduce((sum, row) => sum + Number(row.qty), 0), 16);
+  assert.equal(instructions.reduce((sum, row) => sum + row.slices.length, 0), 8);
+  const historicalMgsStockIds = new Set(shipment.parts.flatMap((part) =>
+    part.allocations.map((allocation) => allocation.stockRowId)
+  ));
+  assert.equal(instructions.flatMap((row) => row.slices)
+    .filter((slice) => historicalMgsStockIds.has(slice.stockRowId)).length, 7);
 
-  const validReceived = JSON.parse(JSON.stringify(current));
-  validReceived.data.montageDispatchPlans.push(plan);
-  validReceived.data.sanalTaksimAllocationInstructions.push(...instructions);
-  assert.deepEqual(server.validateSanalTaksimOperationalHoldConflicts(validReceived), []);
+  const validTerminal = JSON.parse(JSON.stringify(current));
+  validTerminal.data.montageDispatchPlans.push(plan);
+  validTerminal.data.sanalTaksimAllocationInstructions.push(...instructions);
+  const validBefore = JSON.stringify(validTerminal);
+  const prospective = Resolver.resolve(validTerminal.data);
+  assert.equal(prospective.diagnostics.exactHoldLedger.valid, true,
+    JSON.stringify(prospective.diagnostics.exactHoldLedger));
+  assert.equal(Object.keys(prospective.diagnostics.invariants).length, 15);
+  assert.equal(Object.values(prospective.diagnostics.invariants).every(Boolean), true);
+  assert.deepEqual(server.validateSanalTaksimOperationalHoldConflicts(validTerminal), []);
+  assert.equal(JSON.stringify(validTerminal), validBefore);
 
-  const inTransit = JSON.parse(JSON.stringify(validReceived));
+  const inTransit = JSON.parse(JSON.stringify(validTerminal));
   const inTransitShipment = inTransit.data.montageDispatchShipments.find((row) => row.id === shipment.id);
   inTransitShipment.status = 'IN_TRANSIT';
   delete inTransitShipment.receivedAt;
   delete inTransitShipment.receiptKey;
+  const inTransitBefore = JSON.stringify(inTransit);
   assert.ok(server.validateSanalTaksimOperationalHoldConflicts(inTransit)
-    .some((issue) => issue.includes('MGS-000008')));
+    .some((issue) => issue.includes('MGS-000009')));
+  assert.equal(JSON.stringify(inTransit), inTransitBefore);
 
-  const ambiguousReceived = JSON.parse(JSON.stringify(validReceived));
+  const ambiguousReceived = JSON.parse(JSON.stringify(validTerminal));
   const receiptStock = ambiguousReceived.data.stockDepotItems.find((row) =>
-    row.sourceShipmentId === shipment.id && row.productCode === 'PRC-000017'
+    row.sourceShipmentId === shipment.id
+    && row.stockClass === 'MONTAGE_RECEIVED'
+    && row.productCode === 'PRC-000017'
   );
   assert.ok(receiptStock);
   ambiguousReceived.data.stockDepotItems = ambiguousReceived.data.stockDepotItems
     .filter((row) => row.id !== receiptStock.id);
   assert.ok(server.validateSanalTaksimOperationalHoldConflicts(ambiguousReceived)
-    .some((issue) => issue.includes('MGS-000008')));
+    .some((issue) => issue.includes('MGS-000009')));
+
+  const missingConsumptionEvidence = JSON.parse(JSON.stringify(validTerminal));
+  const missingMovementId = missingConsumptionEvidence.data.montageCompletionTransfers
+    .find((row) => row.id === transfer.id).componentAllocations[0].stockMovementId;
+  missingConsumptionEvidence.data.stock_movements = missingConsumptionEvidence.data.stock_movements
+    .filter((row) => row.id !== missingMovementId);
+  assert.ok(server.validateSanalTaksimOperationalHoldConflicts(missingConsumptionEvidence)
+    .some((issue) => issue.includes('MGS-000009')));
+
+  const pendingTransfer = JSON.parse(JSON.stringify(validTerminal));
+  pendingTransfer.data.montageCompletionTransfers.find((row) => row.id === transfer.id).status = 'PENDING_DEPOT_RECEIPT';
+  assert.ok(server.validateSanalTaksimOperationalHoldConflicts(pendingTransfer)
+    .some((issue) => issue.includes('MGS-000009')));
 
   const receiptStockOverlap = JSON.parse(JSON.stringify(current));
   receiptStockOverlap.data.sanalTaksimAllocationInstructions.push({
@@ -16145,6 +18250,82 @@ test('D2A server append-only gecisleri ve ACTIVE stockRow korumasini zorunlu tut
   });
 });
 
+test('ACTIVE WIP source stockRow korumasinda yanlis pozitif uretmez ve cancel yan yazisini engeller', () => {
+  const server = require('../serve.js');
+  const instruction = {
+    id: '11111111-1111-4111-8111-111111111111',
+    instructionCode: 'STAI-000001',
+    idempotencyKey: 'WIP-STOCK-PROTECTION-REGRESSION',
+    contractVersion: 1,
+    status: 'ACTIVE',
+    prcId: 'prc-wip',
+    prcCode: 'PRC-WIP',
+    unit: 'ADET',
+    qty: 2,
+    target: {
+      sourceOrderId: 'order-wip',
+      sourceLineId: 'order-line-wip',
+      demandId: 'demand-wip',
+      itemKey: 'item-wip'
+    },
+    slices: [{
+      sliceKey: 'wip-slice',
+      stockRowId: '',
+      physicalSegmentId: 'WORK|work-order-wip|work-order-line-wip|IN_PROCESS|1',
+      segmentCapacityQtyAtCreate: 5,
+      segmentOffsetStart: 0,
+      segmentOffsetEnd: 2,
+      qty: 2,
+      physicalOriginAudit: {
+        sourceKind: 'WORK_ORDER',
+        originSourceType: 'SALES_ORDER',
+        originOrderId: 'order-wip',
+        originOrderLineId: 'order-line-wip',
+        originDemandId: 'demand-wip',
+        originItemKey: 'item-wip',
+        originWorkOrderId: 'work-order-wip',
+        originWorkOrderLineId: 'work-order-line-wip',
+        evidenceIds: ['wot-wip']
+      }
+    }],
+    reason: 'WIP guard regression',
+    createdAt: '2026-09-02T12:00:00.000Z',
+    createdBy: 'Guard Test',
+    events: []
+  };
+  const current = {
+    data: {
+      stockDepotItems: [],
+      workOrderTransactions: [{ id: 'wot-wip' }],
+      sanalTaksimAllocationInstructions: [instruction]
+    }
+  };
+  const cancelled = JSON.parse(JSON.stringify(current));
+  cancelled.data.sanalTaksimAllocationInstructions[0].status = 'CANCELLED';
+  cancelled.data.sanalTaksimAllocationInstructions[0].events.push({
+    eventId: '22222222-2222-4222-8222-222222222222',
+    type: 'CANCELLED',
+    at: '2026-09-02T12:01:00.000Z',
+    by: 'Guard Test',
+    reason: 'WIP MGP iptal testi'
+  });
+
+  assert.deepEqual(server.validateSanalTaksimActiveStockRowProtection(current, current), []);
+  assert.deepEqual(server.validateSanalTaksimActiveStockRowProtection(current, cancelled), []);
+
+  const malformedWip = JSON.parse(JSON.stringify(current));
+  delete malformedWip.data.sanalTaksimAllocationInstructions[0]
+    .slices[0].physicalOriginAudit.originWorkOrderLineId;
+  assert.ok(server.validateSanalTaksimActiveStockRowProtection(malformedWip, malformedWip).length > 0);
+
+  const cancelWithPhysicalSideWrite = JSON.parse(JSON.stringify(cancelled));
+  cancelWithPhysicalSideWrite.data.workOrderTransactions.push({ id: 'forbidden-side-write' });
+  assert.ok(server.validateSanalTaksimAllocationInstructionTransitions(
+    current,
+    cancelWithPhysicalSideWrite
+  ).length > 0);
+});
+
 test('D2A app-core koleksiyon normalizasyonu ve strict conflict opt-in sozlesmesini tasir', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'src/core/app-core.js'), 'utf8');
   assert.match(source, /CRITICAL_STATE_COLLECTIONS[\s\S]*["']sanalTaksimAllocationInstructions["']/);
@@ -16156,6 +18337,2046 @@ test('D2A app-core koleksiyon normalizasyonu ve strict conflict opt-in sozlesmes
   const saveStateSource = serverSource.slice(serverSource.indexOf('async function saveState'));
   assert.ok(saveStateSource.indexOf('baseRevision !== currentRevision')
     < saveStateSource.indexOf('validateSanalTaksimAllocationInstructions(state)'));
+});
+
+function buildV12ReadyFinishedProductSnapshot() {
+  const productId = 'product-ready-v12';
+  const variantId = 'variant-ready-v12';
+  const variantCode = 'SVR-READY-V12';
+  const prcId = 'prc-ready-v12';
+  const prcCode = 'PRC-READY-V12';
+  const buildOrder = (id, orderNo, lineId, qty, deliveryDate) => ({
+    id,
+    orderNo,
+    status: 'APPROVED',
+    deliveryDate,
+    lines: [{
+      id: lineId,
+      productId,
+      productCode: 'SAL-READY-V12',
+      idCode: 'SAL-READY-V12',
+      variationId: variantId,
+      variantCode,
+      productName: 'V12 Hazır Ürün',
+      unit: 'ADET',
+      qty
+    }]
+  });
+  const buildDemand = ({ id, code, order, lineId, itemId, qty, useStockQty, netQty, releasedAt }) => ({
+    id,
+    demandCode: code,
+    status: 'RELEASED',
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: order.id,
+    sourceOrderNo: order.orderNo,
+    sourceLineId: lineId,
+    dueDate: order.deliveryDate,
+    released_at: releasedAt,
+    items: [{
+      id: itemId,
+      itemType: 'MODEL',
+      qty,
+      variantId: `salesvar_${variantId}`,
+      variantCode,
+      productCode: variantCode,
+      productName: 'V12 Hazır Ürün'
+    }],
+    poolAnalysis: {
+      stockAccountingMode: 'VIRTUAL_V1',
+      rows: [{
+        key: `${id}-row`,
+        itemKey: itemId,
+        componentId: prcId,
+        code: prcCode,
+        unit: 'ADET',
+        requiredQty: qty,
+        itemQty: qty,
+        useStockSelected: useStockQty > 0,
+        useStockQty,
+        useSemiSelected: false,
+        useSemiQty: 0,
+        useNetSelected: netQty > 0,
+        netQty
+      }]
+    }
+  });
+  const orderA = buildOrder('order-a-v12', 'SOR-A-V12', 'line-a-v12', 300, '2026-09-30');
+  const orderC = buildOrder('order-c-v12', 'SOR-C-V12', 'line-c-v12', 3, '2026-09-01');
+  const demandA = buildDemand({
+    id: 'demand-a-v12', code: 'PLN-A-V12', order: orderA, lineId: 'line-a-v12',
+    itemId: 'item-a-v12', qty: 300, useStockQty: 0, netQty: 300,
+    releasedAt: '2026-08-20T09:00:00.000Z'
+  });
+  const demandC = buildDemand({
+    id: 'demand-c-v12', code: 'PLN-C-V12', order: orderC, lineId: 'line-c-v12',
+    itemId: 'item-c-v12', qty: 3, useStockQty: 3, netQty: 0,
+    releasedAt: '2026-08-21T09:00:00.000Z'
+  });
+  const transfer = {
+    id: 'mct-ready-v12',
+    transferNo: 'MCT-READY-V12',
+    status: 'POSTED',
+    sourceShipmentId: 'mgs-history-v12',
+    sourceShipmentNo: 'MGS-HISTORY-V12',
+    sourcePlanId: 'mgp-history-v12',
+    sourcePlanNo: 'MGP-HISTORY-V12',
+    sourceShipmentItemIndex: 0,
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: orderA.id,
+    sourceOrderNo: orderA.orderNo,
+    sourceLineId: 'line-a-v12',
+    demandId: demandA.id,
+    itemKey: 'item-a-v12',
+    productId,
+    variantId,
+    variationId: variantId,
+    variantCode,
+    montageCardId: 'montage-card-v12',
+    montageCardCode: 'MON-V12',
+    qty: 300,
+    quantity: 300,
+    unit: 'ADET',
+    recipeParts: [{ refId: prcId, code: prcCode, unit: 'ADET', qtyPerSet: 1 }],
+    componentAllocations: [{
+      refId: prcId,
+      code: prcCode,
+      unit: 'ADET',
+      qtyPerSet: 1,
+      stockDepotItemId: 'component-history-v12',
+      qty: 300,
+      stockMovementId: 'movement-component-v12'
+    }],
+    finishedProductStockItemId: 'finished-stock-v12',
+    finishedProductMovementId: 'movement-finished-v12',
+    targetDepotId: 'depot_profil',
+    targetLocationId: 'location-ready-v12',
+    postedAt: '2026-08-22T09:00:00.000Z'
+  };
+  return {
+    partComponentCards: [{ id: prcId, code: prcCode, unit: 'ADET' }],
+    orders: [orderA, orderC],
+    planningDemands: [demandA, demandC],
+    workOrders: [{
+      id: 'wo-a-v12',
+      workOrderCode: 'WO-A-V12',
+      sourceId: demandA.id,
+      sourceCode: demandA.demandCode,
+      sourceItemKey: 'item-a-v12',
+      lines: [{
+        id: 'wo-line-a-v12',
+        componentId: prcId,
+        componentCode: prcCode,
+        unit: 'ADET',
+        targetQty: 300,
+        routes: [{ id: 'route-cnc-v12', seq: 1, stationId: 'u-cnc', processId: 'CNC' }]
+      }]
+    }],
+    workOrderTransactions: [{
+      id: 'txn-take-a-v12',
+      workOrderId: 'wo-a-v12',
+      lineId: 'wo-line-a-v12',
+      stationId: 'u-cnc',
+      routeId: 'route-cnc-v12',
+      routeSeq: 1,
+      processId: 'CNC',
+      type: 'TAKE',
+      qty: 3
+    }],
+    stockDepotItems: [{
+      id: 'finished-stock-v12',
+      completionTransferId: transfer.id,
+      transferId: transfer.id,
+      sourceType: 'SALES_ORDER',
+      sourceOrderId: orderA.id,
+      sourceOrderNo: orderA.orderNo,
+      sourceLineId: 'line-a-v12',
+      demandId: demandA.id,
+      itemKey: 'item-a-v12',
+      productId,
+      variantId,
+      variationId: variantId,
+      variantCode,
+      productCode: variantCode,
+      code: variantCode,
+      cardType: 'SVR',
+      stockClass: 'KULLANILABILIR',
+      status: 'KULLANILABILIR',
+      depotId: 'depot_profil',
+      targetDepotId: 'depot_profil',
+      locationId: 'location-ready-v12',
+      targetLocationId: 'location-ready-v12',
+      qty: 300,
+      quantity: 300,
+      amount: 300,
+      unit: 'ADET'
+    }],
+    stock_movements: [{
+      id: 'movement-component-v12',
+      movementType: 'MONTAGE_COMPONENT_CONSUMPTION',
+      completionTransferId: transfer.id,
+      transferId: transfer.id,
+      stockDepotItemId: 'component-history-v12',
+      productCode: prcCode,
+      code: prcCode,
+      qty: 300,
+      quantity: 300,
+      unit: 'ADET'
+    }, {
+      id: 'movement-finished-v12',
+      movementType: 'MONTAGE_FINISHED_PRODUCT_IN',
+      type: 'MONTAGE_FINISHED_PRODUCT_IN',
+      completionTransferId: transfer.id,
+      transferId: transfer.id,
+      stockDepotItemId: 'finished-stock-v12',
+      sourceType: 'SALES_ORDER',
+      sourceOrderId: orderA.id,
+      sourceLineId: 'line-a-v12',
+      productId,
+      variantId,
+      variantCode,
+      productCode: variantCode,
+      targetDepotId: 'depot_profil',
+      targetLocationId: 'location-ready-v12',
+      qty: 300,
+      quantity: 300,
+      unit: 'ADET'
+    }],
+    montageCompletionTransfers: [transfer],
+    salesShipmentPlans: [],
+    salesShipments: [],
+    sanalTaksimAllocationInstructions: []
+  };
+}
+
+test('V12 Paket 2 canonical ready 300 adedi C 3 ve A 297 olarak dağıtır, yalnız A residual 3 PRC borcu kalır', () => {
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  const before = JSON.stringify(snapshot);
+  const result = loadSanalTaksimResolver().resolve(snapshot);
+  const debtA = result.productDebts.find((row) => row.originOrderId === 'order-a-v12');
+  const debtC = result.productDebts.find((row) => row.originOrderId === 'order-c-v12');
+  const allocationsA = result.finishedReadyAllocations.filter((row) => row.targetOrderId === 'order-a-v12');
+  const allocationsC = result.finishedReadyAllocations.filter((row) => row.targetOrderId === 'order-c-v12');
+  const prcDebtA = result.debts.find((row) => row.originOrderId === 'order-a-v12');
+  const prcAllocationA = result.allocations.filter((row) => row.targetDemandId === 'demand-a-v12');
+
+  assert.equal(debtC.finishedReadyQty, 3);
+  assert.equal(debtC.residualSetQty, 0);
+  assert.equal(allocationsC.reduce((sum, row) => sum + row.qty, 0), 3);
+  assert.equal(debtA.finishedReadyQty, 297);
+  assert.equal(debtA.residualSetQty, 3);
+  assert.equal(allocationsA.reduce((sum, row) => sum + row.qty, 0), 297);
+  assert.equal(prcDebtA.openDebtQty, 3);
+  assert.equal(prcAllocationA.reduce((sum, row) => sum + row.qty, 0), 3);
+  assert.equal(result.finishedReadyAllocations.reduce((sum, row) => sum + row.qty, 0), 300);
+  assert.equal(result.diagnostics.invariants.finishedAllocationWithinQty, true);
+  assert.equal(result.diagnostics.invariants.productAllocationWithinOpenDebt, true);
+  assert.equal(result.diagnostics.invariants.segmentConsumedOnce, true);
+  assert.equal(JSON.stringify(snapshot), before);
+});
+
+test('V12 Paket 2 tamamen stoktan RELEASED demand-item için WO olmadan ürün borcu ve ready tahsisi üretir', () => {
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  snapshot.orders = snapshot.orders.filter((row) => row.id === 'order-c-v12');
+  snapshot.planningDemands = snapshot.planningDemands.filter((row) => row.id === 'demand-c-v12');
+  snapshot.workOrders = [];
+  snapshot.workOrderTransactions = [];
+  snapshot.stockDepotItems[0].qty = 3;
+  snapshot.stockDepotItems[0].quantity = 3;
+  snapshot.stockDepotItems[0].amount = 3;
+  snapshot.montageCompletionTransfers[0].qty = 3;
+  snapshot.montageCompletionTransfers[0].quantity = 3;
+  snapshot.montageCompletionTransfers[0].componentAllocations[0].qty = 3;
+  snapshot.stock_movements.forEach((movement) => {
+    movement.qty = 3;
+    movement.quantity = 3;
+  });
+  const result = loadSanalTaksimResolver().resolve(snapshot);
+  assert.equal(result.productDebts.length, 1);
+  assert.equal(result.productDebts[0].allocationEligible, true);
+  assert.equal(result.productDebts[0].finishedReadyQty, 3);
+  assert.equal(result.productDebts[0].residualSetQty, 0);
+});
+
+test('V12 Paket 2 Sevkiyat Planlama cross-origin ready allocation proofunu hedef SOR icin tasir', () => {
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  const Resolver = loadSanalTaksimResolver();
+  const { exported: StockModule } = loadModule('src/modules/stock-module.js', 'StockModule', {
+    DB: { data: { data: snapshot } },
+    PlanningModule: { buildSanalTaksimSnapshot: () => snapshot },
+    SanalTaksimResolver: Resolver
+  });
+  const row = {
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: 'order-c-v12',
+    sourceOrderNo: 'SOR-C-V12',
+    sourceLineId: 'line-c-v12',
+    demandId: 'demand-c-v12',
+    itemKey: 'item-c-v12',
+    productId: 'product-ready-v12',
+    variationId: 'variant-ready-v12',
+    salCode: 'SAL-READY-V12',
+    svrCode: 'SVR-READY-V12'
+  };
+  const availability = StockModule.getSalesShipmentPlanningAvailability(row);
+  assert.equal(availability.ok, true);
+  assert.equal(availability.readyQty, 3);
+  assert.equal(availability.planableQty, 3);
+  assert.equal(availability.stockRows.length, 1);
+  assert.equal(availability.stockRows[0].stockRow.sourceOrderId, 'order-a-v12');
+  assert.equal(availability.stockRows[0].resolverAllocation.targetOrderId, 'order-c-v12');
+
+  const built = StockModule.buildSalesShipmentStockAllocations(availability, 2);
+  assert.equal(built.ok, true);
+  assert.equal(built.allocations.length, 1);
+  assert.equal(built.allocations[0].sourceOrderId, 'order-c-v12');
+  assert.equal(built.allocations[0].allocatedQty, 2);
+  assert.equal(built.allocations[0].sanalTaksimAllocationProof.targetOrderId, 'order-c-v12');
+  assert.equal(built.allocations[0].sanalTaksimAllocationProof.sourceAllocationQty, 3);
+  assert.equal(built.allocations[0].sanalTaksimAllocationProof.qty, 2);
+
+  snapshot.salesShipmentPlans.push({
+    id: 'svp-client-v12',
+    planNo: 'SVP-900003',
+    status: 'PLANNED',
+    sourceOrderId: 'order-c-v12',
+    sourceOrderNo: 'SOR-C-V12',
+    items: [{
+      sourceLineId: 'line-c-v12',
+      productId: 'product-ready-v12',
+      productCode: 'SAL-READY-V12',
+      variantId: 'variant-ready-v12',
+      variantCode: 'SVR-READY-V12',
+      salCode: 'SAL-READY-V12',
+      svrCode: 'SVR-READY-V12',
+      productName: 'V12 Hazır Ürün',
+      unit: 'ADET',
+      plannedQty: 2,
+      stockAllocations: built.allocations
+    }]
+  });
+  const execution = StockModule.buildSalesShipmentDispatchExecution({
+    planId: 'svp-client-v12',
+    planStatus: 'PLANNED',
+    isDispatched: false,
+    items: [{ sourceLineId: 'line-c-v12', dispatchQty: 2 }]
+  });
+  assert.equal(execution.ok, true);
+  assert.equal(execution.items[0].allocations[0].stockRow.sourceOrderId, 'order-a-v12');
+  assert.equal(execution.items[0].identity.sourceOrderId, 'order-c-v12');
+});
+
+test('V12 Paket 2 PLANNED SVP exact resolver proofunu fixed commitment yapar ve legacy manualOrderi yok sayar', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const currentSnapshot = buildV12ReadyFinishedProductSnapshot();
+  const initial = Resolver.resolve(currentSnapshot);
+  const cAllocation = initial.finishedReadyAllocations.find((row) => row.targetOrderId === 'order-c-v12');
+  const plan = {
+    id: 'svp-v12',
+    planNo: 'SVP-900001',
+    status: 'PLANNED',
+    statusLabel: 'Planlandı',
+    sourceOrderId: 'order-c-v12',
+    sourceOrderNo: 'SOR-C-V12',
+    idempotencyKey: 'SALES_SHIPMENT_PLAN|order-c-v12|v12',
+    createdAt: '2026-08-24T10:00:00.000Z',
+    updatedAt: '2026-08-24T10:00:00.000Z',
+    items: [{
+      sourceLineId: 'line-c-v12',
+      lineKey: 'SALES_ORDER|order-c-v12|line-c-v12',
+      productId: 'product-ready-v12',
+      productCode: 'SAL-READY-V12',
+      variantId: 'variant-ready-v12',
+      variantCode: 'SVR-READY-V12',
+      salCode: 'SAL-READY-V12',
+      svrCode: 'SVR-READY-V12',
+      productName: 'V12 Hazır Ürün',
+      unit: 'ADET',
+      orderQty: 3,
+      plannedQty: 3,
+      stockAllocations: [{
+        stockItemId: cAllocation.stockItemId,
+        allocatedQty: 3,
+        depotId: 'depot_profil',
+        locationId: 'location-ready-v12',
+        sourceOrderId: 'order-c-v12',
+        sourceLineId: 'line-c-v12',
+        sanalTaksimAllocationProof: { ...cAllocation.sanalTaksimAllocationProof, qty: 3 }
+      }]
+    }]
+  };
+  const incomingState = { data: JSON.parse(JSON.stringify(currentSnapshot)) };
+  incomingState.data.salesShipmentPlans.push(plan);
+  const server = require('../serve.js');
+  assert.deepEqual(server.validateSanalTaksimSalesShipmentPlanTransitions(
+    { data: currentSnapshot }, incomingState
+  ), []);
+  assert.deepEqual(server.validateSalesShipmentPlans(incomingState), []);
+
+  incomingState.data.orders.find((row) => row.id === 'order-a-v12').productionQueue = {
+    manualOrder: 1,
+    updatedAt: '2026-08-24T10:01:00.000Z',
+    updatedBy: 'V12 Test'
+  };
+  incomingState.data.orders.find((row) => row.id === 'order-c-v12').productionQueue = {
+    manualOrder: 2,
+    updatedAt: '2026-08-24T10:02:00.000Z',
+    updatedBy: 'V12 Test'
+  };
+  const resolved = Resolver.resolve(incomingState.data);
+  const fixedC = resolved.finishedReadyAllocations.filter((row) =>
+    row.fixedBySalesShipmentPlan && row.targetOrderId === 'order-c-v12'
+  );
+  assert.equal(fixedC.reduce((sum, row) => sum + row.qty, 0), 3);
+  assert.equal(resolved.productDebts.find((row) => row.originOrderId === 'order-a-v12').finishedReadyQty, 297);
+  assert.equal(resolved.operationalReconciliation.hasConflict, false);
+  assert.equal(resolved.operationalReconciliation.issues.some((row) =>
+    row.reasonCode === 'PLANNED_SVP_DIFFERS_FROM_CURRENT_PRIORITY'
+  ), false);
+
+  const broken = JSON.parse(JSON.stringify(incomingState));
+  broken.data.salesShipmentPlans[0].items[0].stockAllocations[0]
+    .sanalTaksimAllocationProof.targetOrderId = 'order-a-v12';
+  assert.ok(server.validateSanalTaksimSalesShipmentPlanTransitions(
+    { data: currentSnapshot }, broken
+  ).length > 0);
+});
+
+test('V12 Paket 2 DISPATCHED salesShipment ve exact OUT sonrası miktarı final olarak havuzdan çıkarır', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  const initial = Resolver.resolve(snapshot);
+  const cAllocation = initial.finishedReadyAllocations.find((row) => row.targetOrderId === 'order-c-v12');
+  snapshot.stockDepotItems[0].qty = 297;
+  snapshot.stockDepotItems[0].quantity = 297;
+  snapshot.stockDepotItems[0].amount = 297;
+  snapshot.salesShipmentPlans.push({
+    id: 'svp-final-v12',
+    planNo: 'SVP-900002',
+    status: 'DISPATCHED',
+    sourceOrderId: 'order-c-v12',
+    sourceOrderNo: 'SOR-C-V12',
+    items: [{
+      sourceLineId: 'line-c-v12',
+      productId: 'product-ready-v12',
+      variantId: 'variant-ready-v12',
+      variantCode: 'SVR-READY-V12',
+      svrCode: 'SVR-READY-V12',
+      unit: 'ADET',
+      plannedQty: 3,
+      stockAllocations: [{
+        stockItemId: 'finished-stock-v12',
+        allocatedQty: 3,
+        sanalTaksimAllocationProof: { ...cAllocation.sanalTaksimAllocationProof, qty: 3 }
+      }]
+    }]
+  });
+  snapshot.stock_movements.push({
+    id: 'movement-sales-out-v12',
+    movementType: 'SALES_SHIPMENT_OUT',
+    type: 'SALES_SHIPMENT_OUT',
+    shipmentId: 'shipment-final-v12',
+    shipmentPlanId: 'svp-final-v12',
+    stockItemId: 'finished-stock-v12',
+    stockDepotItemId: 'finished-stock-v12',
+    sourceOrderId: 'order-c-v12',
+    sourceLineId: 'line-c-v12',
+    productId: 'product-ready-v12',
+    variantId: 'variant-ready-v12',
+    variantCode: 'SVR-READY-V12',
+    depotId: 'depot_profil',
+    locationId: 'location-ready-v12',
+    qty: 3,
+    quantity: 3,
+    unit: 'ADET'
+  });
+  snapshot.salesShipments.push({
+    id: 'shipment-final-v12',
+    shipmentNo: 'TF-900001',
+    shipmentPlanId: 'svp-final-v12',
+    status: 'DISPATCHED',
+    sourceOrderId: 'order-c-v12',
+    idempotencyKey: 'SALES_SHIPMENT_DISPATCH|svp-final-v12',
+    snapshot: {
+      sourceOrderId: 'order-c-v12',
+      items: [{
+        sourceOrderId: 'order-c-v12',
+        sourceLineId: 'line-c-v12',
+        productId: 'product-ready-v12',
+        variantId: 'variant-ready-v12',
+        svrCode: 'SVR-READY-V12',
+        unit: 'ADET',
+        dispatchQty: 3,
+        stockAllocations: [{
+          stockItemId: 'finished-stock-v12',
+          allocatedQty: 3,
+          stockMovementId: 'movement-sales-out-v12'
+        }]
+      }]
+    }
+  });
+  const result = Resolver.resolve(snapshot);
+  const debtC = result.productDebts.find((row) => row.originOrderId === 'order-c-v12');
+  const debtA = result.productDebts.find((row) => row.originOrderId === 'order-a-v12');
+  assert.equal(debtC.dispatchedSetQty, 3);
+  assert.equal(debtC.openSetQty, 0);
+  assert.equal(result.finishedReadyAllocations.some((row) => row.targetOrderId === 'order-c-v12'), false);
+  assert.equal(debtA.finishedReadyQty, 297);
+  assert.equal(debtA.residualSetQty, 3);
+  assert.equal(result.segments.filter((row) => row.stage === 'MONTAGE_FINISHED_STOCK')
+    .reduce((sum, row) => sum + row.physicalQty, 0), 297);
+});
+
+test('V12 Paket 2 canonical miktar veya lineage belirsizse finished ready havuzu fail-closed kalır', () => {
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  snapshot.stockDepotItems[0].qty = 299;
+  snapshot.stockDepotItems[0].quantity = 299;
+  snapshot.stockDepotItems[0].amount = 299;
+  const result = loadSanalTaksimResolver().resolve(snapshot);
+  assert.equal(result.segments.some((row) => row.stage === 'MONTAGE_FINISHED_STOCK'), false);
+  assert.equal(result.finishedReadyAllocations.length, 0);
+  assert.ok(result.uncertain.some((row) =>
+    row.kind === 'MCT_CANONICAL_FINISHED_STOCK'
+    && row.reasonCode === 'MCT_FINISHED_EVIDENCE_CONFLICT'
+  ));
+});
+
+test('V12 Paket 2 Parça ve Üretim Akışı finished ready ile residual PRC aşamasını birlikte gösterir', () => {
+  const snapshot = buildV12ReadyFinishedProductSnapshot();
+  const Resolver = loadSanalTaksimResolver();
+  const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB: { data: { data: snapshot } },
+    SanalTaksimResolver: Resolver,
+    UnitModule: { getRouteStationName: () => 'CNC' }
+  });
+  const demandA = snapshot.planningDemands.find((row) => row.id === 'demand-a-v12');
+  const model = PlanningModule.getReleasedSalesSanalTaksimModel(demandA);
+  const html = PlanningModule.renderReleasedSalesSanalTaksimHtml(demandA);
+  assert.equal(model.ok, true);
+  assert.equal(model.finishedProducts[0].dynamicReadyQty, 297);
+  assert.equal(model.finishedProducts[0].residualSetQty, 3);
+  assert.match(html, /297 Sevkiyata Hazır/);
+  assert.match(html, /data-sanal-taksim-product-residual="true"[^>]*>3 ADET</);
+  assert.match(html, /CNC/);
+});
+
+function buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq = 4, draftStatus = '' } = {}) {
+  const buildCardRoutes = (branchProcess, prefix) => [
+    { id: `${prefix}-card-r1`, seq: 1, stationId: 'u_cut', processId: 'CUT-000001' },
+    { id: `${prefix}-card-r2`, seq: 2, stationId: 'u_cnc', processId: 'CNC-000001' },
+    { id: `${prefix}-card-r3`, seq: 3, stationId: 'u_polish', processId: 'POL-000001' },
+    { id: `${prefix}-card-r4`, seq: 4, stationId: 'u_dtm', processId: 'DTR-000001' },
+    { id: `${prefix}-card-r5`, seq: 5, stationId: 'u_elx', processId: branchProcess }
+  ];
+  const frozenRoutes = buildCardRoutes('ELX-GOLD', 'gold').map((route, index) => ({
+    ...route,
+    id: `wo-r${index + 1}`
+  }));
+  const transactions = [];
+  for (let routeSeq = 1; routeSeq <= stageRouteSeq; routeSeq += 1) {
+    const route = frozenRoutes[routeSeq - 1];
+    transactions.push({
+      id: `txn-take-${routeSeq}`,
+      workOrderId: 'wo-technical-phase1',
+      lineId: 'line-technical-phase1',
+      stationId: route.stationId,
+      processId: route.processId,
+      routeId: route.id,
+      routeSeq,
+      type: 'TAKE',
+      qty: 10
+    });
+    if (routeSeq < stageRouteSeq) {
+      transactions.push({
+        id: `txn-complete-${routeSeq}`,
+        workOrderId: 'wo-technical-phase1',
+        lineId: 'line-technical-phase1',
+        stationId: route.stationId,
+        processId: route.processId,
+        routeId: route.id,
+        routeSeq,
+        type: 'COMPLETE',
+        qty: 10
+      });
+    }
+  }
+  const snapshot = {
+    partComponentCards: [
+      { id: 'prc-root', code: 'PRC-ROOT', unit: 'ADET' },
+      {
+        id: 'prc-gold', code: 'PRC-GOLD', unit: 'ADET', masterCode: 'MASTER-001',
+        isVariant: true, rootComponentId: 'prc-root', rootComponentCode: 'PRC-ROOT',
+        routes: buildCardRoutes('ELX-GOLD', 'gold')
+      },
+      {
+        id: 'prc-bright', code: 'PRC-BRIGHT', unit: 'ADET', masterCode: 'MASTER-001',
+        isVariant: true, rootComponentId: 'prc-root', rootComponentCode: 'PRC-ROOT',
+        routes: buildCardRoutes('ELX-BRIGHT', 'bright')
+      }
+    ],
+    workOrders: [{
+      id: 'wo-technical-phase1',
+      workOrderCode: 'WO-TECHNICAL-PHASE1',
+      lines: [{
+        id: 'line-technical-phase1',
+        componentId: 'prc-gold',
+        componentCode: 'PRC-GOLD',
+        unit: 'ADET',
+        targetQty: 10,
+        routes: frozenRoutes
+      }]
+    }],
+    workOrderTransactions: transactions,
+    stockDepotItems: [],
+    montageDispatchShipments: [],
+    montageCompletionTransfers: [],
+    stock_movements: [],
+    outsourceDispatchDrafts: [],
+    workOrderExternalSupplierAssignments: []
+  };
+  if (draftStatus) {
+    snapshot.outsourceDispatchDrafts.push({
+      id: 'outsource-draft-phase1',
+      status: draftStatus,
+      unitId: 'u_elx',
+      supplierId: 'supplier-elx',
+      createdAt: '2026-08-27T08:00:00.000Z',
+      items: [{
+        qty: 6,
+        targetUnitId: 'u_elx',
+        targetProcessId: 'ELX-GOLD',
+        targetRouteSeq: 5,
+        workOrderRefs: [{
+          sourceRowKey: 'wo-technical-phase1::line-technical-phase1::u_dtm::wo-r4',
+          workOrderId: 'wo-technical-phase1',
+          lineId: 'line-technical-phase1',
+          componentCode: 'PRC-GOLD',
+          qty: 6,
+          targetUnitId: 'u_elx',
+          targetProcessId: 'ELX-GOLD',
+          targetRouteSeq: 5
+        }]
+      }]
+    });
+  }
+  return snapshot;
+}
+
+test('Faz 1 canonical prefix ELX branch oncesini sibling, branch adimini incompatible yapar', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const preSplit = Resolver.resolve(buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 3 }));
+  const preSplitRow = preSplit.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(preSplitRow.relation, 'SIBLING_PRE_SPLIT');
+  assert.equal(preSplitRow.commonPrefixLength, 4);
+  assert.equal(preSplitRow.sourceNextToken, 'U_ELX::ELX-GOLD');
+  assert.equal(preSplitRow.targetNextToken, 'U_ELX::ELX-BRIGHT');
+
+  const afterSplit = Resolver.resolve(buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 5 }));
+  const afterSplitRow = afterSplit.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(afterSplitRow.relation, 'INCOMPATIBLE');
+  assert.equal(afterSplitRow.reasonCode, 'SEGMENT_AT_OR_AFTER_SPLIT_BRANCH');
+});
+
+test('Faz 1 outsource DRAFT sibling miktarini kilitler, CANCELLED kilidi cozer ve allocationa dokunmaz', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const draftSnapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DRAFT' });
+  const draft = Resolver.resolve(draftSnapshot);
+  const sibling = draft.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(sibling.relation, 'SIBLING_PRE_SPLIT');
+  assert.equal(sibling.siblingLockedQty, 6);
+  assert.equal(sibling.siblingAvailableQty, 4);
+  assert.equal(draft.technicalEligibility.outsourceSplitLocks.length, 1);
+  assert.equal(draft.technicalEligibility.outsourceSplitLocks[0].persistentRange, false);
+
+  const cancelledSnapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'CANCELLED' });
+  const cancelled = Resolver.resolve(cancelledSnapshot);
+  const cancelledSibling = cancelled.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(cancelled.technicalEligibility.outsourceSplitLocks.length, 0);
+  assert.equal(cancelledSibling.siblingLockedQty, 0);
+  assert.equal(cancelledSibling.siblingAvailableQty, 10);
+  assert.deepEqual(draft.allocations, cancelled.allocations);
+  assert.deepEqual(draft.debts, cancelled.debts);
+
+  const dispatchedSnapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DISPATCHED' });
+  dispatchedSnapshot.workOrderTransactions.push(
+    {
+      id: 'txn-complete-4-dispatch', workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+      stationId: 'u_dtm', processId: 'DTR-000001', routeId: 'wo-r4', routeSeq: 4, type: 'COMPLETE', qty: 6
+    },
+    {
+      id: 'txn-take-5-dispatch', workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+      stationId: 'u_elx', processId: 'ELX-GOLD', routeId: 'wo-r5', routeSeq: 5, type: 'TAKE', qty: 6
+    }
+  );
+  dispatchedSnapshot.workOrderExternalSupplierAssignments.push({
+    id: 'assignment-phase1', status: 'ACTIVE', dispatchDraftId: 'outsource-draft-phase1',
+    workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+    sourceStationId: 'u_dtm', sourceRouteSeq: 4,
+    targetUnitId: 'u_elx', targetRouteSeq: 5, targetProcessId: 'ELX-GOLD',
+    supplierId: 'supplier-elx', qty: 6,
+    sourceRowKey: 'wo-technical-phase1::line-technical-phase1::u_dtm::wo-r4'
+  });
+  const dispatched = Resolver.resolve(dispatchedSnapshot);
+  assert.equal(dispatched.technicalEligibility.outsourceSplitLocks.length, 1);
+  assert.equal(dispatched.technicalEligibility.outsourceSplitLocks[0].kind, 'OUTSOURCE_ACTIVE');
+  assert.equal(dispatched.technicalEligibility.outsourceSplitLocks[0].sourceRouteSeq, 4);
+  assert.equal(dispatched.technicalEligibility.outsourceSplitLocks[0].currentRouteSeq, 5);
+});
+
+test('Faz 1 bozuk outsource ref guess yapmadan UNCERTAIN ve sibling fail-closed kalir', () => {
+  const snapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DRAFT' });
+  snapshot.outsourceDispatchDrafts[0].items[0].workOrderRefs[0].sourceRowKey = '';
+  const result = loadSanalTaksimResolver().resolve(snapshot);
+  const sibling = result.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.ok(result.technicalEligibility.uncertain.some((row) =>
+    row.reasonCode === 'OUTSOURCE_SOURCE_ROW_KEY_MISMATCH'
+  ));
+  assert.equal(result.technicalEligibility.outsourceSplitLocks.length, 0);
+  assert.equal(sibling.relation, 'SIBLING_PRE_SPLIT');
+  assert.equal(sibling.siblingLockedQty, 10);
+  assert.equal(sibling.siblingAvailableQty, 0);
+  assert.ok(result.technicalEligibility.siblingBlockedSegmentKeys.includes(sibling.segmentKey));
+
+  const qtyMismatchSnapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DRAFT' });
+  qtyMismatchSnapshot.outsourceDispatchDrafts[0].items[0].qty = 7;
+  const qtyMismatch = loadSanalTaksimResolver().resolve(qtyMismatchSnapshot);
+  assert.ok(qtyMismatch.technicalEligibility.uncertain.some((row) =>
+    row.reasonCode === 'OUTSOURCE_ITEM_QTY_MISMATCH'
+  ));
+  assert.equal(qtyMismatch.technicalEligibility.outsourceSplitLocks.length, 0);
+});
+
+function resolvePlanningRuntimeOutsourceSnapshot(snapshot) {
+  const Resolver = loadSanalTaksimResolver();
+  const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB: { data: { data: snapshot } },
+    SanalTaksimResolver: Resolver
+  });
+  const runtimeSnapshot = PlanningModule.buildSanalTaksimSnapshot();
+  assert.strictEqual(runtimeSnapshot.outsourceDispatchDrafts, snapshot.outsourceDispatchDrafts);
+  assert.strictEqual(
+    runtimeSnapshot.workOrderExternalSupplierAssignments,
+    snapshot.workOrderExternalSupplierAssignments
+  );
+  return { runtimeSnapshot, result: Resolver.resolve(runtimeSnapshot) };
+}
+
+test('Planning snapshot outsource DRAFT kilidini tasir ve CANCELLED kardes miktari yeniden acar', () => {
+  const draftSnapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DRAFT' });
+  const draft = resolvePlanningRuntimeOutsourceSnapshot(draftSnapshot).result;
+  const draftSibling = draft.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(draftSibling.relation, 'SIBLING_PRE_SPLIT');
+  assert.equal(draftSibling.siblingLockedQty, 6);
+  assert.equal(draftSibling.siblingAvailableQty, 4);
+  assert.equal(draft.technicalEligibility.outsourceSplitLocks.length, 1);
+
+  const cancelledSnapshot = buildTechnicalEligibilityPhase1Snapshot({
+    stageRouteSeq: 4,
+    draftStatus: 'CANCELLED'
+  });
+  const cancelled = resolvePlanningRuntimeOutsourceSnapshot(cancelledSnapshot).result;
+  const cancelledSibling = cancelled.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.equal(cancelled.technicalEligibility.outsourceSplitLocks.length, 0);
+  assert.equal(cancelledSibling.siblingLockedQty, 0);
+  assert.equal(cancelledSibling.siblingAvailableQty, 10);
+});
+
+test('Planning snapshot ACTIVE outsource assignment kanitini resolvera tasir', () => {
+  const snapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DISPATCHED' });
+  snapshot.workOrderTransactions.push(
+    {
+      id: 'txn-complete-4-runtime', workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+      stationId: 'u_dtm', processId: 'DTR-000001', routeId: 'wo-r4', routeSeq: 4, type: 'COMPLETE', qty: 6
+    },
+    {
+      id: 'txn-take-5-runtime', workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+      stationId: 'u_elx', processId: 'ELX-GOLD', routeId: 'wo-r5', routeSeq: 5, type: 'TAKE', qty: 6
+    }
+  );
+  snapshot.workOrderExternalSupplierAssignments.push({
+    id: 'assignment-runtime', status: 'ACTIVE', dispatchDraftId: 'outsource-draft-phase1',
+    workOrderId: 'wo-technical-phase1', lineId: 'line-technical-phase1',
+    sourceStationId: 'u_dtm', sourceRouteSeq: 4,
+    targetUnitId: 'u_elx', targetRouteSeq: 5, targetProcessId: 'ELX-GOLD',
+    supplierId: 'supplier-elx', qty: 6,
+    sourceRowKey: 'wo-technical-phase1::line-technical-phase1::u_dtm::wo-r4'
+  });
+
+  const { runtimeSnapshot, result } = resolvePlanningRuntimeOutsourceSnapshot(snapshot);
+  assert.equal(runtimeSnapshot.workOrderExternalSupplierAssignments.length, 1);
+  assert.equal(result.technicalEligibility.outsourceSplitLocks.length, 1);
+  assert.equal(result.technicalEligibility.outsourceSplitLocks[0].kind, 'OUTSOURCE_ACTIVE');
+  assert.equal(result.technicalEligibility.outsourceSplitLocks[0].currentRouteSeq, 5);
+});
+
+test('Planning snapshot bozuk outsource refi tahmin etmeden fail-closed tasir', () => {
+  const snapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq: 4, draftStatus: 'DRAFT' });
+  snapshot.outsourceDispatchDrafts[0].items[0].workOrderRefs[0].sourceRowKey = '';
+  const result = resolvePlanningRuntimeOutsourceSnapshot(snapshot).result;
+  const sibling = result.technicalEligibility.compatibility.find((row) =>
+    row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+  );
+  assert.ok(result.technicalEligibility.uncertain.some((row) =>
+    row.reasonCode === 'OUTSOURCE_SOURCE_ROW_KEY_MISMATCH'
+  ));
+  assert.equal(result.technicalEligibility.outsourceSplitLocks.length, 0);
+  assert.equal(sibling.relation, 'SIBLING_PRE_SPLIT');
+  assert.equal(sibling.siblingAvailableQty, 0);
+  assert.ok(result.technicalEligibility.siblingBlockedSegmentKeys.includes(sibling.segmentKey));
+});
+
+function buildSiblingAllocationPhase2Snapshot({
+  stageRouteSeq = 4,
+  draftStatus = '',
+  sourceQty = 10,
+  targetQty = 10,
+  sourceDueDate = '2026-09-30',
+  targetDueDate = '2026-09-01'
+} = {}) {
+  const snapshot = buildTechnicalEligibilityPhase1Snapshot({ stageRouteSeq, draftStatus });
+  const sourceOrder = snapshot.workOrders[0];
+  sourceOrder.sourceId = 'demand-gold-phase2';
+  sourceOrder.sourceCode = 'PLN-GOLD-PHASE2';
+  sourceOrder.sourceItemKey = 'item-gold-phase2';
+  sourceOrder.lines[0].targetQty = sourceQty;
+  snapshot.workOrderTransactions.forEach((txn) => { txn.qty = sourceQty; });
+  const brightCard = snapshot.partComponentCards.find((card) => card.id === 'prc-bright');
+  const brightRoutes = brightCard.routes.map((route, index) => ({ ...route, id: `bright-wo-r${index + 1}` }));
+  snapshot.workOrders.push({
+    id: 'wo-bright-phase2',
+    workOrderCode: 'WO-BRIGHT-PHASE2',
+    sourceId: 'demand-bright-phase2',
+    sourceCode: 'PLN-BRIGHT-PHASE2',
+    sourceItemKey: 'item-bright-phase2',
+    lines: [{
+      id: 'line-bright-phase2',
+      componentId: 'prc-bright',
+      componentCode: 'PRC-BRIGHT',
+      unit: 'ADET',
+      targetQty,
+      routes: brightRoutes
+    }]
+  });
+  snapshot.planningDemands = [
+    {
+      id: 'demand-bright-phase2', demandCode: 'PLN-BRIGHT-PHASE2', sourceType: 'STOCK',
+      status: 'RELEASED', released_at: '2026-08-27T08:00:00.000Z', dueDate: targetDueDate,
+      workOrderIds: ['wo-bright-phase2'], workOrderCodes: ['WO-BRIGHT-PHASE2'],
+      items: [{ id: 'item-bright-phase2', qty: targetQty }]
+    },
+    {
+      id: 'demand-gold-phase2', demandCode: 'PLN-GOLD-PHASE2', sourceType: 'STOCK',
+      status: 'RELEASED', released_at: '2026-08-27T08:01:00.000Z', dueDate: sourceDueDate,
+      workOrderIds: ['wo-technical-phase1'], workOrderCodes: ['WO-TECHNICAL-PHASE1'],
+      items: [{ id: 'item-gold-phase2', qty: sourceQty }]
+    }
+  ];
+  snapshot.orders = [];
+  snapshot.salesShipments = [];
+  return snapshot;
+}
+
+function addSecondBrightDebtPhase2(snapshot, {
+  qty = 6,
+  dueDate = '2026-09-02'
+} = {}) {
+  const template = snapshot.workOrders.find((order) => order.id === 'wo-bright-phase2');
+  snapshot.workOrders.push({
+    ...JSON.parse(JSON.stringify(template)),
+    id: 'wo-bright-second-phase2',
+    workOrderCode: 'WO-BRIGHT-SECOND-PHASE2',
+    sourceId: 'demand-bright-second-phase2',
+    sourceCode: 'PLN-BRIGHT-SECOND-PHASE2',
+    sourceItemKey: 'item-bright-second-phase2',
+    lines: [{
+      ...JSON.parse(JSON.stringify(template.lines[0])),
+      id: 'line-bright-second-phase2',
+      targetQty: qty,
+      routes: template.lines[0].routes.map((route, index) => ({ ...route, id: `bright-second-r${index + 1}` }))
+    }]
+  });
+  snapshot.planningDemands.push({
+    id: 'demand-bright-second-phase2', demandCode: 'PLN-BRIGHT-SECOND-PHASE2', sourceType: 'STOCK',
+    status: 'RELEASED', released_at: '2026-08-27T08:02:00.000Z', dueDate,
+    workOrderIds: ['wo-bright-second-phase2'], workOrderCodes: ['WO-BRIGHT-SECOND-PHASE2'],
+    items: [{ id: 'item-bright-second-phase2', qty }]
+  });
+}
+
+test('Faz 2 guvenilir pre-split kardes miktari ticari borca tahsis eder ve exact yolu korur', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const siblingResult = Resolver.resolve(buildSiblingAllocationPhase2Snapshot());
+  const brightDebt = siblingResult.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  const siblingAllocation = siblingResult.allocations.find((allocation) =>
+    allocation.targetDebtKey === brightDebt.debtKey
+  );
+  assert.equal(siblingAllocation.qty, 10);
+  assert.equal(siblingAllocation.technicalCompatibility, 'SIBLING_PRE_SPLIT');
+  assert.equal(siblingAllocation.physicalPrcCode, 'PRC-GOLD');
+  assert.equal(siblingAllocation.targetPrcCode, 'PRC-BRIGHT');
+  assert.equal(siblingResult.diagnostics.invariants.canonicalTechnicalCompatibilityOnly, true);
+  assert.equal(siblingResult.diagnostics.invariants.exactPrcAndUnitOnly, true);
+
+  const exactResult = Resolver.resolve(buildSiblingAllocationPhase2Snapshot({
+    sourceDueDate: '2026-08-31', targetDueDate: '2026-09-30'
+  }));
+  const goldDebt = exactResult.debts.find((debt) => debt.prcCode === 'PRC-GOLD');
+  const exactAllocation = exactResult.allocations.find((allocation) =>
+    allocation.targetDebtKey === goldDebt.debtKey
+  );
+  assert.equal(exactAllocation.qty, 10);
+  assert.equal(exactAllocation.prcCode, 'PRC-GOLD');
+  assert.equal(Object.hasOwn(exactAllocation, 'technicalCompatibility'), false);
+});
+
+test('Faz 2 kardes havuzunda mevcut en ileri asama sirasi korunur', () => {
+  const snapshot = buildSiblingAllocationPhase2Snapshot({ targetQty: 5 });
+  snapshot.workOrderTransactions = snapshot.workOrderTransactions.filter((txn) => Number(txn.routeSeq) <= 2);
+  const line = snapshot.workOrders[0].lines[0];
+  [
+    { id: 'phase2-r3-take', seq: 3, type: 'TAKE', qty: 10 },
+    { id: 'phase2-r3-complete', seq: 3, type: 'COMPLETE', qty: 5 },
+    { id: 'phase2-r4-take', seq: 4, type: 'TAKE', qty: 5 }
+  ].forEach((entry) => {
+    const route = line.routes[entry.seq - 1];
+    snapshot.workOrderTransactions.push({
+      id: entry.id, workOrderId: snapshot.workOrders[0].id, lineId: line.id,
+      stationId: route.stationId, processId: route.processId, routeId: route.id,
+      routeSeq: entry.seq, type: entry.type, qty: entry.qty
+    });
+  });
+  const result = loadSanalTaksimResolver().resolve(snapshot);
+  const brightDebt = result.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  const firstAllocation = result.allocations.find((allocation) => allocation.targetDebtKey === brightDebt.debtKey);
+  assert.equal(firstAllocation.physicalSegmentId, 'WORK|wo-technical-phase1|line-technical-phase1|IN_PROCESS|4');
+  assert.equal(firstAllocation.qty, 5);
+});
+
+test('Faz 2 DRAFT kilidi kardes miktari sinirlar, CANCELLED acar; split ve UNCERTAIN tahsis edilmez', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const draft = Resolver.resolve(buildSiblingAllocationPhase2Snapshot({ draftStatus: 'DRAFT' }));
+  const draftDebt = draft.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  const draftSiblingQty = draft.allocations
+    .filter((allocation) => allocation.targetDebtKey === draftDebt.debtKey
+      && allocation.technicalCompatibility === 'SIBLING_PRE_SPLIT')
+    .reduce((sum, allocation) => sum + allocation.qty, 0);
+  assert.equal(draftSiblingQty, 4);
+
+  const cancelled = Resolver.resolve(buildSiblingAllocationPhase2Snapshot({ draftStatus: 'CANCELLED' }));
+  const cancelledDebt = cancelled.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  assert.equal(cancelled.allocations
+    .filter((allocation) => allocation.targetDebtKey === cancelledDebt.debtKey)
+    .reduce((sum, allocation) => sum + allocation.qty, 0), 10);
+
+  const split = Resolver.resolve(buildSiblingAllocationPhase2Snapshot({ stageRouteSeq: 5 }));
+  const splitDebt = split.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  assert.equal(split.allocations.some((allocation) => allocation.targetDebtKey === splitDebt.debtKey), false);
+
+  const uncertainSnapshot = buildSiblingAllocationPhase2Snapshot();
+  uncertainSnapshot.partComponentCards.find((card) => card.id === 'prc-gold').routes[1].processId = 'CNC-DRIFT';
+  const uncertain = Resolver.resolve(uncertainSnapshot);
+  const uncertainDebt = uncertain.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  assert.equal(uncertain.technicalEligibility.compatibility.some((row) =>
+    row.targetPrcCode === 'PRC-BRIGHT' && row.relation === 'UNCERTAIN'
+  ), true);
+  assert.equal(uncertain.allocations.some((allocation) => allocation.targetDebtKey === uncertainDebt.debtKey), false);
+});
+
+test('Faz 2 sibling allocation segment kapasitesini asmaz ve RESERVED holdu kullanmaz', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const snapshot = buildSiblingAllocationPhase2Snapshot({ sourceQty: 6, targetQty: 6 });
+  addSecondBrightDebtPhase2(snapshot, { qty: 6 });
+  const result = Resolver.resolve(snapshot);
+  const segmentKey = 'WORK|wo-technical-phase1|line-technical-phase1|IN_PROCESS|4';
+  const siblingAllocated = result.allocations
+    .filter((allocation) => allocation.physicalSegmentId === segmentKey
+      && allocation.technicalCompatibility === 'SIBLING_PRE_SPLIT')
+    .reduce((sum, allocation) => sum + allocation.qty, 0);
+  assert.equal(siblingAllocated, 6);
+  assert.equal(result.diagnostics.invariants.segmentKeysConsumedOnce, true);
+  assert.equal(result.diagnostics.invariants.siblingAllocationWithinTechnicalQty, true);
+
+  const heldSnapshot = buildSiblingAllocationPhase2Snapshot({ sourceQty: 6, targetQty: 6 });
+  heldSnapshot.virtualAllocationConstraints = { reservedSegmentKeys: [segmentKey] };
+  const held = Resolver.resolve(heldSnapshot);
+  const brightDebt = held.debts.find((debt) => debt.prcCode === 'PRC-BRIGHT');
+  assert.equal(held.allocations.some((allocation) => allocation.targetDebtKey === brightDebt.debtKey), false);
+  assert.ok(held.diagnostics.excludedReservedSegmentKeys.includes(segmentKey));
+});
+
+test('Faz 2 borc sirasi degisince sibling miktari deterministik yeniden dagitir ve fiziksel gecmisi degistirmez', () => {
+  const Resolver = loadSanalTaksimResolver();
+  const snapshot = buildSiblingAllocationPhase2Snapshot({ sourceQty: 6, targetQty: 6 });
+  addSecondBrightDebtPhase2(snapshot, { qty: 6, dueDate: '2026-09-02' });
+  const historyBefore = JSON.stringify({
+    workOrders: snapshot.workOrders,
+    workOrderTransactions: snapshot.workOrderTransactions,
+    planningDemands: snapshot.planningDemands.map((row) => ({ id: row.id, workOrderIds: row.workOrderIds }))
+  });
+  const first = Resolver.resolve(snapshot);
+  const firstOwner = first.allocations.find((allocation) =>
+    allocation.technicalCompatibility === 'SIBLING_PRE_SPLIT'
+  )?.targetDemandId;
+  assert.equal(firstOwner, 'demand-bright-phase2');
+
+  snapshot.planningDemands.find((row) => row.id === 'demand-bright-phase2').dueDate = '2026-09-03';
+  snapshot.planningDemands.find((row) => row.id === 'demand-bright-second-phase2').dueDate = '2026-09-01';
+  const second = Resolver.resolve(snapshot);
+  const repeated = Resolver.resolve(snapshot);
+  const secondOwner = second.allocations.find((allocation) =>
+    allocation.technicalCompatibility === 'SIBLING_PRE_SPLIT'
+  )?.targetDemandId;
+  assert.equal(secondOwner, 'demand-bright-second-phase2');
+  assert.deepEqual(second.allocations, repeated.allocations);
+  assert.equal(JSON.stringify({
+    workOrders: snapshot.workOrders,
+    workOrderTransactions: snapshot.workOrderTransactions,
+    planningDemands: snapshot.planningDemands.map((row) => ({ id: row.id, workOrderIds: row.workOrderIds }))
+  }), historyBefore);
+});
+
+function buildPlanningSiblingPresentationSnapshot({ sourceQty = 6, targetQty = 6 } = {}) {
+  const snapshot = buildSiblingAllocationPhase2Snapshot({ sourceQty, targetQty });
+  const demand = snapshot.planningDemands.find((row) => row.id === 'demand-bright-phase2');
+  Object.assign(demand, {
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: 'sor-bright-phase2',
+    sourceOrderNo: 'SOR-BRIGHT-PHASE2',
+    sourceLineId: 'sor-bright-line-phase2'
+  });
+  demand.items[0].variantCode = 'SVR-BRIGHT-PHASE2';
+  snapshot.orders = [{
+    id: 'sor-bright-phase2',
+    orderNo: 'SOR-BRIGHT-PHASE2',
+    status: 'Onaylandi',
+    deliveryDate: demand.dueDate,
+    lines: [{
+      id: 'sor-bright-line-phase2',
+      productId: 'sal-bright-phase2',
+      variationId: 'svr-bright-phase2',
+      variantCode: 'SVR-BRIGHT-PHASE2',
+      qty: targetQty,
+      unit: 'ADET'
+    }]
+  }];
+  return snapshot;
+}
+
+function loadPlanningSiblingPresentationHarness(snapshot, resolverResult = null) {
+  const Resolver = loadSanalTaksimResolver();
+  const resolved = resolverResult || Resolver.resolve(snapshot);
+  const harness = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB: { data: { data: snapshot }, save: () => { throw new Error('read-only UI model must not save'); } },
+    SanalTaksimResolver: { resolve: () => resolved },
+    UnitModule: { getRouteStationName: (stationId) => String(stationId || '') }
+  });
+  return { PlanningModule: harness.exported, resolved };
+}
+
+test('Planning UI sibling contract canonical SIBLING_PRE_SPLIT tahsisini hedef PRC satirinda gosterir ve exact yolu korur', () => {
+  const snapshot = buildPlanningSiblingPresentationSnapshot();
+  const before = JSON.stringify(snapshot);
+  const { PlanningModule, resolved } = loadPlanningSiblingPresentationHarness(snapshot);
+  const demand = snapshot.planningDemands.find((row) => row.id === 'demand-bright-phase2');
+  const siblingAllocation = resolved.allocations.find((row) =>
+    row.technicalCompatibility === 'SIBLING_PRE_SPLIT'
+    && row.targetDemandId === demand.id
+  );
+  assert.equal(siblingAllocation.qty, 6);
+
+  const model = PlanningModule.getReleasedSalesSanalTaksimModel(demand);
+  const html = PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
+  const row = model.rows.find((entry) => entry.prcCode === 'PRC-BRIGHT');
+  assert.equal(model.ok, true);
+  assert.equal(row.allocatedQty, 6);
+  assert.equal(row.uncoveredQty, 0);
+  assert.deepEqual(Array.from(row.technicalCompatibilities), ['SIBLING_PRE_SPLIT']);
+  assert.match(html, /data-sanal-taksim-sibling-pre-split="true"/);
+  assert.match(html, /Kardeş PRC · ayrışma öncesi/);
+  assert.equal(JSON.stringify(snapshot), before);
+
+  const exactSnapshot = buildSanalTaksimPhase2Snapshot();
+  const exactHarness = loadPlanningSiblingPresentationHarness(exactSnapshot);
+  const exactDemand = exactSnapshot.planningDemands.find((entry) => entry.id === 'pln-sales');
+  const exactModel = exactHarness.PlanningModule.getReleasedSalesSanalTaksimModel(exactDemand);
+  assert.equal(exactModel.rows[0].allocatedQty, 40);
+  assert.deepEqual(Array.from(exactModel.rows[0].technicalCompatibilities), ['EXACT']);
+});
+
+test('Planning UI sibling contract eksik veya tahrif edilmis canonical metadatayi fail-closed tutar', () => {
+  const snapshot = buildPlanningSiblingPresentationSnapshot();
+  const base = loadSanalTaksimResolver().resolve(snapshot);
+  const demand = snapshot.planningDemands.find((row) => row.id === 'demand-bright-phase2');
+  const mutations = [
+    (result) => { delete result.allocations.find((row) => row.technicalCompatibility === 'SIBLING_PRE_SPLIT').physicalPrcCode; },
+    (result) => { result.allocations.find((row) => row.technicalCompatibility === 'SIBLING_PRE_SPLIT').targetPrcCode = 'PRC-TAMPERED'; },
+    (result) => {
+      result.technicalEligibility.compatibility.find((row) =>
+        row.sourcePrcCode === 'PRC-GOLD' && row.targetPrcCode === 'PRC-BRIGHT'
+      ).commonPrefixLength = 0;
+    },
+    (result) => { result.technicalEligibility.compatibility = []; }
+  ];
+
+  mutations.forEach((mutate) => {
+    const tampered = JSON.parse(JSON.stringify(base));
+    mutate(tampered);
+    const { PlanningModule } = loadPlanningSiblingPresentationHarness(snapshot, tampered);
+    const model = PlanningModule.getReleasedSalesSanalTaksimModel(demand);
+    const row = model.rows.find((entry) => entry.prcCode === 'PRC-BRIGHT');
+    assert.equal(row.allocatedQty, null);
+    assert.equal(row.uncoveredQty, null);
+    assert.equal(row.allocationEligible, false);
+    assert.ok(row.reasonCodes.includes('SIBLING_ALLOCATION_PROOF_INVALID'));
+  });
+});
+
+test('Planning UI sibling contract sifir acik borcu ayirir ve invariant ihlalinde double-count gostermez', () => {
+  const snapshot = buildPlanningSiblingPresentationSnapshot();
+  const base = loadSanalTaksimResolver().resolve(snapshot);
+  const demand = snapshot.planningDemands.find((row) => row.id === 'demand-bright-phase2');
+  const targetDebt = base.debts.find((row) => row.originDemandId === demand.id && row.prcCode === 'PRC-BRIGHT');
+
+  const zeroDebt = JSON.parse(JSON.stringify(base));
+  zeroDebt.debts.find((row) => row.debtKey === targetDebt.debtKey).openDebtQty = 0;
+  zeroDebt.allocations = zeroDebt.allocations.filter((row) => row.targetDebtKey !== targetDebt.debtKey);
+  zeroDebt.uncoveredDebts = zeroDebt.uncoveredDebts.filter((row) => row.debtKey !== targetDebt.debtKey);
+  zeroDebt.uncoveredDebts.push({ debtKey: targetDebt.debtKey, qty: 0, status: 'RESOLVED', reasonCode: '' });
+  const zeroHarness = loadPlanningSiblingPresentationHarness(snapshot, zeroDebt);
+  const zeroModel = zeroHarness.PlanningModule.getReleasedSalesSanalTaksimModel(demand);
+  const zeroRow = zeroModel.rows.find((row) => row.prcCode === 'PRC-BRIGHT');
+  const zeroHtml = zeroHarness.PlanningModule.renderReleasedSalesSanalTaksimHtml(demand);
+  assert.equal(zeroRow.hasOpenDebt, false);
+  assert.equal(zeroRow.targetQty, 0);
+  assert.equal(zeroRow.allocatedQty, 0);
+  assert.equal(zeroRow.uncoveredQty, 0);
+  assert.match(zeroHtml, /data-sanal-taksim-open-debt="false"/);
+  assert.match(zeroHtml, /Açık fiziksel borç yok/);
+  assert.match(zeroHtml, /Fiziksel tahsis gerekmiyor/);
+
+  const duplicated = JSON.parse(JSON.stringify(base));
+  const sibling = duplicated.allocations.find((row) => row.technicalCompatibility === 'SIBLING_PRE_SPLIT');
+  duplicated.allocations.push({ ...sibling });
+  duplicated.diagnostics.invariants.segmentKeysConsumedOnce = false;
+  const duplicateHarness = loadPlanningSiblingPresentationHarness(snapshot, duplicated);
+  const duplicateModel = duplicateHarness.PlanningModule.getReleasedSalesSanalTaksimModel(demand);
+  const duplicateRow = duplicateModel.rows.find((row) => row.prcCode === 'PRC-BRIGHT');
+  assert.equal(duplicateRow.allocatedQty, null);
+  assert.equal(duplicateRow.allocationEligible, false);
+  assert.ok(duplicateRow.reasonCodes.includes('SIBLING_ALLOCATION_PROOF_INVALID'));
+
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src/modules/planning-module.js'), 'utf8');
+  assert.doesNotMatch(source, /:\s*'Dagilim yok'/);
+  assert.match(source, /WO \/ istasyon dağılımı yok/);
+});
+
+function buildPrototypeCohortPlannerHarness() {
+  const demoPath = path.join(__dirname, '..', 'demo_state.json');
+  const source = fs.readFileSync(demoPath, 'utf8');
+  const state = buildPrototypeSalesCohortCleanupFixture();
+  const Planner = require('../src/core/prototype-test-cohort-planner.js');
+  const options = {
+    baselineManualEntryDocNos: Array.from({ length: 9 }, (_, index) =>
+      `EK-2026-${String(index + 1).padStart(6, '0')}`),
+    testSeedLocationCodes: ['FAZ5-TEST-01']
+  };
+  return { demoPath, source, state, Planner, options };
+}
+
+function cohortRows(plan, action, collection) {
+  return (plan?.classifications?.[action] || [])
+    .filter((row) => row.collection === collection);
+}
+
+test('PROTOTYPE COHORT PLANNER baseline belgelerini KEEP ve test seed belgelerini DELETE siniflar', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const plan = harness.Planner.build(harness.state, harness.options);
+  const keepEntries = cohortRows(plan, 'KEEP', 'stockManualEntries');
+  const deleteEntries = cohortRows(plan, 'DELETE', 'stockManualEntries');
+
+  assert.equal(plan.ok, true, plan.uncertainties.map((row) => row.message).join(' | '));
+  assert.deepEqual(keepEntries.map((row) => row.code), harness.options.baselineManualEntryDocNos);
+  assert.deepEqual(deleteEntries.map((row) => row.code),
+    Array.from({ length: 7 }, (_, index) => `EK-2026-${String(index + 10).padStart(6, '0')}`));
+  assert.equal(plan.baseline.manualEntryCount, 9);
+  assert.equal(plan.baseline.movementCount, 9);
+  assert.equal(plan.baseline.stockRowCount, 9);
+  assert.equal(plan.baseline.authoritativeQtyTotal, 13200);
+});
+
+test('PROTOTYPE COHORT PLANNER eski SOR PLN WO ve fiziksel test closure kayitlarini DELETE siniflar', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const data = harness.state.data || harness.state;
+  const plan = harness.Planner.build(harness.state, harness.options);
+  const coveredCollections = [
+    'orders', 'planningDemands', 'workOrders', 'workOrderTransactions',
+    'montageDispatchPlans', 'montageDispatchShipments', 'montageCompletionTransfers',
+    'sanalTaksimAllocationInstructions', 'salesShipmentPlans',
+    'workOrderExternalSupplierAssignments', 'outsourceDispatchDrafts'
+  ];
+
+  coveredCollections.forEach((collection) => {
+    assert.equal(cohortRows(plan, 'DELETE', collection).length, (data[collection] || []).length, collection);
+  });
+  const tombstonedOrderIds = data.orders
+    .filter((row) => row.prototypeResetTombstone).map((row) => row.id);
+  tombstonedOrderIds.forEach((id) => {
+    assert.ok(cohortRows(plan, 'DELETE', 'orders').some((row) => row.id === id));
+  });
+  const currentOrderIds = new Set(data.orders.map((row) => row.id));
+  const orphanPlans = data.montageDispatchPlans.filter((row) =>
+    (row.items || []).some((item) => item.sourceOrderId && !currentOrderIds.has(item.sourceOrderId)));
+  assert.ok(orphanPlans.length > 0);
+  orphanPlans.forEach((row) => {
+    assert.ok(cohortRows(plan, 'DELETE', 'montageDispatchPlans').some((entry) => entry.id === row.id));
+  });
+});
+
+test('PROTOTYPE COHORT PLANNER guncel SOR ve tarihsel STOCK kohortu kanitini kapsar', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const plan = harness.Planner.build(harness.state, harness.options);
+  const codes = (action, collection) => new Set(cohortRows(plan, action, collection).map((row) => row.code));
+
+  ['SOR-000007', 'SOR-000008', 'SOR-000009', 'SOR-000011',
+    'SOR-000012', 'SOR-000013', 'SOR-000014', 'SOR-000015']
+    .forEach((code) => assert.ok(codes('DELETE', 'orders').has(code), code));
+
+  const stockState = JSON.parse(JSON.stringify(harness.state));
+  const stockData = stockState.data || stockState;
+  stockData.planningDemands = stockData.planningDemands
+    .filter((row) => !['PLN-000020', 'PLN-000021'].includes(row.demandCode));
+  stockData.workOrders = stockData.workOrders.filter((row) => row.workOrderCode !== 'WO-000127');
+  stockData.planningDemands.push(
+    { id: 'fixture-pln-20', demandCode: 'PLN-000020', sourceType: 'STOCK', workOrderIds: [] },
+    { id: 'fixture-pln-21', demandCode: 'PLN-000021', sourceType: 'STOCK', workOrderIds: ['fixture-wo-127'] }
+  );
+  stockData.workOrders.push({
+    id: 'fixture-wo-127',
+    workOrderCode: 'WO-000127',
+    sourceType: 'PLAN_POOL_COMPONENT',
+    sourceId: 'fixture-pln-21',
+    sourceCode: 'PLN-000021'
+  });
+  const stockPlan = harness.Planner.build(stockState, harness.options);
+  const stockCodes = (action, collection) => new Set(cohortRows(stockPlan, action, collection).map((row) => row.code));
+  ['PLN-000020', 'PLN-000021']
+    .forEach((code) => assert.ok(stockCodes('DELETE', 'planningDemands').has(code), code));
+  assert.ok(stockCodes('DELETE', 'workOrders').has('WO-000127'));
+});
+
+test('PROTOTYPE COHORT PLANNER baseline disi belirsiz fiziksel kayitta UNCERTAIN fail closed kalir', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const state = JSON.parse(JSON.stringify(harness.state));
+  const data = state.data || state;
+  data.stockDepotItems.push({
+    id: 'stock-physical-uncertain',
+    qty: 1,
+    quantity: 1,
+    amount: 1,
+    unit: 'ADET',
+    stockClass: 'KULLANILABILIR',
+    depotId: 'main',
+    locationId: 'location-unknown'
+  });
+  const before = JSON.stringify(state);
+
+  const plan = harness.Planner.build(state, harness.options);
+
+  assert.equal(plan.ok, false);
+  assert.equal(plan.failClosed, true);
+  assert.ok(plan.uncertainties.some((row) => row.reasonCode === 'PHYSICAL_STOCK_PROVENANCE_UNCLASSIFIED'));
+  assert.ok(cohortRows(plan, 'UNCERTAIN', 'stockDepotItems')
+    .some((row) => row.id === 'stock-physical-uncertain'));
+  assert.equal(JSON.stringify(state), before);
+});
+
+test('PROTOTYPE COHORT PLANNER bozuk exact range veya rebind kanitinda UNCERTAIN uretir', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const rangeState = JSON.parse(JSON.stringify(harness.state));
+  const rangeData = rangeState.data || rangeState;
+  const exactPlan = rangeData.montageDispatchPlans.find((row) =>
+    Array.isArray(row.exactReservations) && row.exactReservations.length > 0);
+  assert.ok(exactPlan);
+  delete exactPlan.exactReservations[0].segmentOffsetEnd;
+
+  const rangePlan = harness.Planner.build(rangeState, harness.options);
+
+  assert.equal(rangePlan.ok, false);
+  assert.ok(rangePlan.uncertainties.some((row) => row.reasonCode === 'PHYSICAL_RANGE_INVALID'));
+
+  const rebindState = JSON.parse(JSON.stringify(harness.state));
+  const rebindData = rebindState.data || rebindState;
+  const rebound = rebindData.montageDispatchPlans.find((row) => row.rebindAudit);
+  assert.ok(rebound);
+  rebound.rebindAudit.targetPlanId = 'missing-target-plan';
+
+  const rebindPlan = harness.Planner.build(rebindState, harness.options);
+
+  assert.equal(rebindPlan.ok, false);
+  assert.ok(rebindPlan.uncertainties.some((row) => row.reasonCode === 'OPERATIONAL_REBIND_INVALID'));
+
+  const reservationState = JSON.parse(JSON.stringify(harness.state));
+  const reservationData = reservationState.data || reservationState;
+  const exactShipment = reservationData.montageDispatchShipments.find((shipment) =>
+    (shipment.parts || []).some((part) => (part.allocations || [])
+      .some((allocation) => (allocation.exactReservationKeys || []).length > 0)));
+  assert.ok(exactShipment);
+  const exactAllocation = exactShipment.parts
+    .flatMap((part) => part.allocations || [])
+    .find((allocation) => (allocation.exactReservationKeys || []).length > 0);
+  exactAllocation.exactReservationKeys[0] = 'missing-reservation-key';
+
+  const reservationPlan = harness.Planner.build(reservationState, harness.options);
+
+  assert.equal(reservationPlan.ok, false);
+  assert.ok(reservationPlan.uncertainties
+    .some((row) => row.reasonCode === 'EXACT_RESERVATION_LINK_INVALID'));
+});
+
+test('PROTOTYPE COHORT PLANNER master koleksiyonlari korur ve state ile demo_state dosyasini degistirmez', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const beforeState = JSON.stringify(harness.state);
+  const beforeFileHash = nodeCrypto.createHash('sha256').update(harness.source).digest('hex');
+
+  const plan = harness.Planner.build(harness.state, harness.options);
+
+  const masterCollections = new Set(harness.Planner.MASTER_COLLECTIONS);
+  assert.equal(plan.classifications.DELETE.some((row) => masterCollections.has(row.collection)), false);
+  assert.equal(plan.readOnly, true);
+  assert.equal(plan.writes, 0);
+  assert.equal(JSON.stringify(harness.state), beforeState);
+  const afterSource = fs.readFileSync(harness.demoPath, 'utf8');
+  const afterFileHash = nodeCrypto.createHash('sha256').update(afterSource).digest('hex');
+  assert.equal(afterFileHash, beforeFileHash);
+});
+
+test('PROTOTYPE COHORT PLANNER PlanningModule salt okunur cagri yuzeyinden ayni manifesti uretir', () => {
+  const harness = buildPrototypeCohortPlannerHarness();
+  const DB = { data: JSON.parse(JSON.stringify(harness.state)) };
+  const before = JSON.stringify(DB.data);
+  const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+    DB,
+    PrototypeTestCohortPlanner: harness.Planner,
+    SanalTaksimResolver: loadSanalTaksimResolver()
+  });
+
+  const plan = PlanningModule.buildPrototypeTestCohortBaselinePlan();
+
+  assert.equal(plan.ok, true, plan.uncertainties.map((row) => row.message).join(' | '));
+  assert.equal(plan.baseline.authoritativeQtyTotal, 13200);
+  assert.equal(plan.summary.UNCERTAIN, 0);
+  assert.equal(JSON.stringify(DB.data), before);
+});
+
+function buildPrototypeStockCleanupFixture() {
+  return {
+    schema_version: 1,
+    meta: { revision: 41, updated_at: '2026-08-28T12:00:00.000Z', counters: { demand: 21, workOrder: 127 } },
+    data: {
+      products: [{ id: 'product-master-1', code: 'AKS0002' }],
+      customers: [{ id: 'customer-master-1' }],
+      suppliers: [{ id: 'supplier-master-1' }],
+      stockDepots: [{ id: 'main' }],
+      stockDepotLocations: [{ id: 'loc-main' }],
+      stockManualEntries: [{ id: 'entry-baseline-1', docNo: 'EK-2026-000001', qty: 100 }],
+      orders: [{ id: 'sor-foreign', orderNo: 'SOR-FOREIGN' }],
+      planningDemands: [
+        { id: 'pln-stock-20', demandCode: 'PLN-000020', sourceType: 'STOCK', workOrderIds: [] },
+        { id: 'pln-stock-21', demandCode: 'PLN-000021', sourceType: 'STOCK', workOrderIds: ['wo-stock-127'] },
+        { id: 'pln-sales-foreign', demandCode: 'PLN-FOREIGN', sourceType: 'SALES_ORDER', sourceOrderId: 'sor-foreign' }
+      ],
+      workOrders: [
+        { id: 'wo-stock-127', workOrderCode: 'WO-000127', sourceType: 'PLAN_POOL_COMPONENT', sourceId: 'pln-stock-21', sourceCode: 'PLN-000021' },
+        { id: 'wo-sales-foreign', workOrderCode: 'WO-FOREIGN', sourceId: 'pln-sales-foreign' }
+      ],
+      workOrderTransactions: [
+        { id: 'txn-stock-127', workOrderId: 'wo-stock-127', type: 'TAKE', qty: 6 },
+        { id: 'txn-foreign', workOrderId: 'wo-sales-foreign', type: 'TAKE', qty: 1 }
+      ],
+      stock_movements: [
+        { id: 'movement-baseline-1', movementType: 'MANUAL_ENTRY', docNo: 'EK-2026-000001', qty: 100 },
+        { id: 'movement-stock-issue', movementType: 'WORK_ORDER_ISSUE', workOrderId: 'wo-stock-127', workOrderCode: 'WO-000127', sourceStockItemId: 'stock-baseline-1', sourceQty: 0.084 },
+        { id: 'movement-stock-store', movementType: 'STORE', demandId: 'pln-stock-21', stockItemId: 'stock-derived-1', qty: 6 },
+        { id: 'movement-foreign', movementType: 'WORK_ORDER_ISSUE', workOrderId: 'wo-sales-foreign', sourceStockItemId: 'stock-baseline-1', sourceQty: 1 }
+      ],
+      stockDepotItems: [
+        { id: 'stock-baseline-1', code: 'AKS0002', qty: 99.916, quantity: 99.916, amount: 99.916, note: 'EK-2026-000001' },
+        { id: 'stock-derived-1', code: 'PRC-TEST', qty: 0, quantity: 0, amount: 0, sourceType: 'STOCK', demandId: 'pln-stock-21' }
+      ],
+      workOrderExternalSupplierAssignments: [
+        { id: 'assignment-stock', workOrderId: 'wo-stock-127' },
+        { id: 'assignment-foreign', workOrderId: 'wo-sales-foreign' }
+      ],
+      outsourceDispatchDrafts: [{
+        id: 'draft-shared',
+        items: [{
+          id: 'draft-item', qty: 7, workOrderRefs: [
+            { workOrderId: 'wo-stock-127', qty: 6 },
+            { workOrderId: 'wo-sales-foreign', qty: 1 }
+          ]
+        }]
+      }],
+      outsourceTransfers: [],
+      workOrderDispatchNotes: [],
+      montageJobDispatches: [],
+      partWorkOrders: [],
+      montageDispatchPlans: [],
+      montageDispatchShipments: [],
+      montageCompletionTransfers: [],
+      sanalTaksimAllocationInstructions: [],
+      salesShipmentPlans: [],
+      salesShipments: []
+    }
+  };
+}
+
+test('PROTOTYPE STOCK CLEANUP exact STOCK closure planlar ve SALES_ORDER ile master kayitlari kapsama almaz', () => {
+  const Cleanup = require('../src/core/prototype-stock-test-cleanup.js');
+  const state = buildPrototypeStockCleanupFixture();
+  const before = JSON.stringify(state);
+  const plan = Cleanup.build(state);
+
+  assert.equal(plan.ok, true, plan.issues.map((row) => row.message).join(' | '));
+  assert.deepEqual(plan.targets.planningDemands.map((row) => row.code), ['PLN-000020', 'PLN-000021']);
+  assert.deepEqual(plan.targets.workOrders.map((row) => row.code), ['WO-000127']);
+  assert.equal(plan.targets.stock_movements.length, 2);
+  assert.equal(plan.targets.stockDepotItems.length, 1);
+  assert.equal(plan.summary.stockReturnQty, 0);
+  assert.equal(JSON.stringify(state), before);
+});
+
+test('PROTOTYPE STOCK CLEANUP apply kaynak stogu iade etmez ve yabanci zinciri korur', () => {
+  const Cleanup = require('../src/core/prototype-stock-test-cleanup.js');
+  const state = buildPrototypeStockCleanupFixture();
+  const plan = Cleanup.build(state);
+  const baselineBefore = JSON.stringify(state.data.stockDepotItems.find((row) => row.id === 'stock-baseline-1'));
+  const foreignBefore = JSON.stringify({
+    demand: state.data.planningDemands.find((row) => row.id === 'pln-sales-foreign'),
+    workOrder: state.data.workOrders.find((row) => row.id === 'wo-sales-foreign'),
+    movement: state.data.stock_movements.find((row) => row.id === 'movement-foreign')
+  });
+
+  const applied = Cleanup.apply(state, plan);
+
+  assert.equal(applied.ok, true);
+  assert.equal(state.data.planningDemands.some((row) => row.id === 'pln-stock-20' || row.id === 'pln-stock-21'), false);
+  assert.equal(state.data.workOrders.some((row) => row.id === 'wo-stock-127'), false);
+  assert.equal(state.data.stock_movements.some((row) => row.id === 'movement-stock-issue' || row.id === 'movement-stock-store'), false);
+  assert.equal(state.data.stockDepotItems.some((row) => row.id === 'stock-derived-1'), false);
+  assert.equal(JSON.stringify(state.data.stockDepotItems.find((row) => row.id === 'stock-baseline-1')), baselineBefore);
+  assert.equal(JSON.stringify({
+    demand: state.data.planningDemands.find((row) => row.id === 'pln-sales-foreign'),
+    workOrder: state.data.workOrders.find((row) => row.id === 'wo-sales-foreign'),
+    movement: state.data.stock_movements.find((row) => row.id === 'movement-foreign')
+  }), foreignBefore);
+  assert.equal(state.data.outsourceDispatchDrafts[0].items[0].qty, 1);
+  assert.equal(state.data.outsourceDispatchDrafts[0].items[0].workOrderRefs.length, 1);
+});
+
+test('PROTOTYPE STOCK CLEANUP stale plan ve yabanci fiziksel referansta mutation yapmadan fail closed kalir', () => {
+  const Cleanup = require('../src/core/prototype-stock-test-cleanup.js');
+  const staleState = buildPrototypeStockCleanupFixture();
+  const stalePlan = Cleanup.build(staleState);
+  staleState.data.workOrderTransactions[0].qty = 7;
+  const staleBefore = JSON.stringify(staleState);
+  assert.equal(Cleanup.apply(staleState, stalePlan).ok, false);
+  assert.equal(JSON.stringify(staleState), staleBefore);
+
+  const foreignState = buildPrototypeStockCleanupFixture();
+  foreignState.data.salesShipmentPlans.push({ id: 'svp-foreign', stockItemId: 'stock-derived-1' });
+  const foreignBefore = JSON.stringify(foreignState);
+  const foreignPlan = Cleanup.build(foreignState);
+  assert.equal(foreignPlan.ok, false);
+  assert.ok(foreignPlan.issues.some((row) => row.reasonCode === 'DERIVED_STOCK_HAS_FOREIGN_REFERENCE'));
+  assert.equal(JSON.stringify(foreignState), foreignBefore);
+});
+
+test('PROTOTYPE STOCK CLEANUP server v2 yalniz deterministik no-restore gecisini dogrular', () => {
+  const Cleanup = require('../src/core/prototype-stock-test-cleanup.js');
+  const server = require('../serve.js');
+  const before = buildPrototypeStockCleanupFixture();
+  const plan = Cleanup.build(before);
+  const after = Cleanup.clone(before);
+  assert.equal(Cleanup.apply(after, plan).ok, true);
+  const approval = {
+    type: 'stock_demand_demo_cleanup',
+    issues: [],
+    meta: { stockCleanupVersion: 2, noStockRestore: true, manifestSignature: plan.manifestSignature }
+  };
+
+  assert.equal(server.isVerifiedPrototypeStockTestCleanup(before, after, approval), true);
+  const stockTamper = Cleanup.clone(after);
+  stockTamper.data.stockDepotItems[0].qty += 0.084;
+  assert.equal(server.isVerifiedPrototypeStockTestCleanup(before, stockTamper, approval), false);
+  const masterTamper = Cleanup.clone(after);
+  masterTamper.data.products = [];
+  assert.equal(server.isVerifiedPrototypeStockTestCleanup(before, masterTamper, approval), false);
+  assert.equal(server.isVerifiedPrototypeStockTestCleanup(before, after, {
+    ...approval, meta: { ...approval.meta, noStockRestore: false }
+  }), false);
+});
+
+test('PROTOTYPE STOCK CLEANUP PlanningModule tek save yapar ve save hatasinda tum statei geri alir', async () => {
+  const Cleanup = require('../src/core/prototype-stock-test-cleanup.js');
+  const buildHarness = (saveOk) => {
+    const state = buildPrototypeStockCleanupFixture();
+    let saveCount = 0;
+    let approval = null;
+    const DB = {
+      data: state,
+      cloneState: (value) => Cleanup.clone(value),
+      createCriticalDropApproval: (type, beforeState, afterState, meta) => {
+        approval = { type, issues: [], meta };
+        return approval;
+      },
+      save: async () => {
+        saveCount += 1;
+        return saveOk ? { ok: true, revision: 42 } : { ok: false, code: 'forced_failure' };
+      }
+    };
+    const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+      DB,
+      PrototypeStockTestCleanup: Cleanup,
+      UI: { renderCurrentPage: () => {} },
+      Modal: { close: () => {} },
+      alert: () => {},
+      confirm: () => true
+    });
+    return { DB, PlanningModule, get saveCount() { return saveCount; }, get approval() { return approval; } };
+  };
+
+  const success = buildHarness(true);
+  const result = await success.PlanningModule.cleanupPrototypeStockTestCohortForDemo({ confirmBeforeApply: false, silent: true });
+  assert.equal(result.ok, true);
+  assert.equal(success.saveCount, 1);
+  assert.equal(success.approval?.meta?.stockCleanupVersion, 2);
+  assert.equal(success.approval?.meta?.noStockRestore, true);
+  assert.equal(success.DB.data.data.stockDepotItems.find((row) => row.id === 'stock-baseline-1').qty, 99.916);
+
+  const failed = buildHarness(false);
+  const failedBefore = JSON.stringify(failed.DB.data);
+  const failedResult = await failed.PlanningModule.cleanupPrototypeStockTestCohortForDemo({ confirmBeforeApply: false, silent: true });
+  assert.equal(failedResult.ok, false);
+  assert.equal(failed.saveCount, 1);
+  assert.equal(JSON.stringify(failed.DB.data), failedBefore);
+});
+
+function buildPrototypeSalesCohortCleanupFixture() {
+  const baseline = [
+    ['EK-2026-000001', 'AKS0002', 100, 'MT'],
+    ['EK-2026-000002', 'AKS0003', 500, 'MT'],
+    ['EK-2026-000003', 'ALM0005', 100, 'MT'],
+    ['EK-2026-000004', 'ALM0004', 500, 'MT'],
+    ['EK-2026-000005', 'ALM0003', 500, 'MT'],
+    ['EK-2026-000006', 'ALM0001', 500, 'MT'],
+    ['EK-2026-000007', 'AKS0001', 10000, 'KG'],
+    ['EK-2026-000008', 'DIK0002', 500, 'ADET'],
+    ['EK-2026-000009', 'DIK0001', 500, 'ADET']
+  ];
+  const products = baseline.map(([, code], index) => ({ id: `product-${index + 1}`, code }));
+  const entries = baseline.map(([docNo, code, qty, unit], index) => ({
+    id: `entry-${index + 1}`, docNo, productId: `product-${index + 1}`, productCode: code,
+    qty, unit, depotId: 'main', locationId: 'loc-main', locationCode: 'R01-A1'
+  }));
+  const movements = baseline.map(([docNo, code, qty, unit], index) => ({
+    id: `movement-${index + 1}`, movementType: 'MANUAL_ENTRY', docNo, productCode: code,
+    qty, unit, depotId: 'main', locationId: 'loc-main'
+  }));
+  const stocks = baseline.map(([docNo, code, qty, unit], index) => {
+    const currentQty = index === 0 ? qty - 1 : qty;
+    return {
+      id: `stock-${index + 1}`, productId: `product-${index + 1}`, productCode: code, code,
+      qty: currentQty, quantity: currentQty, amount: currentQty, unit,
+      depotId: 'main', locationId: 'loc-main', note: `Envantere elle kayit / ${docNo}`
+    };
+  });
+  for (let number = 10; number <= 16; number += 1) {
+    const suffix = String(number).padStart(6, '0');
+    const docNo = `EK-2026-${suffix}`;
+    const idSuffix = number === 10 ? 'test-seed' : `test-seed-${number}`;
+    entries.push({
+      id: `entry-${idSuffix}`, docNo, productId: 'product-1', productCode: 'AKS0002',
+      qty: 5, unit: 'MT', depotId: 'main', locationId: 'loc-test', locationCode: 'FAZ5-TEST-01'
+    });
+    movements.push({
+      id: `movement-${idSuffix}`, movementType: 'MANUAL_ENTRY', docNo,
+      productCode: 'AKS0002', qty: 5, unit: 'MT'
+    });
+    stocks.push({
+      id: `stock-${idSuffix}`, code: 'AKS0002', qty: 5, quantity: 5, amount: 5,
+      unit: 'MT', locationId: 'loc-test', note: `Envantere elle kayit / ${docNo}`
+    });
+  }
+  movements.push({
+    id: 'movement-sales-issue', movementType: 'WORK_ORDER_ISSUE', workOrderId: 'wo-sales',
+    workOrderCode: 'WO-SALES', sourceStockItemId: 'stock-1', qty: 1
+  });
+  const exactReservation = {
+    reservationKey: 'reservation-fixture-1',
+    physicalSegmentId: 'STOCK|stock-test-seed',
+    stockRowId: 'stock-test-seed',
+    segmentOffsetStart: 0,
+    segmentOffsetEnd: 1,
+    qty: 1
+  };
+  const orderCodes = ['SOR-000007', 'SOR-000008', 'SOR-000009', 'SOR-000011',
+    'SOR-000012', 'SOR-000013', 'SOR-000014', 'SOR-000015'];
+  const orders = orderCodes.map((orderNo, index) => ({
+    id: index === 2 ? 'sor-sales' : `sor-fixture-${index}`,
+    orderNo,
+    ...(orderNo === 'SOR-000009' || orderNo === 'SOR-000011'
+      ? {} : { prototypeResetTombstone: { type: 'PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE' } })
+  }));
+  const demands = orders.map((order, index) => ({
+    id: index === 2 ? 'pln-sales' : `pln-fixture-${index}`,
+    demandCode: `PLN-FIXTURE-${index}`,
+    sourceType: 'SALES_ORDER',
+    sourceOrderId: order.id,
+    workOrderIds: index === 2 ? ['wo-sales'] : []
+  }));
+  return {
+    schema_version: 1,
+    meta: { revision: 50, updated_at: '2026-08-28T13:00:00.000Z', nextOrderNo: 99 },
+    data: {
+      products,
+      customers: [{ id: 'customer-master' }],
+      suppliers: [{ id: 'supplier-master' }],
+      stockDepots: [{ id: 'main' }],
+      stockDepotLocations: [{ id: 'loc-main' }, { id: 'loc-test', code: 'FAZ5-TEST-01' }],
+      stockManualEntries: entries,
+      stock_movements: movements,
+      stockDepotItems: stocks,
+      orders,
+      planningDemands: demands,
+      workOrders: [{ id: 'wo-sales', workOrderCode: 'WO-SALES', sourceId: 'pln-sales', sourceCode: 'PLN-SALES' }],
+      workOrderTransactions: [{ id: 'txn-sales', workOrderId: 'wo-sales', type: 'TAKE', qty: 1 }],
+      workOrderExternalSupplierAssignments: [],
+      outsourceDispatchDrafts: [],
+      outsourceTransfers: [],
+      workOrderDispatchNotes: [],
+      montageJobDispatches: [],
+      partWorkOrders: [],
+      montageDispatchPlans: [
+        {
+          id: 'mgp-fixture-source', planNo: 'MGP-FIXTURE-SOURCE',
+          exactReservations: [exactReservation],
+          items: [{ sourceOrderId: 'orphan-order-id' }]
+        },
+        {
+          id: 'mgp-fixture-target', planNo: 'MGP-FIXTURE-TARGET',
+          rebindAudit: {
+            rebindKey: 'rebind-fixture', role: 'TARGET',
+            sourcePlanId: 'mgp-fixture-source', targetPlanId: 'mgp-fixture-target',
+            exactReservations: [{ ...exactReservation, reservationKey: 'reservation-fixture-2' }]
+          }
+        }
+      ],
+      montageDispatchShipments: [{
+        id: 'mgs-fixture', shipmentNo: 'MGS-FIXTURE', planId: 'mgp-fixture-source',
+        parts: [{ allocations: [{
+          exactReservationKeys: ['reservation-fixture-1'],
+          segmentRanges: [{ ...exactReservation, planId: 'mgp-fixture-source' }]
+        }] }]
+      }],
+      montageCompletionTransfers: [],
+      sanalTaksimAllocationInstructions: [],
+      salesShipmentPlans: [],
+      salesShipments: []
+    }
+  };
+}
+
+test('PROTOTYPE COMBINED COHORT CLEANUP SALES ve STOCK manifestini DELETE ve authoritative baseline reset planina donusturur', () => {
+  const Cleanup = require('../src/core/prototype-sales-test-cohort-cleanup.js');
+  const state = buildPrototypeSalesCohortCleanupFixture();
+  state.data.planningDemands.push({
+    id: 'pln-stock-combined',
+    demandCode: 'PLN-000016',
+    sourceType: 'STOCK',
+    status: 'RELEASED',
+    items: []
+  });
+  const before = JSON.stringify(state);
+  const plan = Cleanup.build(state);
+
+  assert.equal(plan.ok, true, plan.issues.map((row) => row.message).join(' | '));
+  assert.equal(plan.summary.UNCERTAIN, 0);
+  assert.equal(plan.summary.RESET_TO_BASELINE, 1);
+  assert.equal(plan.baseline.manualEntryCount, 9);
+  assert.equal(plan.baseline.movementCount, 9);
+  assert.equal(plan.baseline.stockRowCount, 9);
+  assert.equal(plan.baseline.authoritativeQtyTotal, 13200);
+  assert.equal(plan.operationalCodeHighWaterMarks.SOR, '15');
+  assert.ok(plan.targets.DELETE.some((row) => row.collection === 'orders' && row.id === 'sor-sales'));
+  assert.ok(plan.targets.DELETE.some((row) => row.collection === 'planningDemands' && row.id === 'pln-stock-combined'));
+  assert.ok(plan.targets.DELETE.some((row) => row.collection === 'stockManualEntries' && row.id === 'entry-test-seed'));
+  assert.equal(JSON.stringify(state), before);
+});
+
+test('PROTOTYPE SALES COHORT CLEANUP apply test zincirini siler, baseline ve masteri exact korur', () => {
+  const Cleanup = require('../src/core/prototype-sales-test-cohort-cleanup.js');
+  const state = buildPrototypeSalesCohortCleanupFixture();
+  const masterBefore = JSON.stringify({ products: state.data.products, customers: state.data.customers, suppliers: state.data.suppliers });
+  const metaBefore = JSON.stringify(state.meta);
+  const plan = Cleanup.build(state);
+  const result = Cleanup.apply(state, plan);
+
+  assert.equal(result.ok, true);
+  assert.equal(state.data.orders.length, 0);
+  assert.equal(state.data.planningDemands.length, 0);
+  assert.equal(state.data.workOrders.length, 0);
+  assert.equal(state.data.workOrderTransactions.length, 0);
+  assert.equal(state.data.stockManualEntries.length, 9);
+  assert.equal(state.data.stock_movements.length, 9);
+  assert.equal(state.data.stockDepotItems.length, 9);
+  assert.equal(state.data.stockDepotItems.reduce((sum, row) => sum + Number(row.qty), 0), 13200);
+  assert.equal(state.data.stockDepotItems.find((row) => row.code === 'AKS0002').qty, 100);
+  assert.equal(JSON.stringify({ products: state.data.products, customers: state.data.customers, suppliers: state.data.suppliers }), masterBefore);
+  assert.equal(state.meta.revision, JSON.parse(metaBefore).revision);
+  assert.equal(state.meta.updated_at, JSON.parse(metaBefore).updated_at);
+  assert.equal(state.meta.nextOrderNo, JSON.parse(metaBefore).nextOrderNo);
+  assert.equal(state.meta.operationalCodeHighWaterMarks.SOR, '15');
+});
+
+test('PROTOTYPE SALES COHORT CLEANUP temiz koleksiyonlarda monoton operasyon kodlarini korur', () => {
+  const DB = {
+    data: {
+      meta: {
+        operationalCodeHighWaterMarks: {
+          SOR: 15, PLN: 21, WO: 127, MGP: 28, MGS: 8,
+          MCT: 13, STAI: 84, SVP: 1, TF: 0, FTS: 18
+        }
+      },
+      data: {
+        orders: [], planningDemands: [], workOrders: [], montageDispatchPlans: [],
+        montageDispatchShipments: [], montageCompletionTransfers: [],
+        sanalTaksimAllocationInstructions: [], salesShipmentPlans: [], salesShipments: [],
+        outsourceDispatchDrafts: []
+      }
+    }
+  };
+  const { exported: SalesModule } = loadModule('src/modules/sales-module.js', 'SalesModule', { DB });
+  const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', { DB });
+  const { exported: UnitModule } = loadModule('src/modules/unit-module.js', 'UnitModule', { DB });
+  const { exported: StockModule } = loadModule('src/modules/stock-module.js', 'StockModule', { DB });
+
+  assert.equal(SalesModule.generateSalesOrderNo(), 'SOR-000016');
+  assert.equal(PlanningModule.getNextDemandCode(), 'PLN-000022');
+  assert.equal(PlanningModule.getNextSanalTaksimAllocationInstructionCode(), 'STAI-000085');
+  assert.equal(UnitModule.getNextWorkOrderCode(), 'WO-000128');
+  assert.equal(StockModule.getNextMontageDispatchPlanNo(), 'MGP-000029');
+  assert.equal(StockModule.getNextMontageDispatchShipmentNo(), 'MGS-000009');
+  assert.equal(StockModule.getNextMontageCompletionTransferNo(), 'MCT-000014');
+  assert.equal(StockModule.getNextSalesShipmentPlanNo(), 'SVP-000002');
+  assert.equal(StockModule.getNextSalesShipmentNo(), 'TF-000001');
+  assert.equal(StockModule.getNextOutsourceDispatchNo(), 'FTS-000019');
+});
+
+test('OPERATIONAL CODE HIGH WATER canli maksimumu basarili save metadata tabanina tasir', () => {
+  const Policy = require('../src/core/operational-code-high-water.js');
+  const current = {
+    meta: { operationalCodeHighWaterMarks: { TF: 3, MGP: 10 } },
+    data: {
+      salesShipments: [{ id: 'tf-4', shipmentNo: 'TF-000004' }],
+      montageDispatchPlans: [{ id: 'mgp-11', planNo: 'MGP-000011' }]
+    }
+  };
+  const incoming = JSON.parse(JSON.stringify(current));
+  incoming.data.salesShipments.push({ id: 'tf-5', shipmentNo: 'TF-000005' });
+  incoming.data.montageDispatchPlans.push({ id: 'mgp-12', planNo: 'MGP-000012' });
+  const beforeRecords = JSON.stringify(incoming.data);
+  const result = Policy.diagnoseTransition(current, incoming);
+
+  assert.equal(result.ok, true, JSON.stringify(result.issues));
+  assert.equal(result.marks.TF, '5');
+  assert.equal(result.marks.MGP, '12');
+  assert.equal(Policy.applyPersistentMarks(incoming, result.marks), true);
+  assert.equal(JSON.stringify(incoming.data), beforeRecords);
+  assert.equal(incoming.meta.operationalCodeHighWaterMarks.TF, '5');
+  assert.equal(incoming.meta.operationalCodeHighWaterMarks.MGP, '12');
+});
+
+test('OPERATIONAL CODE HIGH WATER cleanup sonrasi bos collectionda kod reuse girisimini fail closed reddeder', () => {
+  const Policy = require('../src/core/operational-code-high-water.js');
+  const beforeCleanup = {
+    meta: { operationalCodeHighWaterMarks: { TF: 6 } },
+    data: { salesShipments: [{ id: 'tf-history-6', shipmentNo: 'TF-000006' }] }
+  };
+  const afterCleanup = {
+    meta: { operationalCodeHighWaterMarks: {} },
+    data: { salesShipments: [] }
+  };
+  const cleanup = Policy.diagnoseTransition(beforeCleanup, afterCleanup);
+  assert.equal(cleanup.ok, true);
+  assert.equal(cleanup.marks.TF, '6');
+  Policy.applyPersistentMarks(afterCleanup, cleanup.marks);
+  assert.equal(afterCleanup.data.salesShipments.length, 0);
+
+  const reused = JSON.parse(JSON.stringify(afterCleanup));
+  reused.data.salesShipments.push({ id: 'tf-new-reuse', shipmentNo: 'TF-000001' });
+  const reuseResult = Policy.diagnoseTransition(afterCleanup, reused);
+  assert.equal(reuseResult.ok, false);
+  assert.ok(reuseResult.issues.some((row) => row.reasonCode === 'OPERATIONAL_CODE_REUSE'
+    && row.family === 'TF' && row.highWater === '6'));
+
+  const blankLegacy = JSON.parse(JSON.stringify(afterCleanup));
+  blankLegacy.data.salesShipments.push({ id: 'tf-legacy-blank', shipmentNo: '' });
+  const blankReused = JSON.parse(JSON.stringify(blankLegacy));
+  blankReused.data.salesShipments[0].shipmentNo = 'TF-000006';
+  const blankReuseResult = Policy.diagnoseTransition(blankLegacy, blankReused);
+  assert.equal(blankReuseResult.ok, false);
+  assert.ok(blankReuseResult.issues.some((row) => row.reasonCode === 'OPERATIONAL_CODE_REUSE'
+    && row.family === 'TF' && row.highWater === '6'));
+
+  const monotonic = JSON.parse(JSON.stringify(afterCleanup));
+  monotonic.data.salesShipments.push({ id: 'tf-new-7', shipmentNo: 'TF-000007' });
+  assert.equal(Policy.diagnoseTransition(afterCleanup, monotonic).ok, true);
+});
+
+test('OPERATIONAL CODE HIGH WATER guvenilir historical baseline yoksa aileyi fail closed tutar', () => {
+  const Policy = require('../src/core/operational-code-high-water.js');
+  const legacy = {
+    meta: { operationalCodeHighWaterMarks: {} },
+    data: { salesShipments: [{ id: 'tf-legacy-1', shipmentNo: 'TF-000001' }] }
+  };
+  const unchanged = JSON.parse(JSON.stringify(legacy));
+  const unchangedResult = Policy.diagnoseTransition(legacy, unchanged);
+  assert.equal(unchangedResult.ok, true);
+  assert.deepEqual(unchangedResult.untrustedFamilies, ['TF']);
+  Policy.applyPersistentMarks(unchanged, unchangedResult.marks, unchangedResult.untrustedFamilies);
+  assert.deepEqual(unchanged.meta.operationalCodeHighWaterUntrustedFamilies, ['TF']);
+
+  const next = JSON.parse(JSON.stringify(unchanged));
+  next.data.salesShipments.push({ id: 'tf-new-2', shipmentNo: 'TF-000002' });
+  const blocked = Policy.diagnoseTransition(unchanged, next);
+  assert.equal(blocked.ok, false);
+  assert.ok(blocked.issues.some((row) => row.reasonCode === 'OPERATIONAL_CODE_HIGH_WATER_UNTRUSTED'
+    && row.family === 'TF' && row.highWater === '1'));
+});
+
+test('OPERATIONAL CODE HIGH WATER tekrar save sayaci sicr atmaz ve aileleri bagimsiz tutar', () => {
+  const Policy = require('../src/core/operational-code-high-water.js');
+  const current = {
+    meta: { operationalCodeHighWaterMarks: { TF: 6, MGP: 31, SVP: 2 } },
+    data: { salesShipments: [], montageDispatchPlans: [], salesShipmentPlans: [] }
+  };
+  const incoming = JSON.parse(JSON.stringify(current));
+  incoming.data.salesShipments.push({ id: 'tf-7', shipmentNo: 'TF-000007' });
+  incoming.data.montageDispatchPlans.push({ id: 'mgp-32', planNo: 'MGP-000032' });
+  const first = Policy.diagnoseTransition(current, incoming);
+  assert.equal(first.ok, true);
+  assert.equal(first.marks.TF, '7');
+  assert.equal(first.marks.MGP, '32');
+  assert.equal(first.marks.SVP, '2');
+  Policy.applyPersistentMarks(incoming, first.marks);
+  const repeated = Policy.diagnoseTransition(incoming, JSON.parse(JSON.stringify(incoming)));
+  assert.equal(repeated.ok, true);
+  assert.deepEqual(repeated.marks, first.marks);
+
+  const duplicate = JSON.parse(JSON.stringify(incoming));
+  duplicate.data.salesShipments.push({ id: 'tf-duplicate-7', shipmentNo: 'TF-000007' });
+  const duplicateResult = Policy.diagnoseTransition(incoming, duplicate);
+  assert.equal(duplicateResult.ok, false);
+  assert.ok(duplicateResult.issues.some((row) => row.reasonCode === 'OPERATIONAL_CODE_DUPLICATE'
+    && row.family === 'TF'));
+
+  const renumbered = JSON.parse(JSON.stringify(incoming));
+  renumbered.data.salesShipments[0].shipmentNo = 'TF-000008';
+  const renumberResult = Policy.diagnoseTransition(incoming, renumbered);
+  assert.equal(renumberResult.ok, false);
+  assert.ok(renumberResult.issues.some((row) => row.reasonCode === 'OPERATIONAL_CODE_CHANGED'
+    && row.family === 'TF' && row.previousCode === 'TF-000007'));
+});
+
+test('OPERATIONAL CODE HIGH WATER gercek state kayitlarini ve resolver sonucunu degistirmez', () => {
+  const Policy = require('../src/core/operational-code-high-water.js');
+  const Resolver = require('../src/core/sanal-taksim-resolver.js');
+  const state = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'demo_state.json'), 'utf8'));
+  const clone = JSON.parse(JSON.stringify(state));
+  const criticalCodes = [
+    ['montageDispatchPlans', 'planNo', 'MGP-000031'],
+    ['montageDispatchShipments', 'shipmentNo', 'MGS-000009'],
+    ['montageCompletionTransfers', 'transferNo', 'MCT-000014'],
+    ['salesShipmentPlans', 'planNo', 'SVP-000002'],
+    ['salesShipments', 'shipmentNo', 'TF-000001']
+  ];
+  const criticalInstructions = clone.data.sanalTaksimAllocationInstructions.filter((row) => {
+    const number = Number(String(row?.instructionCode || '').match(/(\d+)$/)?.[1]);
+    return number >= 99 && number <= 112;
+  });
+  assert.equal(criticalInstructions.length, 14);
+  const beforeRecords = JSON.stringify({
+    records: criticalCodes.map(([collection, field, value]) =>
+      clone.data[collection].find((row) => row?.[field] === value)),
+    instructions: criticalInstructions,
+    stock: clone.data.stockDepotItems,
+    movements: clone.data.stock_movements,
+    transactions: clone.data.workOrderTransactions
+  });
+  const resolverBefore = JSON.stringify(Resolver.resolve(clone.data));
+  const marks = Policy.buildPersistentMarks(clone, clone);
+  const transition = Policy.diagnoseTransition(state, clone);
+  assert.equal(transition.ok, true);
+  assert.deepEqual(transition.untrustedFamilies, ['TF']);
+  Policy.applyPersistentMarks(clone, marks, transition.untrustedFamilies);
+  const resolverAfter = JSON.stringify(Resolver.resolve(clone.data));
+  const afterRecords = JSON.stringify({
+    records: criticalCodes.map(([collection, field, value]) =>
+      clone.data[collection].find((row) => row?.[field] === value)),
+    instructions: clone.data.sanalTaksimAllocationInstructions.filter((row) => {
+      const number = Number(String(row?.instructionCode || '').match(/(\d+)$/)?.[1]);
+      return number >= 99 && number <= 112;
+    }),
+    stock: clone.data.stockDepotItems,
+    movements: clone.data.stock_movements,
+    transactions: clone.data.workOrderTransactions
+  });
+
+  assert.equal(afterRecords, beforeRecords);
+  assert.equal(resolverAfter, resolverBefore);
+  assert.equal(marks.MGP, '31');
+  assert.equal(marks.STAI, '112');
+  assert.equal(marks.MGS, '9');
+  assert.equal(marks.MCT, '14');
+  assert.equal(marks.SVP, '2');
+  assert.equal(marks.TF, '1');
+  assert.deepEqual(clone.meta.operationalCodeHighWaterUntrustedFamilies, ['TF']);
+});
+
+test('PROTOTYPE SALES COHORT CLEANUP UNCERTAIN ve stale manifestte mutation yapmadan durur', () => {
+  const Cleanup = require('../src/core/prototype-sales-test-cohort-cleanup.js');
+  const uncertain = buildPrototypeSalesCohortCleanupFixture();
+  uncertain.data.stockDepotItems.push({ id: 'unknown-physical', qty: 1, quantity: 1, amount: 1 });
+  const uncertainBefore = JSON.stringify(uncertain);
+  const uncertainPlan = Cleanup.build(uncertain);
+  assert.equal(uncertainPlan.ok, false);
+  assert.equal(Cleanup.apply(uncertain, uncertainPlan).ok, false);
+  assert.equal(JSON.stringify(uncertain), uncertainBefore);
+
+  const stale = buildPrototypeSalesCohortCleanupFixture();
+  const stalePlan = Cleanup.build(stale);
+  stale.data.orders[0].status = 'CHANGED';
+  const staleBefore = JSON.stringify(stale);
+  assert.equal(Cleanup.apply(stale, stalePlan).ok, false);
+  assert.equal(JSON.stringify(stale), staleBefore);
+});
+
+test('PROTOTYPE COMBINED COHORT CLEANUP server v6 yalniz exact manifest ve baseline gecisini kabul eder', () => {
+  const Cleanup = require('../src/core/prototype-sales-test-cohort-cleanup.js');
+  const server = require('../serve.js');
+  const before = buildPrototypeSalesCohortCleanupFixture();
+  const plan = Cleanup.build(before);
+  const after = Cleanup.clone(before);
+  assert.equal(Cleanup.apply(after, plan).ok, true);
+  const approval = {
+    type: 'sales_order_demo_cleanup',
+    issues: [],
+    meta: {
+      prototypeResetVersion: 6,
+      prototypeResetMode: Cleanup.MODE,
+      manifestSignature: plan.manifestSignature
+    }
+  };
+
+  assert.equal(server.isVerifiedPrototypeSalesTestCohortCleanup(before, after, approval), true,
+    JSON.stringify(Cleanup.diagnoseTransition(before, after, approval)));
+  assert.equal(server.isVerifiedSalesOrderPrototypeReset(before, after, approval), true);
+  const stockTamper = Cleanup.clone(after);
+  stockTamper.data.stockDepotItems[0].qty -= 1;
+  assert.equal(server.isVerifiedPrototypeSalesTestCohortCleanup(before, stockTamper, approval), false);
+  const masterTamper = Cleanup.clone(after);
+  masterTamper.data.products = [];
+  assert.equal(server.isVerifiedPrototypeSalesTestCohortCleanup(before, masterTamper, approval), false);
+});
+
+test('PROTOTYPE SALES COHORT CLEANUP PlanningModule tek save yapar ve save hatasinda rollback yapar', async () => {
+  const Cleanup = require('../src/core/prototype-sales-test-cohort-cleanup.js');
+  const Planner = require('../src/core/prototype-test-cohort-planner.js');
+  const buildHarness = (saveOk, runtimeEnabled = true) => {
+    let saveCount = 0;
+    let approval = null;
+    const DB = {
+      data: buildPrototypeSalesCohortCleanupFixture(),
+      isDemoTestResetEnabled: () => runtimeEnabled,
+      cloneState: (value) => Cleanup.clone(value),
+      createCriticalDropApproval: (type, beforeState, afterState, meta) => {
+        approval = { type, issues: [], meta };
+        return approval;
+      },
+      save: async () => {
+        saveCount += 1;
+        return saveOk ? { ok: true, revision: 51 } : { ok: false, code: 'forced_failure' };
+      }
+    };
+    const { exported: PlanningModule } = loadModule('src/modules/planning-module.js', 'PlanningModule', {
+      DB,
+      PrototypeSalesTestCohortCleanup: Cleanup,
+      PrototypeTestCohortPlanner: Planner,
+      UI: { renderCurrentPage: () => {} },
+      Modal: { close: () => {} },
+      alert: () => {},
+      confirm: () => true
+    });
+    return { DB, PlanningModule, get saveCount() { return saveCount; }, get approval() { return approval; } };
+  };
+
+  const success = buildHarness(true);
+  const result = await success.PlanningModule.cleanupPrototypeSalesTestCohortForDemo({ confirmBeforeApply: false, silent: true });
+  assert.equal(result.ok, true);
+  assert.equal(success.saveCount, 1);
+  assert.equal(success.approval?.meta?.prototypeResetVersion, 6);
+  assert.equal(success.DB.data.data.stockDepotItems.reduce((sum, row) => sum + Number(row.qty), 0), 13200);
+
+  const failed = buildHarness(false);
+  const failedBefore = JSON.stringify(failed.DB.data);
+  const failedResult = await failed.PlanningModule.cleanupPrototypeSalesTestCohortForDemo({ confirmBeforeApply: false, silent: true });
+  assert.equal(failedResult.ok, false);
+  assert.equal(failed.saveCount, 1);
+  assert.equal(JSON.stringify(failed.DB.data), failedBefore);
+
+  const liveMode = buildHarness(true, false);
+  const liveBefore = JSON.stringify(liveMode.DB.data);
+  const liveResult = await liveMode.PlanningModule.cleanupPrototypeSalesTestCohortForDemo({
+    confirmBeforeApply: false,
+    silent: true
+  });
+  assert.equal(liveResult.ok, false);
+  assert.equal(liveResult.code, 'DEMO_TEST_RESET_DISABLED');
+  assert.equal(liveMode.saveCount, 0);
+  assert.equal(JSON.stringify(liveMode.DB.data), liveBefore);
+});
+
+test('DEMO TEST ORTAMINI SIFIRLA UI ve runtime kapisi yalniz PROTOTYPE modunda acilir', () => {
+  const root = path.join(__dirname, '..');
+  const planning = fs.readFileSync(path.join(root, 'src/modules/planning-module.js'), 'utf8');
+  const appCore = fs.readFileSync(path.join(root, 'src/core/app-core.js'), 'utf8');
+  const server = fs.readFileSync(path.join(root, 'serve.js'), 'utf8');
+  const packageJson = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+
+  assert.match(planning, /Demo Test Ortamını Sıfırla/);
+  assert.match(planning, /Test ortamı temiz/);
+  assert.match(planning, /DEMO_TEST_RESET_DISABLED/);
+  assert.match(planning, /DEMO_TEST_RESET_POSTCHECK_FAILED/);
+  assert.match(appCore, /demoTestResetEnabled:\s*false/);
+  assert.match(appCore, /\[3, 4, 5, 6\]/);
+  assert.match(server, /process\.env\.DULDA_ERP_RUNTIME_MODE\s*\|\|\s*["']LIVE["']/);
+  assert.match(server, /demo_test_reset_disabled/);
+  assert.match(server, /stock_demand_demo_cleanup/);
+  assert.equal(packageJson.scripts['start:prototype'], 'node serve.js 5500 --runtime-mode=PROTOTYPE');
+  assert.equal(packageJson.scripts['start:live'], 'node serve.js 5500 --runtime-mode=LIVE');
 });
 
 async function run() {

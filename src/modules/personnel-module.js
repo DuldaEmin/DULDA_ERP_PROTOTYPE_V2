@@ -227,12 +227,22 @@ const PersonnelModule = {
 
     makePersonCode: () => {
         const used = new Set((DB.data?.data?.personnel || []).map((row) => String(row?.personCode || '')));
-        let seq = 1;
-        while (true) {
-            const candidate = `PER-${String(seq).padStart(6, '0')}`;
-            if (!used.has(candidate)) return candidate;
-            seq += 1;
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'PER', digits: 6, usedCodes: used });
         }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && OperationalCodeHighWater
+            && typeof OperationalCodeHighWater.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'PER', used);
+        }
+        let maximum = 0n;
+        used.forEach((value) => {
+            const match = String(value || '').trim().toUpperCase().match(/^PER-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `PER-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
 
     makeUsername: (fullName, currentPersonId = '') => {

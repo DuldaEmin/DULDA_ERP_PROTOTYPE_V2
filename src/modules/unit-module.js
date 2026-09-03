@@ -132,6 +132,29 @@ const UnitModule = {
         unitDepotBackTarget: ''
     },
 
+    getNextOperationalCode: (prefix, records, field) => {
+        const safePrefix = String(prefix || '').trim().toUpperCase();
+        const usedCodes = new Set((Array.isArray(records) ? records : [])
+            .map((row) => String(row?.[field] || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: safePrefix, usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, safePrefix, Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.[safePrefix] || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        const pattern = new RegExp(`^${safePrefix}-(\\d{6}|[1-9]\\d{6,})$`);
+        usedCodes.forEach((value) => {
+            const match = value.match(pattern);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `${safePrefix}-${(maximum + 1n).toString().padStart(6, '0')}`;
+    },
+
     resetWorkspaceEntryUiState: () => {
         UnitModule.state.view = 'list';
         UnitModule.state.activeUnitId = null;
@@ -1197,19 +1220,11 @@ const UnitModule = {
     },
     getNextFreeExternalVendorJobCode: () => {
         if (!Array.isArray(DB.data?.data?.freeExternalVendorJobs)) DB.data.data.freeExternalVendorJobs = [];
-        const max = (DB.data.data.freeExternalVendorJobs || []).reduce((acc, row) => {
-            const code = String(row?.jobCode || '').trim().toUpperCase();
-            const m = code.match(/^SDT-(\d{6})$/);
-            if (!m) return acc;
-            return Math.max(acc, Number(m[1]));
-        }, 0);
-        let next = max + 1;
-        let candidate = `SDT-${String(next).padStart(6, '0')}`;
-        while (UnitModule.isGlobalCodeTaken(candidate)) {
-            next += 1;
-            candidate = `SDT-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return UnitModule.getNextOperationalCode(
+            'SDT',
+            DB.data.data.freeExternalVendorJobs,
+            'jobCode'
+        );
     },
     normalizeSupplierTag: (value) => String(value || '').trim().toLocaleUpperCase('tr-TR'),
     isFasonSupplier: (supplier) => {
@@ -3529,7 +3544,10 @@ const UnitModule = {
             const workOrderText = group.workOrderCodes.length > 1
                 ? `${group.workOrderCodes[0]} +${group.workOrderCodes.length - 1}`
                 : String(group.workOrderCodes[0] || '-');
-            const planText = /^PLN-\d{6}$/.test(group.sourceCode || '') ? group.sourceCode : '-';
+            const planText = (typeof IdentityPolicy !== 'undefined'
+                && typeof IdentityPolicy?.isSequentialCode === 'function'
+                ? IdentityPolicy.isSequentialCode(group.sourceCode || '', 'PLN')
+                : /^PLN-(?:\d{6}|[1-9]\d{6,})$/.test(group.sourceCode || '')) ? group.sourceCode : '-';
             const montageCardCode = String(group?.montageCardCode || '').trim().toUpperCase();
             const montageCardText = montageCardCode || 'Montaj karti yok';
             const montageCardActionHtml = montageCardCode
@@ -3846,6 +3864,58 @@ const UnitModule = {
             return Array.isArray(shipment?.operationalRebindEvents) && shipment.operationalRebindEvents.length > 0
                 ? [] : (Array.isArray(shipment?.items) ? shipment.items : []);
         };
+        const getTrustedReceivedReboundItem = (shipment, operationalItem, planId) => {
+            const status = String(shipment?.status || '').trim().toUpperCase();
+            const events = Array.isArray(shipment?.operationalRebindEvents)
+                ? shipment.operationalRebindEvents
+                : [];
+            const rawItems = Array.isArray(shipment?.items) ? shipment.items : [];
+            if (status !== 'RECEIVED'
+                || events.length !== 1
+                || rawItems.length !== 1
+                || !planId
+                || typeof StockModule.getTrustedMontageCompletionShipmentItems !== 'function'
+                || typeof StockModule.normalizeMontageCompletionRecipeParts !== 'function') return null;
+
+            const trustedItems = StockModule.getTrustedMontageCompletionShipmentItems(shipment);
+            const trustedItem = trustedItems.length === 1 ? trustedItems[0] : null;
+            if (!trustedItem
+                || getLineKey(trustedItem) !== identity.lineKey
+                || getLineKey(operationalItem) !== identity.lineKey
+                || !UnitModule.montageCompletionRecordMatchesIdentity(trustedItem, identity)
+                || Number(trustedItem?.shippedQty) !== Number(operationalItem?.shippedQty)) return null;
+
+            const linkedPlans = plans.filter((plan) => String(plan?.id || '').trim() === planId);
+            const linkedPlan = linkedPlans.length === 1 ? linkedPlans[0] : null;
+            const planNo = String(linkedPlan?.planNo || '').trim();
+            const shipmentPlanNo = String(shipment?.planNo || '').trim();
+            if (!linkedPlan
+                || String(linkedPlan?.status || '').trim().toUpperCase() !== 'DISPATCHED_TO_MONTAGE'
+                || !planNo
+                || shipmentPlanNo !== planNo) return null;
+
+            const rawItem = rawItems[0];
+            const rawLineKey = getLineKey(rawItem);
+            const matchingPlanItems = (Array.isArray(linkedPlan?.items) ? linkedPlan.items : [])
+                .filter((planItem) => getLineKey(planItem) === rawLineKey);
+            const planItem = matchingPlanItems.length === 1 ? matchingPlanItems[0] : null;
+            const plannedQty = Number(planItem?.plannedQty || 0);
+            const shippedQty = Number(rawItem?.shippedQty || 0);
+            const normalizeVariantId = (value) => String(value || '').trim().replace(/^salesvar_/i, '');
+            const planRecipe = StockModule.normalizeMontageCompletionRecipeParts(planItem?.recipeParts);
+            const shipmentRecipe = StockModule.normalizeMontageCompletionRecipeParts(rawItem?.recipeParts);
+            if (!rawLineKey
+                || !planItem
+                || !Number.isSafeInteger(plannedQty)
+                || plannedQty <= 0
+                || plannedQty !== shippedQty
+                || String(planItem?.productId || '').trim() !== String(rawItem?.productId || '').trim()
+                || normalizeVariantId(planItem?.variantId || planItem?.variationId)
+                    !== normalizeVariantId(rawItem?.variantId || rawItem?.variationId)
+                || !planRecipe.length
+                || JSON.stringify(planRecipe) !== JSON.stringify(shipmentRecipe)) return null;
+            return trustedItem;
+        };
 
         const relevantPlans = [];
         const seenPlanIds = new Set();
@@ -3908,9 +3978,12 @@ const UnitModule = {
             const planRow = relevantPlans.find((row) => row.planId === planId) || null;
             const shipmentItem = matchingItems[0];
             const shippedQty = Number(shipmentItem?.shippedQty || 0);
-            const operationalRebound = Array.isArray(shipment?.operationalRebindEvents)
-                && shipment.operationalRebindEvents.length === 1
-                && String(shipment?.status || '').trim().toUpperCase() === 'IN_TRANSIT';
+            const status = String(shipment?.status || '').trim().toUpperCase();
+            const hasSingleOperationalRebind = Array.isArray(shipment?.operationalRebindEvents)
+                && shipment.operationalRebindEvents.length === 1;
+            const operationalRebound = hasSingleOperationalRebind
+                && (status === 'IN_TRANSIT'
+                    || !!getTrustedReceivedReboundItem(shipment, shipmentItem, planId));
             if ((!planRow && !operationalRebound)
                 || String(shipment?.targetUnitId || '').trim() !== 'u3'
                 || !UnitModule.montageCompletionRecordMatchesIdentity(shipmentItem, identity)
@@ -3920,7 +3993,6 @@ const UnitModule = {
                 addError('SHIPMENT_ITEM_CONFLICT', 'Montaj sevkiyatı plan, hedef birim, kimlik veya miktarla uyuşmuyor.');
                 return;
             }
-            const status = String(shipment?.status || '').trim().toUpperCase();
             if (status !== 'IN_TRANSIT' && status !== 'RECEIVED') {
                 addError('SHIPMENT_STATUS_CONFLICT', 'Montaj sevkiyat durumu tamamlanma hesabı için desteklenmiyor.');
                 return;
@@ -5278,13 +5350,11 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
     },
     getNextWorkOrderDispatchDocNo: () => {
         if (!Array.isArray(DB.data?.data?.workOrderDispatchNotes)) DB.data.data.workOrderDispatchNotes = [];
-        const max = (DB.data.data.workOrderDispatchNotes || []).reduce((acc, row) => {
-            const code = String(row?.docNo || '').trim().toUpperCase();
-            const match = code.match(/^DSI-(\d{6})$/);
-            if (!match) return acc;
-            return Math.max(acc, Number(match[1]));
-        }, 0);
-        return `DSI-${String(max + 1).padStart(6, '0')}`;
+        return UnitModule.getNextOperationalCode(
+            'DSI',
+            DB.data.data.workOrderDispatchNotes,
+            'docNo'
+        );
     },
     collectWorkOrderDispatchSelection: (stationId, targetId) => {
         const selectedKeys = Object.entries(UnitModule.state.workOrderDispatchRows || {})
@@ -6224,19 +6294,24 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
     },
     getNextWorkOrderCode: () => {
         if (!Array.isArray(DB.data?.data?.workOrders)) DB.data.data.workOrders = [];
-        const max = (DB.data.data.workOrders || []).reduce((acc, row) => {
-            const code = String(row?.workOrderCode || '').trim().toUpperCase();
-            const m = code.match(/^WO-(\d{6})$/);
-            if (!m) return acc;
-            return Math.max(acc, Number(m[1]));
-        }, 0);
-        let n = max + 1;
-        let candidate = `WO-${String(n).padStart(6, '0')}`;
-        while (UnitModule.isGlobalCodeTaken(candidate)) {
-            n += 1;
-            candidate = `WO-${String(n).padStart(6, '0')}`;
+        const usedCodes = new Set((DB.data.data.workOrders || [])
+            .map((row) => String(row?.workOrderCode || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'WO', usedCodes });
         }
-        return candidate;
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'WO', Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.WO || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        usedCodes.forEach((value) => {
+            const match = value.match(/^WO-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `WO-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
     buildWorkOrderLinesFromMontage: (montageCard, lotQty, workOrderCode) => {
         const componentCards = Array.isArray(DB.data?.data?.partComponentCards) ? DB.data.data.partComponentCards : [];
@@ -6984,7 +7059,7 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
     },
     addToUnitDepotStock: (order, line, stationId, qty, options = {}) => {
         const addQty = Math.max(0, Math.floor(Number(qty || 0)));
-        if (addQty <= 0) return;
+        if (addQty <= 0) return null;
         const stockSource = UnitModule.normalizeProductionStockSource(options?.stockSource);
         const stockSourceKey = UnitModule.getProductionStockSourceKey(stockSource);
         if (!stockSource || !stockSourceKey) throw new Error('Güvenilir üretim stok kaynağı bulunamadı.');
@@ -7025,7 +7100,7 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
             if (!String(existing?.productName || '').trim()) existing.productName = name;
             if (!String(existing?.locationId || '').trim() && targetLocationId) existing.locationId = targetLocationId;
             if (!String(existing?.locationCode || '').trim() && targetLocationCode) existing.locationCode = targetLocationCode;
-            return;
+            return existing;
         }
         const now = new Date().toISOString();
         const newRow = {
@@ -7063,6 +7138,7 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
             }
         }
         rows.push(newRow);
+        return newRow;
     },
     getUnitDepotStockRows: (unitId) => {
         const keyUnitId = String(unitId || '').trim();
@@ -7334,6 +7410,7 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
             sourceDepotName: String(source.depotName || ''),
             sourceLocationId: String(source.locationId || ''),
             sourceLocationCode: String(source.locationCode || ''),
+            sourceStockItemId: String(source.row?.id || ''),
             depotId: String(source.scopeId || ''),
             depotName: String(source.depotName || ''),
             locationId: String(source.locationId || ''),
@@ -7680,13 +7757,16 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
                 user: 'Demo User',
                 created_at: now
             });
-            UnitModule.addToUnitDepotStock(order, line, stationId, qty, {
+            const storedStockRow = UnitModule.addToUnitDepotStock(order, line, stationId, qty, {
                 targetScopeId,
                 targetLocationId,
                 targetLocationCode,
                 targetNote: `Depoya alindi: ${targetLabel}`,
                 stockSource: sourceResolution.source
             });
+            if (!storedStockRow || !String(storedStockRow?.id || '').trim()) {
+                throw new Error('STORE stok satırı exact olarak oluşturulamadı.');
+            }
             const storeMovement = {
                 id: crypto.randomUUID(),
                 movementType: 'STORE',
@@ -7704,6 +7784,8 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
                 depotName: UnitModule.getStoreScopeName(targetScopeId),
                 locationId: targetLocationId,
                 locationCode: targetLocationCode || '',
+                stockDepotItemId: String(storedStockRow.id),
+                outputStockItemId: String(storedStockRow.id),
                 ...sourceResolution.source,
                 note: `Depoya al / is emri ${String(order?.workOrderCode || '-')}`,
                 created_at: now,
@@ -7914,7 +7996,11 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
                             return `${UnitModule.escapeHtml(plan.machine || '-')} / ${UnitModule.escapeHtml(plan.personnel || '-')} ${plan.targetDate ? `(${UnitModule.escapeHtml(plan.targetDate)})` : ''}`;
                         }
                         const sourceCode = String(order?.sourceCode || '').trim().toUpperCase();
-                        if (!/^PLN-\d{6}$/.test(sourceCode)) return '-';
+                        const validPlanCode = typeof IdentityPolicy !== 'undefined'
+                            && typeof IdentityPolicy?.isSequentialCode === 'function'
+                            ? IdentityPolicy.isSequentialCode(sourceCode, 'PLN')
+                            : /^PLN-(?:\d{6}|[1-9]\d{6,})$/.test(sourceCode);
+                        if (!validPlanCode) return '-';
                         return `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(order?.id || '')}')" style="padding:0.1rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`;
                     })()}
                 </div>
@@ -9035,7 +9121,10 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
                 || String(r.plan.targetDate || '').trim()
             ));
             const sourceCode = String(r.order?.sourceCode || '').trim().toUpperCase();
-            const hasSourcePlan = /^PLN-\d{6}$/.test(sourceCode);
+            const hasSourcePlan = typeof IdentityPolicy !== 'undefined'
+                && typeof IdentityPolicy?.isSequentialCode === 'function'
+                ? IdentityPolicy.isSequentialCode(sourceCode, 'PLN')
+                : /^PLN-(?:\d{6}|[1-9]\d{6,})$/.test(sourceCode);
             const sourcePlanBadge = hasSourcePlan
                 ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
                 : '';
@@ -9973,7 +10062,10 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
                                         || String(r.plan.targetDate || '').trim()
                                     ));
                                     const sourceCode = String(r.order?.sourceCode || '').trim().toUpperCase();
-                                    const hasSourcePlan = /^PLN-\d{6}$/.test(sourceCode);
+                                    const hasSourcePlan = typeof IdentityPolicy !== 'undefined'
+                                        && typeof IdentityPolicy?.isSequentialCode === 'function'
+                                        ? IdentityPolicy.isSequentialCode(sourceCode, 'PLN')
+                                        : /^PLN-(?:\d{6}|[1-9]\d{6,})$/.test(sourceCode);
                                     const sourcePlanBadge = hasSourcePlan
                                         ? `<button class="btn-sm" onclick="UnitModule.openWorkOrderSourceDemand('${String(r.order?.id || '')}')" style="padding:0.08rem 0.45rem; min-height:24px; border:1px solid #93c5fd; background:#eff6ff; color:#1d4ed8; font-family:monospace; font-weight:800;">${UnitModule.escapeHtml(sourceCode)}</button>`
                                         : '';
@@ -10217,19 +10309,11 @@ th { background:#f1f5f9; font-size:9px; text-transform:uppercase; }
     },
     getNextDepoTaskCode: () => {
         if (!Array.isArray(DB.data.data.depoTransferTasks)) DB.data.data.depoTransferTasks = [];
-        const max = (DB.data.data.depoTransferTasks || []).reduce((acc, row) => {
-            const code = String(row?.taskCode || '').trim().toUpperCase();
-            const m = code.match(/^DTR-(\d{6})$/);
-            if (!m) return acc;
-            return Math.max(acc, Number(m[1]));
-        }, 0);
-        let next = max + 1;
-        let candidate = `DTR-${String(next).padStart(6, '0')}`;
-        while (UnitModule.isGlobalCodeTaken(candidate)) {
-            next += 1;
-            candidate = `DTR-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return UnitModule.getNextOperationalCode(
+            'DTR',
+            DB.data.data.depoTransferTasks,
+            'taskCode'
+        );
     },
     openDepoTaskForm: () => {
         UnitModule.state.depoTaskFormOpen = true;

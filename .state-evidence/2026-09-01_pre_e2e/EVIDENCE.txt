@@ -1,0 +1,15 @@
+DULDA ERP - Uçtan Uca Test Öncesi Donmuş State Kanıtı
+
+11923 MGP31/STAI priority-save öncesi terminal MGS/MCT kanıtı
+Dosya: 2026-08-31T12-35-05-924Z_r011923_before-save.json
+SHA256: 0FE94761B706E7F428CF78E1826B337392DD4F730E014799ADB225008D6C285D
+
+11924 kapanış kanıtı
+Dosya: 2026-08-31T12-35-06-377Z_r011924_after-save.json
+SHA256: B47792D65FC547756F6EAE89306C639BA873CB964918FFFAAC5DE426872EB071
+
+11925 kullanıcı onaylı tombstone/detach sonrası kanıt
+Dosya: 2026-09-01T11-01-47-373Z_r011925_after-save.json
+SHA256: 92D02AF9D74F32A1B19E9A0E74B72FA22B88B47B8A1E3A520FB240C53912A840
+
+Bu üç dosya rev11926 birleşik test-cohort temizliğinden önce rolling history dışında sabitlenmiştir.

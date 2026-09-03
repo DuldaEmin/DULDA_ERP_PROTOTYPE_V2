@@ -138,7 +138,10 @@ const PurchasingModule = {
         .replace(/[\s_]+/g, '-')
         .replace(/-+/g, '-'),
 
-    isValidSupplierRefId: (value) => /^TREF-\d{6}$/i.test(String(value || '').trim()),
+    isValidSupplierRefId: (value) => typeof IdentityPolicy !== 'undefined'
+        && typeof IdentityPolicy?.isSequentialCode === 'function'
+        ? IdentityPolicy.isSequentialCode(value, 'TREF')
+        : /^TREF-(?:\d{6}|[1-9]\d{6,})$/i.test(String(value || '').trim()),
 
     collectUsedSupplierRefIds: (excludeSupplierId = '') => {
         const rows = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
@@ -161,47 +164,28 @@ const PurchasingModule = {
             ? options.usedIds
             : PurchasingModule.collectUsedSupplierRefIds(excludeSupplierId);
 
-        let maxSeq = 0;
-        usedIds.forEach((code) => {
-            const match = String(code || '').trim().toUpperCase().match(/^TREF-(\d{6})$/);
-            if (!match) return;
-            const seq = Number(match[1] || 0);
-            if (seq > maxSeq) maxSeq = seq;
-        });
-
-        let seq = maxSeq + 1;
-        let candidate = `TREF-${String(seq).padStart(6, '0')}`;
-        while (usedIds.has(candidate)) {
-            seq += 1;
-            candidate = `TREF-${String(seq).padStart(6, '0')}`;
+        let candidate = '';
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            candidate = IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'TREF', usedCodes: usedIds });
+        } else if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            candidate = OperationalCodeHighWater.nextCode(DB.data, 'TREF', Array.from(usedIds));
+        } else {
+            const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.TREF || '0');
+            let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+            usedIds.forEach((value) => {
+                const match = String(value || '').trim().toUpperCase().match(/^TREF-(\d{6}|[1-9]\d{6,})$/);
+                if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+            });
+            candidate = `TREF-${(maximum + 1n).toString().padStart(6, '0')}`;
         }
         usedIds.add(candidate);
         return candidate;
     },
 
     ensureSupplierRefIds: () => {
-        const rows = Array.isArray(DB.data?.data?.suppliers) ? DB.data.data.suppliers : [];
-        const used = new Set();
-        let changed = false;
-
-        rows.forEach((row) => {
-            if (!row || typeof row !== 'object') return;
-            const current = PurchasingModule.normalizeSupplierRefId(row?.supplierRefId || '');
-            if (PurchasingModule.isValidSupplierRefId(current) && !used.has(current)) {
-                if (String(row?.supplierRefId || '') !== current) {
-                    row.supplierRefId = current;
-                    changed = true;
-                }
-                used.add(current);
-                return;
-            }
-            const next = PurchasingModule.generateSupplierRefId({ usedIds: used });
-            if (String(row?.supplierRefId || '') !== next) {
-                row.supplierRefId = next;
-                changed = true;
-            }
-        });
-        return changed;
+        return false;
     },
 
     normalizeTaxKey: (value) => String(value || '')

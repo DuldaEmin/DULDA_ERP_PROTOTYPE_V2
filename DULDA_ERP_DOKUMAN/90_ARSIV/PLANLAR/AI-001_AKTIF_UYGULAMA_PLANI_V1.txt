@@ -1,0 +1,564 @@
+# DULDA ERP — AI-001 AKTİF UYGULAMA PLANI V1
+
+## 1. Plan Kimliği ve Statüsü
+
+- İş kodu: `AI-001`
+- İş adı: Otomatik Sıralı Kodlarda 6 Hane Minimum Genişlik, High-Water ve Devamlılık Güvenliği
+- Doküman türü: Aktif uygulama planı
+- Durum: **TEKNİK UYGULAMA PASS / KULLANICI KABULÜ BEKLİYOR**
+- Plan oluşturma tarihi: `03.09.2026`
+- Aktif ana mimari: `DULDA_ERP_MIMARI_HARITASI_V30.txt`
+- Teknik dayanak: Güncel repo/worktree/state/runtime üzerinde tamamlanan AI-001 READ-ONLY incelemesi
+- Faz sayısı: `3`
+
+Bu dokümanın oluşturulması, kod uygulamasını başlatma izni değildir. Kod, state, runtime, test
+fixture'ı, ERP kaydı veya migration üzerinde değişiklik yapılmadan önce kullanıcıdan bu uygulama
+kapsamı için ayrıca ve açıkça `ONAY: UYGULA` alınacaktır.
+
+## 2. İşletme Hedefi
+
+Otomatik sıralı business kodlarında altı hane son sınır değildir; yalnız minimum gösterim
+genişliğidir.
+
+Beklenen doğal devam:
+
+`999998 → 999999 → 1000000 → 1000001 → ...`
+
+Bağlayıcı işletme sonuçları:
+
+- 1–999999 aralığındaki mevcut kodlar altı haneli sıfır dolgulu görünümünü korur.
+- 1000000 ve üzerindeki kodlar kesilmeden 7, 8, 9 veya daha fazla haneyle devam eder.
+- Kod yalnız altı haneyi geçtiği için reddedilmez veya okuyucular tarafından görünmez sayılmaz.
+- Kullanılmış bir sıra değeri kayıt silme, cleanup veya lifecycle değişikliği sonrasında tekrar
+  kullanılmaz.
+- Duplicate kod oluşmaz.
+- Mevcut kayıtlar yeniden numaralandırılmaz.
+- Mevcut business/physical identity ve lineage değerleri rewrite edilmez.
+- V30 veri bütünlüğü invariant'ları korunur.
+- Gerçek `demo_state.json` sınır testi için 999999 seviyesine taşınmaz ve yapay test verisiyle
+  değiştirilmez.
+
+## 3. Güncel Teknik Problem Özeti
+
+Güncel incelemede aşağıdaki somut uyumsuzluklar doğrulanmıştır:
+
+1. Merkezi operasyon high-water parser'ı yalnız tam altı haneli suffix kabul etmektedir.
+2. Yedi ve daha fazla haneli kodlar bazı istemci üreticilerinde üretilebilse de high-water,
+   duplicate, reuse ve immutability kontrollerinin dışında kalabilmektedir.
+3. STAI, SVP ve TF sunucu doğrulayıcıları yedi haneli kodları reddetmektedir.
+4. Bazı downstream reader ve lineage kontrolleri tam altı haneli regex'e bağlıdır.
+5. Cleanup mevcut altı haneli high-water'ı korur; ancak yedi haneli kodu okuyamadığı için sınır
+   geçildikten sonra high-water geride kalabilir.
+6. Sayaçların JavaScript `Number` ile işlenmesi güvenli tamsayı sınırının üzerinde hassasiyet
+   kaybına yol açmaktadır.
+7. Generic identity repair bazı mevcut business kodlarını otomatik değiştirme riski taşımaktadır.
+8. Ek operasyon/belge kodları ile master/referans kodlarının lifecycle ve sayaç semantiği çekirdek
+   operasyon aileleriyle bütünüyle aynı değildir.
+
+Güncel state'te çekirdek operasyon kodları altı haneli, tekil ve kayıtlı high-water değerleriyle
+uyumludur. Bu mevcut kayıtlar korunacak; çözüm mevcut kayıtları dönüştürmeye değil, sınır sonrası
+devamlılığı güvenli hale getirmeye yöneliktir.
+
+## 4. Teknik Sözleşme ve Ortak Uygulama İlkeleri
+
+Uygulamada aşağıdaki ortak sözleşme korunacaktır:
+
+- Sıra bölümü pozitif ve canonical decimal tamsayıdır.
+- 1–999999 aralığı minimum altı haneye sıfır dolgulu yazılır.
+- 1000000 ve üzeri değerler doğal uzunluğuyla yazılır; kesilmez veya yeniden sıfır dolgulanmaz.
+- Negatif, sıfır, işaretli, ondalıklı, exponent biçimli, boşluklu veya canonical olmayan değerler
+  sessizce kabul edilmez.
+- Sayaç hesabı kayıpsız yapılır; uygulama içinde `BigInt` veya eşdeğer kayıpsız decimal yöntem,
+  JSON metadata'da canonical decimal string kullanılır.
+- Mevcut güvenli pozitif integer high-water metadata değerleri geriye uyumlu okunabilir.
+- Güvenli biçimde yorumlanamayan veya geriye düşen metadata fail-closed sonuç üretir; sayaç sıfıra
+  veya canlı maksimumun altına çekilmez.
+- Yeni kod, ilgili ailenin doğrulanmış persistent high-water değerinden ilerler.
+- High-water; cleanup, silme veya canlı kayıt maksimumunun düşmesi nedeniyle geriye gitmez.
+- Aynı kodun oluşturulması ve mevcut kayıt kodunun değiştirilmesi sunucuda da engellenir.
+- İstemci üreticisi, sunucu doğrulayıcısı, high-water politikası, cleanup ve downstream okuyucu aynı
+  kod biçimi sözleşmesini kullanır.
+- Mevcut kayıt kodlarına toplu migration, normalize, repair veya renumber uygulanmaz.
+- Gerekli metadata uyarlaması yalnız sayaç metadata'sıyla sınırlı olur; business kayıtlarını
+  değiştirmez ve mevcut high-water değerini düşürmez.
+- Büyük aralıklarda doğruluk lineer candidate taramasına bağlanmaz; high-water tabanlı artış ve
+  tekillik kontrolü kullanılır.
+
+## 5. Kapsam
+
+Plan aşağıdaki üç fazdan oluşur:
+
+1. Çekirdek operasyon kodu sözleşmesi.
+2. Ek operasyon/belge semantiği.
+3. Master/referans business kodları.
+
+Ortak teknik kapsam:
+
+- Kod üretimi ve biçimlendirme.
+- Kod okuma ve doğrulama.
+- Persistent high-water oluşturma, saklama ve ilerletme.
+- Duplicate, reuse ve immutability kontrolleri.
+- Cleanup sonrası devamlılık.
+- Downstream identity/reader/lineage uyumu.
+- Generic repair kaynaklı renumber riskinin kaldırılması.
+- İzole otomatik fixture testleri ve V30 regresyon kontrolleri.
+
+## 6. Kapsam Dışı
+
+- V30 Ana Omurga E2E çalışmasını yeniden açmak.
+- SOR-000020 doğal operasyon çalışmasını yeniden açmak.
+- Fiziksel miktar, stok, tahsis, montaj veya sevkiyat işletme mantığını değiştirmek.
+- Physical origin veya commercial target hesaplarını yeniden tasarlamak.
+- Lifecycle durumlarını veya mevcut business identity'leri dönüştürmek.
+- Mevcut kayıtları renumber etmek.
+- Teknik/random ID'leri otomatik business code politikasına taşımak.
+- `SCP` ve `SAP` teknik/random satır kimliklerini bu planın business-code kapsamına almak.
+- `URM-...-Vxx` gibi farklı alt sayaç semantiğini genel sıra suffix'i olarak değiştirmek.
+- İlgisiz refactor, formatlama veya modül yeniden tasarımı.
+- Gerçek `demo_state.json` üzerinde sınır verisi üretmek.
+- Gerçek ERP kayıtlarıyla 999999 sınır testi yapmak.
+- Kullanıcı onayı olmadan migration, cleanup, runtime restart, commit, push veya checkpoint yapmak.
+
+## 7. FAZ 1 — Çekirdek Operasyon Kodu Sözleşmesi
+
+### 7.1 Kapsamdaki Aileler
+
+`SOR, PLN, WO, MGP, MGS, MCT, STAI, SVP, TF, FTS`
+
+### 7.2 Teknik Amaç
+
+On çekirdek operasyon ailesinde üretici, okuyucu, doğrulayıcı, high-water, duplicate/reuse,
+immutability ve cleanup davranışlarını tek ve kayıpsız 6+ hane sözleşmesinde birleştirmek.
+
+Bu faz atomiktir. İstemci tek başına değiştirilirse sunucu yedi haneli kodu reddedebilir; sunucu
+tek başına değiştirilirse merkezi high-water yedi haneli kodu görmeyebilir. Bu nedenle istemci,
+sunucu, high-water ve cleanup uyumu aynı faz kabulünün parçalarıdır.
+
+### 7.3 Beklenen Teknik Çalışmalar
+
+- Merkezi operasyon kodu parser/formatter ve sıra karşılaştırmasını kayıpsız hale getirmek.
+- Persistent high-water metadata'sını kayıpsız decimal biçimle uyumlu hale getirmek.
+- Eski güvenli numeric high-water değerlerini düşürmeden okuyabilmek.
+- On ailenin istemci generator'larını ortak minimum-altı-hane sözleşmesine geçirmek.
+- STAI, SVP ve TF dahil sunucu validator'larını 7+ canonical kodları kabul edecek şekilde
+  ortaklaştırmak.
+- Geçiş doğrulamasında 7+ duplicate, reuse ve mevcut kayıt renumber girişimini engellemek.
+- SOR ve PLN dahil tam altı haneli regex'e bağlı downstream reader'ları ortak parser'a geçirmek.
+- Cleanup'ın sınır sonrası high-water değerini korumasını sağlamak.
+- Çekirdek operasyon kimliklerini generic auto-repair/renumber kapsamından çıkarmak.
+- Server save akışındaki teşhis, doğrulama ve persistent mark uygulamasını aynı sözleşmeyle
+  fail-closed tutmak.
+
+### 7.4 Faz 1 Kabul Şartları
+
+- On ailenin her birinde `999998 → 999999 → 1000000 → 1000001` kesintisiz üretilir ve kabul
+  edilir.
+- 7, 8, 9 ve daha uzun canonical kodlar yalnız hane sayısı nedeniyle reddedilmez.
+- Mevcut altı haneli kodların metni değişmez.
+- Aynı 7+ kod ikinci kez eklenemez.
+- Daha önce kullanılmış 7+ kod silme veya cleanup sonrası yeniden kullanılamaz.
+- Mevcut kayıt kodu başka bir sıra değerine değiştirilemez.
+- High-water hiçbir kabul edilmiş geçişte geriye düşmez.
+- İstemci ve sunucu aynı sonraki kodu ve aynı geçerlilik sonucunu verir.
+- SOR/PLN ve diğer downstream ekran/reader bağlantıları 7+ kodla çalışır.
+- Generic repair mevcut çekirdek operasyon kodunu değiştirmez.
+- V30 fiziksel miktar, lifecycle ve lineage sonuçlarında regresyon oluşmaz.
+
+### 7.5 Faz 1 Hedefli Test Sınırı
+
+- Ortak parser/formatter için canonical kabul ve red tablosu.
+- Her çekirdek aile için dört adımlı 999999 sınır fixture'ı.
+- Server transition/save validator testleri.
+- 7+ duplicate ve mevcut kayıt immutability testleri.
+- Silme ve PROTOTYPE cleanup sonrası reuse engeli.
+- High-water'ın canlı maksimum azalsa da düşmemesi.
+- `Number.MAX_SAFE_INTEGER` çevresi ve daha uzun decimal değerlerde kayıpsız artış.
+- Mevcut altı haneli state fixture'ında kayıt kodlarının değişmediği snapshot kontrolü.
+- SOR/PLN/STAI/SVP/TF dahil downstream reader ve validator testleri.
+- Aynı save'in yinelenmesinin ikinci kod veya fiziksel etki oluşturmaması.
+
+### 7.6 Faz 1 Çıkış Kapısı
+
+Faz 1 ancak bütün hedefli testler PASS, gerçek `demo_state.json` değişmemiş ve V30 regresyon
+kontrollerinde yeni hata yoksa tamamlanır. FAIL/BLOCKED halinde Faz 2'ye geçilmez.
+
+## 8. FAZ 2 — Ek Operasyon / Belge Semantiği
+
+### 8.1 Kapsamdaki Aileler
+
+- `DSI`: İş emri/sevk belge kodu.
+- `SDT`: Serbest dış tedarik/fason iş kodu.
+- `DTR`: Depo transfer işlem/master kodu ve route/lineage anahtarı.
+- `MK`: Yıl kapsamlı mal kabul belge kodu.
+- `EK`: Yıl kapsamlı envanter giriş belge kodu.
+
+### 8.2 Teknik Amaç
+
+Bu aileleri çekirdek operasyon koduyla aynı düşük seviye kayıpsız decimal sözleşmeden yararlanacak,
+fakat kendi belge, yıl, route/lineage ve lifecycle kurallarını koruyacak biçimde güvenli hale
+getirmek.
+
+### 8.3 Beklenen Teknik Çalışmalar
+
+- DSI ve SDT için silme sonrasında geriye düşmeyen persistent high-water ve tekillik sağlamak.
+- SDT'nin gerçek business prefix'ini korumak; generic identity tanımındaki farklı prefix nedeniyle
+  mevcut kaydı rename/repair etmemek.
+- DTR'nin üretici, doğrulayıcı ve persistent high-water davranışını ortaklaştırmak.
+- DTR canonical route/lineage okuyucularını 7+ canonical sıra değerleriyle uyumlu hale getirmek.
+- MK ve EK için yılı anahtarın parçası yapan bağımsız yıl-bazlı high-water saklamak.
+- MK/EK cleanup ve test-kohort referans okuyucularını 7+ belge kodunu tanıyacak şekilde
+  ortaklaştırmak.
+- Mevcut belge ve route kimliklerini değiştirmemek.
+
+### 8.4 Faz 2 Kabul Şartları
+
+- DSI, SDT ve DTR için 999999 sınırı kesintisiz geçilir.
+- DSI/SDT/DTR duplicate ve reuse girişimleri reddedilir.
+- DTR-1000000 canonical route/lineage içinde doğru işlem kimliği olarak tanınır.
+- Mevcut DTR route ve lineage bağları değişmez.
+- MK ve EK sayaçları her yıl için bağımsız ilerler; bir yılın high-water'ı başka yılı etkilemez.
+- Aynı yıl içinde MK/EK duplicate veya reuse oluşmaz.
+- Cleanup, DSI/SDT/DTR global high-water'ını ve MK/EK yıl-bazlı high-water'ını düşürmez.
+- Mevcut belge kodları renumber edilmez.
+- Fiziksel akış veya belge lifecycle davranışı değişmez.
+
+### 8.5 Faz 2 Hedefli Test Sınırı
+
+- DSI, SDT ve DTR için izole 999998–1000001 fixture'ları.
+- DTR canonical route/lineage eşleme ve mevcut route regresyon testleri.
+- MK/EK için aynı yılda sınır geçişi, duplicate ve cleanup/reuse testleri.
+- En az iki farklı yıl kullanılarak yıl sayaçlarının birbirinden bağımsızlığı.
+- 7+ EK referanslarının cleanup/test-kohort sınıflandırmasında görünmesi.
+- Mevcut DSI/SDT/DTR/MK/EK kimliklerinin snapshot olarak değişmemesi.
+
+### 8.6 Faz 2 Çıkış Kapısı
+
+Faz 2 ancak Faz 1 PASS kaldığında, bütün Faz 2 hedefli testleri PASS olduğunda ve route/lineage ile
+yıl-bazlı belge davranışında regresyon görülmediğinde tamamlanır. FAIL/BLOCKED halinde Faz 3'e
+geçilmez.
+
+## 9. FAZ 3 — Master / Referans Business Kodları
+
+### 9.1 Kapsamdaki Doğrulanmış Business Kod Aileleri
+
+- Üretim/master kartları: `CNC, TST, EKS, PLSJ, PVD, IPS, ELX, STB, MON`
+- Ürün/master/referans: `SVR, PRC, YRM, GRP, URM`
+- Müşteri/tedarikçi ve genel referans: `MUS, MREF, TREF, SAL, ANK, SRF, KLI, LOC, PER`
+
+Uygulama başlangıcında bu envanter güncel repo üzerinde yeniden doğrulanır. Yalnız kalıcı,
+kullanıcıya görünen ve otomatik sıralı business code olduğu doğrulanan alanlar değiştirilir.
+Teknik/random kimlikler ve farklı alt sayaç semantiği olan alanlar kapsam dışında kalır.
+
+### 9.2 Teknik Amaç
+
+Master ve referans business kodlarında minimum altı hane, sınırsız doğal devam, lifecycle'a uygun
+tekillik ve silme sonrası reuse engelini sağlarken mevcut kayıtları ve kullanıcıya görünen
+kimlikleri korumak.
+
+### 9.3 Beklenen Teknik Çalışmalar
+
+- Her ailenin gerçek collection, alan, prefix, generator, validator ve silme lifecycle'ını
+  doğrulamak.
+- Gerçek prefix ile generic identity tanımı arasındaki uyumsuzlukları kayıt rename etmeden
+  gidermek.
+- Silinebilen master/reference ailelerinde persistent ve geriye düşmeyen high-water sağlamak.
+- Generator ve validator'ları ortak kayıpsız minimum-altı-hane sözleşmesine geçirmek.
+- Generic uniqueness/repair'in mevcut business kodunu otomatik renumber etmesini engellemek.
+- Duplicate değerlerde sessiz repair yerine yeni kaydı reddeden veya açık fail-closed sonuç veren
+  davranış kullanmak.
+- Mevcut business kayıtlarına toplu code migration uygulamamak.
+
+### 9.4 Faz 3 Kabul Şartları
+
+- Kapsamdaki her doğrulanmış aile için 999999 sınırı doğal biçimde geçilir.
+- 7+ canonical kodlar generator, validator ve ilgili reader tarafından kabul edilir.
+- Silme sonrasında kullanılmış sıra değeri yeniden üretilmez.
+- Duplicate yeni kayıt reddedilir; mevcut kayıt sessizce renumber edilmez.
+- Mevcut altı haneli master/reference kodları ve referans bağları değişmez.
+- Prefix uyumsuzluğu mevcut kaydı rewrite ederek çözülmez.
+- Teknik/random ID'ler ile URM varyant alt sayacı değişmez.
+- Master/reference lifecycle ve kullanıcı ekranı davranışında ilgisiz değişiklik oluşmaz.
+
+### 9.5 Faz 3 Hedefli Test Sınırı
+
+- Her kapsamdaki ailenin generator/validator sınır fixture'ı.
+- Silinebilen ailelerde create → delete → next-code akışı ve reuse engeli.
+- Duplicate yeni kayıt ile mevcut kayıt renumber girişiminin ayrı testleri.
+- Prefix eşleme regresyonları: en az `EKS`, `IPS`, `MON`, gerçek iş kodu `WO` ve `SDT` ayrımları.
+- Mevcut master/reference veri snapshot'ında code ve referans alanlarının değişmemesi.
+- Teknik/random `SCP/SAP` ve `URM-Vxx` değerlerinin kapsam dışı kaldığının testi.
+- Çok uzun decimal sıra değerinde kayıpsız üretim ve karşılaştırma.
+
+### 9.6 Faz 3 Çıkış Kapısı
+
+Faz 3 ancak Faz 1 ve Faz 2 PASS kalırken bütün hedefli Faz 3 testleri PASS olduğunda, mevcut
+master/reference kimlikleri değişmediğinde ve yeni V30 regresyonu oluşmadığında tamamlanır.
+
+## 10. Hedefli Otomatik Doğrulama Stratejisi
+
+Sınır testleri gerçek `demo_state.json` üzerinde yürütülmez.
+
+Kullanılacak güvenli yöntem:
+
+1. Test için gereken en küçük state yalnız bellekte veya geçici test klasöründe oluşturulur.
+2. Gerçek state'ten gerekiyorsa yalnız şema biçimi okunur; fixture sonucu gerçek state'e yazılmaz.
+3. Her test kendi family high-water ve kayıt kümesini bağımsız kurar.
+4. Test öncesi ve sonrası gerçek `demo_state.json` SHA-256 ve revision değeri karşılaştırılır.
+5. Runtime API'sine gerçek mutation gönderilmez; server davranışı izole validator/save fixture'ı
+   veya eşdeğer geçici state ile doğrulanır.
+6. Cleanup testi gerçek PROTOTYPE cleanup çalıştırmak yerine izole state kopyası üzerinde yürür.
+7. Test fixture ve geçici dosyaları repo içinde kalıcı business verisi olarak bırakılmaz.
+
+Asgari ortak test matrisi:
+
+- `999998 → 999999 → 1000000 → 1000001`.
+- 7, 8, 9 ve daha uzun suffix kabulü.
+- Altı haneli mevcut görünümün korunması.
+- Duplicate engeli.
+- Silme ve cleanup sonrası reuse engeli.
+- High-water'ın geriye düşmemesi.
+- Mevcut kayıt renumber/repair engeli.
+- Client/server geçerlilik uyumu.
+- Downstream reader ve lineage uyumu.
+- Güvenli tamsayı sınırının üzerinde kayıpsız decimal ilerleme.
+- PROTOTYPE/LIVE modunda gerçek state'in değişmemesi.
+- Parse ve metin encoding guard'ları.
+- Mevcut test paketine göre yeni regresyon oluşmadığının baseline/delta karşılaştırması.
+
+Mevcut backbone paketinde AI-001 öncesinden kalan fixture/current-state bağımlı hatalar ayrı
+baseline olarak kaydedilir. Bunlar gizlenmez veya PASS'e çevrilmez; AI-001'in yeni hata üretip
+üretmediği hedefli testlerle ve önce/sonra farkıyla açıkça raporlanır.
+
+## 11. V30 Regresyon ve Veri Bütünlüğü Korumaları
+
+AI-001 yalnız kod üretimi, devamlılığı ve identity güvenliği kapsamındadır. Aşağıdaki davranışlar
+değiştirilmeyecektir:
+
+- Fiziksel miktar ve stok hesabı.
+- Tahsis önceliği ve fixed operational commitment.
+- Üretim, fason, montaj, MCT ve sevkiyat lifecycle'ı.
+- Physical origin / provenance.
+- Commercial target.
+- SALES ve STOCK ayrımı.
+- Aynı exact fiziksel miktarın tekil tüketimi.
+- SVP/TF ve terminal müşteri sevki tekilliği.
+- Sevk edilen miktarın yeniden tahsis havuzuna girmemesi.
+- Negative stock, exact overlap, double-count, ghost hold ve orphan engelleri.
+- Belirsizlikte fail-closed davranış.
+- Mevcut business ve physical identity değerleri.
+
+Her fazda en azından ilgili resolver/save guard testleriyle şu sonuçlar doğrulanır:
+
+- Kod değişikliği fiziksel miktar üretmez, tüketmez veya taşımaz.
+- Existing lineage anahtarları aynı kayıtlara çözülür.
+- Duplicate kod engeli ikinci fiziksel hareket veya belge etkisi oluşturmaz.
+- Mevcut kayıt snapshot'ında business/physical kimlik rewrite edilmez.
+
+V30 Ana Omurga E2E sonucu yeni somut regresyon kanıtı olmadan yeniden açılmaz.
+
+## 12. Dirty Worktree Koruma Sınırı
+
+Plan oluşturulurken worktree dirty durumdadır. Uygulama başlangıcında branch, HEAD, worktree,
+state ve runtime yeniden salt-okunur checkpoint ile doğrulanacaktır.
+
+Uygulama boyunca:
+
+- Mevcut modified ve untracked kullanıcı dosyaları korunur.
+- Yalnız ilgili hedeflerde en küçük güvenli değişiklik yapılır.
+- Kullanıcı değişikliklerinin üzerine toplu rewrite veya formatlama yapılmaz.
+- `reset`, `clean`, `restore`, `checkout`, `stash` veya `rebase` kullanılmaz.
+- İlgisiz dosyalar düzeltilmez veya çalışma kapsamına alınmaz.
+- Overlap veya revision conflict görülürse yazma durdurulur ve somut çakışma raporlanır.
+- Gerçek state ya da runtime sonucunun belirsiz olduğu işlem körlemesine tekrarlanmaz.
+
+## 13. Faz İlerleme ve Duruş Kuralları
+
+- Fazlar sırasıyla uygulanır.
+- Bir fazın kabul kapısı PASS olmadan sonraki faza geçilmez.
+- FAIL veya BLOCKED kanıtı silinmez; düzeltme ve yeniden test ayrı kayıt olarak eklenir.
+- Yeni ihtiyaç mevcut fazın onaylı sınırını aşıyorsa uygulanmaz; plan revizyonu ve yeni kullanıcı
+  onayı beklenir.
+- Mevcut kayıt renumber, lineage rewrite, negative/ghost stock, duplicate fiziksel etki veya
+  doğrulanamayan state mutation görülürse çalışma hemen durur.
+- Pre-existing ve ilgisiz test hataları ayrı raporlanır; AI-001 sonucunu doğrudan etkilemiyorsa
+  kapsam genişletilmez.
+
+Faz ilerleme kaydı biçimi:
+
+### [Tarih/Saat] — [Faz / Alt İş]
+
+- Durum: PLANLANIYOR / DEVAM EDİYOR / PASS / FAIL / BLOCKED
+- Başlangıç checkpoint'i:
+- Değiştirilen hedefler:
+- Çalıştırılan hedefli testler:
+- Gerçek `demo_state.json` hash/revision kontrolü:
+- V30 regresyon sonucu:
+- Bulunan sorun:
+- Karar:
+- Sonraki adım:
+
+## 14. Tamamlanma ve Kapanış Şartı
+
+AI-001 ancak aşağıdaki koşulların tamamı karşılandığında teknik olarak tamamlanmış sayılabilir:
+
+1. Faz 1, Faz 2 ve Faz 3 kendi kabul kapılarında PASS olmuştur.
+2. Bütün kapsamdaki otomatik business kodlarında minimum-altı-hane ve sınırsız doğal devam
+   doğrulanmıştır.
+3. Duplicate, reuse, cleanup sonrası devamlılık, high-water ve immutability testleri PASS'tir.
+4. Mevcut altı haneli kodlar ve kayıt kimlikleri değişmemiştir.
+5. Generic repair mevcut business kodlarını renumber etmemektedir.
+6. DTR route/lineage ve MK/EK yıl-bazlı sayaç davranışı PASS'tir.
+7. Gerçek `demo_state.json` sınır fixture'ıyla değiştirilmemiştir.
+8. V30 veri bütünlüğü ve resolver/save guard regresyonlarında AI-001 kaynaklı yeni hata yoktur.
+9. Dirty worktree içindeki kullanıcı değişiklikleri korunmuştur.
+10. Uygulama ve test kanıtları planın ilerleme günlüğüne append-only kaydedilmiştir.
+11. Kullanıcı final sonucu kabul etmiştir.
+
+Bu şartlar oluşmadan plana `TAMAMLANDI`, AI-001 açık işine `TAMAMLANDI` yazılmaz ve dosyalar
+arşive taşınmaz.
+
+Tamamlanma sonrasında AI-001 açık işinin kapatılması ve aktif planın mevcut doküman arşiv düzenine
+taşınması ayrıca açıkça yetkilendirilmiş dokümantasyon kapanış işlemiyle yapılır. Geçmiş plan ve
+test kanıtları silinmez veya baştan yazılmaz.
+
+## 15. Uygulama Yetki Hükmü
+
+**Bu aktif plan dokümanının oluşturulması uygulama onayı değildir.**
+
+Kod uygulaması, state/runtime işlemi, migration, cleanup veya kalıcı test değişikliği ancak
+kullanıcının bu plan için ayrıca açık `ONAY: UYGULA` vermesinden sonra başlayabilir. O onay alınana
+kadar planın durumu:
+
+**TEKNİK UYGULAMA PASS / KULLANICI KABULÜ BEKLİYOR**
+
+## 16. Uygulama İlerleme Günlüğü
+
+### 2026-09-03 15:21:41 +03:00 — FAZ 1 / ÇEKİRDEK OPERASYON KODU SÖZLEŞMESİ
+
+- Durum: **PASS**
+- Başlangıç checkpoint'i: Branch `dev_sanal_taksim_v12_paket2`, HEAD
+  `1974b1787bf8fd2a304214749a9e047537ea2021`; dirty worktree aynen korundu.
+- Yapılan: `SOR, PLN, WO, MGP, MGS, MCT, STAI, SVP, TF, FTS` için minimum-altı-hane,
+  kayıpsız decimal sıra, persistent high-water, duplicate/reuse/immutability ve cleanup
+  devamlılığı ortaklaştırıldı. İstemci generator/reader noktaları ile STAI/SVP/TF sunucu
+  doğrulayıcıları 7+ canonical kodla uyumlu hale getirildi. WO generic auto-repair kapsamından
+  çıkarıldı.
+- Değiştirilen hedefler: `src/core/operational-code-high-water.js`, `src/core/app-core.js`,
+  `serve.js`, `src/modules/sales-module.js`, `src/modules/planning-module.js`,
+  `src/modules/unit-module.js`, `src/modules/stock-module.js`, `tests/ai001.guard.test.cjs`,
+  `tests/backbone.guard.test.cjs`, `package.json`.
+- Hedefli testler: `npm run test:ai001` — 7/7 PASS; bütün on ailede
+  `999998 → 999999 → 1000000 → 1000001`, 7+ duplicate/reuse/renumber, cleanup, uzun decimal,
+  gerçek generator ve STAI/SVP/TF sunucu validator sınırları doğrulandı.
+- Koruma testleri: `npm run check:parse` PASS; `npm run check:text` PASS.
+- Mevcut suite baseline: `npm run test:backbone` mevcut state/fixture bağımlı 40 tarihsel hata ile
+  sonuçlandı; AI-001 öncesi READ-ONLY baseline olan 40 hataya göre yeni hata yok.
+- Gerçek `demo_state.json` kontrolü: Revision `12047`; SHA-256
+  `E3005F5CBBD7A1ED892C7E809F21EBB289838453841555270EEA8BD24344DC30`; değişmedi.
+- Runtime kontrolü: `LIVE / revision 12047`; restart veya mutation yapılmadı.
+- V30 regresyon sonucu: Hedefli testlerde business/physical kayıt gövdesi değişmedi; mevcut
+  altı haneli kodlar renumber edilmedi; yeni fiziksel miktar, stok veya lineage etkisi oluşmadı.
+- Açık risk/blocker: Faz 2'yi engelleyen açık risk yok. Tarihsel 40 backbone hatası baseline olarak
+  korunuyor.
+- Karar: **FAZ 1 PASS — FAZ 2'YE GEÇİLEBİLİR.**
+
+### 2026-09-03 15:27:14 +03:00 — FAZ 2 / EK OPERASYON VE BELGE SEMANTİĞİ
+
+- Durum: **PASS**
+- Yapılan: `DSI`, `SDT` ve `DTR` merkezi persistent high-water/tekillik sözleşmesine eklendi;
+  ilgili gerçek prefix'ler korunarak generic auto-repair kapatıldı. `MK` ve `EK` için yıl-bazlı,
+  birbirinden bağımsız high-water anahtarları eklendi. DTR canonical route/lineage okuyucusu ve
+  7+ EK cleanup referans okuyucusu güncellendi.
+- Değiştirilen hedefler: Faz 1 hedeflerine ek olarak `src/core/canonical-route-lineage-core.js`
+  ve `src/core/prototype-test-cohort-planner.js`.
+- Hedefli testler: `npm run test:ai001` — toplam 13/13 PASS; Faz 2 için DSI/SDT/DTR sınır,
+  duplicate ve cleanup; DTR canlı baseline; MK/EK yıl bağımsızlığı ve cleanup; gerçek generator;
+  DTR route/lineage ve 7+ EK referans sözleşmesi doğrulandı.
+- Koruma testleri: `npm run check:parse` PASS; `npm run check:text` PASS.
+- Mevcut suite baseline: `npm run test:backbone` yine aynı 40 tarihsel state/fixture hatasıyla
+  sonuçlandı; Faz 2 kaynaklı yeni hata yok.
+- Gerçek `demo_state.json` kontrolü: Revision `12047`; SHA-256
+  `E3005F5CBBD7A1ED892C7E809F21EBB289838453841555270EEA8BD24344DC30`; değişmedi.
+- Runtime kontrolü: `LIVE / revision 12047`; restart veya mutation yapılmadı.
+- V30 regresyon sonucu: DTR-000001..DTR-000004 ve EK-2026-000001..000009 mevcut kimlikleri
+  değişmedi; route token davranışı altı ve yedi haneli DTR için aynı kaldı; fiziksel belge veya
+  stok kaydı oluşturulmadı.
+- Açık risk/blocker: Faz 3'ü engelleyen açık risk yok. Yeni ailelerin ilk persistent metadata
+  baseline'ı gerçek canlı maksimumdan düşmeden kurulacak; geçmişte state dışında silinmiş ve hiçbir
+  kanıtı kalmamış numaralar teknik olarak geri getirilemez.
+- Karar: **FAZ 2 PASS — FAZ 3'E GEÇİLEBİLİR.**
+
+### 2026-09-03 15:37:41 +03:00 — FAZ 3 / MASTER VE REFERANS BUSINESS KODLARI
+
+- Durum: **PASS**
+- Yapılan: `CNC, TST, EKS, PLSJ, PVD, IPS, ELX, STB, MON, SVR, PRC, YRM, GRP, URM, MUS,
+  MREF, TREF, SAL, ANK, SRF, KLI, LOC, PER` aileleri merkezi, kayıpsız ve persistent high-water
+  sözleşmesine alındı. Yerel generator'lar minimum altı hane/7+ doğal devam kuralına geçirildi;
+  exact-altı-hane validator'ları genişletildi; generic auto-repair ile sessiz renumber kapatıldı.
+  Paylaşımlı koleksiyonlardaki legacy kodlar ve URM'nin aynı `familyId` içindeki aile kodu paylaşımı
+  korundu. CNC içe aktarma generator'ı da persistent high-water ile bağlandı.
+- Değiştirilen hedefler: `src/core/operational-code-high-water.js`, `src/core/app-core.js`,
+  `src/modules/cnc-import-service.js`, `src/modules/cnc-library-module.js`,
+  `src/modules/montage-library-module.js`, `src/modules/personnel-module.js`,
+  `src/modules/product-library-module.js`, `src/modules/purchasing-module.js`,
+  `src/modules/sales-module.js`, `src/modules/stock-module.js`, `src/modules/unit-module.js`,
+  `tests/ai001.guard.test.cjs`.
+- Hedefli testler: `npm run test:ai001` — toplam 18/18 PASS. Faz 3 kapsamında 23 aile için
+  `999998 → 999999 → 1000000 → 1000001`, duplicate, mevcut kayıt renumber engeli, silme sonrası
+  reuse engeli, gerçek generator hedefleri, 7+ validator'lar, legacy paylaşımlı kodlar ve URM aile
+  semantiği doğrulandı. Teknik/random `SCP/SAP` ve `URM-...-Vxx` sayaçlarının kapsam dışında kaldığı
+  ayrıca test edildi.
+- Koruma testleri: `npm run check:parse` PASS; `npm run check:text` PASS; `git diff --check`
+  whitespace hatası göstermedi.
+- Gerçek `demo_state.json` kontrolü: Revision `12047`; SHA-256
+  `E3005F5CBBD7A1ED892C7E809F21EBB289838453841555270EEA8BD24344DC30`; başlangıç checkpoint'iyle
+  birebir aynı, sınır fixture'ı yazılmadı ve mevcut kayıt renumber edilmedi.
+- Runtime kontrolü: `LIVE / revision 12047`; restart, save veya ERP mutation yapılmadı.
+- V30 regresyon sonucu: `npm run test:backbone` yine tam olarak AI-001 öncesindeki 40 tarihsel
+  state/fixture bağımlı hatayla sonuçlandı; yeni hata delta'sı `0`. Hedefli testlerde business ve
+  physical kayıt gövdesi değişmedi, yeni stok/miktar/lineage etkisi oluşmadı.
+- Açık risk/blocker: Blocker yok. İlk kez kapsama alınan master ailelerinin persistent metadata
+  baseline'ı mevcut canlı maksimumdan güvenle kurulabilir; state dışında silinmiş ve hiçbir audit
+  kanıtı kalmamış tarihsel numaralar geriye dönük olarak keşfedilemez. Tarihsel 40 backbone hatası
+  ayrı baseline olarak açık kalmaktadır.
+- Karar: **FAZ 3 PASS — ÜÇ FAZIN TEKNİK UYGULAMASI PASS.**
+
+## 17. Nihai Teknik Uygulama Raporu
+
+- Teknik sonuç: **PASS**
+- Faz sonuçları: Faz 1 PASS, Faz 2 PASS, Faz 3 PASS.
+- Kapsam sonucu: Çekirdek operasyon, ek operasyon/yıl bazlı belge ve doğrulanmış master/referans
+  business kod aileleri minimum altı hane ve sınırsız doğal devam sözleşmesinde birleştirildi.
+- Güvenlik sonucu: High-water değerleri canonical decimal string olarak kayıpsız tutuluyor;
+  duplicate, reuse ve mevcut kayıt kodu değiştirme girişimleri sunucu geçiş politikasında fail-closed
+  engelleniyor. Existing business kayıtları için toplu migration, repair veya renumber yapılmadı.
+- Test sonucu: AI-001 hedefli paket 18/18 PASS; parse ve metin encoding guard'ları PASS; V30
+  backbone baseline delta'sı `0`.
+- State/runtime sonucu: Gerçek `demo_state.json` revision/hash değişmedi; runtime `LIVE / 12047`
+  kaldı; restart veya mutation yapılmadı.
+- Dirty worktree sonucu: Başlangıçtaki kullanıcı değişiklikleri korundu; reset, clean, restore,
+  checkout, stash veya rebase yapılmadı.
+- Durum: **TEKNİK UYGULAMA PASS / KULLANICI KABULÜ BEKLİYOR.** Kullanıcı kabulü ve ayrı
+  dokümantasyon kapanış yetkisi olmadan plana veya AI-001 açık işine `TAMAMLANDI` yazılmadı; dosyalar
+  arşive taşınmadı.
+
+## 18. Nihai Kapanış Raporu
+
+- Durum: `TAMAMLANDI`
+- Tamamlanma tarihi: `03.09.2026 15:46:51 +03:00`
+- Faz 1: `PASS`
+- Faz 2: `PASS`
+- Faz 3: `PASS`
+- Hedefli test sonucu: `PASS` (`18/18`)
+- Parse / text: `PASS`
+- V30 yeni regresyon farkı: `0`
+- Gerçek `demo_state.json` kontrolü: Revision `12047`; SHA-256
+  `E3005F5CBBD7A1ED892C7E809F21EBB289838453841555270EEA8BD24344DC30`
+- Gerçek state mutation: `YAPILMADI`
+- Runtime restart/mutation: `YAPILMADI`
+- Mevcut kayıtlar renumber edildi mi: `HAYIR`
+- Dirty worktree: `KORUNDU`
+- Açık blocker: `YOK`
+- Gerçek ekran testi: `GEREKMEDİ`
+- Kullanıcı nihai kabulü: `KABUL EDİLDİ`
+- Nihai sonuç: `PASS / TAMAMLANDI`

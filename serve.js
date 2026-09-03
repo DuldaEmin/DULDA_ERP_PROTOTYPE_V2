@@ -6,9 +6,24 @@ const path = require("path");
 const { execFile } = require("child_process");
 const { pathToFileURL } = require("url");
 const SanalTaksimResolver = require("./src/core/sanal-taksim-resolver.js");
+const OperationalCodeHighWater = require("./src/core/operational-code-high-water.js");
+const PrototypeStockTestCleanup = require("./src/core/prototype-stock-test-cleanup.js");
+const PrototypeSalesTestCohortCleanup = require("./src/core/prototype-sales-test-cohort-cleanup.js");
 
 const portArg = Number(process.argv[2]);
 const port = Number.isFinite(portArg) && portArg > 0 ? portArg : 5500;
+const runtimeModeArg = process.argv.slice(3)
+  .find((arg) => String(arg || "").trim().toLowerCase().startsWith("--runtime-mode="));
+const requestedRuntimeMode = String(
+  runtimeModeArg ? runtimeModeArg.split("=").slice(1).join("=") : process.env.DULDA_ERP_RUNTIME_MODE || "LIVE"
+).trim().toUpperCase();
+const demoTestResetEnabled = ["PROTOTYPE", "DEMO"].includes(requestedRuntimeMode);
+const runtimeMode = demoTestResetEnabled ? "PROTOTYPE" : "LIVE";
+const demoCleanupApprovalTypes = new Set([
+  "sales_order_demo_cleanup",
+  "stock_demand_demo_cleanup",
+  "sor000001_montage_demo_cleanup",
+]);
 const root = __dirname;
 const dataFile = path.join(root, "demo_state.json");
 const historyDir = path.join(root, ".state-history");
@@ -47,6 +62,12 @@ const criticalDropApprovalCollections = {
     "workOrderTransactions",
     "stock_movements",
     "stockDepotItems",
+    "montageDispatchPlans",
+    "montageDispatchShipments",
+    "montageCompletionTransfers",
+    "salesShipmentPlans",
+    "salesShipments",
+    "sanalTaksimAllocationInstructions",
   ]),
   stock_demand_demo_cleanup: new Set([
     "planningDemands",
@@ -229,7 +250,21 @@ function validateSanalTaksimAllocationInstructions(state) {
   const instructionCodes = new Set();
   const idempotencyKeys = new Set();
   const sliceKeys = new Set();
-  const activeRangesByStockRow = new Map();
+  const activeRangesBySegment = new Map();
+  let trustedPhysicalSegments = [];
+  try {
+    const sourceSnapshot = {
+      ...data,
+      montageDispatchPlans: [],
+      montageDispatchShipments: [],
+      montageCompletionTransfers: [],
+      sanalTaksimAllocationInstructions: [],
+    };
+    const resolved = SanalTaksimResolver.resolve(sourceSnapshot);
+    trustedPhysicalSegments = Array.isArray(resolved?.segments) ? resolved.segments : [];
+  } catch (_error) {
+    trustedPhysicalSegments = [];
+  }
 
   rows.forEach((record, recordIndex) => {
     const label = sanalTaksimText(record?.instructionCode || `sanalTaksimAllocationInstructions[${recordIndex}]`);
@@ -246,7 +281,9 @@ function validateSanalTaksimAllocationInstructions(state) {
     const events = Array.isArray(record?.events) ? record.events : null;
 
     if (!sanalTaksimUuidPattern.test(id)) issues.push(`${label}: id geçerli UUID olmalıdır.`);
-    if (!instructionCode || !/^STAI-\d{6}$/.test(instructionCode)) issues.push(`${label}: instructionCode STAI-000001 biçiminde olmalıdır.`);
+    if (!OperationalCodeHighWater.isValidCode(instructionCode, 'STAI')) {
+      issues.push(`${label}: instructionCode STAI-000001 veya daha uzun canonical sıra biçiminde olmalıdır.`);
+    }
     if (!idempotencyKey) issues.push(`${label}: idempotencyKey zorunludur.`);
     if (Number(record?.contractVersion) !== 1) issues.push(`${label}: contractVersion 1 olmalıdır.`);
     if (!sanalTaksimInstructionStatuses.has(status)) issues.push(`${label}: status geçersizdir.`);
@@ -314,17 +351,33 @@ function validateSanalTaksimAllocationInstructions(state) {
       const originSourceType = sanalTaksimCode(audit?.originSourceType);
       const stockState = sanalTaksimCode(stockRow?.stockClass || stockRow?.status);
       const allocationType = sanalTaksimCode(stockRow?.allocationType);
+      const sourceKind = sanalTaksimCode(audit?.sourceKind);
+      const isStockSource = sourceKind === "CURRENT_STOCK_ROW"
+        && !!stockRowId
+        && physicalSegmentId === `STOCK|${stockRowId}`;
+      const wipMatches = trustedPhysicalSegments.filter((segment) =>
+        sanalTaksimText(segment?.segmentKey) === physicalSegmentId
+        && sanalTaksimCode(segment?.sourceKind) === "WORK_ORDER"
+        && ["IN_PROCESS", "TRANSFER_PENDING", "DEPOT_PENDING"].includes(sanalTaksimCode(segment?.stage))
+        && !sanalTaksimText(segment?.stockRowId));
+      const wipSegment = wipMatches.length === 1 ? wipMatches[0] : null;
+      const isWipSource = sourceKind === "WORK_ORDER"
+        && !stockRowId
+        && !!physicalSegmentId
+        && !physicalSegmentId.startsWith("STOCK|")
+        && !!sanalTaksimText(audit?.originWorkOrderId)
+        && !!sanalTaksimText(audit?.originWorkOrderLineId);
 
       if (!sliceKey) issues.push(`${sliceLabel}: sliceKey zorunludur.`);
       if (sliceKeys.has(sliceKey)) issues.push(`${sliceLabel}: sliceKey mükerrerdir.`);
       if (sliceKey) sliceKeys.add(sliceKey);
-      if (!stockRowId || physicalSegmentId !== `STOCK|${stockRowId}`) issues.push(`${sliceLabel}: physicalSegmentId/stockRowId uyuşmuyor.`);
+      if (!isStockSource && !isWipSource) issues.push(`${sliceLabel}: exact stok/WIP kaynak referansı geçersizdir.`);
       if (!sanalTaksimIsPositiveQty(capacity) || !sanalTaksimIsPositiveQty(sliceQty)
         || !Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start
         || !sanalTaksimSameQty(end - start, sliceQty) || end > capacity + sanalTaksimQtyEpsilon) {
         issues.push(`${sliceLabel}: exact miktar aralığı geçersizdir.`);
       }
-      if (!audit || sanalTaksimCode(audit?.sourceKind) !== "CURRENT_STOCK_ROW"
+      if (!audit || !["CURRENT_STOCK_ROW", "WORK_ORDER"].includes(sourceKind)
         || !["SALES_ORDER", "STOCK"].includes(originSourceType)
         || !sanalTaksimText(audit?.originDemandId)
         || !sanalTaksimText(audit?.originItemKey)
@@ -334,15 +387,36 @@ function validateSanalTaksimAllocationInstructions(state) {
       if (sanalTaksimText(slice?.lineageKey) !== sanalTaksimBuildLineageKey(record, audit)) {
         issues.push(`${sliceLabel}: lineageKey canonical origin ile uyuşmuyor.`);
       }
-      if (status === "ACTIVE" && (stockMatches.length !== 1 || stockQty === null || !sanalTaksimSameQty(stockQty, capacity)
-        || !mainDepot || rowPrcCode !== prcCode || (rowPrcId && rowPrcId !== prcId)
-        || sanalTaksimCode(stockRow?.unit) !== unit || cardMatches.length !== 1
+      const activeStockInvalid = isStockSource && (stockMatches.length !== 1 || stockQty === null
+        || !sanalTaksimSameQty(stockQty, capacity) || !mainDepot || rowPrcCode !== prcCode
+        || (rowPrcId && rowPrcId !== prcId) || sanalTaksimCode(stockRow?.unit) !== unit
+        || cardMatches.length !== 1
         || sanalTaksimCode(cardMatches[0]?.unit || cardMatches[0]?.stockUnit || "ADET") !== unit
         || ["RESERVED", "LOCKED", "UNCERTAIN", "CONSUMED", "SHIPPED"].includes(stockState)
-        || ["RESERVED", "LOCKED", "UNCERTAIN", "CONSUMED", "SHIPPED", "FROM_SEMI"].includes(allocationType))) {
-        issues.push(`${sliceLabel}: güncel Ana Depo stok satırı exact PRC/birim/kapasite kanıtıyla uyuşmuyor.`);
+        || ["RESERVED", "LOCKED", "UNCERTAIN", "CONSUMED", "SHIPPED", "FROM_SEMI"].includes(allocationType));
+      const activeWipInvalid = isWipSource && (!wipSegment
+        || !sanalTaksimSameQty(wipSegment?.physicalQty, capacity)
+        || sanalTaksimText(wipSegment?.prcId) !== prcId
+        || sanalTaksimCode(wipSegment?.prcCode) !== prcCode
+        || sanalTaksimCode(wipSegment?.unit) !== unit
+        || wipSegment?.productionOriginVerified !== true
+        || wipSegment?.physicalOrigin?.verified !== true
+        || sanalTaksimSemanticStringify(audit)
+          !== sanalTaksimSemanticStringify({
+            sourceKind: sanalTaksimText(wipSegment?.sourceKind),
+            originSourceType: sanalTaksimCode(wipSegment?.originSourceType),
+            originOrderId: sanalTaksimText(wipSegment?.originOrderId),
+            originOrderLineId: sanalTaksimText(wipSegment?.originOrderLineId),
+            originDemandId: sanalTaksimText(wipSegment?.originDemandId),
+            originItemKey: sanalTaksimText(wipSegment?.originItemKey),
+            originWorkOrderId: sanalTaksimText(wipSegment?.originWorkOrderId),
+            originWorkOrderLineId: sanalTaksimText(wipSegment?.originWorkOrderLineId),
+            evidenceIds: Array.isArray(wipSegment?.evidenceIds) ? wipSegment.evidenceIds.slice() : [],
+          }));
+      if (status === "ACTIVE" && (activeStockInvalid || activeWipInvalid || (!isStockSource && !isWipSource))) {
+        issues.push(`${sliceLabel}: güncel exact PRC stok/WIP kaynağı birim/kapasite/origin kanıtıyla uyuşmuyor.`);
       }
-      if (status === "ACTIVE" && stockRow && audit) {
+      if (status === "ACTIVE" && isStockSource && stockRow && audit) {
         if (sanalTaksimCode(stockRow?.sourceType) !== originSourceType
           || sanalTaksimText(stockRow?.sourceOrderId) !== sanalTaksimText(audit?.originOrderId)
           || sanalTaksimText(stockRow?.sourceLineId) !== sanalTaksimText(audit?.originOrderLineId)
@@ -372,9 +446,9 @@ function validateSanalTaksimAllocationInstructions(state) {
         }
       }
       sliceTotal += Number.isFinite(sliceQty) ? sliceQty : 0;
-      if (status === "ACTIVE" && stockRowId && Number.isFinite(start) && Number.isFinite(end)) {
-        if (!activeRangesByStockRow.has(stockRowId)) activeRangesByStockRow.set(stockRowId, []);
-        activeRangesByStockRow.get(stockRowId).push({ start, end, label });
+      if (status === "ACTIVE" && physicalSegmentId && Number.isFinite(start) && Number.isFinite(end)) {
+        if (!activeRangesBySegment.has(physicalSegmentId)) activeRangesBySegment.set(physicalSegmentId, []);
+        activeRangesBySegment.get(physicalSegmentId).push({ start, end, label });
       }
     });
     if (!sanalTaksimSameQty(sliceTotal, qty)) issues.push(`${label}: qty dilim toplamıyla uyuşmuyor.`);
@@ -402,11 +476,11 @@ function validateSanalTaksimAllocationInstructions(state) {
     }
   });
 
-  activeRangesByStockRow.forEach((ranges, stockRowId) => {
+  activeRangesBySegment.forEach((ranges, physicalSegmentId) => {
     const sorted = ranges.slice().sort((left, right) => left.start - right.start || left.end - right.end);
     for (let index = 1; index < sorted.length; index += 1) {
       if (sorted[index].start < sorted[index - 1].end - sanalTaksimQtyEpsilon) {
-        issues.push(`${stockRowId}: ACTIVE talimat exact aralıkları kesişemez.`);
+        issues.push(`${physicalSegmentId}: ACTIVE talimat exact aralıkları kesişemez.`);
         break;
       }
     }
@@ -1560,6 +1634,14 @@ function validateSanalTaksimActiveStockRowProtection(currentState, incomingState
   currentRows.filter((record) => sanalTaksimCode(record?.status) === "ACTIVE").forEach((record) => {
     (Array.isArray(record?.slices) ? record.slices : []).forEach((slice) => {
       const stockRowId = sanalTaksimText(slice?.stockRowId);
+      const physicalSegmentId = sanalTaksimText(slice?.physicalSegmentId);
+      const audit = isPlainObject(slice?.physicalOriginAudit) ? slice.physicalOriginAudit : null;
+      const isCanonicalWipSource = sanalTaksimCode(audit?.sourceKind) === "WORK_ORDER"
+        && !stockRowId
+        && physicalSegmentId.startsWith("WORK|")
+        && !!sanalTaksimText(audit?.originWorkOrderId)
+        && !!sanalTaksimText(audit?.originWorkOrderLineId);
+      if (isCanonicalWipSource) return;
       const currentMatches = currentStocks.filter((row) => sanalTaksimText(row?.id) === stockRowId);
       const incomingMatches = incomingStocks.filter((row) => sanalTaksimText(row?.id) === stockRowId);
       if (currentMatches.length !== 1 || incomingMatches.length !== 1
@@ -1606,8 +1688,9 @@ function sanalTaksimResolveReceivedMgsLiveStocks(data, shipment, resolved) {
   if (!receiptStockIds.length || new Set(receiptStockIds).size !== receiptStockIds.length) return fail();
   const stocks = Array.isArray(data?.stockDepotItems) ? data.stockDepotItems : [];
   const linkedReceiptStocks = stocks.filter((row) =>
-    sanalTaksimText(row?.sourceShipmentId || row?.shipmentId) === shipmentId
-    || sanalTaksimText(row?.receiptKey) === receiptKey
+    (sanalTaksimText(row?.sourceShipmentId || row?.shipmentId) === shipmentId
+      || sanalTaksimText(row?.receiptKey) === receiptKey)
+    && sanalTaksimCode(row?.stockClass) === "MONTAGE_RECEIVED"
   );
   if (linkedReceiptStocks.length !== receiptStockIds.length
     || linkedReceiptStocks.some((row) => !receiptStockIds.includes(sanalTaksimText(row?.id)))) return fail();
@@ -1623,7 +1706,8 @@ function sanalTaksimResolveReceivedMgsLiveStocks(data, shipment, resolved) {
     || sanalTaksimText(row?.locationId) !== sanalTaksimText(shipment?.targetLocationId)
     || sanalTaksimCode(row?.stockClass) !== "MONTAGE_RECEIVED"
     || sanalTaksimCode(row?.status) !== "MONTAGE_RECEIVED_AWAITING_START"
-    || !sanalTaksimIsPositiveQty(sanalTaksimGetQty(row)))) return fail();
+    || !Number.isFinite(sanalTaksimGetQty(row))
+    || sanalTaksimGetQty(row) < -sanalTaksimQtyEpsilon)) return fail();
 
   const parts = Array.isArray(shipment?.parts) ? shipment.parts : [];
   const movements = Array.isArray(data?.stock_movements) ? data.stock_movements : [];
@@ -1646,7 +1730,6 @@ function sanalTaksimResolveReceivedMgsLiveStocks(data, shipment, resolved) {
       || new Set(expectedSourceMovementIds).size !== expectedSourceMovementIds.length
       || sanalTaksimSemanticStringify(movementMatches[0]?.sourceMovementIds || [])
         !== sanalTaksimSemanticStringify(expectedSourceMovementIds)
-      || !sanalTaksimSameQty(sanalTaksimGetQty(rowMatches[0]), part?.shippedQty)
       || !sanalTaksimSameQty(movementMatches[0]?.qty ?? movementMatches[0]?.quantity, part?.shippedQty)) return fail();
   }
 
@@ -1658,11 +1741,59 @@ function sanalTaksimResolveReceivedMgsLiveStocks(data, shipment, resolved) {
     (Array.isArray(segment?.stockSlices) ? segment.stockSlices : [])
       .map((slice) => ({ segment, slice }))
   );
+  const lifecycleEvidence = Array.isArray(resolved?.lifecycle?.evidence)
+    ? resolved.lifecycle.evidence : [];
+  const linkedTransfers = (Array.isArray(data?.montageCompletionTransfers)
+    ? data.montageCompletionTransfers : [])
+    .filter((transfer) => sanalTaksimText(transfer?.sourceShipmentId) === shipmentId
+      && !["CANCELLED", "REJECTED"].includes(sanalTaksimCode(transfer?.status)));
+  const linkedTransferIds = linkedTransfers.map((transfer) => sanalTaksimText(transfer?.id));
+  const postedProofs = lifecycleEvidence.filter((row) =>
+    sanalTaksimCode(row?.kind) === "MCT_POSTED_PROOF"
+    && sanalTaksimText(row?.shipmentId) === shipmentId
+  );
+  const postedProofIds = postedProofs.map((row) => sanalTaksimText(row?.id));
+  const linkedTransferIdSet = new Set(linkedTransferIds);
+  const postedProofIdSet = new Set(postedProofIds);
+  const pendingLifecycleExists = lifecycleEvidence.some((row) =>
+    sanalTaksimCode(row?.kind) === "MCT_PENDING"
+    && sanalTaksimText(row?.shipmentId) === shipmentId
+  ) || (Array.isArray(resolved?.segments) ? resolved.segments : []).some((row) =>
+    sanalTaksimText(row?.shipmentId) === shipmentId
+    && sanalTaksimCode(row?.stage) === "MONTAGE_PENDING_DEPOT_RECEIPT"
+  );
+  const relatedUncertainExists = uncertain.some((row) => {
+    const id = sanalTaksimText(row?.id);
+    return id === shipmentId || linkedTransferIdSet.has(id);
+  });
+  const invariants = resolved?.diagnostics?.invariants || {};
+  const invariantValues = Object.values(invariants);
+  const terminallyConsumed = rows.every((row) => sanalTaksimSameQty(sanalTaksimGetQty(row), 0))
+    && receivedSegments.length === 0
+    && !pendingLifecycleExists
+    && linkedTransfers.length > 0
+    && linkedTransferIds.every(Boolean)
+    && linkedTransferIdSet.size === linkedTransferIds.length
+    && linkedTransfers.every((transfer) => sanalTaksimCode(transfer?.status) === "POSTED"
+      && !transfer?.reversedAt && !transfer?.reversalId)
+    && postedProofIds.every(Boolean)
+    && postedProofIdSet.size === postedProofIds.length
+    && postedProofIdSet.size === linkedTransferIdSet.size
+    && Array.from(linkedTransferIdSet).every((id) => postedProofIdSet.has(id))
+    && !relatedUncertainExists
+    && invariantValues.length > 0
+    && invariantValues.every((value) => value === true)
+    && resolved?.diagnostics?.exactHoldLedger?.valid === true;
+  if (terminallyConsumed) {
+    return { ok: true, receiptStocks: [], terminallyConsumed: true };
+  }
+
   if (!receivedSegments.length || segmentSlices.length !== rows.length || rows.some((row) => {
     const matches = segmentSlices.filter(({ slice }) =>
       sanalTaksimText(slice?.stockRowId) === sanalTaksimText(row?.id)
     );
     return matches.length !== 1
+      || !sanalTaksimIsPositiveQty(sanalTaksimGetQty(row))
       || !sanalTaksimSameQty(matches[0].slice?.qty, sanalTaksimGetQty(row))
       || sanalTaksimText(matches[0].segment?.prcId) !== sanalTaksimText(row?.refId || row?.productId)
       || sanalTaksimCode(matches[0].segment?.prcCode) !== sanalTaksimCode(row?.productCode || row?.code)
@@ -1671,7 +1802,7 @@ function sanalTaksimResolveReceivedMgsLiveStocks(data, shipment, resolved) {
         sanalTaksimText(matches[0].segment?.[key]) !== sanalTaksimText(effective?.target?.[key]));
   })) return fail();
 
-  return { ok: true, receiptStocks: rows };
+  return { ok: true, receiptStocks: rows, terminallyConsumed: false };
 }
 
 function validateSanalTaksimOperationalHoldConflicts(state) {
@@ -1699,7 +1830,8 @@ function validateSanalTaksimOperationalHoldConflicts(state) {
       const physicalSegmentId = sanalTaksimText(value?.physicalSegmentId);
       const stockRowId = sanalTaksimText(value?.stockRowId || value?.stockItemId || value?.sourceStockItemId)
         || (physicalSegmentId.startsWith("STOCK|") ? physicalSegmentId.slice("STOCK|".length) : "");
-      if (stockRowId && (Object.prototype.hasOwnProperty.call(value, "qty")
+      const sourceSegmentId = physicalSegmentId || (stockRowId ? `STOCK|${stockRowId}` : "");
+      if (sourceSegmentId && (Object.prototype.hasOwnProperty.call(value, "qty")
         || Object.prototype.hasOwnProperty.call(value, "reservedQty")
         || Object.prototype.hasOwnProperty.call(value, "allocatedQty")
         || Object.prototype.hasOwnProperty.call(value, "segmentOffsetStart"))) {
@@ -1709,6 +1841,7 @@ function validateSanalTaksimOperationalHoldConflicts(state) {
           plan: ownerMeta?.plan || null,
           reservation: value,
           stockRowId,
+          physicalSegmentId: sourceSegmentId,
           start: Number(value?.segmentOffsetStart),
           end: Number(value?.segmentOffsetEnd),
         });
@@ -1763,7 +1896,9 @@ function validateSanalTaksimOperationalHoldConflicts(state) {
   const issues = [];
   instructions.forEach((instruction) => {
     (Array.isArray(instruction?.slices) ? instruction.slices : []).forEach((slice) => {
-      operationalRows.filter((row) => row.stockRowId === sanalTaksimText(slice?.stockRowId)).forEach((row) => {
+      const sliceSegmentId = sanalTaksimText(slice?.physicalSegmentId)
+        || (sanalTaksimText(slice?.stockRowId) ? `STOCK|${sanalTaksimText(slice?.stockRowId)}` : "");
+      operationalRows.filter((row) => row.physicalSegmentId === sliceSegmentId).forEach((row) => {
         if (row.ownerKind === "MGP_DRAFT"
           && sanalTaksimIsExactPlanBoundPair(instruction, slice, row.plan, row.reservation)) return;
         const hasRange = Number.isFinite(row.start) && Number.isFinite(row.end) && row.end > row.start;
@@ -1771,7 +1906,7 @@ function validateSanalTaksimOperationalHoldConflicts(state) {
           && row.start < Number(slice?.segmentOffsetEnd) - sanalTaksimQtyEpsilon
           && row.end > Number(slice?.segmentOffsetStart) + sanalTaksimQtyEpsilon;
         if (!hasRange || overlap) {
-          issues.push(`${sanalTaksimText(instruction?.instructionCode || instruction?.id)}: ${row.owner} exact operasyon hold'u ile stok dilimi ayrıştırılamıyor.`);
+          issues.push(`${sanalTaksimText(instruction?.instructionCode || instruction?.id)}: ${row.owner} exact operasyon hold'u ile stok/WIP dilimi ayrıştırılamıyor.`);
         }
       });
     });
@@ -1803,6 +1938,130 @@ function analyzeCriticalCollectionDrops(currentState, incomingState) {
   return issues;
 }
 
+function validateSanalTaksimSalesShipmentPlanTransitions(currentState, incomingState) {
+  if (!currentState || !incomingState) return [];
+  const currentData = getStateDataRoot(currentState);
+  const incomingData = getStateDataRoot(incomingState);
+  const currentPlans = Array.isArray(currentData?.salesShipmentPlans) ? currentData.salesShipmentPlans : [];
+  const incomingPlans = Array.isArray(incomingData?.salesShipmentPlans) ? incomingData.salesShipmentPlans : [];
+  const issues = [];
+  const currentById = new Map(currentPlans.map((plan) => [String(plan?.id || "").trim(), plan]));
+  const incomingById = new Map(incomingPlans.map((plan) => [String(plan?.id || "").trim(), plan]));
+  const immutableCore = (plan) => JSON.stringify({
+    id: plan?.id,
+    planNo: plan?.planNo,
+    sourceOrderId: plan?.sourceOrderId,
+    sourceOrderNo: plan?.sourceOrderNo,
+    idempotencyKey: plan?.idempotencyKey,
+    createdAt: plan?.createdAt,
+    items: plan?.items,
+  });
+
+  currentPlans.forEach((currentPlan) => {
+    const id = String(currentPlan?.id || "").trim();
+    const incomingPlan = incomingById.get(id);
+    if (!id || !incomingPlan) {
+      issues.push(`${String(currentPlan?.planNo || id || "SVP")}: mevcut sevkiyat planı silinemez.`);
+      return;
+    }
+    const currentStatus = String(currentPlan?.status || "").trim().toUpperCase();
+    const incomingStatus = String(incomingPlan?.status || "").trim().toUpperCase();
+    if (immutableCore(currentPlan) !== immutableCore(incomingPlan)) {
+      issues.push(`${String(currentPlan?.planNo || id)}: exact SVP allocation taahhüdü değiştirilemez.`);
+    }
+    if (currentStatus === "PLANNED"
+      && !new Set(["PLANNED", "CANCELLED", "DISPATCHED"]).has(incomingStatus)) {
+      issues.push(`${String(currentPlan?.planNo || id)}: PLANNED durum geçişi desteklenmiyor.`);
+    }
+    if (currentStatus !== "PLANNED" && incomingStatus !== currentStatus) {
+      issues.push(`${String(currentPlan?.planNo || id)}: final/iptal SVP durumu değiştirilemez.`);
+    }
+  });
+
+  const newPlans = incomingPlans.filter((plan) => {
+    const id = String(plan?.id || "").trim();
+    return id && !currentById.has(id);
+  });
+  if (newPlans.some((plan) => String(plan?.status || "").trim().toUpperCase() !== "PLANNED")) {
+    issues.push("Yeni sevkiyat planı yalnız PLANNED durumunda oluşturulabilir.");
+  }
+  if (!newPlans.length) return issues;
+
+  let resolved;
+  try {
+    resolved = SanalTaksimResolver.resolve(currentData);
+  } catch (error) {
+    issues.push(`Yeni SVP için Sanal Taksim resolver çalıştırılamadı: ${String(error?.message || "resolver_error")}`);
+    return issues;
+  }
+  const invariants = resolved?.diagnostics?.invariants || {};
+  if (!invariants.finishedAllocationWithinQty
+    || !invariants.productAllocationWithinOpenDebt
+    || !invariants.segmentConsumedOnce) {
+    issues.push("Yeni SVP için canonical bitmiş ürün tek-sayım invariantı doğrulanamadı.");
+    return issues;
+  }
+  const dynamicAllocations = (Array.isArray(resolved?.finishedReadyAllocations)
+    ? resolved.finishedReadyAllocations
+    : []).filter((allocation) => allocation?.fixedBySalesShipmentPlan !== true);
+  const allocationByKey = new Map(dynamicAllocations.map((allocation) => [
+    String(allocation?.allocationKey || "").trim(),
+    allocation,
+  ]));
+  const requestedByAllocationKey = new Map();
+  newPlans.forEach((plan) => {
+    const planOrderId = String(plan?.sourceOrderId || "").trim();
+    (Array.isArray(plan?.items) ? plan.items : []).forEach((item, itemIndex) => {
+      const targetLineId = String(item?.sourceLineId || "").trim();
+      (Array.isArray(item?.stockAllocations) ? item.stockAllocations : []).forEach((allocation) => {
+        const proof = allocation?.sanalTaksimAllocationProof;
+        const sourceAllocationKey = String(proof?.sourceAllocationKey || "").trim();
+        const dynamic = allocationByKey.get(sourceAllocationKey);
+        const qty = Number(allocation?.allocatedQty);
+        const exact = !!proof
+          && !!dynamic
+          && String(proof?.resolverVersion || "").trim() === String(resolved?.version || "").trim()
+          && String(proof?.physicalSegmentId || "").trim() === String(dynamic?.physicalSegmentId || "").trim()
+          && String(proof?.stockItemId || "").trim() === String(allocation?.stockItemId || "").trim()
+          && String(proof?.stockItemId || "").trim() === String(dynamic?.stockItemId || "").trim()
+          && String(proof?.completionTransferId || "").trim() === String(dynamic?.completionTransferId || "").trim()
+          && String(proof?.inputMovementId || "").trim() === String(dynamic?.inputMovementId || "").trim()
+          && String(proof?.targetProductDebtKey || "").trim() === String(dynamic?.targetProductDebtKey || "").trim()
+          && String(proof?.targetOrderId || "").trim() === planOrderId
+          && String(proof?.targetOrderId || "").trim() === String(dynamic?.targetOrderId || "").trim()
+          && String(proof?.targetOrderLineId || "").trim() === targetLineId
+          && String(proof?.targetOrderLineId || "").trim() === String(dynamic?.targetOrderLineId || "").trim()
+          && String(proof?.targetDemandId || "").trim() === String(dynamic?.targetDemandId || "").trim()
+          && String(proof?.targetItemKey || "").trim() === String(dynamic?.targetItemKey || "").trim()
+          && String(proof?.productId || "").trim() === String(item?.productId || "").trim()
+          && String(proof?.variantId || "").trim().replace(/^salesvar_/i, "")
+            === String(item?.variantId || "").trim().replace(/^salesvar_/i, "")
+          && String(proof?.variantCode || "").trim().toUpperCase()
+            === String(item?.variantCode || item?.svrCode || "").trim().toUpperCase()
+          && String(proof?.unit || "").trim().toUpperCase() === "ADET"
+          && Number.isSafeInteger(qty)
+          && qty > 0
+          && Number(proof?.qty) === qty
+          && Number(proof?.sourceAllocationQty) === Number(dynamic?.qty)
+          && qty <= Number(dynamic?.qty);
+        if (!exact) {
+          issues.push(`${String(plan?.planNo || plan?.id || "SVP")} / satır ${itemIndex + 1}: exact resolver allocation proof doğrulanamadı.`);
+          return;
+        }
+        requestedByAllocationKey.set(sourceAllocationKey,
+          (requestedByAllocationKey.get(sourceAllocationKey) || 0) + qty);
+      });
+    });
+  });
+  requestedByAllocationKey.forEach((qty, allocationKey) => {
+    const dynamic = allocationByKey.get(allocationKey);
+    if (!dynamic || qty > Number(dynamic?.qty || 0)) {
+      issues.push(`${allocationKey || "SVP allocation"}: yeni PLANNED SVP toplamı resolver allocation miktarını aşıyor.`);
+    }
+  });
+  return issues;
+}
+
 function validateSalesShipmentPlans(state) {
   const data = getStateDataRoot(state);
   const plans = data?.salesShipmentPlans;
@@ -1817,6 +2076,7 @@ function validateSalesShipmentPlans(state) {
   const planNos = new Set();
   const idempotencyKeys = new Set();
   const activeOrderIds = new Set();
+  const activeAllocatedQtyByStockId = new Map();
   plans.forEach((plan, planIndex) => {
     const label = String(plan?.planNo || `salesShipmentPlans[${planIndex}]`).trim();
     const id = String(plan?.id || "").trim();
@@ -1830,7 +2090,9 @@ function validateSalesShipmentPlans(state) {
     const items = Array.isArray(plan?.items) ? plan.items : [];
     const order = orders.find((row) => String(row?.id || "").trim() === sourceOrderId) || null;
     if (!id || ids.has(id)) issues.push(`${label}: id eksik veya mükerrer.`);
-    if (!/^SVP-\d{6}$/.test(planNo) || planNos.has(planNo)) issues.push(`${label}: planNo geçersiz veya mükerrer.`);
+    if (!OperationalCodeHighWater.isValidCode(planNo, 'SVP') || planNos.has(planNo)) {
+      issues.push(`${label}: planNo geçersiz veya mükerrer.`);
+    }
     if (!idempotencyKey || idempotencyKeys.has(idempotencyKey)) issues.push(`${label}: idempotencyKey eksik veya mükerrer.`);
     if (!sourceOrderId || !sourceOrderNo) issues.push(`${label}: sipariş kimliği eksik.`);
     if (!createdAt || !updatedAt) issues.push(`${label}: oluşturma veya güncelleme zamanı eksik.`);
@@ -1841,7 +2103,7 @@ function validateSalesShipmentPlans(state) {
     const shipmentId = String(plan?.shipmentId || "").trim();
     const shipmentNo = String(plan?.shipmentNo || "").trim().toUpperCase();
     if (status === "DISPATCHED"
-      && (!dispatchedAt || !shipmentId || !/^TF-\d{6}$/.test(shipmentNo))) {
+      && (!dispatchedAt || !shipmentId || !OperationalCodeHighWater.isValidCode(shipmentNo, 'TF'))) {
       issues.push(`${label}: DISPATCHED planın sevk tarihi veya teslim fişi bağlantısı eksik.`);
     }
     if (status === "DISPATCHED" && cancelledAt) issues.push(`${label}: DISPATCHED plan cancelledAt içeremez.`);
@@ -1904,6 +2166,7 @@ function validateSalesShipmentPlans(state) {
       allocations.forEach((allocation) => {
         const stockItemId = String(allocation?.stockItemId || "").trim();
         const allocatedQty = Number(allocation?.allocatedQty);
+        const proof = allocation?.sanalTaksimAllocationProof;
         const stockRow = stockRows.find((row) => String(row?.id || "").trim() === stockItemId) || null;
         const stockVariantId = String(stockRow?.variantId || stockRow?.variationId || "").trim().replace(/^salesvar_/i, "");
         const stockVariantCode = String(stockRow?.variantCode || stockRow?.productCode || stockRow?.code || "").trim().toUpperCase();
@@ -1917,10 +2180,24 @@ function validateSalesShipmentPlans(state) {
           || String(allocation?.sourceLineId || "").trim() !== sourceLineId) {
           issues.push(`${itemLabel}: allocation Sevkiyat Depo veya sipariş satırıyla uyuşmuyor.`);
         }
+        const staticTargetExact = String(stockRow?.sourceType || "").trim().toUpperCase() === "SALES_ORDER"
+          && String(stockRow?.sourceOrderId || "").trim() === sourceOrderId
+          && String(stockRow?.sourceLineId || "").trim() === sourceLineId;
+        const proofTargetExact = !!proof
+          && String(proof?.resolverVersion || "").trim() === String(SanalTaksimResolver.VERSION || "").trim()
+          && String(proof?.sourceAllocationKey || "").trim()
+          && Number(proof?.sourceAllocationQty) >= allocatedQty
+          && String(proof?.physicalSegmentId || "").trim()
+          && String(proof?.stockItemId || "").trim() === stockItemId
+          && String(proof?.targetOrderId || "").trim() === sourceOrderId
+          && String(proof?.targetOrderLineId || "").trim() === sourceLineId
+          && String(proof?.productId || "").trim() === productId
+          && String(proof?.variantId || "").trim().replace(/^salesvar_/i, "") === variantId.replace(/^salesvar_/i, "")
+          && String(proof?.variantCode || "").trim().toUpperCase() === svrCode.toUpperCase()
+          && String(proof?.unit || "").trim().toUpperCase() === "ADET"
+          && Number(proof?.qty) === allocatedQty;
         if (!stockRow
-          || String(stockRow?.sourceType || "").trim().toUpperCase() !== "SALES_ORDER"
-          || String(stockRow?.sourceOrderId || "").trim() !== sourceOrderId
-          || String(stockRow?.sourceLineId || "").trim() !== sourceLineId
+          || (!staticTargetExact && !proofTargetExact)
           || String(stockRow?.productId || "").trim() !== productId
           || stockVariantId !== variantId.replace(/^salesvar_/i, "")
           || stockVariantCode !== svrCode.toUpperCase()
@@ -1937,8 +2214,6 @@ function validateSalesShipmentPlans(state) {
         const transfer = completionTransfers.find((row) =>
           String(row?.status || "").trim().toUpperCase() === "POSTED"
           && String(row?.finishedProductStockItemId || "").trim() === stockItemId
-          && String(row?.sourceOrderId || "").trim() === sourceOrderId
-          && String(row?.sourceLineId || "").trim() === sourceLineId
           && String(row?.productId || "").trim() === productId
           && String(row?.variantId || row?.variationId || "").trim().replace(/^salesvar_/i, "") === variantId.replace(/^salesvar_/i, "")
           && String(row?.variantCode || "").trim().toUpperCase() === svrCode.toUpperCase()
@@ -1946,9 +2221,6 @@ function validateSalesShipmentPlans(state) {
         const movement = transfer
           ? movements.find((row) =>
               String(row?.id || "").trim() === String(transfer?.finishedProductMovementId || "").trim()
-              && String(row?.sourceType || "").trim().toUpperCase() === "SALES_ORDER"
-              && String(row?.sourceOrderId || "").trim() === sourceOrderId
-              && String(row?.sourceLineId || "").trim() === sourceLineId
               && String(row?.productId || "").trim() === productId
               && String(row?.variantId || row?.variationId || "").trim().replace(/^salesvar_/i, "") === variantId.replace(/^salesvar_/i, "")
               && String(row?.variantCode || row?.productCode || "").trim().toUpperCase() === svrCode.toUpperCase()
@@ -1958,10 +2230,26 @@ function validateSalesShipmentPlans(state) {
             ) || null
           : null;
         if (!transfer || !movement) issues.push(`${itemLabel}: canonical MCT ve stok giriş hareketi zinciri doğrulanamadı.`);
+        if (proofTargetExact && transfer && movement
+          && (String(proof?.completionTransferId || "").trim() !== String(transfer?.id || "").trim()
+            || String(proof?.inputMovementId || "").trim() !== String(movement?.id || "").trim())) {
+          issues.push(`${itemLabel}: Sanal Taksim allocation lineage kanıtı uyuşmuyor.`);
+        }
+        if (status === "PLANNED" && stockItemId && Number.isSafeInteger(allocatedQty) && allocatedQty > 0) {
+          activeAllocatedQtyByStockId.set(stockItemId,
+            (activeAllocatedQtyByStockId.get(stockItemId) || 0) + allocatedQty);
+        }
         allocatedTotal += Number.isSafeInteger(allocatedQty) ? allocatedQty : 0;
       });
       if (allocatedTotal !== plannedQty) issues.push(`${itemLabel}: allocation toplamı planlanan adede eşit değil.`);
     });
+  });
+  activeAllocatedQtyByStockId.forEach((allocatedQty, stockItemId) => {
+    const stockRow = stockRows.find((row) => String(row?.id || "").trim() === stockItemId) || null;
+    const stockQty = Number(stockRow?.qty ?? stockRow?.quantity ?? stockRow?.amount);
+    if (!stockRow || !Number.isSafeInteger(stockQty) || allocatedQty > stockQty) {
+      issues.push(`${stockItemId}: aktif PLANNED SVP toplamı güncel canonical stok miktarını aşıyor.`);
+    }
   });
   return issues;
 }
@@ -1994,7 +2282,9 @@ function validateSalesShipments(state) {
     const snapshot = isPlainObject(shipment?.snapshot) ? shipment.snapshot : null;
     const plan = plans.find((row) => String(row?.id || "").trim() === shipmentPlanId) || null;
     if (!id || ids.has(id)) issues.push(`${label}: id eksik veya mükerrer.`);
-    if (!/^TF-\d{6}$/.test(shipmentNo) || shipmentNos.has(shipmentNo)) issues.push(`${label}: shipmentNo geçersiz veya mükerrer.`);
+    if (!OperationalCodeHighWater.isValidCode(shipmentNo, 'TF') || shipmentNos.has(shipmentNo)) {
+      issues.push(`${label}: shipmentNo geçersiz veya mükerrer.`);
+    }
     if (!shipmentPlanId || planIds.has(shipmentPlanId)) issues.push(`${label}: aynı sevkiyat planı için birden fazla gerçek sevkiyat bulunamaz.`);
     if (!idempotencyKey || idempotencyKeys.has(idempotencyKey) || idempotencyKey !== `SALES_SHIPMENT_DISPATCH|${shipmentPlanId}`) {
       issues.push(`${label}: idempotencyKey eksik, geçersiz veya mükerrer.`);
@@ -2162,6 +2452,271 @@ function validateSalesShipmentImmutability(currentState, incomingState) {
     }
   });
   return issues;
+}
+
+function isVerifiedSalesOrderPrototypeReset(currentState, incomingState, approval) {
+  if (String(approval?.type || "").trim() !== "sales_order_demo_cleanup"
+    || ![3, 4, 5, 6].includes(Number(approval?.meta?.prototypeResetVersion))) return false;
+  if ([5, 6].includes(Number(approval?.meta?.prototypeResetVersion))) {
+    return PrototypeSalesTestCohortCleanup.verifyTransition(currentState, incomingState, approval);
+  }
+  if (Number(approval?.meta?.prototypeResetVersion) === 4) {
+    return isVerifiedSalesOrderPrototypeDetachV4(currentState, incomingState, approval);
+  }
+  const orderId = String(approval?.meta?.orderId || "").trim();
+  const orderNo = String(approval?.meta?.orderNo || "").trim();
+  if (!orderId || !orderNo || !currentState || !incomingState) return false;
+  const current = getStateDataRoot(currentState);
+  const incoming = getStateDataRoot(incomingState);
+  const text = (value) => String(value || "").trim();
+  const code = (value) => text(value).toUpperCase();
+  const type = (row) => code(row?.movementType || row?.type);
+  const qty = (row) => Number(row?.qty ?? row?.quantity ?? row?.amount);
+  const currentOrders = Array.isArray(current?.orders) ? current.orders : [];
+  const incomingOrders = Array.isArray(incoming?.orders) ? incoming.orders : [];
+  const orderMatches = currentOrders.filter((row) => text(row?.id) === orderId && text(row?.orderNo || row?.orderCode) === orderNo);
+  if (orderMatches.length !== 1 || incomingOrders.some((row) => text(row?.id) === orderId)) return false;
+  const orderLineIds = new Set((Array.isArray(orderMatches[0]?.lines) ? orderMatches[0].lines : [])
+    .map((line) => text(line?.id || line?.lineId)).filter(Boolean));
+  if (!orderLineIds.size) return false;
+
+  const collectionResetOk = (collection, targetIds) => {
+    const beforeRows = Array.isArray(current?.[collection]) ? current[collection] : [];
+    const afterRows = Array.isArray(incoming?.[collection]) ? incoming[collection] : [];
+    const afterById = new Map(afterRows.map((row) => [text(row?.id), row]));
+    if (afterRows.some((row) => targetIds.has(text(row?.id)))) return false;
+    const untouched = beforeRows.filter((row) => !targetIds.has(text(row?.id)));
+    if (afterRows.length !== untouched.length) return false;
+    return untouched.every((row) => {
+      const id = text(row?.id);
+      return id && afterById.has(id) && JSON.stringify(afterById.get(id)) === JSON.stringify(row);
+    });
+  };
+  const currentPlans = Array.isArray(current?.salesShipmentPlans) ? current.salesShipmentPlans : [];
+  const currentShipments = Array.isArray(current?.salesShipments) ? current.salesShipments : [];
+  const currentMovements = Array.isArray(current?.stock_movements) ? current.stock_movements : [];
+  const currentStocks = Array.isArray(current?.stockDepotItems) ? current.stockDepotItems : [];
+  const incomingStocks = Array.isArray(incoming?.stockDepotItems) ? incoming.stockDepotItems : [];
+  const targetPlans = currentPlans.filter((plan) => text(plan?.sourceOrderId) === orderId);
+  const targetPlanIds = new Set(targetPlans.map((plan) => text(plan?.id)).filter(Boolean));
+  for (const plan of targetPlans) {
+    const items = Array.isArray(plan?.items) ? plan.items : [];
+    if (!targetPlanIds.has(text(plan?.id)) || text(plan?.sourceOrderNo) !== orderNo
+      || !["PLANNED", "DISPATCHED", "CANCELLED"].includes(code(plan?.status)) || !items.length
+      || items.some((item) => !orderLineIds.has(text(item?.sourceLineId)))) return false;
+  }
+  const targetShipments = currentShipments.filter((shipment) => text(shipment?.sourceOrderId) === orderId
+    || targetPlanIds.has(text(shipment?.shipmentPlanId)));
+  const targetShipmentIds = new Set(targetShipments.map((shipment) => text(shipment?.id)).filter(Boolean));
+  if (targetShipments.some((shipment) => code(shipment?.status) !== "DISPATCHED"
+    || !targetPlanIds.has(text(shipment?.shipmentPlanId))
+    || text(shipment?.sourceOrderId) !== orderId || text(shipment?.sourceOrderNo) !== orderNo)) return false;
+  if ((targetPlans.length && validateSalesShipmentPlans(currentState).length)
+    || (targetShipments.length && validateSalesShipments(currentState).length)) return false;
+  if (!collectionResetOk("salesShipmentPlans", targetPlanIds)
+    || !collectionResetOk("salesShipments", targetShipmentIds)) return false;
+
+  const targetOutMovements = currentMovements.filter((movement) => type(movement) === "SALES_SHIPMENT_OUT"
+    && (text(movement?.sourceOrderId) === orderId
+      || targetPlanIds.has(text(movement?.shipmentPlanId))
+      || targetShipmentIds.has(text(movement?.shipmentId))));
+  const targetOutIds = new Set(targetOutMovements.map((movement) => text(movement?.id)).filter(Boolean));
+  const incomingMovements = Array.isArray(incoming?.stock_movements) ? incoming.stock_movements : [];
+  if (targetOutMovements.some((movement) => text(movement?.sourceOrderId) !== orderId
+    || !targetPlanIds.has(text(movement?.shipmentPlanId))
+    || !targetShipmentIds.has(text(movement?.shipmentId)))
+    || incomingMovements.some((movement) => targetOutIds.has(text(movement?.id)))) return false;
+  const currentForeignOut = currentMovements.filter((movement) => type(movement) === "SALES_SHIPMENT_OUT"
+    && !targetOutIds.has(text(movement?.id)));
+  const incomingForeignOutById = new Map(incomingMovements
+    .filter((movement) => type(movement) === "SALES_SHIPMENT_OUT")
+    .map((movement) => [text(movement?.id), movement]));
+  if (currentForeignOut.length !== incomingForeignOutById.size
+    || currentForeignOut.some((movement) => JSON.stringify(incomingForeignOutById.get(text(movement?.id))) !== JSON.stringify(movement))) return false;
+
+  const targetStockIds = new Set();
+  targetPlans.forEach((plan) => (Array.isArray(plan?.items) ? plan.items : []).forEach((item) =>
+    (Array.isArray(item?.stockAllocations) ? item.stockAllocations : []).forEach((allocation) => {
+      const stockItemId = text(allocation?.stockItemId);
+      if (stockItemId) targetStockIds.add(stockItemId);
+    })));
+  const referencesTargetStock = (value) => {
+    if (!value || typeof value !== "object") return false;
+    if (Array.isArray(value)) return value.some(referencesTargetStock);
+    return Object.entries(value).some(([key, child]) =>
+      (["stockItemId", "stockDepotItemId", "sourceStockItemId", "sourceStockDepotItemId"].includes(key)
+        && targetStockIds.has(text(child)))
+      || (child && typeof child === "object" && referencesTargetStock(child)));
+  };
+  if (currentPlans.some((plan) => !targetPlanIds.has(text(plan?.id)) && referencesTargetStock(plan))
+    || currentShipments.some((shipment) => !targetShipmentIds.has(text(shipment?.id)) && referencesTargetStock(shipment))) return false;
+  const allowedProvenanceMovementIds = new Set((Array.isArray(current?.montageCompletionTransfers)
+    ? current.montageCompletionTransfers
+    : []).filter((transfer) => code(transfer?.status) === "POSTED"
+      && targetStockIds.has(text(transfer?.finishedProductStockItemId)))
+    .map((transfer) => text(transfer?.finishedProductMovementId)).filter(Boolean));
+  const incomingMovementById = new Map(incomingMovements.map((movement) => [text(movement?.id), movement]));
+  if (incomingMovements.some((movement) => referencesTargetStock(movement)
+    && !allowedProvenanceMovementIds.has(text(movement?.id)))) return false;
+  for (const movementId of allowedProvenanceMovementIds) {
+    const beforeMovement = currentMovements.find((movement) => text(movement?.id) === movementId) || null;
+    const afterMovement = incomingMovementById.get(movementId) || null;
+    if (afterMovement && JSON.stringify(afterMovement) !== JSON.stringify(beforeMovement)) return false;
+  }
+
+  const currentMgp = Array.isArray(current?.montageDispatchPlans) ? current.montageDispatchPlans : [];
+  const targetMgpIds = new Set(currentMgp.filter((plan) => (Array.isArray(plan?.items) ? plan.items : [])
+    .some((item) => text(item?.sourceOrderId) === orderId)).map((plan) => text(plan?.id)).filter(Boolean));
+  const currentMgs = Array.isArray(current?.montageDispatchShipments) ? current.montageDispatchShipments : [];
+  const targetMgsIds = new Set(currentMgs.filter((shipment) => targetMgpIds.has(text(shipment?.planId)))
+    .map((shipment) => text(shipment?.id)).filter(Boolean));
+  const currentMct = Array.isArray(current?.montageCompletionTransfers) ? current.montageCompletionTransfers : [];
+  const targetMctIds = new Set(currentMct.filter((transfer) => text(transfer?.sourceOrderId) === orderId
+    || targetMgsIds.has(text(transfer?.sourceShipmentId))).map((transfer) => text(transfer?.id)).filter(Boolean));
+  const targetInstructionIds = new Set(currentMgp.filter((plan) => targetMgpIds.has(text(plan?.id)))
+    .flatMap((plan) => Array.isArray(plan?.exactReservations) ? plan.exactReservations : [])
+    .map((reservation) => text(reservation?.instructionId)).filter(Boolean));
+  if (!collectionResetOk("montageDispatchPlans", targetMgpIds)
+    || !collectionResetOk("montageDispatchShipments", targetMgsIds)
+    || !collectionResetOk("montageCompletionTransfers", targetMctIds)
+    || !collectionResetOk("sanalTaksimAllocationInstructions", targetInstructionIds)) return false;
+
+  const returnedQtyByStockId = new Map();
+  targetOutMovements.forEach((movement) => {
+    const stockItemId = text(movement?.stockItemId || movement?.stockDepotItemId);
+    const amount = Number(movement?.qty ?? movement?.quantity);
+    if (!stockItemId || !Number.isFinite(amount) || amount <= 0) return;
+    returnedQtyByStockId.set(stockItemId, (returnedQtyByStockId.get(stockItemId) || 0) + amount);
+  });
+  for (const stockItemId of targetStockIds) {
+    const beforeMatches = currentStocks.filter((row) => text(row?.id) === stockItemId);
+    if (beforeMatches.length !== 1) return false;
+    const afterMatches = incomingStocks.filter((row) => text(row?.id) === stockItemId);
+    const targetMct = currentMct.find((transfer) => targetMctIds.has(text(transfer?.id))
+      && text(transfer?.finishedProductStockItemId) === stockItemId) || null;
+    if (!afterMatches.length && targetMct) continue;
+    if (afterMatches.length !== 1) return false;
+    const expectedQty = qty(beforeMatches[0]) + Number(returnedQtyByStockId.get(stockItemId) || 0);
+    if (!Number.isFinite(expectedQty) || Math.abs(qty(afterMatches[0]) - expectedQty) > 0.000001) return false;
+  }
+  return true;
+}
+
+function isVerifiedSalesOrderPrototypeDetachV4(currentState, incomingState, approval) {
+  const meta = approval?.meta || {};
+  if (String(meta?.prototypeResetMode || "").trim() !== "RETAINED_EVIDENCE_DETACH") return false;
+  const orderId = String(meta?.orderId || "").trim();
+  const orderNo = String(meta?.orderNo || "").trim();
+  const planSignature = String(meta?.planSignature || "").trim();
+  if (!orderId || !orderNo || !planSignature || !currentState || !incomingState) return false;
+  const current = getStateDataRoot(currentState);
+  const incoming = getStateDataRoot(incomingState);
+  const text = (value) => String(value || "").trim();
+  const sortedUnique = (values) => Array.from(new Set((Array.isArray(values) ? values : [])
+    .map(text).filter(Boolean))).sort();
+  const sameIdList = (left, right) => JSON.stringify(sortedUnique(left)) === JSON.stringify(sortedUnique(right));
+  const currentOrders = Array.isArray(current?.orders) ? current.orders : [];
+  const incomingOrders = Array.isArray(incoming?.orders) ? incoming.orders : [];
+  const orderMatches = currentOrders.filter((row) => text(row?.id) === orderId
+    && text(row?.orderNo || row?.orderCode) === orderNo);
+  if (orderMatches.length !== 1 || incomingOrders.length !== currentOrders.length) return false;
+  const incomingOrderById = new Map(incomingOrders.map((row) => [text(row?.id), row]));
+  for (const before of currentOrders) {
+    const id = text(before?.id);
+    const after = incomingOrderById.get(id);
+    if (!id || !after) return false;
+    if (id !== orderId) {
+      if (JSON.stringify(after) !== JSON.stringify(before)) return false;
+      continue;
+    }
+    if (before?.prototypeResetTombstone != null) return false;
+    const marker = after?.prototypeResetTombstone;
+    if (Number(marker?.contractVersion) !== 1
+      || text(marker?.type) !== "PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE"
+      || text(marker?.orderId) !== orderId
+      || text(marker?.orderNo) !== orderNo
+      || text(marker?.planSignature) !== planSignature
+      || !text(marker?.detachedAt)) return false;
+    const normalizedAfter = { ...after };
+    delete normalizedAfter.prototypeResetTombstone;
+    if (JSON.stringify(normalizedAfter) !== JSON.stringify(before)) return false;
+  }
+
+  const currentDemands = Array.isArray(current?.planningDemands) ? current.planningDemands : [];
+  const incomingDemands = Array.isArray(incoming?.planningDemands) ? incoming.planningDemands : [];
+  const targetDemands = currentDemands.filter((row) => text(row?.sourceType).toUpperCase() === "SALES_ORDER"
+    && text(row?.sourceOrderId) === orderId);
+  const targetDemandIds = targetDemands.map((row) => text(row?.id)).filter(Boolean);
+  if (!targetDemandIds.length || !sameIdList(targetDemandIds, meta?.demandIds)
+    || incomingDemands.length !== currentDemands.length) return false;
+  const targetDemandIdSet = new Set(targetDemandIds);
+  const incomingDemandById = new Map(incomingDemands.map((row) => [text(row?.id), row]));
+  for (const before of currentDemands) {
+    const id = text(before?.id);
+    const after = incomingDemandById.get(id);
+    if (!id || !after) return false;
+    if (!targetDemandIdSet.has(id)) {
+      if (JSON.stringify(after) !== JSON.stringify(before)) return false;
+      continue;
+    }
+    if (before?.prototypeResetTombstone != null) return false;
+    const marker = after?.prototypeResetTombstone;
+    if (Number(marker?.contractVersion) !== 1
+      || text(marker?.type) !== "PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE"
+      || text(marker?.orderId) !== orderId
+      || text(marker?.orderNo) !== orderNo
+      || text(marker?.planSignature) !== planSignature
+      || !text(marker?.detachedAt)
+      || text(after?.status) !== "PROTOTYPE_RESET_TOMBSTONE"
+      || text(marker?.previousStatus) !== text(before?.status)) return false;
+    const normalizedAfter = { ...after, status: marker.previousStatus };
+    delete normalizedAfter.prototypeResetTombstone;
+    if (JSON.stringify(normalizedAfter) !== JSON.stringify(before)) return false;
+  }
+
+  const currentWorkOrders = Array.isArray(current?.workOrders) ? current.workOrders : [];
+  const incomingWorkOrders = Array.isArray(incoming?.workOrders) ? incoming.workOrders : [];
+  const demandLinkedWorkOrderIds = new Set(targetDemands.flatMap((demand) => [
+    ...(Array.isArray(demand?.workOrderIds) ? demand.workOrderIds : []),
+    demand?.workOrderId
+  ].map(text).filter(Boolean)));
+  currentWorkOrders.forEach((workOrder) => {
+    if (targetDemandIdSet.has(text(workOrder?.sourceId || workOrder?.demandId || workOrder?.planningDemandId))) {
+      demandLinkedWorkOrderIds.add(text(workOrder?.id));
+    }
+  });
+  if (!demandLinkedWorkOrderIds.size
+    || !sameIdList(Array.from(demandLinkedWorkOrderIds), meta?.workOrderIds)
+    || incomingWorkOrders.length !== currentWorkOrders.length) return false;
+  const incomingWorkOrderById = new Map(incomingWorkOrders.map((row) => [text(row?.id), row]));
+  for (const before of currentWorkOrders) {
+    const id = text(before?.id);
+    const after = incomingWorkOrderById.get(id);
+    if (!id || !after) return false;
+    if (!demandLinkedWorkOrderIds.has(id)) {
+      if (JSON.stringify(after) !== JSON.stringify(before)) return false;
+      continue;
+    }
+    if (before?.prototypeResetTombstone != null) return false;
+    const marker = after?.prototypeResetTombstone;
+    if (Number(marker?.contractVersion) !== 1
+      || text(marker?.type) !== "PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE"
+      || text(marker?.orderId) !== orderId
+      || text(marker?.orderNo) !== orderNo
+      || text(marker?.planSignature) !== planSignature
+      || !text(marker?.detachedAt)) return false;
+    const normalizedAfter = { ...after };
+    delete normalizedAfter.prototypeResetTombstone;
+    if (JSON.stringify(normalizedAfter) !== JSON.stringify(before)) return false;
+  }
+
+  const allowedRootChanges = new Set(["orders", "planningDemands", "workOrders"]);
+  const rootKeys = new Set([...Object.keys(current || {}), ...Object.keys(incoming || {})]);
+  for (const key of rootKeys) {
+    if (allowedRootChanges.has(key)) continue;
+    if (JSON.stringify(incoming?.[key]) !== JSON.stringify(current?.[key])) return false;
+  }
+  return true;
 }
 
 function normalizeCriticalDropIssuesForApproval(issues) {
@@ -2455,6 +3010,17 @@ async function saveState(state, options = {}) {
   const currentTs = getStateTimestamp(current);
   const currentRevision = getStateRevision(current);
 
+  if (demoCleanupApprovalTypes.has(String(options?.criticalDropApproval?.type || "").trim())
+    && !demoTestResetEnabled) {
+    return {
+      written: false,
+      blocked: true,
+      error: "demo_test_reset_disabled",
+      message: "Demo test ortamı sıfırlama işlemi yalnız PROTOTYPE runtime modunda kullanılabilir.",
+      currentRevision,
+    };
+  }
+
   if (current && Number.isInteger(baseRevision) && baseRevision !== currentRevision) {
     return { written: false, stale: true, conflict: true, currentRevision };
   }
@@ -2464,9 +3030,47 @@ async function saveState(state, options = {}) {
     return { written: false, stale: true, conflict: true, currentRevision };
   }
 
+  const operationalCodeTransition = OperationalCodeHighWater.diagnoseTransition(current, state);
+  if (!operationalCodeTransition.ok) {
+    return {
+      written: false,
+      blocked: true,
+      error: "operational_code_high_water_conflict",
+      message: "Operasyon kodu monoton high-water sözleşmesine uymuyor.",
+      issues: operationalCodeTransition.issues,
+      currentRevision,
+    };
+  }
+
+  const verifiedSalesOrderPrototypeReset = isVerifiedSalesOrderPrototypeReset(
+    current,
+    state,
+    options?.criticalDropApproval
+  );
+  const attemptedStockCohortCleanup = String(options?.criticalDropApproval?.type || "").trim()
+    === "stock_demand_demo_cleanup"
+    && Number(options?.criticalDropApproval?.meta?.stockCleanupVersion) === 2;
+  const stockCohortCleanupVerification = PrototypeStockTestCleanup.diagnoseTransition(
+    current,
+    state,
+    options?.criticalDropApproval
+  );
+  const verifiedStockCohortCleanup = stockCohortCleanupVerification.ok === true;
+  if (attemptedStockCohortCleanup && !verifiedStockCohortCleanup) {
+    return {
+      written: false,
+      blocked: true,
+      error: "invalid_stock_test_cohort_cleanup",
+      message: "STOCK test kohortu atomik cleanup sözleşmesi doğrulanamadı.",
+      issues: [stockCohortCleanupVerification],
+      currentRevision,
+    };
+  }
+  const verifiedControlledPrototypeCleanup = verifiedSalesOrderPrototypeReset || verifiedStockCohortCleanup;
+
   const sanalTaksimMgsOperationalRebindIssues =
     validateSanalTaksimInTransitMgsOperationalRebindTransitions(current, state);
-  if (sanalTaksimMgsOperationalRebindIssues.length) {
+  if (sanalTaksimMgsOperationalRebindIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2478,7 +3082,7 @@ async function saveState(state, options = {}) {
   }
 
   const sanalTaksimInstructionIssues = validateSanalTaksimAllocationInstructions(state);
-  if (sanalTaksimInstructionIssues.length) {
+  if (sanalTaksimInstructionIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2490,7 +3094,7 @@ async function saveState(state, options = {}) {
   }
 
   const sanalTaksimPlanBoundLinkIssues = validateSanalTaksimPlanBoundMontageLinks(state);
-  if (sanalTaksimPlanBoundLinkIssues.length) {
+  if (sanalTaksimPlanBoundLinkIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2502,7 +3106,7 @@ async function saveState(state, options = {}) {
   }
 
   const sanalTaksimOperationalHoldIssues = validateSanalTaksimOperationalHoldConflicts(state);
-  if (sanalTaksimOperationalHoldIssues.length) {
+  if (sanalTaksimOperationalHoldIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2514,7 +3118,7 @@ async function saveState(state, options = {}) {
   }
 
   const sanalTaksimTransitionIssues = validateSanalTaksimAllocationInstructionTransitions(current, state);
-  if (sanalTaksimTransitionIssues.length) {
+  if (sanalTaksimTransitionIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2526,7 +3130,7 @@ async function saveState(state, options = {}) {
   }
 
   const sanalTaksimStockProtectionIssues = validateSanalTaksimActiveStockRowProtection(current, state);
-  if (sanalTaksimStockProtectionIssues.length) {
+  if (sanalTaksimStockProtectionIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2537,8 +3141,21 @@ async function saveState(state, options = {}) {
     };
   }
 
+  const sanalTaksimSalesShipmentPlanTransitionIssues =
+    validateSanalTaksimSalesShipmentPlanTransitions(current, state);
+  if (sanalTaksimSalesShipmentPlanTransitionIssues.length && !verifiedControlledPrototypeCleanup) {
+    return {
+      written: false,
+      blocked: true,
+      error: "invalid_sanal_taksim_sales_shipment_plan_transition",
+      message: "Sevkiyat planı exact Sanal Taksim allocation sözleşmesine uymuyor.",
+      issues: sanalTaksimSalesShipmentPlanTransitionIssues,
+      currentRevision,
+    };
+  }
+
   const salesShipmentPlanIssues = validateSalesShipmentPlans(state);
-  if (salesShipmentPlanIssues.length) {
+  if (salesShipmentPlanIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2550,7 +3167,7 @@ async function saveState(state, options = {}) {
   }
 
   const salesShipmentIssues = validateSalesShipments(state);
-  if (salesShipmentIssues.length) {
+  if (salesShipmentIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2562,7 +3179,7 @@ async function saveState(state, options = {}) {
   }
 
   const salesShipmentImmutabilityIssues = validateSalesShipmentImmutability(current, state);
-  if (salesShipmentImmutabilityIssues.length) {
+  if (salesShipmentImmutabilityIssues.length && !verifiedControlledPrototypeCleanup) {
     return {
       written: false,
       blocked: true,
@@ -2591,6 +3208,11 @@ async function saveState(state, options = {}) {
 
   const nextRevision = currentRevision + 1;
   if (!state.meta || typeof state.meta !== "object") state.meta = {};
+  OperationalCodeHighWater.applyPersistentMarks(
+    state,
+    operationalCodeTransition.marks,
+    operationalCodeTransition.untrustedFamilies
+  );
   state.meta.revision = nextRevision;
 
   if (current) {
@@ -2605,7 +3227,14 @@ async function saveState(state, options = {}) {
   } catch (err) {
     console.warn("History snapshot cleanup failed.", err);
   }
-  return { written: true, stale: false, conflict: false, revision: nextRevision };
+  return {
+    written: true,
+    stale: false,
+    conflict: false,
+    revision: nextRevision,
+    operationalCodeHighWaterMarks: { ...operationalCodeTransition.marks },
+    operationalCodeHighWaterUntrustedFamilies: [...operationalCodeTransition.untrustedFamilies],
+  };
 }
 
 const server = http.createServer(async (req, res) => {
@@ -2614,7 +3243,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET" && reqPath === "/api/state") {
     try {
       const state = await loadState();
-      return sendJson(res, 200, { ok: true, state });
+      return sendJson(res, 200, {
+        ok: true,
+        state,
+        runtime: { mode: runtimeMode, demoTestResetEnabled },
+      });
     } catch (err) {
       return sendJson(res, 500, { ok: false, error: "state_read_failed" });
     }
@@ -2709,6 +3342,7 @@ if (require.main === module) {
   server.listen(port, () => {
     console.log(`Dulda ERP demo hazır: http://localhost:${port}/index.html`);
     console.log(`Kalıcı veri dosyası: ${dataFile}`);
+    console.log(`Runtime modu: ${runtimeMode} / demo test sıfırlama: ${demoTestResetEnabled ? "açık" : "kapalı"}`);
   });
 
   process.on("exit", () => {
@@ -2720,6 +3354,8 @@ if (require.main === module) {
 }
 
 module.exports = {
+  runtimeMode,
+  demoTestResetEnabled,
   analyzeCriticalCollectionDrops,
   validateSanalTaksimAllocationInstructions,
   validateSanalTaksimPlanBoundMontageLinks,
@@ -2730,7 +3366,12 @@ module.exports = {
   isSanalTaksimInTransitMgsOperationalRebind,
   isSanalTaksimReboundMgsAtomicReceipt,
   validateSanalTaksimInTransitMgsOperationalRebindTransitions,
+  validateSanalTaksimSalesShipmentPlanTransitions,
   validateSalesShipmentPlans,
   validateSalesShipments,
   validateSalesShipmentImmutability,
+  isVerifiedSalesOrderPrototypeReset,
+  isVerifiedPrototypeStockTestCleanup: PrototypeStockTestCleanup.verifyTransition,
+  isVerifiedPrototypeSalesTestCohortCleanup: PrototypeSalesTestCohortCleanup.verifyTransition,
+  OperationalCodeHighWater,
 };

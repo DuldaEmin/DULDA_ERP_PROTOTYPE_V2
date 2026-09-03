@@ -4,8 +4,16 @@
  * Bağımsız, deterministik ve salt okunur current-stage resolver.
  * Bu dosya Faz 1'de çalışma zamanına bağlanmaz.
  */
+const SanalTaksimRouteLineageCore = (() => {
+    if (typeof CanonicalRouteLineageCore !== 'undefined') return CanonicalRouteLineageCore;
+    if (typeof module !== 'undefined' && module?.exports && typeof require === 'function') {
+        return require('./canonical-route-lineage-core.js');
+    }
+    return null;
+})();
+
 const SanalTaksimResolver = (() => {
-    const VERSION = '6.0.0-origin-independent-phase-b';
+    const VERSION = '7.0.0-ready-finished-product';
     const EPSILON = 0.000001;
     const MONTAGE_STOCK_TRANSFER_MODE = 'POST_ON_RECEIPT_V1';
     const WORK_TXN_TYPES = new Set(['TAKE', 'COMPLETE', 'STORE']);
@@ -51,6 +59,12 @@ const SanalTaksimResolver = (() => {
         originWorkOrderId: text(segment?.originWorkOrderId),
         originWorkOrderLineId: text(segment?.originWorkOrderLineId),
         evidenceIds: asArray(segment?.evidenceIds).map(text).filter(Boolean).sort(compareText)
+    });
+    const TECHNICAL_COMPATIBILITY = Object.freeze({
+        EXACT: 'EXACT',
+        SIBLING_PRE_SPLIT: 'SIBLING_PRE_SPLIT',
+        INCOMPATIBLE: 'INCOMPATIBLE',
+        UNCERTAIN: 'UNCERTAIN'
     });
 
     const buildAllocationInstructionLineageKey = (record, audit) => [
@@ -152,6 +166,9 @@ const SanalTaksimResolver = (() => {
                 prcCode: code(range?.prcCode || part?.code),
                 unit: code(range?.unit || allocation?.unit || part?.unit),
                 sourceBucket: code(range?.sourceBucket || allocation?.sourceBucket),
+                sourceKind: code(range?.sourceKind || allocation?.sourceKind
+                    || (range?.stockRowId || allocation?.stockRowId || allocation?.stockDepotItemId
+                        ? 'CURRENT_STOCK_ROW' : '')),
                 stockRowId: text(range?.stockRowId || allocation?.stockRowId || allocation?.stockDepotItemId),
                 physicalSegmentId: text(range?.physicalSegmentId || allocation?.physicalSegmentId),
                 segmentOffsetStart: Number(range?.segmentOffsetStart),
@@ -160,8 +177,10 @@ const SanalTaksimResolver = (() => {
             };
             if (!normalized.reservationKey || !normalized.planId || !normalized.prcId
                 || !normalized.prcCode || !normalized.unit || !normalized.sourceBucket
-                || !normalized.stockRowId
-                || normalized.physicalSegmentId !== `STOCK|${normalized.stockRowId}`
+                || !normalized.sourceKind
+                || !normalized.physicalSegmentId
+                || (normalized.stockRowId && normalized.physicalSegmentId !== `STOCK|${normalized.stockRowId}`)
+                || (!normalized.stockRowId && normalized.sourceKind !== 'WORK_ORDER')
                 || !Number.isFinite(normalized.segmentOffsetStart)
                 || !Number.isFinite(normalized.segmentOffsetEnd)
                 || !isPositiveQty(normalized.qty)
@@ -524,7 +543,8 @@ const SanalTaksimResolver = (() => {
         order,
         line,
         route,
-        evidenceIds
+        evidenceIds,
+        origin
     }) => ({
         segmentKey: `WORK|${text(order?.id)}|${text(line?.id)}|${stage}|${Number(route?.routeSeq || 0)}`,
         itemType: 'PRC',
@@ -537,6 +557,9 @@ const SanalTaksimResolver = (() => {
         allocatable: true,
         allocatableQty: roundQty(qty),
         sourceKind: 'WORK_ORDER',
+        originSourceType: code(origin?.sourceType),
+        originOrderId: text(origin?.sourceOrderId),
+        originOrderLineId: text(origin?.sourceLineId),
         originWorkOrderId: text(order?.id),
         originWorkOrderCode: text(order?.workOrderCode),
         originWorkOrderLineId: text(line?.id),
@@ -546,8 +569,555 @@ const SanalTaksimResolver = (() => {
         routeSeq: Number(route?.routeSeq || 0),
         stationId: text(route?.stationId),
         processId: code(route?.processId),
+        productionOriginVerified: origin?.verified === true,
+        physicalOrigin: {
+            sourceType: code(origin?.sourceType),
+            orderId: text(origin?.sourceOrderId),
+            orderLineId: text(origin?.sourceLineId),
+            demandId: text(order?.sourceId),
+            itemKey: text(order?.sourceItemKey),
+            workOrderId: text(order?.id),
+            workOrderLineId: text(line?.id),
+            verified: origin?.verified === true,
+            reasonCode: text(origin?.reasonCode)
+        },
         evidenceIds: asArray(evidenceIds).map(text).filter(Boolean).sort(compareText)
     });
+
+    const isExactReservablePrcSegment = (segment) => {
+        const stage = code(segment?.stage);
+        const sourceKind = code(segment?.sourceKind);
+        const stockRowId = text(segment?.stockRowId);
+        const segmentKey = text(segment?.segmentKey);
+        const isDepotStock = sourceKind === 'CURRENT_STOCK_ROW'
+            && stage === 'DEPOT_STOCK'
+            && segment?.mainDepot === true
+            && stockRowId
+            && segmentKey === `STOCK|${stockRowId}`;
+        const isTrustedWip = sourceKind === 'WORK_ORDER'
+            && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(stage)
+            && !stockRowId
+            && !segmentKey.startsWith('STOCK|')
+            && text(segment?.originWorkOrderId)
+            && text(segment?.originWorkOrderLineId)
+            && text(segment?.originDemandId)
+            && text(segment?.originItemKey)
+            && ['SALES_ORDER', 'STOCK'].includes(code(segment?.originSourceType))
+            && segment?.productionOriginVerified === true
+            && segment?.physicalOrigin?.verified === true
+            && text(segment?.routeId)
+            && Number.isFinite(Number(segment?.routeSeq))
+            && asArray(segment?.evidenceIds).length > 0;
+        return (isDepotStock || isTrustedWip)
+            && segment?.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
+            && segment?.reallocatable === true;
+    };
+
+    const resolveUniquePrcCard = (prcIndex, rawId, rawCode) => {
+        const id = text(rawId);
+        const prcCode = code(rawCode);
+        if (!id || !prcCode) return { ok: false, reasonCode: 'PRC_IDENTITY_MISSING', card: null };
+        const idMatches = asArray(prcIndex?.byId?.get(id));
+        const codeMatches = asArray(prcIndex?.byCode?.get(prcCode));
+        if (idMatches.length !== 1 || codeMatches.length !== 1 || idMatches[0] !== codeMatches[0]) {
+            return { ok: false, reasonCode: 'PRC_IDENTITY_NOT_UNIQUE', card: null };
+        }
+        return { ok: true, reasonCode: '', card: idMatches[0] };
+    };
+
+    const resolveCanonicalRootIdentity = (prcIndex, card) => {
+        if (!SanalTaksimRouteLineageCore) {
+            return { ok: false, reasonCode: 'ROUTE_LINEAGE_CORE_MISSING', id: '', code: '' };
+        }
+        const declared = SanalTaksimRouteLineageCore.getDeclaredRootIdentity(card);
+        if (!declared.ok) return { ...declared };
+        const root = resolveUniquePrcCard(prcIndex, declared.id, declared.code);
+        if (!root.ok) {
+            return { ok: false, reasonCode: `ROOT_${root.reasonCode}`, id: declared.id, code: declared.code };
+        }
+        return { ok: true, reasonCode: '', id: declared.id, code: declared.code, card: root.card };
+    };
+
+    const resolveUniqueWorkLine = (workOrders, workOrderId, lineId) => {
+        const orders = asArray(workOrders).filter((row) => text(row?.id) === text(workOrderId));
+        if (orders.length !== 1) {
+            return { ok: false, reasonCode: orders.length ? 'WORK_ORDER_ID_DUPLICATE' : 'WORK_ORDER_NOT_FOUND' };
+        }
+        const lines = asArray(orders[0]?.lines).filter((row) => text(row?.id) === text(lineId));
+        if (lines.length !== 1) {
+            return { ok: false, reasonCode: lines.length ? 'WORK_LINE_ID_DUPLICATE' : 'WORK_LINE_NOT_FOUND' };
+        }
+        return { ok: true, reasonCode: '', order: orders[0], line: lines[0] };
+    };
+
+    const buildTechnicalCompatibilityReadModel = ({ cards, prcIndex, workOrders, segments }) => {
+        const targetByIdentity = new Map();
+        asArray(cards).forEach((card) => {
+            const key = `${text(card?.id)}|${code(card?.code)}`;
+            if (!targetByIdentity.has(key)) targetByIdentity.set(key, card);
+        });
+        const targets = stableSort(Array.from(targetByIdentity.values()), (card) => `${code(card?.code)}|${text(card?.id)}`);
+
+        const classify = (segment, targetCard) => {
+            const base = {
+                segmentKey: text(segment?.segmentKey),
+                sourcePrcId: text(segment?.prcId),
+                sourcePrcCode: code(segment?.prcCode),
+                targetPrcId: text(targetCard?.id),
+                targetPrcCode: code(targetCard?.code),
+                sourceKind: code(segment?.sourceKind),
+                stage: code(segment?.stage),
+                routeSeq: Math.max(0, Number(segment?.routeSeq || 0)),
+                commonPrefixLength: 0,
+                sourceNextToken: '',
+                targetNextToken: '',
+                relation: TECHNICAL_COMPATIBILITY.UNCERTAIN,
+                reasonCode: '',
+                readOnly: true
+            };
+            const finish = (relation, reasonCode = '', extra = {}) => ({ ...base, ...extra, relation, reasonCode });
+            if (!SanalTaksimRouteLineageCore) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, 'ROUTE_LINEAGE_CORE_MISSING');
+            }
+            const source = resolveUniquePrcCard(prcIndex, segment?.prcId, segment?.prcCode);
+            const target = resolveUniquePrcCard(prcIndex, targetCard?.id, targetCard?.code);
+            if (!source.ok || !target.ok) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN,
+                    !source.ok ? `SOURCE_${source.reasonCode}` : `TARGET_${target.reasonCode}`);
+            }
+            const sourceUnit = code(source.card?.unit || source.card?.stockUnit || 'ADET') || 'ADET';
+            const targetUnit = code(target.card?.unit || target.card?.stockUnit || 'ADET') || 'ADET';
+            if (sourceUnit !== targetUnit || code(segment?.unit) !== sourceUnit) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'UNIT_MISMATCH');
+            }
+            if (text(source.card?.id) === text(target.card?.id) && code(source.card?.code) === code(target.card?.code)) {
+                return finish(TECHNICAL_COMPATIBILITY.EXACT);
+            }
+            if (code(segment?.sourceKind) !== 'WORK_ORDER') {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'SIBLING_REQUIRES_WORK_ORDER_SEGMENT');
+            }
+            if (!new Set(['IN_PROCESS', 'TRANSFER_PENDING']).has(code(segment?.stage))) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'SIBLING_STAGE_NOT_ALLOWED');
+            }
+            const routeSeq = Number(segment?.routeSeq || 0);
+            if (!Number.isSafeInteger(routeSeq) || routeSeq <= 0) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, 'CURRENT_STAGE_ROUTE_SEQ_MISSING');
+            }
+            if (!text(segment?.originWorkOrderId)
+                || !text(segment?.originWorkOrderLineId)
+                || !asArray(segment?.evidenceIds).length
+                || !isPositiveQty(segment?.physicalQty)) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, 'CURRENT_STAGE_PROVENANCE_INCOMPLETE');
+            }
+            const sourceRoot = resolveCanonicalRootIdentity(prcIndex, source.card);
+            const targetRoot = resolveCanonicalRootIdentity(prcIndex, target.card);
+            if (!sourceRoot.ok || !targetRoot.ok) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN,
+                    !sourceRoot.ok ? `SOURCE_${sourceRoot.reasonCode}` : `TARGET_${targetRoot.reasonCode}`);
+            }
+            if (sourceRoot.id !== targetRoot.id || sourceRoot.code !== targetRoot.code) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'CANONICAL_ROOT_MISMATCH');
+            }
+            const sourceMasterCode = code(source.card?.masterCode);
+            const targetMasterCode = code(target.card?.masterCode);
+            if (!sourceMasterCode || !targetMasterCode) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, 'MASTER_CODE_MISSING');
+            }
+            if (sourceMasterCode !== targetMasterCode) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'MASTER_CODE_MISMATCH');
+            }
+            const routeComparison = SanalTaksimRouteLineageCore.compareRoutes(source.card?.routes, target.card?.routes);
+            if (!routeComparison.ok) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, routeComparison.reasonCode);
+            }
+            const routeDetails = {
+                commonPrefixLength: routeComparison.commonPrefixLength,
+                sourceNextToken: routeComparison.sourceNextToken,
+                targetNextToken: routeComparison.targetNextToken
+            };
+            if (routeComparison.commonPrefixLength <= 0) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'ROUTE_PREFIX_EMPTY', routeDetails);
+            }
+            if (!routeComparison.hasConcreteBranch) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'CONCRETE_BRANCH_NOT_PROVEN', routeDetails);
+            }
+            const work = resolveUniqueWorkLine(
+                workOrders,
+                segment?.originWorkOrderId,
+                segment?.originWorkOrderLineId
+            );
+            if (!work.ok) return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, work.reasonCode, routeDetails);
+            const frozenRoute = SanalTaksimRouteLineageCore.sameRoute(work.line?.routes, source.card?.routes);
+            if (!frozenRoute.ok || !frozenRoute.same) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN,
+                    frozenRoute.ok ? 'WORK_ORDER_ROUTE_DRIFT' : frozenRoute.reasonCode,
+                    routeDetails);
+            }
+            const frozenStep = frozenRoute.left?.steps?.[routeSeq - 1];
+            const segmentStep = SanalTaksimRouteLineageCore.normalizeStep({
+                seq: routeSeq,
+                stationId: segment?.stationId,
+                processId: segment?.processId
+            }, routeSeq - 1);
+            if (!frozenStep?.ok || !segmentStep.ok || frozenStep.token !== segmentStep.token) {
+                return finish(TECHNICAL_COMPATIBILITY.UNCERTAIN, 'CURRENT_STAGE_ROUTE_EVIDENCE_CONFLICT', routeDetails);
+            }
+            if (routeSeq > routeComparison.commonPrefixLength) {
+                return finish(TECHNICAL_COMPATIBILITY.INCOMPATIBLE, 'SEGMENT_AT_OR_AFTER_SPLIT_BRANCH', routeDetails);
+            }
+            return finish(TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT, '', routeDetails);
+        };
+
+        const compatibility = [];
+        stableSort(asArray(segments), (segment) => text(segment?.segmentKey)).forEach((segment) => {
+            targets.forEach((target) => compatibility.push(classify(segment, target)));
+        });
+        return { compatibility };
+    };
+
+    const buildOutsourceSplitLockReadModel = ({ input, prcIndex, workOrders, segments }) => {
+        const locks = [];
+        const uncertain = [];
+        const siblingBlockedSegmentKeys = new Set();
+        const segmentKeyCounts = new Map();
+        asArray(segments).forEach((segment) => {
+            const key = text(segment?.segmentKey);
+            if (key) segmentKeyCounts.set(key, (segmentKeyCounts.get(key) || 0) + 1);
+        });
+        const stageRank = new Map([['IN_PROCESS', 0], ['TRANSFER_PENDING', 1]]);
+        const candidateRemainders = new Map(asArray(segments).map((segment) => [
+            text(segment?.segmentKey),
+            roundQty(segment?.physicalQty)
+        ]));
+        const getLineSegments = (workOrderId, lineId, routeSeq = 0, stages = null) => stableSort(
+            asArray(segments).filter((segment) =>
+                code(segment?.sourceKind) === 'WORK_ORDER'
+                && (!text(workOrderId) || text(segment?.originWorkOrderId) === text(workOrderId))
+                && (!text(lineId) || text(segment?.originWorkOrderLineId) === text(lineId))
+                && (!routeSeq || Number(segment?.routeSeq || 0) === routeSeq)
+                && (!stages || stages.has(code(segment?.stage)))
+            ),
+            (segment) => `${String(stageRank.get(code(segment?.stage)) ?? 9).padStart(2, '0')}|${text(segment?.segmentKey)}`
+        );
+        const failClosed = ({ kind, id, reasonCode, workOrderId = '', lineId = '', routeSeq = 0, candidates = [] }) => {
+            const directlyImplicated = candidates.length ? candidates : getLineSegments(workOrderId, lineId, routeSeq);
+            const implicated = directlyImplicated.length || workOrderId || lineId
+                ? directlyImplicated
+                : getLineSegments('', '', 0, new Set(['IN_PROCESS', 'TRANSFER_PENDING']));
+            implicated.forEach((segment) => siblingBlockedSegmentKeys.add(text(segment?.segmentKey)));
+            uncertain.push({
+                kind,
+                id: text(id),
+                reasonCode,
+                workOrderId: text(workOrderId),
+                lineId: text(lineId),
+                routeSeq: Math.max(0, Number(routeSeq || 0)),
+                implicatedSegmentKeys: implicated.map((segment) => text(segment?.segmentKey)),
+                allocatableToSibling: false,
+                readOnly: true
+            });
+        };
+        const allocateSlices = ({
+            kind,
+            ownerId,
+            refId,
+            workOrderId,
+            lineId,
+            routeSeq,
+            sourceRouteSeq = routeSeq,
+            qty,
+            candidates,
+            lockedPrc,
+            targetRouteSeq,
+            targetProcessId
+        }) => {
+            const available = roundQty(candidates.reduce((sum, segment) =>
+                sum + Math.max(0, Number(candidateRemainders.get(text(segment?.segmentKey)) || 0)), 0));
+            if (qty > available + EPSILON || candidates.some((segment) =>
+                segmentKeyCounts.get(text(segment?.segmentKey)) !== 1)) {
+                failClosed({
+                    kind,
+                    id: refId,
+                    reasonCode: qty > available + EPSILON ? 'OUTSOURCE_SOURCE_QTY_MISMATCH' : 'OUTSOURCE_SEGMENT_IDENTITY_DUPLICATE',
+                    workOrderId,
+                    lineId,
+                    routeSeq,
+                    candidates
+                });
+                return;
+            }
+            let remaining = qty;
+            candidates.forEach((segment) => {
+                if (remaining <= EPSILON) return;
+                const segmentKey = text(segment?.segmentKey);
+                const segmentRemaining = Math.max(0, Number(candidateRemainders.get(segmentKey) || 0));
+                const lockedQty = roundQty(Math.min(remaining, segmentRemaining));
+                if (lockedQty <= EPSILON) return;
+                candidateRemainders.set(segmentKey, roundQty(segmentRemaining - lockedQty));
+                locks.push({
+                    lockKey: `${kind}|${text(ownerId)}|${text(refId)}|${segmentKey}`,
+                    kind,
+                    ownerId: text(ownerId),
+                    refId: text(refId),
+                    segmentKey,
+                    workOrderId: text(workOrderId),
+                    lineId: text(lineId),
+                    sourceRouteSeq: Math.max(0, Number(sourceRouteSeq || 0)),
+                    currentRouteSeq: Math.max(0, Number(routeSeq || 0)),
+                    targetRouteSeq: Math.max(0, Number(targetRouteSeq || 0)),
+                    targetProcessId: code(targetProcessId),
+                    lockedPrcId: text(lockedPrc?.prcId),
+                    lockedPrcCode: code(lockedPrc?.prcCode),
+                    qty: lockedQty,
+                    binding: 'DERIVED_CURRENT_WORK_SEGMENT_QTY',
+                    persistentRange: false,
+                    siblingLocked: true,
+                    readOnly: true
+                });
+                remaining = roundQty(remaining - lockedQty);
+            });
+        };
+
+        const draftRows = asArray(input?.outsourceDispatchDrafts);
+        const draftIdCounts = new Map();
+        draftRows.forEach((draft) => {
+            const id = text(draft?.id);
+            if (id) draftIdCounts.set(id, (draftIdCounts.get(id) || 0) + 1);
+        });
+        stableSort(draftRows, (draft, index) => `${text(draft?.createdAt)}|${text(draft?.id)}|${index}`)
+            .filter((draft) => code(draft?.status) === 'DRAFT')
+            .forEach((draft) => {
+                const draftId = text(draft?.id);
+                if (!draftId || draftIdCounts.get(draftId) !== 1) {
+                    failClosed({ kind: 'OUTSOURCE_DRAFT', id: draftId, reasonCode: 'OUTSOURCE_DRAFT_ID_INVALID' });
+                    return;
+                }
+                const draftItems = asArray(draft?.items);
+                if (!draftItems.length) {
+                    failClosed({ kind: 'OUTSOURCE_DRAFT', id: draftId, reasonCode: 'OUTSOURCE_DRAFT_ITEMS_MISSING' });
+                    return;
+                }
+                draftItems.forEach((item, itemIndex) => {
+                    const refs = asArray(item?.workOrderRefs);
+                    if (!refs.length) {
+                        failClosed({
+                            kind: 'OUTSOURCE_DRAFT_REF',
+                            id: `${draftId}|${itemIndex}`,
+                            reasonCode: 'OUTSOURCE_WORK_ORDER_REF_MISSING'
+                        });
+                        return;
+                    }
+                    const itemQty = Number(item?.qty);
+                    const refsHaveValidQty = refs.every((ref) => Number.isSafeInteger(Number(ref?.qty)) && Number(ref?.qty) > 0);
+                    const refQty = refs.reduce((sum, ref) => sum + Number(ref?.qty || 0), 0);
+                    if (!Number.isSafeInteger(itemQty) || itemQty <= 0 || !refsHaveValidQty || !sameQty(itemQty, refQty)) {
+                        const implicated = refs.flatMap((ref) => {
+                            const targetRouteSeq = Math.max(0, Number(ref?.targetRouteSeq || item?.targetRouteSeq || 0));
+                            return getLineSegments(ref?.workOrderId, ref?.lineId, targetRouteSeq - 1);
+                        });
+                        failClosed({
+                            kind: 'OUTSOURCE_DRAFT_REF',
+                            id: `${draftId}|${itemIndex}`,
+                            reasonCode: 'OUTSOURCE_ITEM_QTY_MISMATCH',
+                            candidates: implicated
+                        });
+                        return;
+                    }
+                    refs.forEach((ref, refIndex) => {
+                        const refId = `${draftId}|${itemIndex}|${refIndex}`;
+                        const workOrderId = text(ref?.workOrderId);
+                        const lineId = text(ref?.lineId);
+                        const targetRouteSeq = Math.max(0, Number(ref?.targetRouteSeq || item?.targetRouteSeq || 0));
+                        const sourceRouteSeq = targetRouteSeq - 1;
+                        const qty = Number(ref?.qty);
+                        const work = resolveUniqueWorkLine(workOrders, workOrderId, lineId);
+                        if (!work.ok || !Number.isSafeInteger(qty) || qty <= 0 || sourceRouteSeq <= 0) {
+                            failClosed({
+                                kind: 'OUTSOURCE_DRAFT_REF', id: refId,
+                                reasonCode: !work.ok ? work.reasonCode : 'OUTSOURCE_REF_SHAPE_INVALID',
+                                workOrderId, lineId, routeSeq: sourceRouteSeq
+                            });
+                            return;
+                        }
+                        const routes = asArray(work.line?.routes);
+                        const sourceRoute = routes[sourceRouteSeq - 1];
+                        const targetRoute = routes[targetRouteSeq - 1];
+                        const sourceStep = SanalTaksimRouteLineageCore?.normalizeStep(sourceRoute, sourceRouteSeq - 1);
+                        const targetStep = SanalTaksimRouteLineageCore?.normalizeStep(targetRoute, targetRouteSeq - 1);
+                        const expectedRouteKey = text(sourceRoute?.id) || `SEQ-${sourceRouteSeq}`;
+                        const expectedSourceRowKey = `${workOrderId}::${lineId}::u_dtm::${expectedRouteKey}`;
+                        const targetUnitId = text(ref?.targetUnitId || item?.targetUnitId || draft?.unitId);
+                        const targetProcessId = code(ref?.targetProcessId || item?.targetProcessId);
+                        const itemTargetUnitId = text(item?.targetUnitId || draft?.unitId);
+                        const itemTargetProcessId = code(item?.targetProcessId);
+                        const itemTargetRouteSeq = Math.max(0, Number(item?.targetRouteSeq || 0));
+                        const lockedPrc = resolveExactPrc(prcIndex, work.line?.componentCode, work.line?.componentId || work.line?.refId);
+                        const candidates = getLineSegments(
+                            workOrderId,
+                            lineId,
+                            sourceRouteSeq,
+                            new Set(['IN_PROCESS', 'TRANSFER_PENDING'])
+                        );
+                        let reasonCode = '';
+                        if (!sourceStep?.ok || sourceStep.token !== 'DTR') reasonCode = 'OUTSOURCE_SOURCE_DTR_INVALID';
+                        else if (!targetStep?.ok) reasonCode = 'OUTSOURCE_TARGET_ROUTE_INVALID';
+                        else if (text(ref?.sourceRowKey) !== expectedSourceRowKey) reasonCode = 'OUTSOURCE_SOURCE_ROW_KEY_MISMATCH';
+                        else if (itemTargetRouteSeq > 0 && targetRouteSeq !== itemTargetRouteSeq) reasonCode = 'OUTSOURCE_ITEM_TARGET_ROUTE_MISMATCH';
+                        else if (itemTargetUnitId && targetUnitId !== itemTargetUnitId) reasonCode = 'OUTSOURCE_ITEM_TARGET_UNIT_MISMATCH';
+                        else if (itemTargetProcessId && targetProcessId !== itemTargetProcessId) reasonCode = 'OUTSOURCE_ITEM_TARGET_PROCESS_MISMATCH';
+                        else if (!targetUnitId || text(targetRoute?.stationId) !== targetUnitId) reasonCode = 'OUTSOURCE_TARGET_UNIT_MISMATCH';
+                        else if (!targetProcessId || code(targetRoute?.processId) !== targetProcessId) reasonCode = 'OUTSOURCE_TARGET_PROCESS_MISMATCH';
+                        else if (text(ref?.componentCode) && code(ref?.componentCode) !== code(work.line?.componentCode)) reasonCode = 'OUTSOURCE_COMPONENT_MISMATCH';
+                        else if (!lockedPrc.ok) reasonCode = `OUTSOURCE_${lockedPrc.reasonCode}`;
+                        else if (!candidates.length) reasonCode = 'OUTSOURCE_SOURCE_SEGMENT_NOT_FOUND';
+                        if (reasonCode) {
+                            failClosed({
+                                kind: 'OUTSOURCE_DRAFT_REF', id: refId, reasonCode,
+                                workOrderId, lineId, routeSeq: sourceRouteSeq, candidates
+                            });
+                            return;
+                        }
+                        allocateSlices({
+                            kind: 'OUTSOURCE_DRAFT', ownerId: draftId, refId,
+                            workOrderId, lineId, routeSeq: sourceRouteSeq, qty,
+                            candidates, lockedPrc, targetRouteSeq, targetProcessId
+                        });
+                    });
+                });
+            });
+
+        const assignments = asArray(input?.workOrderExternalSupplierAssignments);
+        const assignmentIdCounts = new Map();
+        assignments.forEach((assignment) => {
+            const id = text(assignment?.id);
+            if (id) assignmentIdCounts.set(id, (assignmentIdCounts.get(id) || 0) + 1);
+        });
+        stableSort(assignments, (assignment, index) => `${text(assignment?.createdAt)}|${text(assignment?.id)}|${index}`)
+            .filter((assignment) => code(assignment?.status) === 'ACTIVE')
+            .forEach((assignment) => {
+                const assignmentId = text(assignment?.id);
+                const workOrderId = text(assignment?.workOrderId);
+                const lineId = text(assignment?.lineId);
+                const sourceRouteSeq = Math.max(0, Number(assignment?.sourceRouteSeq || 0));
+                const targetRouteSeq = Math.max(0, Number(assignment?.targetRouteSeq || 0));
+                const qty = Number(assignment?.qty);
+                const work = resolveUniqueWorkLine(workOrders, workOrderId, lineId);
+                const linkedDrafts = draftRows.filter((draft) =>
+                    text(draft?.id) === text(assignment?.dispatchDraftId)
+                    && code(draft?.status) === 'DISPATCHED'
+                );
+                const candidates = getLineSegments(
+                    workOrderId,
+                    lineId,
+                    targetRouteSeq,
+                    new Set(['IN_PROCESS', 'TRANSFER_PENDING'])
+                );
+                if (!assignmentId || assignmentIdCounts.get(assignmentId) !== 1
+                    || !work.ok || linkedDrafts.length !== 1
+                    || !Number.isSafeInteger(qty) || qty <= 0 || targetRouteSeq <= 0) {
+                    failClosed({
+                        kind: 'OUTSOURCE_ACTIVE_ASSIGNMENT', id: assignmentId,
+                        reasonCode: !work.ok ? work.reasonCode : 'OUTSOURCE_ACTIVE_ASSIGNMENT_INVALID',
+                        workOrderId, lineId, routeSeq: targetRouteSeq, candidates
+                    });
+                    return;
+                }
+                const routes = asArray(work.line?.routes);
+                const sourceRoute = routes[sourceRouteSeq - 1];
+                const targetRoute = routes[targetRouteSeq - 1];
+                const sourceStep = SanalTaksimRouteLineageCore?.normalizeStep(sourceRoute, sourceRouteSeq - 1);
+                const expectedRouteKey = text(sourceRoute?.id) || `SEQ-${sourceRouteSeq}`;
+                const expectedSourceRowKey = `${workOrderId}::${lineId}::u_dtm::${expectedRouteKey}`;
+                const targetProcessId = code(assignment?.targetProcessId);
+                const lockedPrc = resolveExactPrc(prcIndex, work.line?.componentCode, work.line?.componentId || work.line?.refId);
+                const linkedRefs = linkedDrafts.length === 1
+                    ? asArray(linkedDrafts[0]?.items).flatMap((item) => asArray(item?.workOrderRefs))
+                        .filter((ref) =>
+                            text(ref?.workOrderId) === workOrderId
+                            && text(ref?.lineId) === lineId
+                            && text(ref?.sourceRowKey) === text(assignment?.sourceRowKey)
+                            && Math.max(0, Number(ref?.targetRouteSeq || 0)) === targetRouteSeq
+                            && code(ref?.targetProcessId) === targetProcessId
+                            && text(ref?.targetUnitId) === text(assignment?.targetUnitId)
+                            && Number(ref?.qty || 0) + EPSILON >= qty
+                        )
+                    : [];
+                let reasonCode = '';
+                if (sourceRouteSeq <= 0 || targetRouteSeq !== sourceRouteSeq + 1
+                    || !sourceStep?.ok || sourceStep.token !== 'DTR') reasonCode = 'OUTSOURCE_ACTIVE_SOURCE_ROUTE_INVALID';
+                else if (text(assignment?.sourceRowKey) !== expectedSourceRowKey) reasonCode = 'OUTSOURCE_ACTIVE_SOURCE_ROW_KEY_MISMATCH';
+                else if (linkedRefs.length !== 1) reasonCode = 'OUTSOURCE_ACTIVE_DRAFT_REF_MISMATCH';
+                else if (!targetRoute || text(targetRoute?.stationId) !== text(assignment?.targetUnitId)) reasonCode = 'OUTSOURCE_ACTIVE_TARGET_UNIT_MISMATCH';
+                else if (!targetProcessId || code(targetRoute?.processId) !== targetProcessId) reasonCode = 'OUTSOURCE_ACTIVE_TARGET_PROCESS_MISMATCH';
+                else if (!lockedPrc.ok) reasonCode = `OUTSOURCE_${lockedPrc.reasonCode}`;
+                else if (!candidates.length) reasonCode = 'OUTSOURCE_ACTIVE_TRANSACTION_PROOF_MISSING';
+                if (reasonCode) {
+                    failClosed({
+                        kind: 'OUTSOURCE_ACTIVE_ASSIGNMENT', id: assignmentId, reasonCode,
+                        workOrderId, lineId, routeSeq: targetRouteSeq, candidates
+                    });
+                    return;
+                }
+                allocateSlices({
+                    kind: 'OUTSOURCE_ACTIVE', ownerId: assignment?.dispatchDraftId, refId: assignmentId,
+                    workOrderId, lineId, routeSeq: targetRouteSeq,
+                    sourceRouteSeq, qty,
+                    candidates, lockedPrc, targetRouteSeq, targetProcessId
+                });
+            });
+
+        return {
+            locks: stableSort(locks, (row) => row.lockKey),
+            uncertain: stableSort(uncertain, (row) => `${row.kind}|${row.id}|${row.reasonCode}`),
+            siblingBlockedSegmentKeys: Array.from(siblingBlockedSegmentKeys).filter(Boolean).sort(compareText)
+        };
+    };
+
+    const buildTechnicalEligibilityReadModel = ({ input, cards, prcIndex, workOrders, segments }) => {
+        const technical = buildTechnicalCompatibilityReadModel({ cards, prcIndex, workOrders, segments });
+        const outsource = buildOutsourceSplitLockReadModel({ input, prcIndex, workOrders, segments });
+        const lockedQtyBySegment = new Map();
+        outsource.locks.forEach((lock) => {
+            lockedQtyBySegment.set(
+                lock.segmentKey,
+                roundQty((lockedQtyBySegment.get(lock.segmentKey) || 0) + Number(lock.qty || 0))
+            );
+        });
+        const blocked = new Set(outsource.siblingBlockedSegmentKeys);
+        const segmentQtyByKey = new Map(asArray(segments).map((segment) => [
+            text(segment?.segmentKey),
+            roundQty(segment?.physicalQty)
+        ]));
+        const compatibility = technical.compatibility.map((row) => {
+            if (row.relation !== TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT) {
+                return { ...row, siblingLockedQty: 0, siblingAvailableQty: 0 };
+            }
+            const physicalQty = Math.max(0, Number(segmentQtyByKey.get(row.segmentKey) || 0));
+            const siblingLockedQty = blocked.has(row.segmentKey)
+                ? physicalQty
+                : Math.min(physicalQty, Math.max(0, Number(lockedQtyBySegment.get(row.segmentKey) || 0)));
+            return {
+                ...row,
+                siblingLockedQty: roundQty(siblingLockedQty),
+                siblingAvailableQty: roundQty(Math.max(0, physicalQty - siblingLockedQty))
+            };
+        });
+        return {
+            contract: Object.values(TECHNICAL_COMPATIBILITY),
+            compatibility,
+            outsourceSplitLocks: outsource.locks,
+            uncertain: outsource.uncertain,
+            siblingBlockedSegmentKeys: outsource.siblingBlockedSegmentKeys,
+            diagnostics: {
+                compatibilityCount: compatibility.length,
+                siblingPreSplitCount: compatibility.filter((row) => row.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT).length,
+                outsourceLockCount: outsource.locks.length,
+                uncertainOutsourceCount: outsource.uncertain.length
+            },
+            readOnly: true,
+            writes: 0
+        };
+    };
 
     const classifyStockSource = (row) => {
         const sourceType = code(row?.sourceType);
@@ -766,6 +1336,16 @@ const SanalTaksimResolver = (() => {
         } else if (stage.includes('CONSUMED') || sourceKind === 'MCT_CONSUMPTION') {
             allocationState = PHYSICAL_ALLOCATION_STATES.CONSUMED;
             allocationStateReasonCode = 'PHYSICAL_QTY_CONSUMED';
+        } else if (stage === 'MONTAGE_FINISHED_STOCK'
+            && segment?.readyPoolEligible === true
+            && text(segment?.stockRowId)
+            && text(segment?.transferId)
+            && text(segment?.productId)
+            && normalizeVariantId(segment?.variantId)
+            && code(segment?.variantCode)
+            && code(segment?.unit) === 'ADET') {
+            allocationState = PHYSICAL_ALLOCATION_STATES.REALLOCATABLE;
+            allocationStateReasonCode = '';
         } else if (segment?.allocatableToOthers === false
             || sourceKind === 'MGS_SHIPMENT'
             || stage.startsWith('MONTAGE_')) {
@@ -908,24 +1488,38 @@ const SanalTaksimResolver = (() => {
                         ? text(row?.nodeKey || row?.depotKey || row?.key).slice('managed:'.length)
                         : text(row?.nodeKey || row?.depotKey || row?.key))
                     || (text(row?.unitId || row?.stationId) ? `unit:${text(row?.unitId || row?.stationId)}` : '');
+                const sourceKind = code(allocation?.sourceKind || (stockRowId ? 'CURRENT_STOCK_ROW' : ''));
+                const sourceStage = code(allocation?.sourceStage);
+                const segmentCapacityQty = Number(allocation?.segmentCapacityQty);
+                const isStockSource = sourceKind === 'CURRENT_STOCK_ROW'
+                    && stockRowId
+                    && physicalSegmentId === `STOCK|${stockRowId}`
+                    && row
+                    && rowQty.ok
+                    && ((shipmentStatus !== 'IN_TRANSIT' && shipmentStatus !== 'DISPATCHED')
+                        || rowQty.qty >= qty - EPSILON)
+                    && code(row?.productCode || row?.code) === prc.prcCode
+                    && code(row?.unit) === prc.unit
+                    && (!text(row?.refId || row?.productId) || text(row?.refId || row?.productId) === prc.prcId)
+                    && rowScopeId === text(allocation?.sourceDepotId)
+                    && text(row?.locationId) === text(allocation?.sourceLocationId);
+                const isWipSource = sourceKind === 'WORK_ORDER'
+                    && !stockRowId
+                    && !physicalSegmentId.startsWith('STOCK|')
+                    && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(sourceStage)
+                    && text(allocation?.sourceWorkOrderId)
+                    && text(allocation?.sourceWorkOrderLineId)
+                    && Number.isFinite(segmentCapacityQty)
+                    && segmentCapacityQty + EPSILON >= qty;
                 if (!allocationKey
                     || !movementKey
                     || allocationKeys.has(allocationKey)
-                    || !stockRowId
-                    || physicalSegmentId !== `STOCK|${stockRowId}`
+                    || !physicalSegmentId
+                    || (!isStockSource && !isWipSource)
                     || ![SOURCE_BUCKETS.STOCK, SOURCE_BUCKETS.PRODUCTION].includes(sourceBucket)
                     || text(allocation?.prcId) !== prc.prcId
                     || code(allocation?.prcCode) !== prc.prcCode
-                    || code(allocation?.unit) !== prc.unit
-                    || !row
-                    || !rowQty.ok
-                    || ((shipmentStatus === 'IN_TRANSIT' || shipmentStatus === 'DISPATCHED')
-                        && rowQty.qty < qty - EPSILON)
-                    || code(row?.productCode || row?.code) !== prc.prcCode
-                    || code(row?.unit) !== prc.unit
-                    || (text(row?.refId || row?.productId) && text(row?.refId || row?.productId) !== prc.prcId)
-                    || rowScopeId !== text(allocation?.sourceDepotId)
-                    || text(row?.locationId) !== text(allocation?.sourceLocationId)) {
+                    || code(allocation?.unit) !== prc.unit) {
                     return { ok: false, reasonCode: 'MGS_DEFERRED_ALLOCATION_CONFLICT', prc, qty: shippedQty };
                 }
                 allocationKeys.add(allocationKey);
@@ -950,6 +1544,9 @@ const SanalTaksimResolver = (() => {
                         || !text(range?.itemKey)
                         || text(range?.stockRowId) !== stockRowId
                         || text(range?.physicalSegmentId) !== physicalSegmentId
+                        || (isWipSource && (code(range?.sourceKind) !== 'WORK_ORDER'
+                            || text(range?.sourceWorkOrderId) !== text(allocation?.sourceWorkOrderId)
+                            || text(range?.sourceWorkOrderLineId) !== text(allocation?.sourceWorkOrderLineId)))
                         || text(range?.prcId) !== prc.prcId
                         || code(range?.prcCode) !== prc.prcCode
                         || code(range?.unit) !== prc.unit
@@ -1015,6 +1612,7 @@ const SanalTaksimResolver = (() => {
             const movementQty = Number(movement?.qty ?? movement?.quantity ?? 0);
             if (movementType !== 'MONTAGE_DISPATCH_OUT'
                 || text(movement?.shipmentId) !== text(shipment?.id)
+                || text(movement?.physicalSegmentId) !== text(allocation?.physicalSegmentId)
                 || code(movement?.productCode || movement?.code) !== prc.prcCode
                 || code(movement?.unit) !== prc.unit
                 || !sameQty(movementQty, qty)) {
@@ -1424,7 +2022,8 @@ const SanalTaksimResolver = (() => {
         physicalQty: roundQty(qty),
         allocatable: true,
         allocatableQty: roundQty(qty),
-        allocatableToOthers: false,
+        allocatableToOthers: stage === 'MONTAGE_FINISHED_STOCK',
+        readyPoolEligible: stage === 'MONTAGE_FINISHED_STOCK',
         targetDebtKey: [
             'LIFECYCLE_SET_DEBT',
             item.sourceType,
@@ -1441,6 +2040,11 @@ const SanalTaksimResolver = (() => {
         planId: text(plan?.id),
         transferId: text(transfer?.id),
         stockRowId: text(stockRow?.id),
+        finishedProductMovementId: text(transfer?.finishedProductMovementId),
+        depotId: text(stockRow?.depotId),
+        locationId: text(stockRow?.locationId || stockRow?.targetLocationId),
+        stockClass: code(stockRow?.stockClass),
+        stockStatus: code(stockRow?.status),
         sourceType: item.sourceType,
         sourceOrderId: item.sourceOrderId,
         sourceLineId: item.sourceLineId,
@@ -1454,7 +2058,7 @@ const SanalTaksimResolver = (() => {
         evidenceIds: Array.from(new Set(asArray(evidenceIds).map(text).filter(Boolean))).sort(compareText)
     });
 
-    const validatePostedTransferEvidence = ({ transfer, item, stockRows, movementById }) => {
+    const validatePostedTransferEvidence = ({ transfer, item, stockRows, movements, movementById }) => {
         const transferId = text(transfer?.id);
         const stockItemId = text(transfer?.finishedProductStockItemId);
         const movementId = text(transfer?.finishedProductMovementId);
@@ -1481,17 +2085,61 @@ const SanalTaksimResolver = (() => {
         const movement = movementMatches[0];
         const transferQty = Number(transfer?.qty ?? transfer?.quantity);
         const movementQty = Number(movement?.qty ?? movement?.quantity);
+        const targetDepotId = text(transfer?.targetDepotId);
+        const targetLocationId = text(transfer?.targetLocationId);
+        const stockVariantId = normalizeVariantId(stockRow?.variantId || stockRow?.variationId);
+        const movementVariantId = normalizeVariantId(movement?.variantId || movement?.variationId);
+        const itemVariantId = normalizeVariantId(item?.variantId);
+        const outboundMovements = asArray(movements).filter((row) =>
+            code(row?.movementType || row?.type) === 'SALES_SHIPMENT_OUT'
+            && text(row?.stockDepotItemId || row?.stockItemId) === stockItemId
+        );
+        const outboundQty = roundQty(outboundMovements.reduce((sum, row) =>
+            sum + Number(row?.qty ?? row?.quantity ?? 0), 0));
+        const outboundEvidenceValid = outboundMovements.every((row) => {
+            const qty = Number(row?.qty ?? row?.quantity);
+            const rowId = text(row?.id);
+            return rowId
+                && asArray(movementById.get(rowId)).length === 1
+                && isPositiveQty(qty)
+                && text(row?.shipmentId)
+                && text(row?.shipmentPlanId)
+                && text(row?.productId) === item.productId
+                && normalizeVariantId(row?.variantId || row?.variationId) === itemVariantId
+                && code(row?.variantCode || row?.productCode) === item.variantCode
+                && code(row?.unit) === 'ADET'
+                && text(row?.depotId || row?.sourceDepotId) === targetDepotId
+                && text(row?.locationId || row?.sourceLocationId) === targetLocationId;
+        });
         if (!stockQty.ok
+            || code(transfer?.status) !== 'POSTED'
+            || !!transfer?.reversedAt
+            || !!transfer?.reversalId
             || text(stockRow?.completionTransferId || stockRow?.transferId) !== transferId
             || text(stockRow?.productId) !== item.productId
-            || text(stockRow?.variantId || stockRow?.variationId) !== item.variantId
+            || stockVariantId !== itemVariantId
             || code(stockRow?.variantCode || stockRow?.productCode || stockRow?.code) !== item.variantCode
             || code(stockRow?.cardType) !== 'SVR'
+            || code(stockRow?.unit) !== 'ADET'
+            || code(stockRow?.stockClass) !== 'KULLANILABILIR'
+            || code(stockRow?.status) !== 'KULLANILABILIR'
+            || !targetDepotId
+            || !targetLocationId
+            || text(stockRow?.depotId || stockRow?.targetDepotId) !== targetDepotId
+            || text(stockRow?.locationId || stockRow?.targetLocationId) !== targetLocationId
             || text(movement?.completionTransferId || movement?.transferId) !== transferId
             || text(movement?.stockDepotItemId) !== stockItemId
             || code(movement?.movementType || movement?.type) !== 'MONTAGE_FINISHED_PRODUCT_IN'
+            || text(movement?.productId) !== item.productId
+            || movementVariantId !== itemVariantId
             || code(movement?.variantCode || movement?.productCode) !== item.variantCode
-            || !sameQty(movementQty, transferQty)) {
+            || code(movement?.unit) !== 'ADET'
+            || text(movement?.targetDepotId || movement?.depotId) !== targetDepotId
+            || text(movement?.targetLocationId || movement?.locationId) !== targetLocationId
+            || !sameQty(movementQty, transferQty)
+            || !outboundEvidenceValid
+            || outboundQty > transferQty + EPSILON
+            || !sameQty(stockQty.qty, roundQty(transferQty - outboundQty))) {
             return { ok: false, reasonCode: stockQty.reasonCode || 'MCT_FINISHED_EVIDENCE_CONFLICT' };
         }
 
@@ -1531,12 +2179,115 @@ const SanalTaksimResolver = (() => {
             stockRow,
             stockQty: stockQty.qty,
             movement,
+            outboundMovementIds: outboundMovements.map((row) => text(row?.id)).sort(compareText),
             evidenceIds: [
                 stockItemId,
                 movementId,
+                ...outboundMovements.map((row) => text(row?.id)),
                 ...asArray(transfer?.componentAllocations).map((row) => text(row?.stockMovementId))
             ]
         };
+    };
+
+    const resolveCanonicalFinishedStockSegments = ({
+        transfers,
+        shipments,
+        plans,
+        stockRows,
+        movements,
+        prcIndex
+    }) => {
+        const segments = [];
+        const uncertain = [];
+        const handledStockRowIds = new Set();
+        const transferIdCounts = new Map();
+        const movementById = new Map();
+        asArray(transfers).forEach((transfer) => {
+            const id = text(transfer?.id);
+            if (id) transferIdCounts.set(id, (transferIdCounts.get(id) || 0) + 1);
+        });
+        asArray(movements).forEach((movement) => {
+            const id = text(movement?.id);
+            if (!id) return;
+            if (!movementById.has(id)) movementById.set(id, []);
+            movementById.get(id).push(movement);
+        });
+        stableSort(asArray(transfers), (transfer, index) => `${text(transfer?.id)}|${index}`)
+            .filter((transfer) => code(transfer?.status) === 'POSTED')
+            .forEach((transfer) => {
+                const transferId = text(transfer?.id);
+                const stockItemId = text(transfer?.finishedProductStockItemId);
+                if (stockItemId) handledStockRowIds.add(stockItemId);
+                let reasonCode = '';
+                if (!transferId || transferIdCounts.get(transferId) !== 1) {
+                    reasonCode = transferId ? 'CANONICAL_MCT_ID_DUPLICATE' : 'CANONICAL_MCT_ID_MISSING';
+                }
+                const normalized = reasonCode
+                    ? null
+                    : normalizeLifecycleItem({ item: transfer, qtyField: 'qty', prcIndex });
+                if (!reasonCode && !normalized?.ok) {
+                    reasonCode = `CANONICAL_MCT_${normalized?.reasonCode || 'SNAPSHOT_INVALID'}`;
+                }
+                const postedEvidence = reasonCode
+                    ? null
+                    : validatePostedTransferEvidence({
+                        transfer,
+                        item: normalized.item,
+                        stockRows,
+                        movements,
+                        movementById
+                    });
+                if (!reasonCode && !postedEvidence?.ok) {
+                    reasonCode = postedEvidence?.reasonCode || 'CANONICAL_MCT_EVIDENCE_INVALID';
+                }
+                if (reasonCode) {
+                    uncertain.push({
+                        kind: 'MCT_CANONICAL_FINISHED_STOCK',
+                        id: transferId || stockItemId,
+                        reasonCode,
+                        itemType: 'SVR',
+                        itemCode: code(transfer?.variantCode),
+                        unit: code(transfer?.unit || 'ADET'),
+                        reportedQty: null,
+                        physicalQty: null,
+                        allocatableQty: 0,
+                        allocatable: false,
+                        evidenceIds: [transferId, stockItemId, text(transfer?.finishedProductMovementId)].filter(Boolean)
+                    });
+                    return;
+                }
+                if (postedEvidence.stockQty <= EPSILON) return;
+                const shipmentMatches = asArray(shipments).filter((shipment) =>
+                    text(shipment?.id) === text(transfer?.sourceShipmentId)
+                );
+                const planMatches = asArray(plans).filter((plan) =>
+                    text(plan?.id) === text(transfer?.sourcePlanId)
+                );
+                segments.push(createLifecycleSvrSegment({
+                    stage: 'MONTAGE_FINISHED_STOCK',
+                    sourceKind: 'CURRENT_SVR_STOCK_ROW',
+                    shipment: shipmentMatches.length === 1
+                        ? shipmentMatches[0]
+                        : { id: text(transfer?.sourceShipmentId), shipmentNo: text(transfer?.sourceShipmentNo) },
+                    plan: planMatches.length === 1
+                        ? planMatches[0]
+                        : { id: text(transfer?.sourcePlanId), planNo: text(transfer?.sourcePlanNo) },
+                    item: normalized.item,
+                    itemIndex: Number.isInteger(Number(transfer?.sourceShipmentItemIndex))
+                        ? Number(transfer.sourceShipmentItemIndex)
+                        : 0,
+                    transfer,
+                    qty: postedEvidence.stockQty,
+                    stockRow: postedEvidence.stockRow,
+                    evidenceIds: [
+                        transferId,
+                        text(transfer?.sourceShipmentId),
+                        text(transfer?.sourcePlanId),
+                        ...postedEvidence.evidenceIds
+                    ]
+                }));
+            });
+        return { segments, uncertain, handledStockRowIds };
     };
 
     const resolveMontageLifecycle = ({
@@ -1917,10 +2668,12 @@ const SanalTaksimResolver = (() => {
                                 intervalsBySegment.set(hold.physicalSegmentId, []);
                             }
                             intervalsBySegment.get(hold.physicalSegmentId).push(hold);
-                            heldQtyByStockRow.set(
-                                hold.stockRowId,
-                                roundQty((heldQtyByStockRow.get(hold.stockRowId) || 0) + hold.qty)
-                            );
+                            if (hold.stockRowId) {
+                                heldQtyByStockRow.set(
+                                    hold.stockRowId,
+                                    roundQty((heldQtyByStockRow.get(hold.stockRowId) || 0) + hold.qty)
+                                );
+                            }
                         }
                         const overlaps = Array.from(intervalsBySegment.values()).some((ranges) => {
                             ranges.sort((left, right) =>
@@ -2058,6 +2811,7 @@ const SanalTaksimResolver = (() => {
                             transfer,
                             item,
                             stockRows,
+                            movements,
                             movementById
                         });
                         if (!postedEvidence.ok) {
@@ -2320,71 +3074,19 @@ const SanalTaksimResolver = (() => {
     };
 
     const resolveProductionQueue = (order) => {
-        const hasQueue = Object.prototype.hasOwnProperty.call(order || {}, 'productionQueue');
-        if (!hasQueue || order?.productionQueue === null || order?.productionQueue === undefined) {
-            return {
-                present: false,
-                ok: true,
-                manualOrder: null,
-                updatedAt: '',
-                updatedBy: '',
-                reasonCode: ''
-            };
-        }
-        const queue = order.productionQueue;
-        if (!queue || typeof queue !== 'object' || Array.isArray(queue)) {
-            return {
-                present: true,
-                ok: false,
-                manualOrder: null,
-                updatedAt: '',
-                updatedBy: '',
-                reasonCode: 'SOR_MANUAL_QUEUE_INVALID'
-            };
-        }
-        const hasManualOrder = Object.prototype.hasOwnProperty.call(queue, 'manualOrder')
-            && queue.manualOrder !== ''
-            && queue.manualOrder !== null
-            && queue.manualOrder !== undefined;
-        if (!hasManualOrder) {
-            return {
-                present: false,
-                ok: true,
-                manualOrder: null,
-                updatedAt: '',
-                updatedBy: '',
-                reasonCode: ''
-            };
-        }
-        const manualOrder = Number(queue.manualOrder);
-        if (!Number.isSafeInteger(manualOrder) || manualOrder <= 0) {
-            return {
-                present: true,
-                ok: false,
-                manualOrder: null,
-                updatedAt: text(queue.updatedAt),
-                updatedBy: text(queue.updatedBy),
-                reasonCode: 'SOR_MANUAL_ORDER_INVALID'
-            };
-        }
-        const updatedAt = getDateEvidence(queue.updatedAt);
-        const updatedBy = text(queue.updatedBy);
-        if (!updatedAt.ok || !updatedBy) {
-            return {
-                present: true,
-                ok: false,
-                manualOrder,
-                updatedAt: updatedAt.iso,
-                updatedBy,
-                reasonCode: 'SOR_MANUAL_AUDIT_INVALID'
-            };
-        }
+        const queue = order?.productionQueue;
+        const rawManualOrder = queue && typeof queue === 'object' && !Array.isArray(queue)
+            ? Number(queue.manualOrder)
+            : NaN;
+        const manualOrder = Number.isSafeInteger(rawManualOrder) && rawManualOrder > 0
+            ? rawManualOrder
+            : null;
         return {
-            present: true,
+            present: manualOrder !== null,
             ok: true,
             manualOrder,
-            updatedAt: updatedAt.iso,
-            updatedBy,
+            updatedAt: manualOrder === null ? '' : text(queue?.updatedAt),
+            updatedBy: manualOrder === null ? '' : text(queue?.updatedBy),
             reasonCode: ''
         };
     };
@@ -2928,6 +3630,631 @@ const SanalTaksimResolver = (() => {
         };
     };
 
+    const compareCommercialPriority = (left, right) => {
+        const leftType = left.debtType === 'SALES' ? 0 : left.debtType === 'STOCK' ? 1 : 2;
+        const rightType = right.debtType === 'SALES' ? 0 : right.debtType === 'STOCK' ? 1 : 2;
+        if (leftType !== rightType) return leftType - rightType;
+        const leftDue = Number.isFinite(left.dueTimestamp) ? left.dueTimestamp : Number.MAX_SAFE_INTEGER;
+        const rightDue = Number.isFinite(right.dueTimestamp) ? right.dueTimestamp : Number.MAX_SAFE_INTEGER;
+        if (leftDue !== rightDue) return leftDue - rightDue;
+        const leftReady = Number.isFinite(left.productionReadyTimestamp)
+            ? left.productionReadyTimestamp
+            : Number.MAX_SAFE_INTEGER;
+        const rightReady = Number.isFinite(right.productionReadyTimestamp)
+            ? right.productionReadyTimestamp
+            : Number.MAX_SAFE_INTEGER;
+        return leftReady - rightReady
+            || compareText(left.sorKey, right.sorKey)
+            || compareText(left.productDebtKey || left.debtKey, right.productDebtKey || right.debtKey);
+    };
+
+    const buildFinishedProductIdentityKey = (value) => [
+        text(value?.productId),
+        normalizeVariantId(value?.variantId || value?.variationId),
+        code(value?.variantCode || value?.svrCode),
+        code(value?.unit || 'ADET') || 'ADET'
+    ].join('|');
+
+    const resolveFinalDispatchedSetQty = ({
+        productDebt,
+        order,
+        orderLine,
+        salesShipments,
+        movements,
+        shipmentIdCounts,
+        shipmentKeyCounts
+    }) => {
+        let dispatchedQty = 0;
+        const evidenceIds = [];
+        const movementIds = new Set();
+        const relevant = salesShipments.filter((shipment) =>
+            code(shipment?.status) === 'DISPATCHED'
+            && text(shipment?.sourceOrderId || shipment?.snapshot?.sourceOrderId) === text(order?.id)
+        );
+        for (const shipment of relevant) {
+            const shipmentId = text(shipment?.id);
+            const shipmentPlanId = text(shipment?.shipmentPlanId);
+            const idempotencyKey = text(shipment?.idempotencyKey);
+            if (!shipmentId || shipmentIdCounts.get(shipmentId) !== 1) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_ID_DUPLICATE', dispatchedQty: null, evidenceIds };
+            }
+            if (idempotencyKey && shipmentKeyCounts.get(idempotencyKey) !== 1) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_IDEMPOTENCY_DUPLICATE', dispatchedQty: null, evidenceIds };
+            }
+            if (!shipmentPlanId) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_PLAN_MISSING', dispatchedQty: null, evidenceIds };
+            }
+            const items = asArray(shipment?.snapshot?.items).length
+                ? asArray(shipment.snapshot.items)
+                : asArray(shipment?.items);
+            const sameLine = items.filter((item) => text(item?.sourceLineId) === text(orderLine?.id));
+            const matches = sameLine.filter((item) => shipmentItemMatchesOrderLine({
+                item,
+                shipment,
+                order,
+                orderLine
+            }) && buildFinishedProductIdentityKey({
+                productId: item?.productId,
+                variantId: item?.variantId || item?.variationId,
+                variantCode: item?.variantCode || item?.svrCode,
+                unit: item?.unit || 'ADET'
+            }) === productDebt.productIdentityKey);
+            if (sameLine.length && matches.length !== sameLine.length) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_IDENTITY_CONFLICT', dispatchedQty: null, evidenceIds };
+            }
+            if (!matches.length) continue;
+            if (matches.length !== 1) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_LINE_DUPLICATE', dispatchedQty: null, evidenceIds };
+            }
+            const item = matches[0];
+            const shippedQty = getShipmentItemQty(item);
+            const allocations = asArray(item?.stockAllocations);
+            if (!isPositiveQty(shippedQty) || !allocations.length) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_EXACT_PROOF_MISSING', dispatchedQty: null, evidenceIds };
+            }
+            let allocationTotal = 0;
+            for (const allocation of allocations) {
+                const allocationQty = Number(allocation?.allocatedQty);
+                const stockItemId = text(allocation?.stockItemId || allocation?.stockDepotItemId);
+                const movementId = text(allocation?.stockMovementId);
+                const movementMatches = movements.filter((movement) =>
+                    text(movement?.id) === movementId
+                    && code(movement?.movementType || movement?.type) === 'SALES_SHIPMENT_OUT'
+                    && text(movement?.shipmentId) === shipmentId
+                    && text(movement?.shipmentPlanId) === shipmentPlanId
+                    && text(movement?.stockDepotItemId || movement?.stockItemId) === stockItemId
+                    && text(movement?.sourceOrderId) === productDebt.originOrderId
+                    && text(movement?.sourceLineId) === productDebt.originOrderLineId
+                    && buildFinishedProductIdentityKey({
+                        productId: movement?.productId,
+                        variantId: movement?.variantId || movement?.variationId,
+                        variantCode: movement?.variantCode || movement?.svrCode,
+                        unit: movement?.unit
+                    }) === productDebt.productIdentityKey
+                    && sameQty(movement?.qty ?? movement?.quantity, allocationQty)
+                );
+                if (!isPositiveQty(allocationQty)
+                    || !stockItemId
+                    || !movementId
+                    || movementIds.has(movementId)
+                    || movementMatches.length !== 1) {
+                    return { ok: false, reasonCode: 'PRODUCT_DISPATCH_MOVEMENT_CONFLICT', dispatchedQty: null, evidenceIds };
+                }
+                movementIds.add(movementId);
+                allocationTotal = roundQty(allocationTotal + allocationQty);
+                evidenceIds.push(stockItemId, movementId);
+            }
+            if (!sameQty(allocationTotal, shippedQty)) {
+                return { ok: false, reasonCode: 'PRODUCT_DISPATCH_QTY_CONFLICT', dispatchedQty: null, evidenceIds };
+            }
+            dispatchedQty = roundQty(dispatchedQty + shippedQty);
+            evidenceIds.push(shipmentId, shipmentPlanId);
+        }
+        if (dispatchedQty > productDebt.targetSetQty + EPSILON) {
+            return { ok: false, reasonCode: 'PRODUCT_DISPATCH_EXCEEDS_TARGET', dispatchedQty: null, evidenceIds };
+        }
+        return {
+            ok: true,
+            reasonCode: '',
+            dispatchedQty,
+            evidenceIds: Array.from(new Set(evidenceIds)).sort(compareText)
+        };
+    };
+
+    const buildReleasedProductDebts = ({ orders, demands, salesShipments, movements }) => {
+        const orderIdCounts = new Map();
+        const demandIdCounts = new Map();
+        const shipmentIdCounts = new Map();
+        const shipmentKeyCounts = new Map();
+        orders.forEach((row) => {
+            const id = text(row?.id);
+            if (id) orderIdCounts.set(id, (orderIdCounts.get(id) || 0) + 1);
+        });
+        demands.forEach((row) => {
+            const id = text(row?.id);
+            if (id) demandIdCounts.set(id, (demandIdCounts.get(id) || 0) + 1);
+        });
+        salesShipments.forEach((row) => {
+            const id = text(row?.id);
+            const key = text(row?.idempotencyKey);
+            if (id) shipmentIdCounts.set(id, (shipmentIdCounts.get(id) || 0) + 1);
+            if (key) shipmentKeyCounts.set(key, (shipmentKeyCounts.get(key) || 0) + 1);
+        });
+        const productDebts = [];
+        stableSort(demands, (demand, index) => `${text(demand?.id)}|${index}`)
+            .filter((demand) => normalizeDebtType(demand?.sourceType) === 'SALES'
+                && code(demand?.status) === 'RELEASED')
+            .forEach((demand) => {
+                const demandId = text(demand?.id);
+                const orderId = text(demand?.sourceOrderId);
+                const lineId = text(demand?.sourceLineId);
+                const matchingOrders = orders.filter((order) => text(order?.id) === orderId);
+                const order = matchingOrders.length === 1 ? matchingOrders[0] : null;
+                const matchingLines = order
+                    ? asArray(order?.lines).filter((line) => text(line?.id) === lineId)
+                    : [];
+                const orderLine = matchingLines.length === 1 ? matchingLines[0] : null;
+                stableSort(asArray(demand?.items), (item, index) =>
+                    `${text(item?.id || item?.itemKey || item?.key)}|${index}`
+                ).forEach((item) => {
+                    const itemKey = text(item?.id || item?.itemKey || item?.key);
+                    const reasonCodes = [];
+                    if (!demandId || demandIdCounts.get(demandId) !== 1) reasonCodes.push('PRODUCT_DEBT_PLN_ID_INVALID');
+                    if (!order || orderIdCounts.get(orderId) !== 1 || isInactiveOrder(order)) {
+                        reasonCodes.push('PRODUCT_DEBT_SOR_INVALID');
+                    }
+                    if (!orderLine || matchingLines.length !== 1 || isInactiveOrderLine(orderLine)) {
+                        reasonCodes.push('PRODUCT_DEBT_SOR_LINE_INVALID');
+                    }
+                    if (!itemKey) reasonCodes.push('PRODUCT_DEBT_ITEM_KEY_MISSING');
+                    const itemQty = getPositiveLineQty(item);
+                    const lineQty = getPositiveLineQty(orderLine);
+                    if (!isPositiveQty(itemQty) || !isPositiveQty(lineQty) || !sameQty(itemQty, lineQty)) {
+                        reasonCodes.push('PRODUCT_DEBT_SET_QTY_CONFLICT');
+                    }
+                    const productId = text(orderLine?.productId || item?.productId);
+                    const variantId = normalizeVariantId(
+                        orderLine?.variationId || orderLine?.variantId || item?.variantId || item?.variationId
+                    );
+                    const variantCode = code(
+                        orderLine?.variantCode || orderLine?.svrCode || item?.variantCode || item?.svrCode
+                    );
+                    const itemVariantId = normalizeVariantId(item?.variantId || item?.variationId);
+                    const itemVariantCode = code(item?.variantCode || item?.svrCode || item?.productCode);
+                    const unit = code(orderLine?.unit || orderLine?.quantityUnit || item?.unit || 'ADET');
+                    if (!productId || !variantId || !variantCode || unit !== 'ADET') {
+                        reasonCodes.push('PRODUCT_DEBT_IDENTITY_MISSING');
+                    }
+                    if ((itemVariantId && itemVariantId !== variantId)
+                        || (itemVariantCode && itemVariantCode !== variantCode)) {
+                        reasonCodes.push('PRODUCT_DEBT_VARIANT_CONFLICT');
+                    }
+                    const releaseDate = getDateEvidence(demand?.released_at);
+                    const dueDate = getDateEvidence(order?.deliveryDate || order?.dueDate || demand?.dueDate);
+                    if (!releaseDate.ok) reasonCodes.push('PRODUCT_DEBT_RELEASE_DATE_MISSING');
+                    if (!dueDate.ok) reasonCodes.push('PRODUCT_DEBT_DUE_DATE_MISSING');
+                    const productionQueue = resolveProductionQueue(order);
+                    if (!productionQueue.ok) reasonCodes.push(productionQueue.reasonCode);
+                    const productIdentityKey = buildFinishedProductIdentityKey({
+                        productId,
+                        variantId,
+                        variantCode,
+                        unit
+                    });
+                    const productDebt = {
+                        productDebtKey: ['PRODUCT_DEBT', demandId, itemKey, orderId, lineId, productIdentityKey].join('|'),
+                        debtType: 'SALES',
+                        productId,
+                        variantId,
+                        variantCode,
+                        unit,
+                        productIdentityKey,
+                        targetSetQty: isPositiveQty(itemQty) ? roundQty(itemQty) : null,
+                        dispatchedSetQty: null,
+                        openSetQty: null,
+                        fixedSvpQty: 0,
+                        dynamicReadyQty: 0,
+                        finishedReadyQty: 0,
+                        residualSetQty: null,
+                        uncoveredSetQty: null,
+                        allocationEligible: false,
+                        reasonCodes: [],
+                        originDemandId: demandId,
+                        originDemandCode: text(demand?.demandCode),
+                        originItemKey: itemKey,
+                        originOrderId: orderId,
+                        originOrderNo: text(order?.orderNo || demand?.sourceOrderNo),
+                        originOrderLineId: lineId,
+                        dueDate: dueDate.ok ? dueDate.raw : '',
+                        dueTimestamp: dueDate.timestamp,
+                        productionReadyAt: releaseDate.ok ? releaseDate.iso : '',
+                        productionReadyTimestamp: releaseDate.timestamp,
+                        sorKey: `${text(order?.orderNo)}|${orderId}`,
+                        manualOrder: productionQueue.manualOrder,
+                        manualOrderUpdatedAt: productionQueue.updatedAt,
+                        manualOrderUpdatedBy: productionQueue.updatedBy,
+                        dispatchEvidenceIds: []
+                    };
+                    if (order && orderLine && isPositiveQty(productDebt.targetSetQty)
+                        && productId && variantId && variantCode && unit === 'ADET') {
+                        const dispatch = resolveFinalDispatchedSetQty({
+                            productDebt,
+                            order,
+                            orderLine,
+                            salesShipments,
+                            movements,
+                            shipmentIdCounts,
+                            shipmentKeyCounts
+                        });
+                        if (!dispatch.ok) reasonCodes.push(dispatch.reasonCode);
+                        else {
+                            productDebt.dispatchedSetQty = dispatch.dispatchedQty;
+                            productDebt.openSetQty = roundQty(productDebt.targetSetQty - dispatch.dispatchedQty);
+                            productDebt.dispatchEvidenceIds = dispatch.evidenceIds;
+                        }
+                    }
+                    productDebt.reasonCodes = Array.from(new Set(reasonCodes)).sort(compareText);
+                    productDebt.allocationEligible = productDebt.reasonCodes.length === 0
+                        && Number.isFinite(productDebt.openSetQty);
+                    productDebts.push(productDebt);
+                });
+            });
+        const debtKeyCounts = new Map();
+        productDebts.forEach((debt) => debtKeyCounts.set(
+            debt.productDebtKey,
+            (debtKeyCounts.get(debt.productDebtKey) || 0) + 1
+        ));
+        productDebts.forEach((debt) => {
+            if (debtKeyCounts.get(debt.productDebtKey) === 1) return;
+            debt.reasonCodes = Array.from(new Set([...debt.reasonCodes, 'PRODUCT_DEBT_KEY_DUPLICATE'])).sort(compareText);
+            debt.allocationEligible = false;
+        });
+        return productDebts.sort(compareCommercialPriority);
+    };
+
+    const validateFinishedAllocationProof = ({ proof, allocation, segment, debt }) => {
+        if (!proof || typeof proof !== 'object' || Array.isArray(proof)) return false;
+        return text(proof.resolverVersion) === VERSION
+            && text(proof.sourceAllocationKey)
+            && Number(proof.sourceAllocationQty) >= Number(allocation?.allocatedQty)
+            && text(proof.physicalSegmentId) === segment.segmentKey
+            && text(proof.stockItemId) === segment.stockRowId
+            && text(proof.completionTransferId) === segment.transferId
+            && text(proof.inputMovementId) === segment.finishedProductMovementId
+            && text(proof.targetProductDebtKey) === debt.productDebtKey
+            && text(proof.targetOrderId) === debt.originOrderId
+            && text(proof.targetOrderLineId) === debt.originOrderLineId
+            && text(proof.targetDemandId) === debt.originDemandId
+            && text(proof.targetItemKey) === debt.originItemKey
+            && buildFinishedProductIdentityKey(proof) === debt.productIdentityKey
+            && sameQty(proof.qty, allocation?.allocatedQty);
+    };
+
+    const buildFinishedProductAllocation = ({ productDebts, readySegments, salesShipmentPlans }) => {
+        const segmentByStockItemId = new Map();
+        const segmentIdCounts = new Map();
+        readySegments.forEach((segment) => {
+            const stockItemId = text(segment?.stockRowId);
+            if (!stockItemId) return;
+            if (!segmentByStockItemId.has(stockItemId)) segmentByStockItemId.set(stockItemId, []);
+            segmentByStockItemId.get(stockItemId).push(segment);
+            segmentIdCounts.set(segment.segmentKey, (segmentIdCounts.get(segment.segmentKey) || 0) + 1);
+        });
+        const debtByTarget = new Map();
+        productDebts.forEach((debt) => {
+            const key = `${debt.originOrderId}|${debt.originOrderLineId}`;
+            if (!debtByTarget.has(key)) debtByTarget.set(key, []);
+            debtByTarget.get(key).push(debt);
+        });
+        const segmentRemainders = new Map(readySegments.map((segment) => [
+            segment.segmentKey,
+            roundQty(segment.allocatableQty ?? segment.physicalQty ?? segment.qty)
+        ]));
+        const debtRemainders = new Map(productDebts.map((debt) => [
+            debt.productDebtKey,
+            debt.allocationEligible && Number.isFinite(debt.openSetQty) ? roundQty(debt.openSetQty) : 0
+        ]));
+        const allocations = [];
+        const reconciliation = [];
+        const fixedPlanCommitments = [];
+        const planIdCounts = new Map();
+        asArray(salesShipmentPlans).forEach((plan) => {
+            const id = text(plan?.id);
+            if (id) planIdCounts.set(id, (planIdCounts.get(id) || 0) + 1);
+        });
+
+        stableSort(asArray(salesShipmentPlans), (plan, index) => `${text(plan?.id)}|${index}`)
+            .filter((plan) => code(plan?.status) === 'PLANNED')
+            .forEach((plan) => {
+                const planId = text(plan?.id);
+                const orderId = text(plan?.sourceOrderId);
+                stableSort(asArray(plan?.items), (item, index) => `${text(item?.sourceLineId)}|${index}`)
+                    .forEach((item, itemIndex) => {
+                        const lineId = text(item?.sourceLineId);
+                        const targetDebts = asArray(debtByTarget.get(`${orderId}|${lineId}`));
+                        const itemIdentity = buildFinishedProductIdentityKey({
+                            productId: item?.productId,
+                            variantId: item?.variantId || item?.variationId,
+                            variantCode: item?.variantCode || item?.svrCode,
+                            unit: item?.unit
+                        });
+                        const matchingDebts = targetDebts.filter((debt) => debt.productIdentityKey === itemIdentity);
+                        const debt = matchingDebts.length === 1 ? matchingDebts[0] : null;
+                        const plannedQty = Number(item?.plannedQty);
+                        const stockAllocations = asArray(item?.stockAllocations);
+                        const allocationTotal = roundQty(stockAllocations.reduce((sum, allocation) =>
+                            sum + Number(allocation?.allocatedQty || 0), 0));
+                        const baseValid = !!planId
+                            && planIdCounts.get(planId) === 1
+                            && !!debt
+                            && debt.allocationEligible
+                            && isPositiveQty(plannedQty)
+                            && stockAllocations.length > 0
+                            && stockAllocations.every((allocation) => isPositiveQty(allocation?.allocatedQty))
+                            && sameQty(allocationTotal, plannedQty);
+                        let commitmentValid = baseValid;
+                        const commitmentAllocations = [];
+                        stockAllocations.forEach((allocation, allocationIndex) => {
+                            const stockItemId = text(allocation?.stockItemId || allocation?.stockDepotItemId);
+                            const candidates = asArray(segmentByStockItemId.get(stockItemId));
+                            const segment = candidates.length === 1 ? candidates[0] : null;
+                            const qty = Number(allocation?.allocatedQty);
+                            const staticTargetExact = !!segment && !!debt
+                                && text(segment.originOrderId) === debt.originOrderId
+                                && text(segment.originOrderLineId) === debt.originOrderLineId;
+                            const proof = allocation?.sanalTaksimAllocationProof;
+                            const proofExact = !!segment && !!debt
+                                && validateFinishedAllocationProof({ proof, allocation, segment, debt });
+                            const allocationValid = baseValid
+                                && !!segment
+                                && segmentIdCounts.get(segment.segmentKey) === 1
+                                && segment.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
+                                && segment.reallocatable === true
+                                && buildFinishedProductIdentityKey(segment) === debt.productIdentityKey
+                                && (staticTargetExact || proofExact);
+                            if (!allocationValid) commitmentValid = false;
+                            commitmentAllocations.push({
+                                allocation,
+                                allocationIndex,
+                                segment,
+                                qty,
+                                staticTargetExact,
+                                proofExact,
+                                allocationValid
+                            });
+                        });
+                        const requestedBySegment = new Map();
+                        commitmentAllocations.forEach((entry) => {
+                            if (!entry.segment || !isPositiveQty(entry.qty)) return;
+                            requestedBySegment.set(entry.segment.segmentKey, roundQty(
+                                (requestedBySegment.get(entry.segment.segmentKey) || 0) + entry.qty
+                            ));
+                        });
+                        if (commitmentValid && allocationTotal
+                            > Number(debtRemainders.get(debt.productDebtKey) || 0) + EPSILON) {
+                            commitmentValid = false;
+                        }
+                        if (commitmentValid && Array.from(requestedBySegment.entries()).some(([segmentKey, qty]) =>
+                            qty > Number(segmentRemainders.get(segmentKey) || 0) + EPSILON
+                        )) {
+                            commitmentValid = false;
+                        }
+                        commitmentAllocations.forEach((entry) => {
+                            const { allocation, allocationIndex, segment, qty } = entry;
+                            if (!segment || !isPositiveQty(qty)) return;
+                            const before = roundQty(segmentRemainders.get(segment.segmentKey) || 0);
+                            const quarantinedQty = roundQty(Math.min(before, qty));
+                            segmentRemainders.set(segment.segmentKey, roundQty(before - quarantinedQty));
+                            if (!commitmentValid) return;
+                            const debtBefore = roundQty(debtRemainders.get(debt.productDebtKey) || 0);
+                            const fixedQty = roundQty(qty);
+                            debtRemainders.set(debt.productDebtKey, roundQty(debtBefore - qty));
+                            allocations.push({
+                                allocationKey: `FINISHED_FIXED|${planId}|${itemIndex}|${allocationIndex}`,
+                                physicalSegmentId: segment.segmentKey,
+                                stockItemId: segment.stockRowId,
+                                completionTransferId: segment.transferId,
+                                inputMovementId: segment.finishedProductMovementId,
+                                targetProductDebtKey: debt.productDebtKey,
+                                targetOrderId: debt.originOrderId,
+                                targetOrderLineId: debt.originOrderLineId,
+                                targetDemandId: debt.originDemandId,
+                                targetItemKey: debt.originItemKey,
+                                productId: debt.productId,
+                                variantId: debt.variantId,
+                                variantCode: debt.variantCode,
+                                unit: debt.unit,
+                                qty: fixedQty,
+                                fixedBySalesShipmentPlan: true,
+                                salesShipmentPlanId: planId,
+                                originOrderId: text(segment.originOrderId),
+                                originOrderLineId: text(segment.originOrderLineId),
+                                evidenceIds: asArray(segment.evidenceIds).slice()
+                            });
+                        });
+                        if (!commitmentValid) {
+                            reconciliation.push({
+                                kind: 'PLANNED_SVP_CONFLICT',
+                                planId,
+                                planNo: text(plan?.planNo),
+                                itemIndex,
+                                targetOrderId: orderId,
+                                targetOrderLineId: lineId,
+                                reportedQty: Number.isFinite(plannedQty) ? roundQty(plannedQty) : null,
+                                reasonCode: !baseValid
+                                    ? 'PLANNED_SVP_CONTRACT_INVALID'
+                                    : 'PLANNED_SVP_EXACT_ALLOCATION_CONFLICT'
+                            });
+                        }
+                        fixedPlanCommitments.push({
+                            planId,
+                            planNo: text(plan?.planNo),
+                            itemIndex,
+                            targetProductDebtKey: text(debt?.productDebtKey),
+                            qty: Number.isFinite(plannedQty) ? roundQty(plannedQty) : null,
+                            valid: commitmentValid,
+                            reasonCode: commitmentValid ? '' : reconciliation[reconciliation.length - 1]?.reasonCode || 'PLANNED_SVP_CONFLICT'
+                        });
+                    });
+            });
+
+        const orderedDebts = productDebts.slice().sort(compareCommercialPriority);
+        const orderedSegments = readySegments.slice().sort((left, right) =>
+            compareText(left.segmentKey, right.segmentKey)
+        );
+        orderedDebts.filter((debt) => debt.allocationEligible && debt.openSetQty > EPSILON)
+            .forEach((debt) => {
+                let debtRemaining = roundQty(debtRemainders.get(debt.productDebtKey) || 0);
+                for (const segment of orderedSegments) {
+                    if (debtRemaining <= EPSILON) break;
+                    if (segment.allocationState !== PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
+                        || segment.reallocatable !== true
+                        || buildFinishedProductIdentityKey(segment) !== debt.productIdentityKey) continue;
+                    const segmentRemaining = roundQty(segmentRemainders.get(segment.segmentKey) || 0);
+                    if (segmentRemaining <= EPSILON) continue;
+                    const qty = roundQty(Math.min(debtRemaining, segmentRemaining));
+                    segmentRemainders.set(segment.segmentKey, roundQty(segmentRemaining - qty));
+                    debtRemaining = roundQty(debtRemaining - qty);
+                    allocations.push({
+                        allocationKey: `FINISHED_DYNAMIC|${segment.segmentKey}|${debt.productDebtKey}`,
+                        physicalSegmentId: segment.segmentKey,
+                        stockItemId: segment.stockRowId,
+                        completionTransferId: segment.transferId,
+                        inputMovementId: segment.finishedProductMovementId,
+                        targetProductDebtKey: debt.productDebtKey,
+                        targetOrderId: debt.originOrderId,
+                        targetOrderLineId: debt.originOrderLineId,
+                        targetDemandId: debt.originDemandId,
+                        targetItemKey: debt.originItemKey,
+                        productId: debt.productId,
+                        variantId: debt.variantId,
+                        variantCode: debt.variantCode,
+                        unit: debt.unit,
+                        qty,
+                        fixedBySalesShipmentPlan: false,
+                        salesShipmentPlanId: '',
+                        originOrderId: text(segment.originOrderId),
+                        originOrderLineId: text(segment.originOrderLineId),
+                        evidenceIds: asArray(segment.evidenceIds).slice(),
+                        sanalTaksimAllocationProof: {
+                            resolverVersion: VERSION,
+                            sourceAllocationKey: `FINISHED_DYNAMIC|${segment.segmentKey}|${debt.productDebtKey}`,
+                            sourceAllocationQty: qty,
+                            physicalSegmentId: segment.segmentKey,
+                            stockItemId: segment.stockRowId,
+                            completionTransferId: segment.transferId,
+                            inputMovementId: segment.finishedProductMovementId,
+                            targetProductDebtKey: debt.productDebtKey,
+                            targetOrderId: debt.originOrderId,
+                            targetOrderLineId: debt.originOrderLineId,
+                            targetDemandId: debt.originDemandId,
+                            targetItemKey: debt.originItemKey,
+                            productId: debt.productId,
+                            variantId: debt.variantId,
+                            variantCode: debt.variantCode,
+                            unit: debt.unit,
+                            qty
+                        }
+                    });
+                }
+                debtRemainders.set(debt.productDebtKey, debtRemaining);
+            });
+
+        const allocationByDebt = new Map();
+        const fixedByDebt = new Map();
+        const dynamicByDebt = new Map();
+        const allocationBySegment = new Map();
+        allocations.forEach((allocation) => {
+            allocationByDebt.set(allocation.targetProductDebtKey, roundQty(
+                (allocationByDebt.get(allocation.targetProductDebtKey) || 0) + allocation.qty
+            ));
+            allocationBySegment.set(allocation.physicalSegmentId, roundQty(
+                (allocationBySegment.get(allocation.physicalSegmentId) || 0) + allocation.qty
+            ));
+            const bucket = allocation.fixedBySalesShipmentPlan ? fixedByDebt : dynamicByDebt;
+            bucket.set(allocation.targetProductDebtKey, roundQty(
+                (bucket.get(allocation.targetProductDebtKey) || 0) + allocation.qty
+            ));
+        });
+        productDebts.forEach((debt) => {
+            debt.fixedSvpQty = roundQty(fixedByDebt.get(debt.productDebtKey) || 0);
+            debt.dynamicReadyQty = roundQty(dynamicByDebt.get(debt.productDebtKey) || 0);
+            debt.finishedReadyQty = roundQty(allocationByDebt.get(debt.productDebtKey) || 0);
+            debt.residualSetQty = debt.allocationEligible
+                ? roundQty(Math.max(0, debt.openSetQty - debt.finishedReadyQty))
+                : null;
+            debt.uncoveredSetQty = debt.residualSetQty;
+        });
+        allocations.filter((allocation) => allocation.fixedBySalesShipmentPlan === true)
+            .forEach((allocation) => {
+                const fixedDebt = productDebts.find((debt) =>
+                    debt.productDebtKey === allocation.targetProductDebtKey
+                );
+                if (!fixedDebt) return;
+                const displaced = productDebts.filter((debt) =>
+                    debt.productIdentityKey === fixedDebt.productIdentityKey
+                    && debt.allocationEligible
+                    && debt.productDebtKey !== fixedDebt.productDebtKey
+                    && compareCommercialPriority(debt, fixedDebt) < 0
+                    && Number(debt.openSetQty || 0)
+                        > Number(allocationByDebt.get(debt.productDebtKey) || 0) + EPSILON
+                );
+                if (!displaced.length) return;
+                reconciliation.push({
+                    kind: 'PLANNED_SVP_PRIORITY_RECONCILIATION',
+                    planId: allocation.salesShipmentPlanId,
+                    targetProductDebtKey: fixedDebt.productDebtKey,
+                    physicalSegmentId: allocation.physicalSegmentId,
+                    qty: allocation.qty,
+                    displacedProductDebtKeys: displaced.map((debt) => debt.productDebtKey).sort(compareText),
+                    reasonCode: 'PLANNED_SVP_DIFFERS_FROM_CURRENT_PRIORITY'
+                });
+            });
+        const finishedAllocationWithinQty = readySegments.every((segment) =>
+            (allocationBySegment.get(segment.segmentKey) || 0) <= Number(segment.allocatableQty || 0) + EPSILON
+        );
+        const productAllocationWithinOpenDebt = productDebts.every((debt) =>
+            !debt.allocationEligible
+            || (allocationByDebt.get(debt.productDebtKey) || 0) <= debt.openSetQty + EPSILON
+        );
+        const segmentConsumedOnce = readySegments.every((segment) => {
+            const allocated = roundQty(allocationBySegment.get(segment.segmentKey) || 0);
+            const remaining = roundQty(segmentRemainders.get(segment.segmentKey) || 0);
+            return allocated + remaining <= Number(segment.allocatableQty || 0) + EPSILON;
+        });
+        return {
+            productDebts,
+            allocations,
+            residualProductDebts: productDebts.map((debt) => ({
+                productDebtKey: debt.productDebtKey,
+                targetOrderId: debt.originOrderId,
+                targetOrderLineId: debt.originOrderLineId,
+                demandId: debt.originDemandId,
+                itemKey: debt.originItemKey,
+                productId: debt.productId,
+                variantId: debt.variantId,
+                variantCode: debt.variantCode,
+                unit: debt.unit,
+                openSetQty: debt.openSetQty,
+                fixedSvpQty: debt.fixedSvpQty,
+                dynamicReadyQty: debt.dynamicReadyQty,
+                residualSetQty: debt.residualSetQty,
+                reasonCodes: debt.reasonCodes.slice()
+            })),
+            operationalReconciliation: {
+                fixedPlanCommitments,
+                issues: reconciliation,
+                hasConflict: reconciliation.length > 0
+            },
+            segmentRemainders,
+            invariants: {
+                finishedAllocationWithinQty,
+                productAllocationWithinOpenDebt,
+                segmentConsumedOnce
+            }
+        };
+    };
+
     const getExactHoldTargetKey = (row) => [
         code(row?.sourceType),
         text(row?.sourceOrderId),
@@ -3280,14 +4607,10 @@ const SanalTaksimResolver = (() => {
                 });
                 const segmentValid = !!segment
                     && segmentCounts.get(physicalSegmentId) === 1
-                    && segment.sourceKind === 'CURRENT_STOCK_ROW'
-                    && segment.stage === 'DEPOT_STOCK'
-                    && segment.mainDepot === true
-                    && segment.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
-                    && segment.reallocatable === true
+                    && isExactReservablePrcSegment(segment)
                     && code(segment.originSourceType) !== 'UNSCOPED'
                     && text(segment.stockRowId) === stockRowId
-                    && physicalSegmentId === `STOCK|${stockRowId}`
+                    && (!stockRowId || physicalSegmentId === `STOCK|${stockRowId}`)
                     && segment.prcId === text(record.prcId)
                     && segment.prcCode === code(record.prcCode)
                     && segment.unit === code(record.unit)
@@ -3767,13 +5090,8 @@ const SanalTaksimResolver = (() => {
             if (!physicalSegmentId
                 || segmentCounts.get(physicalSegmentId) !== 1
                 || holdLedger?.invalidSegmentKeys?.has(physicalSegmentId)
-                || segment?.sourceKind !== 'CURRENT_STOCK_ROW'
-                || segment?.stage !== 'DEPOT_STOCK'
-                || segment?.mainDepot !== true
-                || segment?.allocationState !== PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
-                || segment?.reallocatable !== true
-                || !stockRowId
-                || physicalSegmentId !== `STOCK|${stockRowId}`
+                || !isExactReservablePrcSegment(segment)
+                || (stockRowId && physicalSegmentId !== `STOCK|${stockRowId}`)
                 || segment?.prcId !== normalizedTarget.prcId
                 || segment?.prcCode !== normalizedTarget.prcCode
                 || segment?.unit !== normalizedTarget.unit
@@ -3869,15 +5187,35 @@ const SanalTaksimResolver = (() => {
         prcIndex,
         workOrders,
         segments,
+        readySegments = [],
         executions,
         completionTransfers,
         exactHolds = [],
         lifecycleReservations = [],
+        technicalEligibility = null,
         exactSourceTarget = null
     }) => {
         const orders = asArray(input.orders);
         const demands = asArray(input.planningDemands);
         const salesShipments = asArray(input.salesShipments);
+        const movements = asArray(input.stock_movements);
+        const productDebts = buildReleasedProductDebts({
+            orders,
+            demands,
+            salesShipments,
+            movements
+        });
+        const finishedProductAllocation = buildFinishedProductAllocation({
+            productDebts,
+            readySegments,
+            salesShipmentPlans: asArray(input.salesShipmentPlans)
+        });
+        const productDebtByDemandItem = new Map();
+        productDebts.forEach((debt) => {
+            const key = `${debt.originDemandId}|${debt.originItemKey}`;
+            if (!productDebtByDemandItem.has(key)) productDebtByDemandItem.set(key, []);
+            productDebtByDemandItem.get(key).push(debt);
+        });
         const sourceEntitlements = buildPlanningSourceEntitlements({ demands, prcIndex });
         const sourceContractDemandIds = new Set(demands
             .filter((demand) => asArray(demand?.poolAnalysis?.rows).length > 0)
@@ -4003,16 +5341,22 @@ const SanalTaksimResolver = (() => {
                         } else {
                             originOrderLine = matchingLines[0];
                         }
-                        const readiness = getReadiness(originOrder);
-                        if (!readiness.ok) reasonCodes.push(...readiness.reasonCodes);
-                        if (readiness.releasedByLine.get(text(demand?.sourceLineId)) !== demand) {
-                            reasonCodes.push('SOR_DEBT_PLN_CONFLICT');
+                        const linkedProductDebts = asArray(productDebtByDemandItem.get(
+                            `${text(demand?.id)}|${originItemKey}`
+                        ));
+                        const productDebt = linkedProductDebts.length === 1 ? linkedProductDebts[0] : null;
+                        if (!productDebt) {
+                            reasonCodes.push(linkedProductDebts.length > 1
+                                ? 'PRODUCT_DEBT_LINK_DUPLICATE'
+                                : 'PRODUCT_DEBT_LINK_MISSING');
+                        } else {
+                            if (!productDebt.allocationEligible) reasonCodes.push(...productDebt.reasonCodes);
+                            dueDate = productDebt.dueDate;
+                            dueTimestamp = productDebt.dueTimestamp;
+                            productionReadyAt = productDebt.productionReadyAt;
+                            productionReadyTimestamp = productDebt.productionReadyTimestamp;
+                            sorKey = productDebt.sorKey;
                         }
-                        dueDate = readiness.dueDate;
-                        dueTimestamp = readiness.dueTimestamp;
-                        productionReadyAt = readiness.productionReadyAt;
-                        productionReadyTimestamp = readiness.productionReadyTimestamp;
-                        sorKey = readiness.sorKey;
                         const productionQueue = resolveProductionQueue(originOrder);
                         if (!productionQueue.ok) reasonCodes.push(productionQueue.reasonCode);
                         manualOrder = productionQueue.manualOrder;
@@ -4074,23 +5418,17 @@ const SanalTaksimResolver = (() => {
                 };
 
                 if (debtType === 'SALES' && originOrder && originOrderLine && prc.ok) {
-                    const dispatch = resolveDispatchedQty({
-                        debt,
-                        order: originOrder,
-                        orderLine: originOrderLine,
-                        prc,
-                        salesShipments,
-                        shipmentIdCounts,
-                        shipmentKeyCounts,
-                        completionTransfers,
-                        completionTransferIdCounts
-                    });
-                    if (!dispatch.ok) reasonCodes.push(dispatch.reasonCode);
-                    else {
-                        debt.dispatchedQty = dispatch.dispatchedQty;
-                        debt.openDebtQty = roundQty(Math.max(0, targetQty - dispatch.dispatchedQty));
+                    const linkedProductDebts = asArray(productDebtByDemandItem.get(
+                        `${text(demand?.id)}|${originItemKey}`
+                    ));
+                    const productDebt = linkedProductDebts.length === 1 ? linkedProductDebts[0] : null;
+                    if (productDebt?.allocationEligible && isPositiveQty(productDebt.targetSetQty)) {
+                        debt.dispatchedQty = roundQty(targetQty
+                            * Number(productDebt.dispatchedSetQty || 0)
+                            / productDebt.targetSetQty);
+                        debt.openDebtQty = roundQty(Math.max(0, targetQty - debt.dispatchedQty));
+                        debt.dispatchEvidenceIds = productDebt.dispatchEvidenceIds.slice();
                     }
-                    debt.dispatchEvidenceIds = dispatch.evidenceIds;
                 }
                 debt.reasonCodes = Array.from(new Set(reasonCodes)).sort(compareText);
                 debt.allocationEligible = debt.reasonCodes.length === 0
@@ -4156,13 +5494,22 @@ const SanalTaksimResolver = (() => {
                     } else {
                         originOrderLine = matchingLines[0];
                     }
-                    const readiness = getReadiness(originOrder);
-                    if (!readiness.ok) reasonCodes.push(...readiness.reasonCodes);
-                    dueDate = readiness.dueDate;
-                    dueTimestamp = readiness.dueTimestamp;
-                    productionReadyAt = readiness.productionReadyAt;
-                    productionReadyTimestamp = readiness.productionReadyTimestamp;
-                    sorKey = readiness.sorKey;
+                    const linkedProductDebts = asArray(productDebtByDemandItem.get(
+                        `${text(demand?.id)}|${entitlement.originItemKey}`
+                    ));
+                    const productDebt = linkedProductDebts.length === 1 ? linkedProductDebts[0] : null;
+                    if (!productDebt) {
+                        reasonCodes.push(linkedProductDebts.length > 1
+                            ? 'PRODUCT_DEBT_LINK_DUPLICATE'
+                            : 'PRODUCT_DEBT_LINK_MISSING');
+                    } else {
+                        if (!productDebt.allocationEligible) reasonCodes.push(...productDebt.reasonCodes);
+                        dueDate = productDebt.dueDate;
+                        dueTimestamp = productDebt.dueTimestamp;
+                        productionReadyAt = productDebt.productionReadyAt;
+                        productionReadyTimestamp = productDebt.productionReadyTimestamp;
+                        sorKey = productDebt.sorKey;
+                    }
                     const productionQueue = resolveProductionQueue(originOrder);
                     if (!productionQueue.ok) reasonCodes.push(productionQueue.reasonCode);
                     manualOrder = productionQueue.manualOrder;
@@ -4236,6 +5583,53 @@ const SanalTaksimResolver = (() => {
             debts.push(createSourceDebt(entitlement));
         });
 
+        debts.filter((debt) => debt.debtType === 'SALES').forEach((debt) => {
+            const linkedProductDebts = asArray(productDebtByDemandItem.get(
+                `${debt.originDemandId}|${debt.originItemKey}`
+            ));
+            const productDebt = linkedProductDebts.length === 1 ? linkedProductDebts[0] : null;
+            debt.originalOpenDebtQty = Number.isFinite(debt.openDebtQty)
+                ? roundQty(debt.openDebtQty)
+                : null;
+            debt.productDebtKey = text(productDebt?.productDebtKey);
+            debt.openProductSetQty = Number.isFinite(productDebt?.openSetQty)
+                ? roundQty(productDebt.openSetQty)
+                : null;
+            debt.finishedReadySetQty = Number.isFinite(productDebt?.finishedReadyQty)
+                ? roundQty(productDebt.finishedReadyQty)
+                : null;
+            debt.residualProductSetQty = Number.isFinite(productDebt?.residualSetQty)
+                ? roundQty(productDebt.residualSetQty)
+                : null;
+            if (!productDebt || !productDebt.allocationEligible || !isPositiveQty(productDebt.targetSetQty)) {
+                debt.reasonCodes = Array.from(new Set([
+                    ...debt.reasonCodes,
+                    !productDebt ? 'PRODUCT_DEBT_LINK_MISSING' : 'PRODUCT_DEBT_FAIL_CLOSED'
+                ])).sort(compareText);
+                debt.allocationEligible = false;
+                debt.openDebtQty = null;
+                debt.finishedReadyCoveredPrcQty = null;
+                return;
+            }
+            const residualPrcQty = roundQty(
+                Number(debt.targetQty || 0) * productDebt.residualSetQty / productDebt.targetSetQty
+            );
+            const dispatchedPrcQty = roundQty(
+                Number(debt.targetQty || 0) * productDebt.dispatchedSetQty / productDebt.targetSetQty
+            );
+            const readyCoveredPrcQty = roundQty(Math.max(
+                0,
+                Number(debt.targetQty || 0) - dispatchedPrcQty - residualPrcQty
+            ));
+            debt.dispatchedQty = dispatchedPrcQty;
+            debt.finishedReadyCoveredPrcQty = readyCoveredPrcQty;
+            debt.openDebtQty = residualPrcQty;
+            debt.qtyPerSet = roundQty(Number(debt.targetQty || 0) / productDebt.targetSetQty);
+            debt.dispatchEvidenceIds = productDebt.dispatchEvidenceIds.slice();
+            debt.allocationEligible = debt.reasonCodes.length === 0
+                && Number.isFinite(debt.openDebtQty);
+        });
+
         const debtKeyCounts = new Map();
         debts.forEach((debt) => debtKeyCounts.set(debt.debtKey, (debtKeyCounts.get(debt.debtKey) || 0) + 1));
         debts.forEach((debt) => {
@@ -4245,57 +5639,7 @@ const SanalTaksimResolver = (() => {
             }
         });
 
-        const manualOrderOwners = new Map();
-        debts
-            .filter((debt) => debt.debtType === 'SALES'
-                && debt.allocationEligible
-                && Number(debt.openDebtQty) > EPSILON
-                && Number.isSafeInteger(debt.manualOrder))
-            .forEach((debt) => {
-                if (!manualOrderOwners.has(debt.manualOrder)) manualOrderOwners.set(debt.manualOrder, new Set());
-                manualOrderOwners.get(debt.manualOrder).add(debt.originOrderId);
-            });
-        const duplicateManualOrders = new Set(Array.from(manualOrderOwners.entries())
-            .filter(([, orderIds]) => orderIds.size > 1)
-            .map(([manualOrder]) => manualOrder));
-        if (duplicateManualOrders.size) {
-            debts.forEach((debt) => {
-                if (debt.debtType !== 'SALES'
-                    || !duplicateManualOrders.has(debt.manualOrder)
-                    || Number(debt.openDebtQty) <= EPSILON) return;
-                debt.reasonCodes = Array.from(new Set([
-                    ...debt.reasonCodes,
-                    'SOR_MANUAL_ORDER_DUPLICATE'
-                ])).sort(compareText);
-                debt.allocationEligible = false;
-            });
-        }
-
-        const compareDebts = (left, right) => {
-            const leftType = left.debtType === 'SALES' ? 0 : left.debtType === 'STOCK' ? 1 : 2;
-            const rightType = right.debtType === 'SALES' ? 0 : right.debtType === 'STOCK' ? 1 : 2;
-            if (leftType !== rightType) return leftType - rightType;
-            if (leftType === 0 && rightType === 0) {
-                const leftHasManualOrder = Number.isSafeInteger(left.manualOrder);
-                const rightHasManualOrder = Number.isSafeInteger(right.manualOrder);
-                if (leftHasManualOrder !== rightHasManualOrder) return leftHasManualOrder ? -1 : 1;
-                if (leftHasManualOrder && left.manualOrder !== right.manualOrder) {
-                    return left.manualOrder - right.manualOrder;
-                }
-            }
-            const leftDue = Number.isFinite(left.dueTimestamp) ? left.dueTimestamp : Number.MAX_SAFE_INTEGER;
-            const rightDue = Number.isFinite(right.dueTimestamp) ? right.dueTimestamp : Number.MAX_SAFE_INTEGER;
-            if (leftDue !== rightDue) return leftDue - rightDue;
-            const leftReady = Number.isFinite(left.productionReadyTimestamp)
-                ? left.productionReadyTimestamp
-                : Number.MAX_SAFE_INTEGER;
-            const rightReady = Number.isFinite(right.productionReadyTimestamp)
-                ? right.productionReadyTimestamp
-                : Number.MAX_SAFE_INTEGER;
-            return leftReady - rightReady
-                || compareText(left.sorKey, right.sorKey)
-                || compareText(left.debtKey, right.debtKey);
-        };
+        const compareDebts = compareCommercialPriority;
         const orderedDebts = debts.slice().sort(compareDebts);
 
         const constraints = input.virtualAllocationConstraints || input.allocationConstraints || {};
@@ -4368,8 +5712,36 @@ const SanalTaksimResolver = (() => {
             segment?.prcId === debt?.prcId
             && segment?.prcCode === debt?.prcCode
             && segment?.unit === debt?.unit;
+        const technicalCompatibilityByPair = new Map();
+        asArray(technicalEligibility?.compatibility).forEach((row) => {
+            const key = [
+                text(row?.segmentKey),
+                text(row?.targetPrcId),
+                code(row?.targetPrcCode)
+            ].join('|');
+            if (!technicalCompatibilityByPair.has(key)) technicalCompatibilityByPair.set(key, []);
+            technicalCompatibilityByPair.get(key).push(row);
+        });
+        const resolveSegmentDebtCompatibility = (segment, debt) => {
+            if (matchesExactTechnicalIdentity(segment, debt)) {
+                return { eligible: true, relation: TECHNICAL_COMPATIBILITY.EXACT, siblingAvailableQty: 0 };
+            }
+            const key = [segment?.segmentKey, debt?.prcId, debt?.prcCode].map(text).join('|');
+            const matches = asArray(technicalCompatibilityByPair.get(key));
+            const compatibility = matches.length === 1 ? matches[0] : null;
+            const siblingAvailableQty = Number(compatibility?.siblingAvailableQty || 0);
+            const eligible = !!compatibility
+                && compatibility.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT
+                && isPositiveQty(siblingAvailableQty);
+            return {
+                eligible,
+                relation: compatibility?.relation || TECHNICAL_COMPATIBILITY.UNCERTAIN,
+                siblingAvailableQty: eligible ? roundQty(siblingAvailableQty) : 0
+            };
+        };
         const segmentCanServeDebt = (segment, debt) => {
-            if (!matchesExactTechnicalIdentity(segment, debt)) return false;
+            const compatibility = resolveSegmentDebtCompatibility(segment, debt);
+            if (!compatibility.eligible) return false;
             const lockedDebtKey = resolvedLifecycleDebtBySegment.get(segment?.segmentKey);
             if (lockedDebtKey) return lockedDebtKey === debt?.debtKey;
             return segment?.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
@@ -4400,6 +5772,33 @@ const SanalTaksimResolver = (() => {
             segment.segmentKey,
             roundQty(segment.allocatableQty)
         ]));
+        const siblingInitialQtyBySegment = new Map();
+        asArray(technicalEligibility?.compatibility)
+            .filter((row) => row?.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT)
+            .forEach((row) => {
+                const segmentKey = text(row?.segmentKey);
+                const qty = Math.max(0, Number(row?.siblingAvailableQty || 0));
+                siblingInitialQtyBySegment.set(
+                    segmentKey,
+                    roundQty(Math.max(Number(siblingInitialQtyBySegment.get(segmentKey) || 0), qty))
+                );
+            });
+        const siblingRemainders = new Map(availableSegments
+            .filter((segment) => siblingInitialQtyBySegment.has(segment.segmentKey))
+            .map((segment) => [
+                segment.segmentKey,
+                roundQty(Math.min(
+                    Number(segmentRemainders.get(segment.segmentKey) || 0),
+                    Number(siblingInitialQtyBySegment.get(segment.segmentKey) || 0)
+                ))
+            ]));
+        const consumeSiblingRemainder = (segmentKey, qty) => {
+            if (!siblingRemainders.has(segmentKey)) return;
+            siblingRemainders.set(
+                segmentKey,
+                roundQty(Math.max(0, Number(siblingRemainders.get(segmentKey) || 0) - Number(qty || 0)))
+            );
+        };
         const heldQtyBySegment = new Map();
         const unallocatedHoldQtyBySegment = new Map();
         const fixedAllocatedHoldKeys = new Set();
@@ -4462,9 +5861,8 @@ const SanalTaksimResolver = (() => {
             const debt = matchingDebts.length === 1 ? matchingDebts[0] : null;
             const debtRemaining = debt ? Number(debtRemainders.get(debt.debtKey) || 0) : 0;
             const segmentMatches = !!segment
-                && segment.sourceKind === 'CURRENT_STOCK_ROW'
-                && segment.stage === 'DEPOT_STOCK'
-                && segment.stockRowId === text(hold?.stockRowId)
+                && isExactReservablePrcSegment(segment)
+                && text(segment.stockRowId) === text(hold?.stockRowId)
                 && (!text(hold?.prcId) || segment.prcId === text(hold?.prcId))
                 && (!code(hold?.prcCode) || segment.prcCode === code(hold?.prcCode))
                 && (!code(hold?.unit) || segment.unit === code(hold?.unit));
@@ -4475,6 +5873,7 @@ const SanalTaksimResolver = (() => {
                 return;
             }
             segmentRemainders.set(segment.segmentKey, roundQty(segmentRemaining - holdQty));
+            consumeSiblingRemainder(segment.segmentKey, holdQty);
             heldQtyBySegment.set(
                 segment.segmentKey,
                 roundQty((heldQtyBySegment.get(segment.segmentKey) || 0) + holdQty)
@@ -4504,6 +5903,7 @@ const SanalTaksimResolver = (() => {
                     ? roundQty(segmentRemainders.get(segment.segmentKey) || 0)
                     : 0;
                 if (failClosedRemainder > EPSILON) segmentRemainders.set(segment.segmentKey, 0);
+                if (failClosedRemainder > EPSILON) siblingRemainders.set(segment.segmentKey, 0);
                 unallocatedHoldQtyBySegment.set(
                     segment.segmentKey,
                     roundQty((unallocatedHoldQtyBySegment.get(segment.segmentKey) || 0) + holdQty + failClosedRemainder)
@@ -4592,14 +5992,21 @@ const SanalTaksimResolver = (() => {
                 let debtRemaining = debtRemainders.get(debt.debtKey);
                 for (const segment of availableSegments) {
                     if (debtRemaining <= EPSILON) break;
-                    if (!segmentCanServeDebt(segment, debt)) continue;
+                    const compatibility = resolveSegmentDebtCompatibility(segment, debt);
+                    if (!compatibility.eligible || !segmentCanServeDebt(segment, debt)) continue;
                     const lockedDebtKey = resolvedLifecycleDebtBySegment.get(segment.segmentKey);
                     if (lockedDebtKey && lockedDebtKey !== debt.debtKey) continue;
                     const segmentRemaining = segmentRemainders.get(segment.segmentKey) || 0;
                     if (segmentRemaining <= EPSILON) continue;
-                    const qty = roundQty(Math.min(debtRemaining, segmentRemaining));
+                    const siblingRemaining = compatibility.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT
+                        ? Number(siblingRemainders.get(segment.segmentKey) || 0)
+                        : Number.MAX_SAFE_INTEGER;
+                    if (compatibility.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT
+                        && siblingRemaining <= EPSILON) continue;
+                    const qty = roundQty(Math.min(debtRemaining, segmentRemaining, siblingRemaining));
                     if (qty <= EPSILON) continue;
                     segmentRemainders.set(segment.segmentKey, roundQty(segmentRemaining - qty));
+                    consumeSiblingRemainder(segment.segmentKey, qty);
                     debtRemaining = roundQty(debtRemaining - qty);
                     allocations.push({
                         physicalSegmentId: segment.segmentKey,
@@ -4638,7 +6045,16 @@ const SanalTaksimResolver = (() => {
                         targetDemandId: debt.originDemandId,
                         targetItemKey: debt.originItemKey,
                         fixedByExactHold: false,
-                        physicalAllocationState: segment.allocationState
+                        physicalAllocationState: segment.allocationState,
+                        ...(compatibility.relation === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT ? {
+                            technicalCompatibility: TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT,
+                            physicalPrcId: segment.prcId,
+                            physicalPrcCode: segment.prcCode,
+                            physicalUnit: segment.unit,
+                            targetPrcId: debt.prcId,
+                            targetPrcCode: debt.prcCode,
+                            targetUnit: debt.unit
+                        } : {})
                     });
                 }
                 debtRemainders.set(debt.debtKey, debtRemaining);
@@ -4656,7 +6072,9 @@ const SanalTaksimResolver = (() => {
                 reallocatableQty: segment.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE
                     ? sharedPoolQty
                     : 0,
-                remainingAllocatableQty: roundQty(segmentRemainders.get(segment.segmentKey) || 0)
+                remainingAllocatableQty: roundQty(segmentRemainders.get(segment.segmentKey) || 0),
+                siblingAllocatableQty: roundQty(siblingInitialQtyBySegment.get(segment.segmentKey) || 0),
+                remainingSiblingAllocatableQty: roundQty(siblingRemainders.get(segment.segmentKey) || 0)
             });
             if (heldQty > EPSILON && sharedPoolQty <= EPSILON
                 && segment.allocationState === PHYSICAL_ALLOCATION_STATES.REALLOCATABLE) {
@@ -4751,6 +6169,23 @@ const SanalTaksimResolver = (() => {
             + holdLedger.holds.filter((hold) => !hold.fixedTarget).length
             + unresolvedExactHoldKeys.length
             === holdLedger.holds.length;
+        const siblingAllocationWithinTechnicalQty = Array.from(siblingInitialQtyBySegment.entries())
+            .every(([segmentKey, initialQty]) => {
+                const siblingAllocatedQty = roundQty(allocations
+                    .filter((allocation) => allocation.physicalSegmentId === segmentKey
+                        && allocation.technicalCompatibility === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT)
+                    .reduce((sum, allocation) => sum + Number(allocation.qty || 0), 0));
+                return siblingAllocatedQty <= Number(initialQty || 0) + EPSILON;
+            });
+        const canonicalTechnicalCompatibilityOnly = allocations.every((allocation) => {
+            const segment = segments.find((row) => row.segmentKey === allocation.physicalSegmentId);
+            const debt = debts.find((row) => row.debtKey === allocation.targetDebtKey);
+            if (!segment || !debt) return false;
+            if (matchesExactTechnicalIdentity(segment, debt)) return true;
+            const compatibility = resolveSegmentDebtCompatibility(segment, debt);
+            return allocation.technicalCompatibility === TECHNICAL_COMPATIBILITY.SIBLING_PRE_SPLIT
+                && compatibility.eligible;
+        });
 
         const remainingExecutionCommitments = executions.map((execution) => ({
             workOrderId: execution.workOrderId,
@@ -4842,7 +6277,7 @@ const SanalTaksimResolver = (() => {
             if (!demandItemReadiness.has(key)) demandItemReadiness.set(key, []);
             demandItemReadiness.get(key).push(entry);
         });
-        const readinessByDemandItem = stableSort(Array.from(demandItemReadiness.entries()), ([key]) => key)
+        const residualPrcReadinessByDemandItem = stableSort(Array.from(demandItemReadiness.entries()), ([key]) => key)
             .map(([, components]) => {
                 const first = components[0];
                 const allocatableQty = roundQty(Math.min(...components.map((entry) =>
@@ -4860,6 +6295,63 @@ const SanalTaksimResolver = (() => {
                     components
                 };
             });
+        const residualPrcReadinessMap = new Map(residualPrcReadinessByDemandItem.map((entry) => [
+            `${entry.demandId}|${entry.originItemKey}`,
+            entry
+        ]));
+        const productReadinessKeys = new Set();
+        const productReadiness = productDebts.map((productDebt) => {
+            const key = `${productDebt.originDemandId}|${productDebt.originItemKey}`;
+            productReadinessKeys.add(key);
+            const residualPrc = residualPrcReadinessMap.get(key);
+            const finishedReadyQty = roundQty(productDebt.finishedReadyQty || 0);
+            const residualPrcReadyQty = productDebt.allocationEligible
+                && Number.isFinite(productDebt.residualSetQty)
+                ? roundQty(Math.min(
+                    productDebt.residualSetQty,
+                    Number(residualPrc?.allocatableQty || 0)
+                ))
+                : 0;
+            const allocatableQty = roundQty(Math.min(
+                Number(productDebt.openSetQty || 0),
+                finishedReadyQty + residualPrcReadyQty
+            ));
+            const reasonCodes = Array.from(new Set([
+                ...productDebt.reasonCodes,
+                ...(productDebt.residualSetQty > EPSILON && !residualPrc
+                    ? ['RESIDUAL_RECIPE_OR_PRC_DEBT_MISSING']
+                    : []),
+                ...asArray(residualPrc?.reasonCodes)
+            ])).sort(compareText);
+            return {
+                demandId: productDebt.originDemandId,
+                originItemKey: productDebt.originItemKey,
+                productDebtKey: productDebt.productDebtKey,
+                productId: productDebt.productId,
+                variantId: productDebt.variantId,
+                variantCode: productDebt.variantCode,
+                unit: productDebt.unit,
+                openSetQty: productDebt.openSetQty,
+                finishedReadyQty,
+                fixedSvpQty: productDebt.fixedSvpQty,
+                dynamicReadyQty: productDebt.dynamicReadyQty,
+                residualSetQty: productDebt.residualSetQty,
+                residualPrcReadyQty,
+                allocatableQty,
+                allocatable: productDebt.allocationEligible && allocatableQty > EPSILON,
+                reasonCode: productDebt.allocationEligible && allocatableQty > EPSILON
+                    ? ''
+                    : reasonCodes[0] || 'ITEM_NOT_ALLOCATABLE',
+                reasonCodes,
+                components: asArray(residualPrc?.components)
+            };
+        });
+        const readinessByDemandItem = stableSort([
+            ...productReadiness,
+            ...residualPrcReadinessByDemandItem.filter((entry) =>
+                !productReadinessKeys.has(`${entry.demandId}|${entry.originItemKey}`)
+            )
+        ], (entry) => `${entry.demandId}|${entry.originItemKey}`);
         const publicDebts = orderedDebts.map((debt) => {
             const {
                 dueTimestamp,
@@ -4891,6 +6383,10 @@ const SanalTaksimResolver = (() => {
             : null;
 
         return {
+            productDebts: finishedProductAllocation.productDebts,
+            finishedReadyAllocations: finishedProductAllocation.allocations,
+            residualProductDebts: finishedProductAllocation.residualProductDebts,
+            operationalReconciliation: finishedProductAllocation.operationalReconciliation,
             debts: publicDebts,
             sourceEntitlements: publicSourceEntitlements,
             readinessByDemandItem,
@@ -4936,20 +6432,18 @@ const SanalTaksimResolver = (() => {
                     .map(([segmentKey]) => segmentKey)
                     .sort(compareText),
                 invariants: {
+                    ...finishedProductAllocation.invariants,
                     segmentAllocationWithinQty,
                     debtAllocationWithinOpenDebt,
                     sourceAllocationWithinPlannedQty,
                     segmentKeysConsumedOnce,
                     exactHoldQtyWithinPhysical,
                     exactHoldKeysConsumedOnce,
-                    exactPrcAndUnitOnly: allocations.every((allocation) => {
-                        const segment = segments.find((row) => row.segmentKey === allocation.physicalSegmentId);
-                        const debt = debts.find((row) => row.debtKey === allocation.targetDebtKey);
-                        return !!segment && !!debt
-                            && segment.prcId === debt.prcId
-                            && segment.prcCode === debt.prcCode
-                            && segment.unit === debt.unit;
-                    }),
+                    siblingAllocationWithinTechnicalQty,
+                    canonicalTechnicalCompatibilityOnly,
+                    // Legacy invariant adı operasyonel tüketiciler için korunur; yalnız exact veya
+                    // canonical SIBLING_PRE_SPLIT sözleşmesiyle kanıtlı tahsis true döner.
+                    exactPrcAndUnitOnly: canonicalTechnicalCompatibilityOnly,
                     reallocationPolicyRespected: allocations.every((allocation) => {
                         const segment = segments.find((row) => row.segmentKey === allocation.physicalSegmentId);
                         const debt = debts.find((row) => row.debtKey === allocation.targetDebtKey);
@@ -5049,8 +6543,22 @@ const SanalTaksimResolver = (() => {
                     uncertainCount: 0
                 }
             };
-        segments.push(...lifecycle.segments);
+        const canonicalFinishedStock = resolveCanonicalFinishedStockSegments({
+            transfers: completionTransfers,
+            shipments,
+            plans,
+            stockRows,
+            movements,
+            prcIndex
+        });
+        const canonicalSegmentKeys = new Set(canonicalFinishedStock.segments.map((segment) => segment.segmentKey));
+        segments.push(...lifecycle.segments.filter((segment) => !canonicalSegmentKeys.has(segment.segmentKey)));
+        segments.push(...canonicalFinishedStock.segments);
         uncertain.push(...lifecycle.uncertain);
+        uncertain.push(...canonicalFinishedStock.uncertain);
+        canonicalFinishedStock.handledStockRowIds.forEach((stockRowId) =>
+            lifecycle.handledStockRowIds.add(stockRowId)
+        );
 
         const lineKeyCounts = new Map();
         workOrders.forEach((order) => {
@@ -5059,6 +6567,39 @@ const SanalTaksimResolver = (() => {
                 lineKeyCounts.set(key, (lineKeyCounts.get(key) || 0) + 1);
             });
         });
+
+        const demandsById = new Map();
+        asArray(input.planningDemands).forEach((demand) => {
+            const demandId = text(demand?.id);
+            if (!demandId) return;
+            if (!demandsById.has(demandId)) demandsById.set(demandId, []);
+            demandsById.get(demandId).push(demand);
+        });
+        const resolveWorkOrigin = (order) => {
+            const demandMatches = asArray(demandsById.get(text(order?.sourceId)));
+            const demand = demandMatches.length === 1 ? demandMatches[0] : null;
+            const itemMatches = demand
+                ? asArray(demand?.items).filter((item) => text(item?.id || item?.itemKey) === text(order?.sourceItemKey))
+                : [];
+            const sourceType = code(demand?.sourceType);
+            const sourceOrderId = text(demand?.sourceOrderId);
+            const sourceLineId = text(demand?.sourceLineId);
+            const valid = Boolean(demand
+                && itemMatches.length === 1
+                && ['SALES_ORDER', 'STOCK'].includes(sourceType)
+                && (sourceType !== 'SALES_ORDER' || (sourceOrderId && sourceLineId)));
+            return {
+                verified: valid,
+                reasonCode: valid ? '' : (demandMatches.length !== 1
+                    ? 'WORK_ORIGIN_DEMAND_NOT_UNIQUE'
+                    : itemMatches.length !== 1
+                        ? 'WORK_ORIGIN_ITEM_NOT_UNIQUE'
+                        : 'WORK_ORIGIN_SOURCE_INVALID'),
+                sourceType,
+                sourceOrderId,
+                sourceLineId
+            };
+        };
 
         const transactionsByLine = new Map();
         const knownLineKeys = new Set(lineKeyCounts.keys());
@@ -5090,6 +6631,7 @@ const SanalTaksimResolver = (() => {
         stableSort(workOrders, (order, index) => `${text(order?.id)}|${text(order?.workOrderCode)}|${index}`)
             .forEach((order) => {
                 const workOrderId = text(order?.id);
+                const workOrigin = resolveWorkOrigin(order);
                 stableSort(asArray(order?.lines), (line, index) => `${text(line?.id)}|${code(line?.componentCode)}|${index}`)
                     .forEach((line) => {
                         const lineId = text(line?.id);
@@ -5261,6 +6803,7 @@ const SanalTaksimResolver = (() => {
                                     order,
                                     line,
                                     route,
+                                    origin: workOrigin,
                                     evidenceIds: [
                                         ...asArray(evidenceByTypeRoute.get(`TAKE|${index}`)),
                                         ...asArray(evidenceByTypeRoute.get(`COMPLETE|${index}`))
@@ -5278,6 +6821,7 @@ const SanalTaksimResolver = (() => {
                                         order,
                                         line,
                                         route,
+                                        origin: workOrigin,
                                         evidenceIds: [
                                             ...asArray(evidenceByTypeRoute.get(`COMPLETE|${index}`)),
                                             ...asArray(evidenceByTypeRoute.get(`TAKE|${index + 1}`))
@@ -5294,6 +6838,7 @@ const SanalTaksimResolver = (() => {
                                         order,
                                         line,
                                         route,
+                                        origin: workOrigin,
                                         evidenceIds: [
                                             ...asArray(evidenceByTypeRoute.get(`COMPLETE|${index}`)),
                                             ...asArray(evidenceByTypeRoute.get(`STORE|${index}`))
@@ -5321,6 +6866,101 @@ const SanalTaksimResolver = (() => {
                     });
             });
 
+        const movementIdCounts = new Map();
+        movements.forEach((movement) => {
+            const movementId = text(movement?.id);
+            if (movementId) movementIdCounts.set(movementId, (movementIdCounts.get(movementId) || 0) + 1);
+        });
+        const applyReceivedWipConsumption = (movement) => {
+            const movementId = text(movement?.id);
+            const shipmentId = text(movement?.shipmentId);
+            const physicalSegmentId = text(movement?.physicalSegmentId);
+            const qty = Number(movement?.qty ?? movement?.quantity);
+            const shipmentMatches = shipments.filter((shipment) =>
+                text(shipment?.id) === shipmentId && code(shipment?.status) === 'RECEIVED'
+            );
+            const allocationMatches = shipmentMatches.length === 1
+                ? asArray(shipmentMatches[0]?.parts).flatMap((part) => asArray(part?.allocations).map((allocation) => ({ part, allocation })))
+                    .filter(({ allocation }) => text(allocation?.stockMovementId) === movementId
+                        && text(allocation?.physicalSegmentId) === physicalSegmentId
+                        && code(allocation?.sourceKind) === 'WORK_ORDER')
+                : [];
+            const allocation = allocationMatches.length === 1 ? allocationMatches[0].allocation : null;
+            const ranges = asArray(allocation?.segmentRanges);
+            const rangeQty = roundQty(ranges.reduce((sum, range) => sum + Number(range?.qty || 0), 0));
+            const identityValid = movementId
+                && movementIdCounts.get(movementId) === 1
+                && shipmentMatches.length === 1
+                && allocationMatches.length === 1
+                && physicalSegmentId
+                && !physicalSegmentId.startsWith('STOCK|')
+                && isPositiveQty(qty)
+                && ranges.length > 0
+                && sameQty(rangeQty, qty)
+                && text(movement?.sourceWorkOrderId) === text(allocation?.sourceWorkOrderId)
+                && text(movement?.sourceWorkOrderLineId) === text(allocation?.sourceWorkOrderLineId)
+                && text(movement?.refId || movement?.productId) === text(allocation?.prcId)
+                && code(movement?.productCode || movement?.code) === code(allocation?.prcCode)
+                && code(movement?.unit) === code(allocation?.unit);
+            const exactCandidates = segments.filter((segment) =>
+                text(segment?.segmentKey) === physicalSegmentId && code(segment?.sourceKind) === 'WORK_ORDER'
+            );
+            const sourceStageRank = STAGE_ORDER.get(code(allocation?.sourceStage)) || 0;
+            const lineageCandidates = exactCandidates.length ? exactCandidates : segments.filter((segment) =>
+                code(segment?.sourceKind) === 'WORK_ORDER'
+                && text(segment?.originWorkOrderId) === text(allocation?.sourceWorkOrderId)
+                && text(segment?.originWorkOrderLineId) === text(allocation?.sourceWorkOrderLineId)
+                && text(segment?.prcId) === text(allocation?.prcId)
+                && code(segment?.prcCode) === code(allocation?.prcCode)
+                && code(segment?.unit) === code(allocation?.unit)
+                && (STAGE_ORDER.get(code(segment?.stage)) || 0) >= sourceStageRank
+                && Number(segment?.physicalQty || 0) + EPSILON >= qty
+            );
+            if (!identityValid || lineageCandidates.length !== 1
+                || Number(lineageCandidates[0]?.physicalQty || 0) + EPSILON < qty) {
+                lineageCandidates.forEach((segment) => {
+                    segment.allocatable = false;
+                    segment.allocatableQty = 0;
+                });
+                uncertain.push(createUncertain({
+                    kind: 'MONTAGE_WIP_CONSUMPTION',
+                    id: movementId,
+                    reasonCode: !identityValid
+                        ? 'MONTAGE_WIP_CONSUMPTION_EVIDENCE_INVALID'
+                        : lineageCandidates.length !== 1
+                            ? 'MONTAGE_WIP_SUCCESSOR_NOT_UNIQUE'
+                            : 'MONTAGE_WIP_CONSUMPTION_EXCEEDS_SOURCE',
+                    prcCode: movement?.productCode || movement?.code,
+                    unit: movement?.unit,
+                    reportedQty: qty,
+                    workOrderId: movement?.sourceWorkOrderId,
+                    lineId: movement?.sourceWorkOrderLineId,
+                    evidenceIds: [movementId, shipmentId, physicalSegmentId]
+                }));
+                return;
+            }
+            const segment = lineageCandidates[0];
+            const remainingQty = roundQty(Number(segment.physicalQty || 0) - qty);
+            const index = segments.indexOf(segment);
+            if (remainingQty <= EPSILON) {
+                if (index >= 0) segments.splice(index, 1);
+                return;
+            }
+            const next = {
+                ...segment,
+                qty: remainingQty,
+                physicalQty: remainingQty,
+                allocatableQty: segment.allocatable === false ? 0 : remainingQty,
+                evidenceIds: Array.from(new Set([...asArray(segment?.evidenceIds), movementId])).sort(compareText)
+            };
+            if (index >= 0) segments[index] = next;
+        };
+        stableSort(movements.filter((movement) =>
+            code(movement?.movementType || movement?.type) === 'MONTAGE_DISPATCH_OUT'
+            && code(movement?.sourceKind) === 'WORK_ORDER'
+        ), (movement, index) => `${text(movement?.postedAt || movement?.createdAt)}|${text(movement?.id)}|${index}`)
+            .forEach(applyReceivedWipConsumption);
+
         const stockIdCounts = new Map();
         stockRows.forEach((row) => {
             const id = text(row?.id);
@@ -5329,7 +6969,7 @@ const SanalTaksimResolver = (() => {
         stableSort(stockRows, (row, index) => `${text(row?.id)}|${code(row?.productCode || row?.code)}|${index}`)
             .forEach((row) => {
                 const stockRowId = text(row?.id);
-                if (lifecycleContractActive && lifecycle.handledStockRowIds.has(stockRowId)) return;
+                if (lifecycle.handledStockRowIds.has(stockRowId)) return;
                 if (lifecycleContractActive && lifecycle.failClosedStockRowIds.has(stockRowId)) {
                     excludedStockRowCount += 1;
                     return;
@@ -5548,15 +7188,27 @@ const SanalTaksimResolver = (() => {
                 segmentCount: matchingSegments.length
             };
         });
+        const technicalEligibility = buildTechnicalEligibilityReadModel({
+            input,
+            cards,
+            prcIndex,
+            workOrders,
+            segments: sortedSegments.filter((segment) => segment.itemType === 'PRC')
+        });
         const commercial = buildCommercialAllocation({
             input,
             prcIndex,
             workOrders,
             segments: sortedSegments.filter((segment) => segment.itemType === 'PRC'),
+            readySegments: sortedSegments.filter((segment) =>
+                segment.itemType === 'SVR'
+                && segment.stage === 'MONTAGE_FINISHED_STOCK'
+            ),
             executions: sortedExecutions,
             completionTransfers,
             exactHolds: lifecycle.exactHolds,
             lifecycleReservations: lifecycle.reservations,
+            technicalEligibility,
             exactSourceTarget: options?.exactSourceTarget || null
         });
 
@@ -5574,6 +7226,11 @@ const SanalTaksimResolver = (() => {
                 evidence: lifecycle.evidence,
                 diagnostics: lifecycle.diagnostics
             },
+            technicalEligibility,
+            productDebts: commercial.productDebts,
+            finishedReadyAllocations: commercial.finishedReadyAllocations,
+            residualProductDebts: commercial.residualProductDebts,
+            operationalReconciliation: commercial.operationalReconciliation,
             debts: commercial.debts,
             sourceEntitlements: commercial.sourceEntitlements,
             readinessByDemandItem: commercial.readinessByDemandItem,
@@ -5593,6 +7250,8 @@ const SanalTaksimResolver = (() => {
                     montageDispatchShipments: shipments.length,
                     montageCompletionTransfers: completionTransfers.length,
                     stock_movements: movements.length,
+                    outsourceDispatchDrafts: asArray(input.outsourceDispatchDrafts).length,
+                    workOrderExternalSupplierAssignments: asArray(input.workOrderExternalSupplierAssignments).length,
                     ...commercial.diagnostics.inputCounts
                 },
                 excludedStockRowCount,
@@ -5600,6 +7259,7 @@ const SanalTaksimResolver = (() => {
                 nonPhysicalCompletionTransferViewCount: completionTransfers.length,
                 lifecycleContractActive,
                 lifecycle: lifecycle.diagnostics,
+                technicalEligibility: technicalEligibility.diagnostics,
                 allocationOrder: commercial.diagnostics.allocationOrder,
                 evaluatedDebtOrder: commercial.diagnostics.evaluatedDebtOrder,
                 segmentOrder: commercial.diagnostics.segmentOrder,
@@ -5816,6 +7476,15 @@ const SanalTaksimResolver = (() => {
                 const stockRowId = text(reservation?.stockRowId);
                 const physicalSegmentId = text(reservation?.physicalSegmentId);
                 const stockMatches = stockRows.filter((row) => text(row?.id) === stockRowId);
+                const segmentMatches = asArray(resolved?.segments).filter((row) =>
+                    text(row?.segmentKey) === physicalSegmentId
+                    && text(row?.stockRowId) === stockRowId
+                );
+                const sourceReferenceValid = stockRowId
+                    ? stockMatches.length === 1 && physicalSegmentId === `STOCK|${stockRowId}`
+                    : segmentMatches.length === 1
+                        && code(segmentMatches[0]?.sourceKind) === 'WORK_ORDER'
+                        && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(code(segmentMatches[0]?.stage));
                 const linkKey = `${instructionId}|${instructionSliceKey}`;
                 const qty = Number(reservation?.qty);
                 const start = Number(reservation?.segmentOffsetStart);
@@ -5840,8 +7509,7 @@ const SanalTaksimResolver = (() => {
                     || text(reservation?.prcId) !== text(instruction?.prcId)
                     || code(reservation?.prcCode) !== code(instruction?.prcCode)
                     || code(reservation?.unit) !== code(instruction?.unit)
-                    || stockMatches.length !== 1
-                    || !stockRowId || physicalSegmentId !== `STOCK|${stockRowId}`
+                    || !sourceReferenceValid
                     || text(slice?.stockRowId) !== stockRowId
                     || text(slice?.physicalSegmentId) !== physicalSegmentId
                     || !sameQty(slice?.segmentOffsetStart, start)

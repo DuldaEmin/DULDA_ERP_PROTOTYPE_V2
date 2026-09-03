@@ -46,6 +46,29 @@
         salesReadonlyMetaByDemand: {}
     },
 
+    getNextOperationalCode: (prefix, values = []) => {
+        const safePrefix = String(prefix || '').trim().toUpperCase();
+        const usedCodes = new Set((Array.isArray(values) ? values : [])
+            .map((value) => String(value || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: safePrefix, usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, safePrefix, Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.[safePrefix] || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        const pattern = new RegExp(`^${safePrefix}-(\\d{6}|[1-9]\\d{6,})$`);
+        usedCodes.forEach((value) => {
+            const match = value.match(pattern);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `${safePrefix}-${(maximum + 1n).toString().padStart(6, '0')}`;
+    },
+
     blueprints: {
         'sales-demand': {
             title: 'planlama / siparisten gelen talepler',
@@ -79,6 +102,225 @@
         .replace(/'/g, "\\'")
         .replace(/\r/g, '\\r')
         .replace(/\n/g, '\\n'),
+
+    buildPrototypeTestCohortBaselinePlan: (options = {}) => {
+        if (typeof PrototypeTestCohortPlanner === 'undefined'
+            || typeof PrototypeTestCohortPlanner?.build !== 'function') {
+            return {
+                contractVersion: 1,
+                mode: 'PROTOTYPE_TEST_COHORT_BASELINE_PLAN_V1',
+                ok: false,
+                failClosed: true,
+                readOnly: true,
+                writes: 0,
+                classifications: { KEEP: [], DELETE: [], RESET_TO_BASELINE: [], UNCERTAIN: [] },
+                uncertainties: [{
+                    reasonCode: 'COHORT_PLANNER_MISSING',
+                    message: 'Prototype test kohortu planner yüklenemedi.',
+                    evidenceIds: []
+                }]
+            };
+        }
+        const baselineManualEntryDocNos = Array.isArray(options?.baselineManualEntryDocNos)
+            ? options.baselineManualEntryDocNos
+            : Array.from({ length: 9 }, (_, index) => `EK-2026-${String(index + 1).padStart(6, '0')}`);
+        const testSeedLocationCodes = Array.isArray(options?.testSeedLocationCodes)
+            ? options.testSeedLocationCodes : ['FAZ5-TEST-01'];
+        return PrototypeTestCohortPlanner.build(DB.data, {
+            ...options,
+            baselineManualEntryDocNos,
+            testSeedLocationCodes
+        });
+    },
+
+    buildPrototypeStockTestCleanupPlan: () => {
+        if (typeof PrototypeStockTestCleanup === 'undefined'
+            || typeof PrototypeStockTestCleanup?.build !== 'function') {
+            return {
+                contractVersion: 2,
+                mode: 'PROTOTYPE_STOCK_TEST_COHORT_CLEANUP_V2',
+                ok: false,
+                failClosed: true,
+                noStockRestore: true,
+                issues: [{
+                    reasonCode: 'STOCK_CLEANUP_MODULE_MISSING',
+                    message: 'Prototype STOCK test cleanup modülü yüklenemedi.',
+                    evidenceIds: []
+                }]
+            };
+        }
+        return PrototypeStockTestCleanup.build(DB.data);
+    },
+
+    cleanupPrototypeStockTestCohortForDemo: async (options = {}) => {
+        const notify = (message) => {
+            if (options?.silent !== true && typeof alert === 'function') alert(message);
+        };
+        let plan = PlanningModule.buildPrototypeStockTestCleanupPlan();
+        if (!plan?.ok) {
+            const detail = (Array.isArray(plan?.issues) ? plan.issues : [])
+                .map((row) => String(row?.message || row?.reasonCode || '')).filter(Boolean).join('\n');
+            notify(`STOCK test kohortu temizlenemedi:\n\n${detail || 'Preflight doğrulanamadı.'}`);
+            return { ok: false, code: 'STOCK_CLEANUP_PREFLIGHT_FAILED', plan };
+        }
+        if (plan?.noOp) return { ok: true, noOp: true, plan, summary: plan.summary };
+        const demandCodes = (plan?.targets?.planningDemands || []).map((row) => row.code).filter(Boolean);
+        const workOrderCodes = (plan?.targets?.workOrders || []).map((row) => row.code).filter(Boolean);
+        if (options?.confirmBeforeApply !== false && typeof confirm === 'function') {
+            const approved = confirm([
+                'Eski STOCK / Stok İçin Üretim test kohortu atomik olarak temizlenecek.',
+                '',
+                `PLN: ${demandCodes.join(', ') || '-'}`,
+                `WO: ${workOrderCodes.join(', ') || '-'}`,
+                `Transaction: ${Number(plan?.summary?.workOrderTransactions || 0)}`,
+                `Stock movement: ${Number(plan?.summary?.stock_movements || 0)}`,
+                `Türetilmiş stock row: ${Number(plan?.summary?.stockDepotItems || 0)}`,
+                '',
+                'Kaynak stoğa tüketim iadesi yapılmayacak.',
+                'Devam edilsin mi?'
+            ].join('\n'));
+            if (!approved) return { ok: false, cancelled: true, plan };
+        }
+        const approvedSignature = String(plan?.manifestSignature || '');
+        plan = PlanningModule.buildPrototypeStockTestCleanupPlan();
+        if (!plan?.ok || String(plan?.manifestSignature || '') !== approvedSignature) {
+            notify('STOCK test cleanup planı onaydan sonra değişti; işlem uygulanmadı.');
+            return { ok: false, code: 'STOCK_CLEANUP_STALE_PLAN', plan };
+        }
+        const beforeState = PlanningModule.cloneDemoCleanupState(DB.data);
+        const applied = PrototypeStockTestCleanup.apply(DB.data, plan);
+        if (!applied?.ok) {
+            PlanningModule.restoreDemoCleanupState(beforeState);
+            notify('STOCK test cleanup apply doğrulanamadı; bellek geri yüklendi.');
+            return { ok: false, code: String(applied?.code || 'STOCK_CLEANUP_APPLY_FAILED'), plan };
+        }
+        const persisted = await PlanningModule.persistDemoCleanupAtomically(beforeState, {
+            approvalType: 'stock_demand_demo_cleanup',
+            approvalMeta: {
+                stockCleanupVersion: 2,
+                noStockRestore: true,
+                manifestSignature: plan.manifestSignature,
+                demandIds: (plan?.targets?.planningDemands || []).map((row) => row.id),
+                workOrderIds: (plan?.targets?.workOrders || []).map((row) => row.id)
+            }
+        });
+        if (!persisted.ok) {
+            notify(`STOCK test kohortu temizlenemedi ve bellek geri yüklendi:\n\n${String(persisted?.error?.message || 'Kayıt hatası')}`);
+            return { ok: false, code: 'STOCK_CLEANUP_SAVE_FAILED', plan, saveResult: persisted?.saveResult || null };
+        }
+        (plan?.targets?.planningDemands || []).forEach((row) => PlanningModule.clearStockDemandDemoCleanupUiState(row.id));
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') UI.renderCurrentPage();
+        return { ok: true, noOp: false, plan, summary: applied.summary, saveResult: persisted.saveResult };
+    },
+
+    buildPrototypeSalesTestCohortCleanupPlan: () => {
+        if (typeof PrototypeSalesTestCohortCleanup === 'undefined'
+            || typeof PrototypeSalesTestCohortCleanup?.build !== 'function') {
+            return {
+                contractVersion: 6,
+                mode: 'PROTOTYPE_COMBINED_TEST_COHORT_ATOMIC_CLEANUP_V6',
+                ok: false,
+                failClosed: true,
+                issues: [{
+                    reasonCode: 'SALES_COHORT_CLEANUP_MODULE_MISSING',
+                    message: 'Birleşik prototype test cohort cleanup modülü yüklenemedi.',
+                    evidenceIds: []
+                }]
+            };
+        }
+        return PrototypeSalesTestCohortCleanup.build(DB.data);
+    },
+
+    cleanupPrototypeSalesTestCohortForDemo: async (options = {}) => {
+        const notify = (message) => {
+            if (options?.silent !== true && typeof alert === 'function') alert(message);
+        };
+        if (typeof DB?.isDemoTestResetEnabled !== 'function' || !DB.isDemoTestResetEnabled()) {
+            notify('Demo Test Ortamını Sıfırla işlemi yalnız PROTOTYPE runtime modunda kullanılabilir.');
+            return { ok: false, code: 'DEMO_TEST_RESET_DISABLED' };
+        }
+        let plan = PlanningModule.buildPrototypeSalesTestCohortCleanupPlan();
+        if (!plan?.ok) {
+            const detail = (Array.isArray(plan?.issues) ? plan.issues : [])
+                .map((row) => String(row?.message || row?.reasonCode || '')).filter(Boolean).join('\n');
+            notify(`Birleşik test kohortu temizlenemedi:\n\n${detail || 'Preflight doğrulanamadı.'}`);
+            return { ok: false, code: 'SALES_COHORT_CLEANUP_PREFLIGHT_FAILED', plan };
+        }
+        if (plan?.noOp) return { ok: true, noOp: true, plan, summary: plan.summary };
+        if (options?.confirmBeforeApply !== false && typeof confirm === 'function') {
+            const approved = confirm([
+                'Tüm demo/test SALES siparişleri, STOCK üretimleri ve bunların oluşturduğu operasyonel kayıtlar temizlenecek.',
+                'Sistem doğrulanmış temiz test baseline\'ına döndürülecek.',
+                '',
+                `Silinecek kayıt: ${Number(plan?.summary?.DELETE || 0)}`,
+                `Baseline'a döndürülecek stok satırı: ${Number(plan?.summary?.RESET_TO_BASELINE || 0)}`,
+                `Korunacak baseline kayıtları: ${Number(plan?.summary?.KEEP || 0)}`,
+                `Doğrulanmış başlangıç stok toplamı: ${Number(plan?.summary?.baselineQtyTotal || 0)}`,
+                '',
+                'Ana tanımlar, doğrulanmış başlangıç stoğu ve operasyon kodlarının geçmiş devamlılığı korunacak.',
+                '',
+                'Bu işlem geri alınamaz. Emin misiniz?'
+            ].join('\n'));
+            if (!approved) return { ok: false, cancelled: true, plan };
+        }
+        const approvedSignature = String(plan?.manifestSignature || '');
+        plan = PlanningModule.buildPrototypeSalesTestCohortCleanupPlan();
+        if (!plan?.ok || String(plan?.manifestSignature || '') !== approvedSignature) {
+            notify('Birleşik cohort cleanup manifesti onaydan sonra değişti; işlem uygulanmadı.');
+            return { ok: false, code: 'SALES_COHORT_CLEANUP_STALE_PLAN', plan };
+        }
+        const beforeState = PlanningModule.cloneDemoCleanupState(DB.data);
+        const protectedMasterSnapshots = new Map(
+            (Array.isArray(plan?.protectedMasterCollections) ? plan.protectedMasterCollections : [])
+                .map((descriptor) => String(descriptor?.collection || '').trim())
+                .filter(Boolean)
+                .map((collection) => [collection, JSON.stringify(DB.data?.data?.[collection] || [])])
+        );
+        const applied = PrototypeSalesTestCohortCleanup.apply(DB.data, plan);
+        if (!applied?.ok) {
+            PlanningModule.restoreDemoCleanupState(beforeState);
+            notify('SALES_ORDER cohort cleanup apply doğrulanamadı; bellek geri yüklendi.');
+            return { ok: false, code: String(applied?.code || 'SALES_COHORT_CLEANUP_APPLY_FAILED'), plan };
+        }
+        const postPlan = PlanningModule.buildPrototypeSalesTestCohortCleanupPlan();
+        const changedMasterCollection = Array.from(protectedMasterSnapshots.entries())
+            .find(([collection, snapshot]) => JSON.stringify(DB.data?.data?.[collection] || []) !== snapshot)?.[0] || '';
+        const baselineVerified = postPlan?.ok === true
+            && postPlan?.noOp === true
+            && Number(postPlan?.baseline?.manualEntryCount) === 9
+            && Number(postPlan?.baseline?.movementCount) === 9
+            && Number(postPlan?.baseline?.stockRowCount) === 9
+            && Number(postPlan?.baseline?.authoritativeQtyTotal) === 13200;
+        if (!baselineVerified || changedMasterCollection) {
+            PlanningModule.restoreDemoCleanupState(beforeState);
+            notify(changedMasterCollection
+                ? `Demo test ortamı sıfırlanamadı: korunan ana tanım değişti (${changedMasterCollection}).`
+                : 'Demo test ortamı sıfırlanamadı: temiz baseline post-check doğrulanamadı.');
+            return {
+                ok: false,
+                code: changedMasterCollection ? 'DEMO_TEST_RESET_MASTER_CHANGED' : 'DEMO_TEST_RESET_POSTCHECK_FAILED',
+                plan,
+                postPlan
+            };
+        }
+        const persisted = await PlanningModule.persistDemoCleanupAtomically(beforeState, {
+            approvalType: 'sales_order_demo_cleanup',
+            approvalMeta: {
+                prototypeResetVersion: 6,
+                prototypeResetMode: PrototypeSalesTestCohortCleanup.MODE,
+                manifestSignature: plan.manifestSignature,
+                baseManifestSignature: plan.baseManifestSignature
+            }
+        });
+        if (!persisted.ok) {
+            notify(`Birleşik test kohortu temizlenemedi ve bellek geri yüklendi:\n\n${String(persisted?.error?.message || 'Kayıt hatası')}`);
+            return { ok: false, code: 'SALES_COHORT_CLEANUP_SAVE_FAILED', plan, saveResult: persisted?.saveResult || null };
+        }
+        if (typeof Modal !== 'undefined' && Modal && typeof Modal.close === 'function') Modal.close();
+        if (typeof UI !== 'undefined' && UI && typeof UI.renderCurrentPage === 'function') UI.renderCurrentPage();
+        return { ok: true, noOp: false, plan, summary: applied.summary, saveResult: persisted.saveResult };
+    },
 
     ensureData: () => {
         if (!Array.isArray(DB.data?.data?.planningDemands)) DB.data.data.planningDemands = [];
@@ -661,8 +903,18 @@
             removedStockMovementCount: 0,
             removedAssignmentCount: 0,
             touchedDispatchDraftCount: 0,
+            restoredPoolCount: 0,
             restoredIssueCount: 0,
-            decrementedStoreCount: 0
+            decrementedStoreCount: 0,
+            removedModernPlanCount: 0,
+            removedModernShipmentCount: 0,
+            removedModernInstructionCount: 0,
+            removedModernTransferCount: 0,
+            removedModernStockCount: 0,
+            removedModernMovementCount: 0,
+            removedSalesShipmentPlanCount: 0,
+            removedSalesShipmentCount: 0,
+            reversedSalesShipmentOutCount: 0
         });
         const explicitDemandIds = new Set(
             (Array.isArray(options?.demands) ? options.demands : [])
@@ -679,7 +931,8 @@
                 .filter(Boolean)
         );
         const matchedDemands = [];
-        PlanningModule.getDemands().forEach((demand) => {
+        const currentDemands = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
+        currentDemands.forEach((demand) => {
             const demandId = String(demand?.id || '').trim();
             if (explicitDemandIds.size > 0) {
                 if (demandId && explicitDemandIds.has(demandId)) matchedDemands.push(demand);
@@ -699,7 +952,43 @@
             if (byOrderId || byLegacyOrderNo) matchedDemands.push(demand);
         });
 
-        if (!matchedDemands.length) {
+        const hasTargetOrder = (Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [])
+            .some((order) => String(order?.id || '').trim() === targetOrderId);
+        const emptySalesShipmentPlan = () => ({
+            ok: true,
+            errors: [],
+            targetPlanIds: new Set(),
+            targetShipmentIds: new Set(),
+            targetMovementIds: new Set(),
+            targetStockIds: new Set(),
+            stockReturns: new Map()
+        });
+        const buildExecution = () => {
+            const salesShipmentCleanupPlan = hasTargetOrder
+                ? PlanningModule.getSalesOrderShipmentDemoCleanupPlan(targetOrderId, { lineIds: Array.from(lineIdSet) })
+                : emptySalesShipmentPlan();
+            const modernMontageCleanupPlan = matchedDemands.length > 0
+                ? PlanningModule.getDemandModernMontageCleanupPlan(matchedDemands[0], {
+                    demands: matchedDemands,
+                    salesShipmentCleanupPlan
+                })
+                : null;
+            const plans = matchedDemands.map((demand) => PlanningModule.getStockDemandDemoCleanupPlan(demand.id, {
+                sourceType: 'SALES_ORDER',
+                salesShipmentCleanupPlan,
+                orderModernMontageCleanupPlan: modernMontageCleanupPlan,
+                skipModernMontageCleanup: true
+            }));
+            return { salesShipmentCleanupPlan, modernMontageCleanupPlan, plans };
+        };
+        let execution = buildExecution();
+        const hasSalesShipmentTrace = execution.salesShipmentCleanupPlan.targetPlanIds.size > 0
+            || execution.salesShipmentCleanupPlan.targetShipmentIds.size > 0
+            || execution.salesShipmentCleanupPlan.targetMovementIds.size > 0;
+        if (!matchedDemands.length && !hasSalesShipmentTrace) {
+            if (execution.salesShipmentCleanupPlan.errors.length) {
+                return { ...makeEmptySummary(), ok: false, errors: execution.salesShipmentCleanupPlan.errors };
+            }
             if (options?.confirmBeforeApply === true || options?.confirm === true) {
                 const orderLabel = String(options?.orderNo || orderId || '-').trim() || '-';
                 if (!confirm(`"${orderLabel}" siparişi kalıcı olarak silinsin mi?\n\nBu siparişe bağlı planlama/iş emri demo izi bulunamadı.`)) {
@@ -709,8 +998,7 @@
             return makeEmptySummary();
         }
 
-        const buildPlans = () => matchedDemands.map((demand) => PlanningModule.getStockDemandDemoCleanupPlan(demand.id, { sourceType: 'SALES_ORDER' }));
-        const summarizePlans = (plans) => {
+        const summarizePlans = (plans, salesShipmentCleanupPlan, modernMontageCleanupPlan) => {
             const warnings = Array.from(new Set(plans.flatMap((plan) => Array.isArray(plan?.warnings) ? plan.warnings : [])));
             const workOrderCodes = new Set();
             plans.forEach((plan) => {
@@ -731,36 +1019,30 @@
                 removedStockMovementCount: plans.reduce((sum, plan) => sum + Number(plan?.linkedStockMovements?.length || 0), 0),
                 removedAssignmentCount: plans.reduce((sum, plan) => sum + Number(plan?.assignmentRows?.length || 0), 0),
                 touchedDispatchDraftCount: plans.reduce((sum, plan) => sum + Number(plan?.dispatchDraftPlans?.length || 0), 0),
+                restoredPoolCount: plans.reduce((sum, plan) => sum + Number(plan?.poolRestorePlans?.length || 0), 0),
                 restoredIssueCount: plans.reduce((sum, plan) => sum + Number(plan?.issueRestorePlans?.length || 0), 0),
-                decrementedStoreCount: plans.reduce((sum, plan) => sum + Number(plan?.storeDecrementPlans?.length || 0), 0)
+                decrementedStoreCount: plans.reduce((sum, plan) => sum + Number(plan?.storeDecrementPlans?.length || 0), 0),
+                removedModernPlanCount: Number(modernMontageCleanupPlan?.targetPlanIds?.size || 0),
+                removedModernShipmentCount: Number(modernMontageCleanupPlan?.targetShipmentIds?.size || 0),
+                removedModernInstructionCount: Number(modernMontageCleanupPlan?.targetInstructionIds?.size || 0),
+                removedModernTransferCount: Number(modernMontageCleanupPlan?.targetTransferIds?.size || 0),
+                removedModernStockCount: Number(modernMontageCleanupPlan?.targetStockIds?.size || 0),
+                removedModernMovementCount: Number(modernMontageCleanupPlan?.targetMovementIds?.size || 0),
+                removedSalesShipmentPlanCount: Number(salesShipmentCleanupPlan?.targetPlanIds?.size || 0),
+                removedSalesShipmentCount: Number(salesShipmentCleanupPlan?.targetShipmentIds?.size || 0),
+                reversedSalesShipmentOutCount: Number(salesShipmentCleanupPlan?.targetMovementIds?.size || 0)
             };
         };
 
-        let plans = buildPlans();
-        const planErrors = plans.flatMap((plan) => Array.isArray(plan?.errors) ? plan.errors : []);
+        let plans = execution.plans;
+        const planErrors = [
+            ...(Array.isArray(execution.salesShipmentCleanupPlan?.errors) ? execution.salesShipmentCleanupPlan.errors : []),
+            ...(Array.isArray(execution.modernMontageCleanupPlan?.errors) ? execution.modernMontageCleanupPlan.errors : []),
+            ...PlanningModule.validateDemandDemoCleanupPlans(plans, execution.modernMontageCleanupPlan)
+        ];
         if (planErrors.length > 0) return { ...makeEmptySummary(), ok: false, errors: planErrors };
 
-        const aggregateStoreUse = new Map();
-        plans.forEach((plan) => {
-            (Array.isArray(plan?.storeDecrementPlans) ? plan.storeDecrementPlans : []).forEach((entry) => {
-                (Array.isArray(entry?.allocations) ? entry.allocations : []).forEach((allocation) => {
-                    const rowId = String(allocation?.row?.id || '');
-                    if (!rowId) return;
-                    const current = aggregateStoreUse.get(rowId) || { row: allocation.row, qty: 0 };
-                    current.qty += PlanningModule.parseDecimalQty(allocation?.qty, 0);
-                    aggregateStoreUse.set(rowId, current);
-                });
-            });
-        });
-        const aggregateErrors = [];
-        aggregateStoreUse.forEach((entry) => {
-            if (entry.qty > PlanningModule.getDepotRowQty(entry.row) + 0.000001) {
-                aggregateErrors.push(`STORE stok etkisi toplu azaltılamadı: ${PlanningModule.getDepotRowCode(entry.row)} için stok yetersiz.`);
-            }
-        });
-        if (aggregateErrors.length > 0) return { ...makeEmptySummary(), ok: false, errors: aggregateErrors };
-
-        let summary = summarizePlans(plans);
+        let summary = summarizePlans(plans, execution.salesShipmentCleanupPlan, execution.modernMontageCleanupPlan);
         if (options?.confirmBeforeApply === true || options?.confirm === true) {
             const orderLabel = String(options?.orderNo || orderId || '-').trim() || '-';
             const warningLines = summary.warnings.length
@@ -773,8 +1055,13 @@
                 `Silinecek SALES_ORDER PLN: ${summary.removedDemandCount}`,
                 `Silinecek iş emri: ${summary.removedWorkOrderCount}`,
                 `Silinecek işlem hareketi: ${summary.removedWorkOrderTxnCount}`,
+                `Geri alınacak PLN stok tüketimi: ${summary.restoredPoolCount}`,
                 `Geri alınacak WORK_ORDER_ISSUE: ${summary.restoredIssueCount}`,
                 `Azaltılacak STORE stok etkisi: ${summary.decrementedStoreCount}`,
+                `Silinecek MGP / MGS / STAI: ${summary.removedModernPlanCount} / ${summary.removedModernShipmentCount} / ${summary.removedModernInstructionCount}`,
+                `Silinecek MCT: ${summary.removedModernTransferCount}`,
+                `Silinecek modern stok / movement: ${summary.removedModernStockCount} / ${summary.removedModernMovementCount}`,
+                `Silinecek SVP / shipment / geri alınacak SALES_SHIPMENT_OUT: ${summary.removedSalesShipmentPlanCount} / ${summary.removedSalesShipmentCount} / ${summary.reversedSalesShipmentOutCount}`,
                 `Silinecek stock movement: ${summary.removedStockMovementCount}`,
                 `Silinecek supplier assignment: ${summary.removedAssignmentCount}`,
                 `Temizlenecek FTS/irsaliye taslağı: ${summary.touchedDispatchDraftCount}`,
@@ -788,12 +1075,910 @@
             if (!confirm(confirmText)) return { ...summary, cancelled: true };
         }
 
-        plans = buildPlans();
-        const finalErrors = plans.flatMap((plan) => Array.isArray(plan?.errors) ? plan.errors : []);
+        execution = buildExecution();
+        plans = execution.plans;
+        const finalErrors = [
+            ...(Array.isArray(execution.salesShipmentCleanupPlan?.errors) ? execution.salesShipmentCleanupPlan.errors : []),
+            ...(Array.isArray(execution.modernMontageCleanupPlan?.errors) ? execution.modernMontageCleanupPlan.errors : []),
+            ...PlanningModule.validateDemandDemoCleanupPlans(plans, execution.modernMontageCleanupPlan)
+        ];
         if (finalErrors.length > 0) return { ...makeEmptySummary(), ok: false, errors: finalErrors };
+        PlanningModule.applySalesOrderShipmentDemoCleanupPlan(execution.salesShipmentCleanupPlan);
+        PlanningModule.applyModernMontageCleanupPlan(execution.modernMontageCleanupPlan);
         plans.forEach((plan) => PlanningModule.applyDemandDemoCleanupPlan(plan, plan?.demand?.id || ''));
-        summary = summarizePlans(plans);
-        return summary;
+        summary = summarizePlans(plans, execution.salesShipmentCleanupPlan, execution.modernMontageCleanupPlan);
+        return {
+            ...summary,
+            cleanedDemandIds: plans.map((plan) => String(plan?.demand?.id || '').trim()).filter(Boolean)
+        };
+    },
+
+    buildSalesOrderPrototypeDetachPlan: (orderId, options = {}) => {
+        const CLASSIFICATION = Object.freeze({
+            DELETE_EXCLUSIVE: 'DELETE_EXCLUSIVE',
+            RETAIN_SHARED: 'RETAIN_SHARED',
+            TOMBSTONE_IDENTITY: 'HIDE/TOMBSTONE_IDENTITY',
+            UNCERTAIN: 'UNCERTAIN'
+        });
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : {};
+        const text = (value) => String(value || '').trim();
+        const upper = (value) => text(value).toUpperCase();
+        const qty = (value) => PlanningModule.parseDecimalQty(value, 0);
+        const sameQty = (left, right) => Math.abs(qty(left) - qty(right)) <= 0.000001;
+        const targetOrderId = text(orderId);
+        const classifications = {
+            [CLASSIFICATION.DELETE_EXCLUSIVE]: [],
+            [CLASSIFICATION.RETAIN_SHARED]: [],
+            [CLASSIFICATION.TOMBSTONE_IDENTITY]: [],
+            [CLASSIFICATION.UNCERTAIN]: []
+        };
+        const classificationKeys = new Set();
+        const uncertainties = [];
+        const uncertaintyKeys = new Set();
+        const addUncertainty = (reasonCode, message, evidenceIds = []) => {
+            const normalizedEvidence = Array.from(new Set((Array.isArray(evidenceIds) ? evidenceIds : [])
+                .map(text).filter(Boolean))).sort();
+            const key = `${reasonCode}|${message}|${normalizedEvidence.join('|')}`;
+            if (uncertaintyKeys.has(key)) return;
+            uncertaintyKeys.add(key);
+            const issue = { reasonCode, message, evidenceIds: normalizedEvidence };
+            uncertainties.push(issue);
+            classifications[CLASSIFICATION.UNCERTAIN].push({
+                collection: 'diagnostics',
+                id: reasonCode,
+                code: reasonCode,
+                status: '',
+                classification: CLASSIFICATION.UNCERTAIN,
+                reasons: [message],
+                ownerOrderIds: [],
+                evidenceIds: normalizedEvidence
+            });
+        };
+        const orderMatches = (Array.isArray(data.orders) ? data.orders : [])
+            .filter((row) => text(row?.id) === targetOrderId);
+        if (!targetOrderId || orderMatches.length !== 1) {
+            addUncertainty(
+                'TARGET_ORDER_NOT_UNIQUE',
+                `Prototype Reset hedef siparişi tekil bulunamadı: ${targetOrderId || '-'}.`,
+                [targetOrderId]
+            );
+            return {
+                contractVersion: 1,
+                mode: 'PROTOTYPE_TEST_RESET_DETACH_PREFLIGHT_V1',
+                ok: false,
+                failClosed: true,
+                readOnly: true,
+                writes: 0,
+                target: { orderId: targetOrderId, orderNo: '' },
+                classifications,
+                restoreEffects: [],
+                releasedRanges: [],
+                retainedRanges: [],
+                uncertainties,
+                diagnostics: { existingCleanupErrors: [], sharedComponentCount: 0 }
+            };
+        }
+
+        const targetOrder = orderMatches[0];
+        const targetOrderNo = text(targetOrder?.orderNo || targetOrder?.orderCode);
+        const allOrders = Array.isArray(data.orders) ? data.orders : [];
+        const allDemands = Array.isArray(data.planningDemands) ? data.planningDemands : [];
+        const allWorkOrders = Array.isArray(data.workOrders) ? data.workOrders : [];
+        const targetLineIds = new Set((Array.isArray(targetOrder?.lines) ? targetOrder.lines : [])
+            .map((line) => text(line?.id || line?.lineId)).filter(Boolean));
+        const targetDemands = allDemands.filter((demand) => upper(demand?.sourceType) === 'SALES_ORDER'
+            && (text(demand?.sourceOrderId) === targetOrderId
+                || (!text(demand?.sourceOrderId) && targetOrderNo
+                    && upper(demand?.sourceOrderNo) === upper(targetOrderNo)
+                    && (!text(demand?.sourceLineId) || targetLineIds.has(text(demand.sourceLineId))))));
+        const targetDemandIds = new Set(targetDemands.map((row) => text(row?.id)).filter(Boolean));
+        const targetWorkOrderIds = new Set();
+        targetDemands.forEach((demand) => {
+            PlanningModule.getDemandLinkedWorkOrderIds(demand).forEach((id) => targetWorkOrderIds.add(text(id)));
+        });
+        allWorkOrders.forEach((workOrder) => {
+            if (targetDemandIds.has(text(workOrder?.sourceId || workOrder?.demandId || workOrder?.planningDemandId))) {
+                targetWorkOrderIds.add(text(workOrder?.id));
+            }
+        });
+
+        const ownerByValue = new Map();
+        const registerOwner = (value, ownerId) => {
+            const key = text(value);
+            const ownerKey = text(ownerId);
+            if (!key || !ownerKey) return;
+            if (!ownerByValue.has(key)) ownerByValue.set(key, new Set());
+            ownerByValue.get(key).add(ownerKey);
+        };
+        allOrders.forEach((order) => {
+            const ownerId = text(order?.id);
+            registerOwner(ownerId, ownerId);
+            registerOwner(order?.orderNo || order?.orderCode, ownerId);
+            (Array.isArray(order?.lines) ? order.lines : []).forEach((line) => {
+                registerOwner(line?.id || line?.lineId, ownerId);
+            });
+        });
+        const demandOwnerById = new Map();
+        allDemands.forEach((demand) => {
+            const ownerId = text(demand?.sourceOrderId);
+            const demandId = text(demand?.id);
+            if (upper(demand?.sourceType) !== 'SALES_ORDER' || !ownerId || !demandId) return;
+            demandOwnerById.set(demandId, ownerId);
+            registerOwner(demandId, ownerId);
+            registerOwner(demand?.demandCode, ownerId);
+            registerOwner(demand?.sourceLineId, ownerId);
+            (Array.isArray(demand?.items) ? demand.items : []).forEach((item) => {
+                registerOwner(item?.id || item?.itemKey || item?.key, ownerId);
+            });
+        });
+        const workOrderOwnerById = new Map();
+        allWorkOrders.forEach((workOrder) => {
+            const workOrderId = text(workOrder?.id);
+            const demandId = text(workOrder?.sourceId || workOrder?.demandId || workOrder?.planningDemandId);
+            let ownerId = demandOwnerById.get(demandId) || '';
+            if (!ownerId) {
+                const matchingDemand = allDemands.find((demand) => (Array.isArray(demand?.workOrderIds)
+                    ? demand.workOrderIds : []).some((id) => text(id) === workOrderId));
+                ownerId = demandOwnerById.get(text(matchingDemand?.id)) || '';
+            }
+            if (!workOrderId || !ownerId) return;
+            workOrderOwnerById.set(workOrderId, ownerId);
+            registerOwner(workOrderId, ownerId);
+            registerOwner(workOrder?.workOrderCode, ownerId);
+            (Array.isArray(workOrder?.lines) ? workOrder.lines : []).forEach((line) => {
+                registerOwner(line?.id || line?.lineId, ownerId);
+            });
+        });
+
+        const graphCollections = [
+            'workOrders', 'workOrderTransactions', 'stock_movements', 'stockDepotItems',
+            'montageDispatchPlans', 'montageDispatchShipments', 'sanalTaksimAllocationInstructions',
+            'montageCompletionTransfers', 'salesShipmentPlans', 'salesShipments',
+            'workOrderExternalSupplierAssignments', 'outsourceDispatchDrafts',
+            'workOrderDispatchNotes', 'montageJobDispatches'
+        ];
+        const nodes = new Map();
+        const recordKeysById = new Map();
+        const aliasKeys = new Map();
+        const addAlias = (value, nodeKey) => {
+            const alias = text(value);
+            if (!alias) return;
+            if (!aliasKeys.has(alias)) aliasKeys.set(alias, new Set());
+            aliasKeys.get(alias).add(nodeKey);
+        };
+        const collectStringValues = (value, output = []) => {
+            if (value == null) return output;
+            if (typeof value === 'string') {
+                output.push(value);
+                return output;
+            }
+            if (Array.isArray(value)) {
+                value.forEach((child) => collectStringValues(child, output));
+                return output;
+            }
+            if (typeof value === 'object') {
+                Object.values(value).forEach((child) => collectStringValues(child, output));
+            }
+            return output;
+        };
+        const graphReferenceKeys = new Set([
+            'planId', 'sourcePlanId', 'targetPlanId',
+            'shipmentId', 'sourceShipmentId',
+            'completionTransferId', 'transferId',
+            'stockRowId', 'stockItemId', 'stockDepotItemId',
+            'sourceStockItemId', 'sourceStockDepotItemId', 'targetStockDepotItemId',
+            'outputStockItemId', 'finishedProductStockItemId',
+            'stockMovementId', 'finishedProductMovementId',
+            'instructionId', 'sourceInstructionId',
+            'workOrderId', 'workOrderCode', 'physicalSegmentId'
+        ]);
+        const graphReferenceArrayKeys = new Set([
+            'sourceMovementIds', 'componentMovementIds',
+            'instructionIds', 'sourceInstructionIds', 'workOrderIds'
+        ]);
+        const collectGraphReferenceValues = (value, parentKey = '', output = []) => {
+            if (value == null) return output;
+            if (typeof value === 'string') {
+                if (graphReferenceKeys.has(parentKey) || graphReferenceArrayKeys.has(parentKey)) output.push(value);
+                return output;
+            }
+            if (Array.isArray(value)) {
+                value.forEach((child) => collectGraphReferenceValues(child, parentKey, output));
+                return output;
+            }
+            if (typeof value === 'object') {
+                Object.entries(value).forEach(([key, child]) => collectGraphReferenceValues(child, key, output));
+            }
+            return output;
+        };
+        const resolveDirectOwners = (record) => {
+            const owners = new Set();
+            collectStringValues(record).forEach((value) => {
+                const matches = ownerByValue.get(text(value));
+                if (matches) matches.forEach((ownerId) => owners.add(ownerId));
+            });
+            return owners;
+        };
+        graphCollections.forEach((collection) => {
+            (Array.isArray(data[collection]) ? data[collection] : []).forEach((record, index) => {
+                const recordId = text(record?.id);
+                if (!recordId) return;
+                const key = `${collection}|${recordId}|${index}`;
+                nodes.set(key, {
+                    key,
+                    collection,
+                    record,
+                    id: recordId,
+                    owners: resolveDirectOwners(record),
+                    edges: new Set()
+                });
+                if (!recordKeysById.has(recordId)) recordKeysById.set(recordId, new Set());
+                recordKeysById.get(recordId).add(key);
+                addAlias(recordId, key);
+                if (collection === 'workOrders') addAlias(record?.workOrderCode, key);
+            });
+        });
+        recordKeysById.forEach((keys, id) => {
+            if (keys.size <= 1) return;
+            const relevant = Array.from(keys).some((key) => nodes.get(key)?.owners?.has(targetOrderId));
+            if (relevant) addUncertainty('RECORD_ID_NOT_UNIQUE', `Prototype Reset kayıt kimliği tekil değil: ${id}.`, [id]);
+        });
+        nodes.forEach((node) => {
+            // Audit metinlerindeki rastgele kimlikleri fiziksel bağ sayma. Yalnız
+            // kalıcı/operasyonel referans alanları record graph'ını genişletebilir.
+            const values = collectGraphReferenceValues(node.record);
+            values.forEach((rawValue) => {
+                const value = text(rawValue);
+                const aliases = new Set(aliasKeys.get(value) || []);
+                const stockMatch = value.match(/^STOCK\|(.+)$/i);
+                if (stockMatch) {
+                    (aliasKeys.get(text(stockMatch[1])) || []).forEach((key) => aliases.add(key));
+                }
+                aliases.forEach((otherKey) => {
+                    if (otherKey === node.key || !nodes.has(otherKey)) return;
+                    node.edges.add(otherKey);
+                    nodes.get(otherKey).edges.add(node.key);
+                });
+            });
+        });
+
+        const componentByNodeKey = new Map();
+        const components = [];
+        nodes.forEach((node) => {
+            if (componentByNodeKey.has(node.key)) return;
+            const component = { index: components.length, nodeKeys: new Set(), owners: new Set() };
+            const queue = [node.key];
+            while (queue.length) {
+                const key = queue.shift();
+                if (componentByNodeKey.has(key)) continue;
+                const current = nodes.get(key);
+                if (!current) continue;
+                componentByNodeKey.set(key, component);
+                component.nodeKeys.add(key);
+                current.owners.forEach((ownerId) => component.owners.add(ownerId));
+                current.edges.forEach((edge) => {
+                    if (!componentByNodeKey.has(edge)) queue.push(edge);
+                });
+            }
+            components.push(component);
+        });
+        const targetComponents = components.filter((component) => component.owners.has(targetOrderId));
+        const sharedComponents = targetComponents.filter((component) =>
+            Array.from(component.owners).some((ownerId) => ownerId !== targetOrderId));
+        const sharedComponentIndexes = new Set(sharedComponents.map((component) => component.index));
+        const sharedPhysicalCollections = new Set([
+            'workOrders', 'workOrderTransactions', 'stock_movements', 'stockDepotItems',
+            'montageDispatchPlans', 'montageDispatchShipments', 'sanalTaksimAllocationInstructions',
+            'montageCompletionTransfers', 'salesShipmentPlans', 'salesShipments',
+            'workOrderExternalSupplierAssignments', 'outsourceDispatchDrafts',
+            'workOrderDispatchNotes', 'montageJobDispatches'
+        ]);
+        const hasSharedPhysicalEvidence = sharedComponents.some((component) =>
+            Array.from(component.nodeKeys).some((key) => sharedPhysicalCollections.has(nodes.get(key)?.collection)));
+
+        const salesShipmentCleanupPlan = PlanningModule.getSalesOrderShipmentDemoCleanupPlan(targetOrderId, {
+            lineIds: Array.from(targetLineIds)
+        });
+        const modernMontageCleanupPlan = targetDemands.length
+            ? PlanningModule.getDemandModernMontageCleanupPlan(targetDemands[0], {
+                demands: targetDemands,
+                salesShipmentCleanupPlan
+            })
+            : null;
+        const demandPlans = targetDemands.map((demand) => PlanningModule.getStockDemandDemoCleanupPlan(demand.id, {
+            sourceType: 'SALES_ORDER',
+            salesShipmentCleanupPlan,
+            orderModernMontageCleanupPlan: modernMontageCleanupPlan,
+            skipModernMontageCleanup: true
+        }));
+        const existingCleanupErrors = Array.from(new Set([
+            ...(Array.isArray(salesShipmentCleanupPlan?.errors) ? salesShipmentCleanupPlan.errors : []),
+            ...(Array.isArray(modernMontageCleanupPlan?.errors) ? modernMontageCleanupPlan.errors : []),
+            ...PlanningModule.validateDemandDemoCleanupPlans(demandPlans, modernMontageCleanupPlan)
+        ].filter(Boolean)));
+
+        const deleteCandidateIds = new Map();
+        const addDeleteCandidate = (collection, id) => {
+            const key = text(id);
+            if (!key) return;
+            if (!deleteCandidateIds.has(collection)) deleteCandidateIds.set(collection, new Set());
+            deleteCandidateIds.get(collection).add(key);
+        };
+        targetWorkOrderIds.forEach((id) => addDeleteCandidate('workOrders', id));
+        demandPlans.forEach((plan) => {
+            (Array.isArray(plan?.linkedTxns) ? plan.linkedTxns : []).forEach((row) => addDeleteCandidate('workOrderTransactions', row?.id));
+            (Array.isArray(plan?.linkedStockMovements) ? plan.linkedStockMovements : []).forEach((row) => addDeleteCandidate('stock_movements', row?.id));
+            (Array.isArray(plan?.assignmentRows) ? plan.assignmentRows : []).forEach((row) => addDeleteCandidate('workOrderExternalSupplierAssignments', row?.id));
+            (Array.isArray(plan?.montageDispatchRows) ? plan.montageDispatchRows : []).forEach((row) => addDeleteCandidate('montageJobDispatches', row?.id));
+        });
+        [
+            ['montageDispatchPlans', modernMontageCleanupPlan?.targetPlanIds],
+            ['montageDispatchShipments', modernMontageCleanupPlan?.targetShipmentIds],
+            ['sanalTaksimAllocationInstructions', modernMontageCleanupPlan?.targetInstructionIds],
+            ['montageCompletionTransfers', modernMontageCleanupPlan?.targetTransferIds],
+            ['stockDepotItems', modernMontageCleanupPlan?.targetStockIds],
+            ['stock_movements', modernMontageCleanupPlan?.targetMovementIds],
+            ['salesShipmentPlans', salesShipmentCleanupPlan?.targetPlanIds],
+            ['salesShipments', salesShipmentCleanupPlan?.targetShipmentIds],
+            ['stock_movements', salesShipmentCleanupPlan?.targetMovementIds]
+        ].forEach(([collection, ids]) => Array.from(ids || []).forEach((id) => addDeleteCandidate(collection, id)));
+
+        const descriptorFor = (collection, record, classification, reasons, owners = []) => ({
+            collection,
+            id: text(record?.id),
+            code: text(record?.orderNo || record?.demandCode || record?.workOrderCode
+                || record?.planNo || record?.shipmentNo || record?.transferNo
+                || record?.instructionCode || record?.movementNo || record?.code),
+            status: text(record?.status),
+            classification,
+            reasons: Array.from(new Set((Array.isArray(reasons) ? reasons : []).map(text).filter(Boolean))),
+            ownerOrderIds: Array.from(new Set((Array.isArray(owners) ? owners : []).map(text).filter(Boolean))).sort()
+        });
+        const addClassification = (collection, record, classification, reasons, owners = []) => {
+            const id = text(record?.id);
+            const key = `${classification}|${collection}|${id}`;
+            if (!id || classificationKeys.has(key)) return;
+            classificationKeys.add(key);
+            classifications[classification].push(descriptorFor(collection, record, classification, reasons, owners));
+        };
+
+        nodes.forEach((node) => {
+            const component = componentByNodeKey.get(node.key);
+            if (!component || !component.owners.has(targetOrderId)) return;
+            const ownerIds = Array.from(component.owners);
+            const shared = sharedComponentIndexes.has(component.index);
+            const directTarget = node.owners.has(targetOrderId);
+            const isTargetWorkOrder = node.collection === 'workOrders' && targetWorkOrderIds.has(node.id);
+            const isDeleteCandidate = deleteCandidateIds.get(node.collection)?.has(node.id) === true;
+            if (isTargetWorkOrder) {
+                addClassification(
+                    node.collection,
+                    node.record,
+                    (shared || hasSharedPhysicalEvidence)
+                        ? CLASSIFICATION.TOMBSTONE_IDENTITY : CLASSIFICATION.DELETE_EXCLUSIVE,
+                    [(shared || hasSharedPhysicalEvidence)
+                        ? 'Başka siparişin exact fiziksel kanıtı bu SOR lineage’ındaki WO kimliklerine bağlıdır.'
+                        : 'WO yalnız seçilen sipariş lineage’ına bağlıdır.'],
+                    ownerIds
+                );
+                return;
+            }
+            if (shared) {
+                addClassification(
+                    node.collection,
+                    node.record,
+                    CLASSIFICATION.RETAIN_SHARED,
+                    ['Kayıt seçilen sipariş ile en az bir başka siparişin exact fiziksel bileşeninde ortaktır.'],
+                    ownerIds
+                );
+                return;
+            }
+            if (directTarget || isDeleteCandidate) {
+                addClassification(
+                    node.collection,
+                    node.record,
+                    CLASSIFICATION.DELETE_EXCLUSIVE,
+                    ['Kayıt yalnız seçilen siparişin doğrulanmış cleanup bileşenindedir.'],
+                    ownerIds
+                );
+            }
+        });
+        const hasSharedEvidence = classifications[CLASSIFICATION.RETAIN_SHARED].length > 0
+            || classifications[CLASSIFICATION.TOMBSTONE_IDENTITY].some((row) => row.collection === 'workOrders');
+        addClassification(
+            'orders',
+            targetOrder,
+            hasSharedEvidence ? CLASSIFICATION.TOMBSTONE_IDENTITY : CLASSIFICATION.DELETE_EXCLUSIVE,
+            [hasSharedEvidence
+                ? 'Sipariş kimliği shared fiziksel provenance için korunmalı, aktif ticari görünümden çıkarılmalıdır.'
+                : 'Siparişin shared fiziksel kanıtı bulunmamıştır.'],
+            [targetOrderId]
+        );
+        targetDemands.forEach((demand) => addClassification(
+            'planningDemands',
+            demand,
+            hasSharedEvidence ? CLASSIFICATION.TOMBSTONE_IDENTITY : CLASSIFICATION.DELETE_EXCLUSIVE,
+            [hasSharedEvidence
+                ? 'PLN kimliği retained WO/physical evidence tarafından kullanılmaktadır.'
+                : 'PLN yalnız seçilen sipariş cleanup zincirindedir.'],
+            [targetOrderId]
+        ));
+
+        const targetRelatedNodeKeys = new Set(targetComponents.flatMap((component) => Array.from(component.nodeKeys)));
+        if (hasSharedEvidence) {
+            const resolver = typeof SanalTaksimResolver !== 'undefined' ? SanalTaksimResolver : null;
+            if (!resolver || typeof resolver.resolve !== 'function') {
+                addUncertainty(
+                    'RESOLVER_PROOF_UNAVAILABLE',
+                    'Shared retained-evidence planı için Sanal Taksim invariant kanıtı kullanılamıyor.',
+                    [targetOrderId]
+                );
+            } else {
+                try {
+                    const resolved = resolver.resolve(data);
+                    const invariants = resolved?.diagnostics?.invariants || {};
+                    const required = [
+                        'segmentAllocationWithinQty', 'debtAllocationWithinOpenDebt',
+                        'sourceAllocationWithinPlannedQty', 'segmentKeysConsumedOnce',
+                        'exactHoldQtyWithinPhysical', 'exactHoldKeysConsumedOnce',
+                        'exactPrcAndUnitOnly', 'sourceIdentityExact', 'originEvidencePreserved'
+                    ];
+                    if (required.some((name) => invariants[name] !== true)
+                        || resolved?.diagnostics?.exactHoldLedger?.valid !== true) {
+                        addUncertainty(
+                            'RESOLVER_PROOF_UNTRUSTED',
+                            'Shared retained-evidence planı güncel resolver invariantlarını doğrulayamadı.',
+                            [targetOrderId]
+                        );
+                    }
+                } catch (error) {
+                    addUncertainty(
+                        'RESOLVER_PROOF_FAILED',
+                        `Shared retained-evidence resolver kanıtı üretilemedi: ${String(error?.message || error)}`,
+                        [targetOrderId]
+                    );
+                }
+            }
+        } else if (existingCleanupErrors.length) {
+            existingCleanupErrors.forEach((message, index) => addUncertainty(
+                'EXCLUSIVE_CLEANUP_PREFLIGHT_FAILED',
+                message,
+                [targetOrderId, `cleanup-error-${index + 1}`]
+            ));
+        }
+
+        nodes.forEach((node) => {
+            if (!targetRelatedNodeKeys.has(node.key)) return;
+            if (node.collection === 'montageDispatchShipments'
+                && Array.isArray(node.record?.operationalRebindEvents)
+                && node.record.operationalRebindEvents.length > 0) {
+                const resolver = typeof SanalTaksimResolver !== 'undefined' ? SanalTaksimResolver : null;
+                const resolution = resolver && typeof resolver.resolveMontageShipmentOperationalTarget === 'function'
+                    ? resolver.resolveMontageShipmentOperationalTarget(node.record) : null;
+                if (!resolution?.ok || resolution?.rebound !== true) {
+                    addUncertainty(
+                        'OPERATIONAL_REBIND_INVALID',
+                        `MGS operational rebind kanıtı doğrulanamadı: ${text(node.record?.shipmentNo) || node.id}.`,
+                        [node.id]
+                    );
+                }
+            }
+            if (node.collection === 'montageDispatchPlans' && node.record?.rebindAudit != null) {
+                const audit = node.record.rebindAudit;
+                const sourcePlanId = text(audit?.sourcePlanId);
+                const targetPlanId = text(audit?.targetPlanId);
+                const sourceMatches = (Array.isArray(data.montageDispatchPlans) ? data.montageDispatchPlans : [])
+                    .filter((row) => text(row?.id) === sourcePlanId);
+                const targetMatches = (Array.isArray(data.montageDispatchPlans) ? data.montageDispatchPlans : [])
+                    .filter((row) => text(row?.id) === targetPlanId);
+                if (!text(audit?.rebindKey) || !['SOURCE', 'TARGET'].includes(upper(audit?.role))
+                    || sourceMatches.length !== 1 || targetMatches.length !== 1
+                    || !Array.isArray(audit?.sourceOrderIds) || !audit.sourceOrderIds.length
+                    || !text(audit?.targetOrderId)
+                    || !Array.isArray(audit?.exactReservations) || !audit.exactReservations.length) {
+                    addUncertainty(
+                        'DRAFT_REBIND_AUDIT_INVALID',
+                        `MGP rebind audit kanıtı eksik veya çelişkili: ${text(node.record?.planNo) || node.id}.`,
+                        [node.id, sourcePlanId, targetPlanId]
+                    );
+                }
+            }
+        });
+
+        const retainedIds = new Set([
+            ...classifications[CLASSIFICATION.RETAIN_SHARED],
+            ...classifications[CLASSIFICATION.TOMBSTONE_IDENTITY]
+        ].map((row) => row.id));
+        const rangeEvidence = new Map();
+        const visitRangeObjects = (value, callback) => {
+            if (!value || typeof value !== 'object') return;
+            if (Array.isArray(value)) {
+                value.forEach((child) => visitRangeObjects(child, callback));
+                return;
+            }
+            const hasRangeStart = Object.prototype.hasOwnProperty.call(value, 'segmentOffsetStart');
+            const hasRangeEnd = Object.prototype.hasOwnProperty.call(value, 'segmentOffsetEnd');
+            // physicalSegmentId tek başına lineage/provenance kimliği olabilir;
+            // range sözleşmesi ancak offset alanlarından en az biri varsa başlar.
+            if (hasRangeStart || hasRangeEnd) callback(value);
+            Object.values(value).forEach((child) => {
+                if (child && typeof child === 'object') visitRangeObjects(child, callback);
+            });
+        };
+        nodes.forEach((node) => {
+            if (!targetRelatedNodeKeys.has(node.key)) return;
+            const component = componentByNodeKey.get(node.key);
+            const retained = retainedIds.has(node.id) || sharedComponentIndexes.has(component?.index);
+            visitRangeObjects(node.record, (range) => {
+                const physicalSegmentId = text(range?.physicalSegmentId);
+                const stockRowId = text(range?.stockRowId || range?.stockDepotItemId);
+                const start = Number(range?.segmentOffsetStart);
+                const end = Number(range?.segmentOffsetEnd);
+                const amount = Number(range?.qty ?? range?.reservedQty);
+                if (!physicalSegmentId || !Number.isFinite(start) || !Number.isFinite(end)
+                    || !Number.isFinite(amount) || start < 0 || end <= start
+                    || amount <= 0 || !sameQty(end - start, amount)
+                    || (/^STOCK\|/i.test(physicalSegmentId)
+                        && (!stockRowId || physicalSegmentId !== `STOCK|${stockRowId}`))) {
+                    addUncertainty(
+                        'PHYSICAL_RANGE_INVALID',
+                        `Physical segment/range kanıtı eksik veya çelişkili: ${node.collection}/${node.id}.`,
+                        [node.id, physicalSegmentId, stockRowId]
+                    );
+                    return;
+                }
+                const rangeKey = `${physicalSegmentId}|${start.toFixed(6)}|${end.toFixed(6)}`;
+                const current = rangeEvidence.get(rangeKey) || {
+                    rangeKey,
+                    physicalSegmentId,
+                    stockRowId,
+                    segmentOffsetStart: start,
+                    segmentOffsetEnd: end,
+                    qty: amount,
+                    retained: false,
+                    evidenceIds: new Set(),
+                    reservationKeys: new Set()
+                };
+                if (!sameQty(current.qty, amount)) {
+                    addUncertainty(
+                        'PHYSICAL_RANGE_QTY_CONFLICT',
+                        `Aynı physical range farklı miktar taşıyor: ${rangeKey}.`,
+                        [node.id, rangeKey]
+                    );
+                }
+                current.retained = current.retained || retained;
+                current.evidenceIds.add(node.id);
+                if (text(range?.reservationKey)) current.reservationKeys.add(text(range.reservationKey));
+                rangeEvidence.set(rangeKey, current);
+            });
+        });
+        const normalizeRange = (entry) => ({
+            rangeKey: entry.rangeKey,
+            physicalSegmentId: entry.physicalSegmentId,
+            stockRowId: entry.stockRowId,
+            segmentOffsetStart: entry.segmentOffsetStart,
+            segmentOffsetEnd: entry.segmentOffsetEnd,
+            qty: entry.qty,
+            evidenceIds: Array.from(entry.evidenceIds).sort(),
+            reservationKeys: Array.from(entry.reservationKeys).sort()
+        });
+        const retainedRanges = Array.from(rangeEvidence.values()).filter((entry) => entry.retained)
+            .map(normalizeRange).sort((left, right) => left.rangeKey.localeCompare(right.rangeKey));
+        const releasedRanges = Array.from(rangeEvidence.values()).filter((entry) => !entry.retained)
+            .map(normalizeRange).sort((left, right) => left.rangeKey.localeCompare(right.rangeKey));
+        for (let i = 0; i < releasedRanges.length; i += 1) {
+            for (let j = i + 1; j < releasedRanges.length; j += 1) {
+                const left = releasedRanges[i];
+                const right = releasedRanges[j];
+                if (left.physicalSegmentId !== right.physicalSegmentId) continue;
+                const overlaps = left.segmentOffsetStart < right.segmentOffsetEnd - 0.000001
+                    && left.segmentOffsetEnd > right.segmentOffsetStart + 0.000001;
+                if (overlaps) addUncertainty(
+                    'RESTORE_RANGE_OVERLAP',
+                    `Exclusive restore range’leri çakışıyor: ${left.rangeKey} / ${right.rangeKey}.`,
+                    [...left.evidenceIds, ...right.evidenceIds]
+                );
+            }
+        }
+
+        const restoreEffectsByKey = new Map();
+        const restoreEffectByMovementId = new Map();
+        const movementIdsReferencingRow = (idSet, rowId) => Array.from(idSet || []).filter((movementId) => {
+            const movement = (Array.isArray(data.stock_movements) ? data.stock_movements : [])
+                .find((row) => text(row?.id) === text(movementId));
+            return movement && collectStringValues(movement).some((value) => text(value) === rowId);
+        }).sort();
+        const addRestoreEffect = ({ kind, action, row, amount, movementIds = [], evidenceIds = [], fallbackKey = '' }) => {
+            const stockRowId = text(row?.id);
+            const normalizedMovementIds = Array.from(new Set(movementIds.map(text).filter(Boolean))).sort();
+            const normalizedEvidenceIds = Array.from(new Set(evidenceIds.map(text).filter(Boolean))).sort();
+            if (!stockRowId || qty(amount) <= 0) {
+                addUncertainty('RESTORE_EFFECT_INVALID', `${kind} restore etkisi exact stok/miktar taşımıyor.`, normalizedEvidenceIds);
+                return;
+            }
+            if (retainedIds.has(stockRowId) || normalizedMovementIds.some((id) => retainedIds.has(id))) return;
+            const exactKey = normalizedMovementIds.length
+                ? normalizedMovementIds.join(',') : text(fallbackKey);
+            if (!exactKey) {
+                addUncertainty('RESTORE_EFFECT_IDENTITY_MISSING', `${kind} restore etkisi movement/range kimliği taşımıyor.`, normalizedEvidenceIds);
+                return;
+            }
+            const effectKey = `${action}|${kind}|${exactKey}|${stockRowId}`;
+            normalizedMovementIds.forEach((movementId) => {
+                const previous = restoreEffectByMovementId.get(movementId);
+                if (previous && previous !== effectKey) {
+                    addUncertainty(
+                        'RESTORE_MOVEMENT_DUPLICATE',
+                        `Aynı movement birden fazla restore etkisine bağlandı: ${movementId}.`,
+                        [movementId, previous, effectKey]
+                    );
+                } else restoreEffectByMovementId.set(movementId, effectKey);
+            });
+            const existing = restoreEffectsByKey.get(effectKey);
+            if (existing) {
+                if (!sameQty(existing.qty, amount)) addUncertainty(
+                    'RESTORE_EFFECT_QTY_CONFLICT',
+                    `Aynı restore etkisi farklı miktar taşıyor: ${effectKey}.`,
+                    normalizedEvidenceIds
+                );
+                normalizedEvidenceIds.forEach((id) => existing.evidenceIds.add(id));
+                return;
+            }
+            restoreEffectsByKey.set(effectKey, {
+                effectKey,
+                kind,
+                action,
+                stockRowId,
+                physicalSegmentId: `STOCK|${stockRowId}`,
+                qty: qty(amount),
+                movementIds: normalizedMovementIds,
+                evidenceIds: new Set(normalizedEvidenceIds)
+            });
+        };
+        demandPlans.forEach((plan) => {
+            (Array.isArray(plan?.poolRestorePlans) ? plan.poolRestorePlans : []).forEach((entry) => addRestoreEffect({
+                kind: 'PLANNING_POOL', action: 'RESTORE', row: entry?.row, amount: entry?.qty,
+                fallbackKey: `${text(plan?.demand?.id)}|${text(entry?.poolRow?.itemKey || entry?.poolRow?.key)}`,
+                evidenceIds: [plan?.demand?.id, entry?.poolRow?.itemKey || entry?.poolRow?.key]
+            }));
+            (Array.isArray(plan?.issueRestorePlans) ? plan.issueRestorePlans : []).forEach((entry) => addRestoreEffect({
+                kind: 'WORK_ORDER_ISSUE', action: 'RESTORE', row: entry?.row, amount: entry?.qty,
+                movementIds: [entry?.movement?.id], evidenceIds: [entry?.movement?.id, plan?.demand?.id]
+            }));
+            (Array.isArray(plan?.storeDecrementPlans) ? plan.storeDecrementPlans : []).forEach((entry) => {
+                const transactionIds = [
+                    ...(Array.isArray(entry?.transactions) ? entry.transactions : []),
+                    entry?.transaction
+                ].map((row) => text(row?.id)).filter(Boolean).sort();
+                addRestoreEffect({
+                    kind: 'STORE_OUTPUT', action: 'DECREMENT', row: entry?.row, amount: entry?.qty,
+                    movementIds: [entry?.movement?.id],
+                    fallbackKey: transactionIds.length ? `STORE_TRANSACTION|${transactionIds.join(',')}` : '',
+                    evidenceIds: [entry?.movement?.id, ...transactionIds, plan?.demand?.id]
+                });
+            });
+        });
+        const addMapEffects = (map, kind, action, movementSet) => {
+            Array.from(map?.values?.() || []).forEach((entry) => {
+                const rowId = text(entry?.row?.id);
+                const movementIds = movementIdsReferencingRow(movementSet, rowId);
+                addRestoreEffect({
+                    kind, action, row: entry?.row, amount: entry?.qty, movementIds,
+                    evidenceIds: movementIds
+                });
+            });
+        };
+        addMapEffects(salesShipmentCleanupPlan?.stockReturns, 'SALES_SHIPMENT_OUT', 'RESTORE', salesShipmentCleanupPlan?.targetMovementIds);
+        addMapEffects(modernMontageCleanupPlan?.sourceReturns, 'MONTAGE_DISPATCH_OUT', 'RESTORE', modernMontageCleanupPlan?.targetMovementIds);
+        addMapEffects(modernMontageCleanupPlan?.componentRestores, 'MONTAGE_COMPONENT_CONSUMPTION', 'RESTORE', modernMontageCleanupPlan?.targetMovementIds);
+        (Array.isArray(modernMontageCleanupPlan?.surplusReversals) ? modernMontageCleanupPlan.surplusReversals : [])
+            .forEach((entry) => addRestoreEffect({
+                kind: 'SALES_COMPONENT_SURPLUS_RELEASE', action: 'REVERSE', row: entry?.sourceRow,
+                amount: entry?.qty, movementIds: [entry?.movement?.id], evidenceIds: [entry?.movement?.id]
+            }));
+        const restoreEffects = Array.from(restoreEffectsByKey.values()).map((entry) => ({
+            ...entry,
+            evidenceIds: Array.from(entry.evidenceIds).sort()
+        })).sort((left, right) => left.effectKey.localeCompare(right.effectKey));
+
+        Object.values(classifications).forEach((rows) => rows.sort((left, right) =>
+            `${left.collection}|${left.code}|${left.id}`.localeCompare(`${right.collection}|${right.code}|${right.id}`)
+        ));
+        return {
+            contractVersion: 1,
+            mode: 'PROTOTYPE_TEST_RESET_DETACH_PREFLIGHT_V1',
+            ok: uncertainties.length === 0,
+            failClosed: uncertainties.length > 0,
+            readOnly: true,
+            writes: 0,
+            target: {
+                orderId: targetOrderId,
+                orderNo: targetOrderNo,
+                demandIds: Array.from(targetDemandIds).sort(),
+                workOrderIds: Array.from(targetWorkOrderIds).sort()
+            },
+            classifications,
+            restoreEffects,
+            releasedRanges,
+            retainedRanges,
+            uncertainties,
+            diagnostics: {
+                existingCleanupErrors,
+                targetComponentCount: targetComponents.length,
+                sharedComponentCount: sharedComponents.length,
+                retainedEvidenceCount: classifications[CLASSIFICATION.RETAIN_SHARED].length,
+                tombstoneIdentityCount: classifications[CLASSIFICATION.TOMBSTONE_IDENTITY].length,
+                deleteExclusiveCount: classifications[CLASSIFICATION.DELETE_EXCLUSIVE].length,
+                restoreEffectCount: restoreEffects.length,
+                releasedRangeCount: releasedRanges.length,
+                retainedRangeCount: retainedRanges.length
+            }
+        };
+    },
+
+    getSalesOrderPrototypeDetachPlanSignature: (plan) => {
+        const text = (value) => String(value || '').trim();
+        const classificationRows = Object.entries(plan?.classifications || {})
+            .flatMap(([classification, rows]) => (Array.isArray(rows) ? rows : []).map((row) => ({
+                classification: text(classification),
+                collection: text(row?.collection),
+                id: text(row?.id),
+                status: text(row?.status),
+                ownerOrderIds: (Array.isArray(row?.ownerOrderIds) ? row.ownerOrderIds : []).map(text).sort(),
+                reasons: (Array.isArray(row?.reasons) ? row.reasons : []).map(text).sort()
+            })))
+            .sort((left, right) => `${left.classification}|${left.collection}|${left.id}`
+                .localeCompare(`${right.classification}|${right.collection}|${right.id}`));
+        const restoreEffects = (Array.isArray(plan?.restoreEffects) ? plan.restoreEffects : [])
+            .map((row) => ({ effectKey: text(row?.effectKey), qty: Number(row?.qty || 0) }))
+            .sort((left, right) => left.effectKey.localeCompare(right.effectKey));
+        const ranges = ['releasedRanges', 'retainedRanges'].flatMap((bucket) =>
+            (Array.isArray(plan?.[bucket]) ? plan[bucket] : []).map((row) => ({
+                bucket,
+                rangeKey: text(row?.rangeKey),
+                qty: Number(row?.qty || 0)
+            }))).sort((left, right) => `${left.bucket}|${left.rangeKey}`.localeCompare(`${right.bucket}|${right.rangeKey}`));
+        return JSON.stringify({
+            contractVersion: Number(plan?.contractVersion || 0),
+            mode: text(plan?.mode),
+            orderId: text(plan?.target?.orderId),
+            demandIds: (Array.isArray(plan?.target?.demandIds) ? plan.target.demandIds : []).map(text).sort(),
+            workOrderIds: (Array.isArray(plan?.target?.workOrderIds) ? plan.target.workOrderIds : []).map(text).sort(),
+            classificationRows,
+            restoreEffects,
+            ranges
+        });
+    },
+
+    applySalesOrderPrototypeDetachPlan: (orderId, confirmedSignature, options = {}) => {
+        const targetOrderId = String(orderId || '').trim();
+        const signature = String(confirmedSignature || '').trim();
+        const fail = (code, message, plan = null) => ({
+            ok: false,
+            code,
+            errors: [message],
+            plan,
+            prototypeResetMode: '',
+            prototypeResetVersion: 0
+        });
+        if (!targetOrderId || !signature) {
+            return fail('PROTOTYPE_RESET_CONFIRMATION_MISSING', 'Prototype Reset onay kimliği eksik.');
+        }
+        const plan = PlanningModule.buildSalesOrderPrototypeDetachPlan(targetOrderId, options);
+        if (!plan?.ok || plan?.failClosed || (Array.isArray(plan?.uncertainties) && plan.uncertainties.length)) {
+            const reason = (Array.isArray(plan?.uncertainties) ? plan.uncertainties : [])
+                .map((row) => String(row?.message || '').trim()).filter(Boolean).join('\n');
+            return fail(
+                'PROTOTYPE_RESET_UNCERTAIN',
+                reason || 'Prototype Reset kanıtı belirsiz; hiçbir kayıt değiştirilmedi.',
+                plan
+            );
+        }
+        const currentSignature = PlanningModule.getSalesOrderPrototypeDetachPlanSignature(plan);
+        if (currentSignature !== signature) {
+            return fail(
+                'PROTOTYPE_RESET_PLAN_STALE',
+                'Prototype Reset bağlantıları onaydan sonra değişti; işlem güvenlik nedeniyle durduruldu.',
+                plan
+            );
+        }
+        const retainedRows = Array.isArray(plan?.classifications?.RETAIN_SHARED)
+            ? plan.classifications.RETAIN_SHARED : [];
+        const tombstoneRows = Array.isArray(plan?.classifications?.['HIDE/TOMBSTONE_IDENTITY'])
+            ? plan.classifications['HIDE/TOMBSTONE_IDENTITY'] : [];
+        const sharedEvidence = retainedRows.length > 0
+            || tombstoneRows.some((row) => String(row?.collection || '').trim() === 'workOrders');
+        if (!sharedEvidence) {
+            const summary = PlanningModule.cleanupSalesOrderCascadeForDemo(targetOrderId, {
+                orderNo: String(plan?.target?.orderNo || '').trim(),
+                lineIds: Array.isArray(options?.lineIds) ? options.lineIds : [],
+                confirmBeforeApply: false
+            });
+            if (summary?.ok === false) {
+                return fail(
+                    'PROTOTYPE_RESET_EXCLUSIVE_APPLY_FAILED',
+                    (Array.isArray(summary?.errors) ? summary.errors : []).join('\n')
+                        || 'Exclusive Prototype Reset uygulanamadı.',
+                    plan
+                );
+            }
+            return {
+                ...summary,
+                ok: true,
+                plan,
+                planSignature: currentSignature,
+                prototypeResetMode: 'DELETE_EXCLUSIVE',
+                prototypeResetVersion: 3,
+                retainedEvidenceCount: 0,
+                tombstonedDemandIds: [],
+                tombstonedWorkOrderIds: []
+            };
+        }
+
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : null;
+        if (!data) return fail('PROTOTYPE_RESET_STATE_MISSING', 'Prototype Reset state kökü bulunamadı.', plan);
+        const targetDemandIds = new Set((Array.isArray(plan?.target?.demandIds) ? plan.target.demandIds : [])
+            .map((value) => String(value || '').trim()).filter(Boolean));
+        const targetWorkOrderIds = new Set((Array.isArray(plan?.target?.workOrderIds) ? plan.target.workOrderIds : [])
+            .map((value) => String(value || '').trim()).filter(Boolean));
+        const demandMatches = (Array.isArray(data.planningDemands) ? data.planningDemands : [])
+            .filter((row) => targetDemandIds.has(String(row?.id || '').trim()));
+        const workOrderMatches = (Array.isArray(data.workOrders) ? data.workOrders : [])
+            .filter((row) => targetWorkOrderIds.has(String(row?.id || '').trim()));
+        if (demandMatches.length !== targetDemandIds.size || workOrderMatches.length !== targetWorkOrderIds.size) {
+            return fail(
+                'PROTOTYPE_RESET_IDENTITY_DRIFT',
+                'Prototype Reset SOR/PLN/WO kimliği apply öncesinde değişti; işlem durduruldu.',
+                plan
+            );
+        }
+        const detachedAt = new Date().toISOString();
+        const markerBase = {
+            contractVersion: 1,
+            type: 'PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE',
+            orderId: targetOrderId,
+            orderNo: String(plan?.target?.orderNo || '').trim(),
+            planSignature: currentSignature,
+            detachedAt
+        };
+        const orderMatches = (Array.isArray(data.orders) ? data.orders : [])
+            .filter((order) => String(order?.id || '').trim() === targetOrderId);
+        if (orderMatches.length !== 1) {
+            return fail(
+                'PROTOTYPE_RESET_ORDER_DRIFT',
+                'Prototype Reset SOR kimliği apply öncesinde değişti; işlem durduruldu.',
+                plan
+            );
+        }
+        orderMatches[0].prototypeResetTombstone = { ...markerBase };
+        demandMatches.forEach((demand) => {
+            const previousStatus = String(demand?.status || '').trim();
+            demand.prototypeResetTombstone = { ...markerBase, previousStatus };
+            demand.status = 'PROTOTYPE_RESET_TOMBSTONE';
+        });
+        workOrderMatches.forEach((workOrder) => {
+            workOrder.prototypeResetTombstone = { ...markerBase };
+        });
+        return {
+            ok: true,
+            warnings: [],
+            plan,
+            planSignature: currentSignature,
+            prototypeResetMode: 'RETAINED_EVIDENCE_DETACH',
+            prototypeResetVersion: 4,
+            removedDemandCount: 0,
+            removedWorkOrderCount: 0,
+            removedWorkOrderTxnCount: 0,
+            removedDispatchNoteRowCount: 0,
+            removedMontageDispatchCount: 0,
+            removedStockMovementCount: 0,
+            removedAssignmentCount: 0,
+            touchedDispatchDraftCount: 0,
+            retainedEvidenceCount: retainedRows.length,
+            cleanedDemandIds: Array.from(targetDemandIds),
+            tombstonedDemandIds: Array.from(targetDemandIds),
+            tombstonedWorkOrderIds: Array.from(targetWorkOrderIds)
+        };
     },
 
     cleanupOrphanSalesOrderRecordsForDemo: () => {
@@ -1542,18 +2727,19 @@
         const customer = customers.find((item) => String(item?.id || '').trim() === customerId) || null;
         const sourceCustomerRefId = String(customer?.customerRefId || '').trim() || '-';
         const now = new Date().toISOString();
-        const maxDemandNo = PlanningModule.getDemands().reduce((acc, demand) => {
-            const match = String(demand?.demandCode || '').trim().toUpperCase().match(/^PLN-(\d{6})$/);
-            return match ? Math.max(acc, Number(match[1])) : acc;
-        }, 0);
+        const usedDemandCodes = new Set(PlanningModule.getDemands()
+            .map((demand) => String(demand?.demandCode || '').trim().toUpperCase())
+            .filter(Boolean));
 
-        const demands = prepared.map((entry, index) => {
+        const demands = prepared.map((entry) => {
             const line = entry.line;
             const code = String(line?.variantCode || line?.variationCode || line?.productCode || line?.code || '-').trim() || '-';
             const productName = String(line?.productName || line?.name || '-').trim() || '-';
+            const demandCode = PlanningModule.getNextOperationalCode('PLN', Array.from(usedDemandCodes));
+            usedDemandCodes.add(demandCode);
             return {
                 id: crypto.randomUUID(),
-                demandCode: `PLN-${String(maxDemandNo + index + 1).padStart(6, '0')}`,
+                demandCode,
                 sourceType: 'SALES_ORDER',
                 sourceLabel: 'Satis Siparisi',
                 sourceOrderId,
@@ -5092,6 +6278,74 @@
         UI.renderCurrentPage();
     },
 
+    commitStockDraftItemQtyFromDom: () => {
+        const rows = Array.isArray(PlanningModule.state.stockDraftItems)
+            ? PlanningModule.state.stockDraftItems
+            : [];
+        const rowsById = new Map();
+        for (const row of rows) {
+            const rowId = String(row?.id || '').trim();
+            if (!rowId || rowsById.has(rowId)) {
+                return {
+                    ok: false,
+                    code: 'STOCK_DRAFT_ITEM_ID_INVALID',
+                    message: 'Stok talebi satir kimligi eksik veya mukerrer. Kayit durduruldu.'
+                };
+            }
+            rowsById.set(rowId, row);
+        }
+        if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') {
+            return {
+                ok: false,
+                code: 'STOCK_DRAFT_QTY_DOM_UNAVAILABLE',
+                message: 'Stok talebi miktar alanlari okunamadi. Kayit durduruldu.'
+            };
+        }
+
+        const inputs = Array.from(document.querySelectorAll('input[data-stock-draft-item-qty="true"]'));
+        if (inputs.length !== rowsById.size) {
+            return {
+                ok: false,
+                code: 'STOCK_DRAFT_QTY_INPUT_COUNT_MISMATCH',
+                message: 'Stok talebi miktar alanlari satirlarla exact eslesmiyor. Kayit durduruldu.'
+            };
+        }
+
+        const qtyById = new Map();
+        for (const input of inputs) {
+            const rowId = String(input?.getAttribute?.('data-draft-item-id') || '').trim();
+            if (!rowId || !rowsById.has(rowId) || qtyById.has(rowId)) {
+                return {
+                    ok: false,
+                    code: 'STOCK_DRAFT_QTY_INPUT_ID_MISMATCH',
+                    message: 'Stok talebi miktar alanlari satirlarla exact eslesmiyor. Kayit durduruldu.'
+                };
+            }
+            const rawValue = String(input?.value ?? '').trim();
+            const qty = Number(rawValue);
+            if (!rawValue || !Number.isFinite(qty) || qty <= 0) {
+                return {
+                    ok: false,
+                    code: 'STOCK_DRAFT_QTY_INVALID',
+                    message: 'Stok talebi miktari 0 dan buyuk gecerli bir sayi olmali. Kayit durduruldu.'
+                };
+            }
+            qtyById.set(rowId, qty);
+        }
+        if (qtyById.size !== rowsById.size) {
+            return {
+                ok: false,
+                code: 'STOCK_DRAFT_QTY_INPUT_ID_MISMATCH',
+                message: 'Stok talebi miktar alanlari satirlarla exact eslesmiyor. Kayit durduruldu.'
+            };
+        }
+
+        qtyById.forEach((qty, rowId) => {
+            rowsById.get(rowId).qty = qty;
+        });
+        return { ok: true };
+    },
+
     openDraftItemPreview: (draftItemId) => {
         const targetId = String(draftItemId || '').trim();
         if (!targetId) return alert('Kayit bulunamadi.');
@@ -5170,12 +6424,10 @@
     },
 
     getNextDemandCode: () => {
-        const max = PlanningModule.getDemands().reduce((acc, row) => {
-            const match = String(row?.demandCode || '').trim().toUpperCase().match(/^PLN-(\d{6})$/);
-            if (!match) return acc;
-            return Math.max(acc, Number(match[1]));
-        }, 0);
-        return `PLN-${String(max + 1).padStart(6, '0')}`;
+        const usedCodes = new Set(PlanningModule.getDemands()
+            .map((row) => String(row?.demandCode || '').trim().toUpperCase())
+            .filter(Boolean));
+        return PlanningModule.getNextOperationalCode('PLN', Array.from(usedCodes));
     },
 
     openWorkspace: (viewId) => {
@@ -5556,6 +6808,8 @@
         const submitToPlanning = !releaseNow && options?.submitToPlanning === true;
         const draftItems = Array.isArray(PlanningModule.state.stockDraftItems) ? PlanningModule.state.stockDraftItems : [];
         if (!draftItems.length) return alert('Lutfen en az bir urun ekleyiniz.');
+        const qtyCommit = PlanningModule.commitStockDraftItemQtyFromDom();
+        if (!qtyCommit.ok) return alert(qtyCommit.message);
         const resolvedDraftItems = PlanningModule.getResolvedStockDraftItems();
         const demandItems = draftItems
             .map((item) => PlanningModule.buildDemandItemFromDraftItem(item))
@@ -6095,10 +7349,1197 @@
         UI.renderCurrentPage();
     },
 
+    cloneDemoCleanupState: (state) => (typeof DB.cloneState === 'function'
+        ? DB.cloneState(state)
+        : JSON.parse(JSON.stringify(state || {}))),
+
+    restoreDemoCleanupState: (snapshot) => {
+        const restored = PlanningModule.cloneDemoCleanupState(snapshot);
+        const replaceInPlace = (target, source) => {
+            if (Array.isArray(target) && Array.isArray(source)) {
+                target.splice(0, target.length, ...source);
+                return target;
+            }
+            if (target && source && typeof target === 'object' && typeof source === 'object'
+                && !Array.isArray(target) && !Array.isArray(source)) {
+                Object.keys(target).forEach((key) => {
+                    if (!Object.prototype.hasOwnProperty.call(source, key)) delete target[key];
+                });
+                Object.keys(source).forEach((key) => {
+                    const current = target[key];
+                    const next = source[key];
+                    const bothArrays = Array.isArray(current) && Array.isArray(next);
+                    const bothObjects = current && next
+                        && typeof current === 'object' && typeof next === 'object'
+                        && !Array.isArray(current) && !Array.isArray(next);
+                    target[key] = (bothArrays || bothObjects) ? replaceInPlace(current, next) : next;
+                });
+                return target;
+            }
+            return source;
+        };
+        if (!DB.data || typeof DB.data !== 'object') DB.data = restored;
+        else replaceInPlace(DB.data, restored);
+    },
+
+    persistDemoCleanupAtomically: async (beforeState, options = {}) => {
+        const approvalType = String(options?.approvalType || '').trim();
+        try {
+            const criticalDropApproval = approvalType && typeof DB.createCriticalDropApproval === 'function'
+                ? DB.createCriticalDropApproval(approvalType, beforeState, DB.data, options?.approvalMeta || {})
+                : null;
+            const saveResult = await DB.save({ criticalDropApproval, conflictStrategy: 'fail' });
+            if (!saveResult || saveResult.ok !== true) {
+                const error = saveResult?.error instanceof Error
+                    ? saveResult.error
+                    : new Error(String(saveResult?.code || 'Demo temizliği kaydedilemedi.'));
+                error.saveResult = saveResult;
+                throw error;
+            }
+            return { ok: true, saveResult };
+        } catch (error) {
+            PlanningModule.restoreDemoCleanupState(beforeState);
+            return { ok: false, error, saveResult: error?.saveResult || null };
+        }
+    },
+
+    getDemandDemoCleanupCanonicalSource: (demand, movement, workOrderById) => {
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        const workOrderId = String(movement?.workOrderId || '').trim();
+        const workOrder = workOrderById.get(workOrderId) || null;
+        const demandId = String(demand?.id || '').trim();
+        const itemKey = String(movement?.itemKey || movement?.sourceItemKey || workOrder?.sourceItemKey || '').trim();
+        if (!demandId || !itemKey || !['STOCK', 'SALES_ORDER'].includes(sourceType)) return null;
+        if (sourceType === 'SALES_ORDER') {
+            const sourceOrderId = String(movement?.sourceOrderId || demand?.sourceOrderId || '').trim();
+            const sourceLineId = String(movement?.sourceLineId || demand?.sourceLineId || '').trim();
+            if (!sourceOrderId || !sourceLineId) return null;
+            return { sourceType, demandId, itemKey, sourceOrderId, sourceLineId };
+        }
+        return { sourceType, demandId, itemKey };
+    },
+
+    doesDepotRowMatchCanonicalProductionSource: (row, source, requireAll = true) => {
+        if (!source) return false;
+        const checks = [
+            ['sourceType', String(row?.sourceType || '').trim().toUpperCase(), source.sourceType],
+            ['demandId', String(row?.demandId || row?.originDemandId || '').trim(), source.demandId],
+            ['itemKey', String(row?.itemKey || row?.originItemKey || '').trim(), source.itemKey]
+        ];
+        if (source.sourceType === 'SALES_ORDER') {
+            checks.push(
+                ['sourceOrderId', String(row?.sourceOrderId || '').trim(), source.sourceOrderId],
+                ['sourceLineId', String(row?.sourceLineId || '').trim(), source.sourceLineId]
+            );
+        }
+        return checks.every(([, actual, expected]) => requireAll ? actual === expected : (!actual || actual === expected));
+    },
+
+    resolveDemandDemoCleanupStockRow: ({ kind, movement, demand, stockRows, workOrderById }) => {
+        const fail = (message) => ({ ok: false, message });
+        const movementLabel = String(movement?.id || movement?.workOrderCode || '-');
+        const isIssue = kind === 'ISSUE';
+        const code = String(movement?.productCode || movement?.code || '').trim().toUpperCase();
+        const qty = PlanningModule.parseDecimalQty(
+            isIssue
+                ? (movement?.sourceQty ?? movement?.sourceQuantity ?? movement?.qty ?? movement?.quantity)
+                : (movement?.qty ?? movement?.quantity),
+            0
+        );
+        const unit = String(isIssue ? (movement?.sourceUnit || movement?.unit || '') : (movement?.unit || '')).trim();
+        const depotId = String(isIssue
+            ? (movement?.sourceDepotId || movement?.depotId || '')
+            : (movement?.depotId || movement?.targetDepotId || '')).trim();
+        const locationId = String(isIssue
+            ? (movement?.sourceLocationId || movement?.locationId || '')
+            : (movement?.locationId || movement?.targetLocationId || '')).trim();
+        const locationCode = String(isIssue
+            ? (movement?.sourceLocationCode || movement?.locationCode || '')
+            : (movement?.locationCode || movement?.targetLocationCode || '')).trim().toUpperCase();
+        if (!code || qty <= 0 || !unit) {
+            return fail(`${isIssue ? 'WORK_ORDER_ISSUE' : 'STORE'} miktar/ürün/birim bilgisi eksik: ${movementLabel}`);
+        }
+
+        const idValues = (isIssue
+            ? [movement?.sourceStockItemId]
+            : [movement?.stockDepotItemId, movement?.outputStockItemId, movement?.stockItemId])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean);
+        const uniqueIds = Array.from(new Set(idValues));
+        if (uniqueIds.length > 1) {
+            return fail(`${isIssue ? 'WORK_ORDER_ISSUE' : 'STORE'} exact stok kimlikleri çelişkili: ${movementLabel}`);
+        }
+
+        const canonicalSource = isIssue
+            ? null
+            : PlanningModule.getDemandDemoCleanupCanonicalSource(demand, movement, workOrderById);
+        let candidates = [];
+        let resolution = '';
+        if (uniqueIds.length === 1) {
+            candidates = stockRows.filter((row) => String(row?.id || '').trim() === uniqueIds[0]);
+            resolution = 'EXACT_ID';
+        } else if (isIssue) {
+            if (!depotId || !locationId) {
+                return fail(`WORK_ORDER_ISSUE sourceStockItemId yok ve kaynak depo/lokasyon metadata'sı eksik: ${movementLabel}`);
+            }
+            candidates = stockRows
+                .filter((row) => PlanningModule.getDepotRowCode(row) === code)
+                .filter((row) => PlanningModule.getDepotRowDepotId(row) === depotId)
+                .filter((row) => PlanningModule.getDepotRowLocationId(row) === locationId)
+                .filter((row) => !unit || !String(row?.unit || '').trim()
+                    || String(row?.unit || '').trim().toLocaleUpperCase('tr-TR') === unit.toLocaleUpperCase('tr-TR'));
+            resolution = 'UNIQUE_METADATA';
+        } else {
+            if (!canonicalSource || !depotId) {
+                return fail(`STORE exact stok kimliği yok ve kanonik üretim kaynağı doğrulanamadı: ${movementLabel}`);
+            }
+            candidates = stockRows
+                .filter((row) => PlanningModule.getDepotRowCode(row) === code)
+                .filter((row) => PlanningModule.getDepotRowDepotId(row) === depotId)
+                .filter((row) => PlanningModule.getDepotRowLocationId(row) === locationId)
+                .filter((row) => PlanningModule.doesDepotRowMatchCanonicalProductionSource(row, canonicalSource, true));
+            resolution = 'UNIQUE_CANONICAL_SOURCE';
+        }
+        if (candidates.length !== 1) {
+            const reason = candidates.length > 1 ? 'birden fazla aday var' : 'aday bulunamadı';
+            return fail(`${isIssue ? 'WORK_ORDER_ISSUE' : 'STORE'} exact stok satırı doğrulanamadı (${reason}): ${movementLabel}`);
+        }
+
+        const row = candidates[0];
+        if (PlanningModule.getDepotRowCode(row) !== code
+            || (depotId && PlanningModule.getDepotRowDepotId(row) !== depotId)
+            || (locationId && PlanningModule.getDepotRowLocationId(row) !== locationId)
+            || (locationCode && PlanningModule.getDepotRowLocationCode(row)
+                && PlanningModule.getDepotRowLocationCode(row) !== locationCode)
+            || (unit && String(row?.unit || '').trim()
+                && String(row.unit).trim().toLocaleUpperCase('tr-TR') !== unit.toLocaleUpperCase('tr-TR'))) {
+            return fail(`${isIssue ? 'WORK_ORDER_ISSUE' : 'STORE'} stok satırı metadata'sı hareketle çelişiyor: ${movementLabel}`);
+        }
+        if (!isIssue && canonicalSource
+            && !PlanningModule.doesDepotRowMatchCanonicalProductionSource(row, canonicalSource, false)) {
+            return fail(`STORE stok satırının kanonik kaynağı hedef üretim işiyle çelişiyor: ${movementLabel}`);
+        }
+        return { ok: true, row, qty, code, unit, depotId, locationId, locationCode, resolution, canonicalSource };
+    },
+
+    getLegacyStoreTransactionCleanupPlans: ({
+        demand,
+        storeTxns,
+        linkedWorkOrders,
+        stockRows,
+        modernMontageCleanupPlan
+    }) => {
+        const errors = [];
+        const plans = [];
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        const demandId = String(demand?.id || '').trim();
+        const demandCode = String(demand?.demandCode || '').trim().toUpperCase();
+        if (sourceType !== 'SALES_ORDER' || !demandId) {
+            return { ok: false, errors: ['Legacy STORE transaction compatibility yalnız exact SALES_ORDER demand için kullanılabilir.'], plans };
+        }
+        const workOrderRows = Array.isArray(linkedWorkOrders) ? linkedWorkOrders : [];
+        const workOrderById = new Map();
+        workOrderRows.forEach((row) => {
+            const id = String(row?.id || '').trim();
+            if (!id || workOrderById.has(id)) {
+                errors.push(`Legacy STORE compatibility WO kimliği eksik veya mükerrer: ${id || '-'}.`);
+                return;
+            }
+            workOrderById.set(id, row);
+        });
+        const transactionIds = new Set();
+        const groups = new Map();
+        (Array.isArray(storeTxns) ? storeTxns : []).forEach((txn) => {
+            const txnId = String(txn?.id || '').trim();
+            const workOrderId = String(txn?.workOrderId || '').trim();
+            const lineId = String(txn?.lineId || '').trim();
+            const txnQty = PlanningModule.parseDecimalQty(txn?.qty, 0);
+            if (!txnId || transactionIds.has(txnId) || !workOrderId || !lineId || txnQty <= 0) {
+                errors.push(`Legacy STORE transaction kimlik/miktar kanıtı eksik veya mükerrer: ${txnId || '-'}.`);
+                return;
+            }
+            transactionIds.add(txnId);
+            const workOrder = workOrderById.get(workOrderId) || null;
+            const sourceId = String(workOrder?.sourceId || '').trim();
+            const sourceCode = String(workOrder?.sourceCode || '').trim().toUpperCase();
+            if (!workOrder || (sourceId && sourceId !== demandId) || (!sourceId && sourceCode !== demandCode)) {
+                errors.push(`Legacy STORE transaction hedef demand/WO lineage ile uyuşmuyor: ${txnId}.`);
+                return;
+            }
+            const lineMatches = (Array.isArray(workOrder?.lines) ? workOrder.lines : [])
+                .filter((line) => String(line?.id || '').trim() === lineId);
+            if (lineMatches.length !== 1) {
+                errors.push(`Legacy STORE transaction WO/line bağlantısı tekil değil: ${txnId}/${lineId || '-'}.`);
+                return;
+            }
+            const line = lineMatches[0];
+            const code = String(line?.componentCode || line?.productCode || line?.code || '').trim().toUpperCase();
+            const itemKey = String(txn?.itemKey || txn?.sourceItemKey || workOrder?.sourceItemKey || '').trim();
+            if (!code || !itemKey) {
+                errors.push(`Legacy STORE transaction ürün/item lineage kanıtı eksik: ${txnId}.`);
+                return;
+            }
+            const groupKey = `${workOrderId}|${lineId}`;
+            const current = groups.get(groupKey) || { workOrder, line, code, itemKey, qty: 0, transactions: [] };
+            if (current.code !== code || current.itemKey !== itemKey) {
+                errors.push(`Legacy STORE transaction grubu çelişkili: ${workOrderId}/${lineId}.`);
+                return;
+            }
+            current.qty = Number((current.qty + txnQty).toFixed(6));
+            current.transactions.push(txn);
+            groups.set(groupKey, current);
+        });
+
+        const sourceReturns = modernMontageCleanupPlan?.sourceReturns instanceof Map
+            ? modernMontageCleanupPlan.sourceReturns : new Map();
+        groups.forEach((group, groupKey) => {
+            const canonicalSource = PlanningModule.getDemandDemoCleanupCanonicalSource(demand, {
+                workOrderId: String(group?.workOrder?.id || '').trim(),
+                itemKey: group.itemKey
+            }, workOrderById);
+            if (!canonicalSource) {
+                errors.push(`Legacy STORE transaction kanonik target identity oluşturulamadı: ${groupKey}.`);
+                return;
+            }
+            const exactReturnCandidates = Array.from(sourceReturns.values()).filter((entry) => {
+                const rowId = String(entry?.row?.id || '').trim();
+                const rowMatches = stockRows.filter((row) => String(row?.id || '').trim() === rowId);
+                return rowId && rowMatches.length === 1 && rowMatches[0] === entry.row
+                    && PlanningModule.getDepotRowCode(entry.row) === group.code
+                    && Math.abs(PlanningModule.parseDecimalQty(entry?.qty, 0) - group.qty) <= 0.000001;
+            });
+            let candidates = exactReturnCandidates.map((entry) => entry.row);
+            let resolution = 'MODERN_SOURCE_RETURN_ID';
+            if (!candidates.length) {
+                candidates = stockRows.filter((row) => PlanningModule.getDepotRowCode(row) === group.code
+                    && PlanningModule.doesDepotRowMatchCanonicalProductionSource(row, canonicalSource, true));
+                resolution = 'EXACT_TARGET_IDENTITY';
+            }
+            const uniqueCandidates = Array.from(new Map(candidates.map((row) => [String(row?.id || '').trim(), row])).values());
+            if (uniqueCandidates.length !== 1 || !String(uniqueCandidates[0]?.id || '').trim()) {
+                const reason = uniqueCandidates.length > 1 ? 'birden fazla aday var' : 'aday bulunamadı';
+                errors.push(`Legacy STORE exact stok satırı doğrulanamadı (${reason}): ${groupKey}/${group.code}.`);
+                return;
+            }
+            plans.push({
+                transaction: group.transactions[0],
+                transactions: group.transactions,
+                row: uniqueCandidates[0],
+                qty: group.qty,
+                code: group.code,
+                unit: String(group?.line?.unit || uniqueCandidates[0]?.unit || '').trim(),
+                resolution,
+                canonicalSource
+            });
+        });
+        return { ok: errors.length === 0, errors, plans };
+    },
+
+    getDemandDemoCleanupModernReferenceErrors: (demand, linkedWorkOrderIds, outputStockRowIds = new Set()) => {
+        const demandId = String(demand?.id || '').trim();
+        const sourceOrderId = String(demand?.sourceOrderId || '').trim();
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        const collections = [
+            ['MGP', 'montageDispatchPlans'],
+            ['MGS', 'montageDispatchShipments'],
+            ['STAI', 'sanalTaksimAllocationInstructions'],
+            ['MCT', 'montageCompletionTransfers'],
+            ['SVP', 'salesShipmentPlans'],
+            ['salesShipments', 'salesShipments']
+        ];
+        const demandKeys = new Set(['demandId', 'sourceDemandId', 'planningDemandId']);
+        const workOrderKeys = new Set(['workOrderId', 'sourceWorkOrderId']);
+        const orderKeys = new Set(['sourceOrderId']);
+        const stockKeys = new Set(['stockRowId', 'stockItemId', 'sourceStockItemId', 'stockDepotItemId', 'outputStockItemId']);
+        const hasTargetRef = (value) => {
+            if (!value || typeof value !== 'object') return false;
+            if (Array.isArray(value)) return value.some(hasTargetRef);
+            return Object.entries(value).some(([key, child]) => {
+                const text = String(child || '').trim();
+                if (demandId && demandKeys.has(key) && text === demandId) return true;
+                if (workOrderKeys.has(key) && linkedWorkOrderIds.has(text)) return true;
+                if (sourceType === 'SALES_ORDER' && sourceOrderId && orderKeys.has(key) && text === sourceOrderId) return true;
+                if (stockKeys.has(key) && outputStockRowIds.has(text)) return true;
+                return child && typeof child === 'object' ? hasTargetRef(child) : false;
+            });
+        };
+        const errors = [];
+        collections.forEach(([label, key]) => {
+            const rows = Array.isArray(DB.data?.data?.[key]) ? DB.data.data[key] : [];
+            const count = rows.filter(hasTargetRef).length;
+            if (count > 0) errors.push(`${label} modern lifecycle referansı bulundu (${count}); Faz 1 cleanup fail-closed durduruldu.`);
+        });
+        return errors;
+    },
+
+    getSalesOrderShipmentDemoCleanupPlan: (orderId, options = {}) => {
+        const errors = [];
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : {};
+        const targetOrderId = String(orderId || '').trim();
+        const orders = Array.isArray(data.orders) ? data.orders : [];
+        const plans = Array.isArray(data.salesShipmentPlans) ? data.salesShipmentPlans : [];
+        const shipments = Array.isArray(data.salesShipments) ? data.salesShipments : [];
+        const stockRows = Array.isArray(data.stockDepotItems) ? data.stockDepotItems : [];
+        const movements = Array.isArray(data.stock_movements) ? data.stock_movements : [];
+        const transfers = Array.isArray(data.montageCompletionTransfers) ? data.montageCompletionTransfers : [];
+        const text = (value) => String(value || '').trim();
+        const upper = (value) => text(value).toUpperCase();
+        const movementType = (row) => upper(row?.movementType || row?.type);
+        const numberQty = (value) => PlanningModule.parseDecimalQty(value, 0);
+        const sameQty = (left, right) => Math.abs(numberQty(left) - numberQty(right)) <= 0.000001;
+        const targetPlanIds = new Set();
+        const targetShipmentIds = new Set();
+        const targetMovementIds = new Set();
+        const targetStockIds = new Set();
+        const stockReturns = new Map();
+        const addStockReturn = (row, amount) => {
+            const rowId = text(row?.id);
+            if (!rowId || amount <= 0) {
+                errors.push('SALES_SHIPMENT_OUT exact stok/miktar bağlantısı eksik.');
+                return;
+            }
+            const current = stockReturns.get(rowId) || { row, qty: 0 };
+            if (current.row !== row) errors.push(`SALES_SHIPMENT_OUT stok kimliği tekil değil: ${rowId}.`);
+            current.qty = Number((current.qty + amount).toFixed(6));
+            stockReturns.set(rowId, current);
+            targetStockIds.add(rowId);
+        };
+        if (!targetOrderId) {
+            errors.push('Faz 3 cleanup için sourceOrderId eksik.');
+            return { ok: false, errors, targetPlanIds, targetShipmentIds, targetMovementIds, targetStockIds, stockReturns };
+        }
+        const orderMatches = orders.filter((row) => text(row?.id) === targetOrderId);
+        if (orderMatches.length !== 1) {
+            errors.push(`Faz 3 cleanup satış siparişi tekil bulunamadı: ${targetOrderId}.`);
+            return { ok: false, errors, targetPlanIds, targetShipmentIds, targetMovementIds, targetStockIds, stockReturns };
+        }
+        const order = orderMatches[0];
+        const orderNo = text(order?.orderNo || order?.orderCode);
+        const orderLineIds = new Set((Array.isArray(order?.lines) ? order.lines : [])
+            .map((line) => text(line?.id || line?.lineId)).filter(Boolean));
+        (Array.isArray(options?.lineIds) ? options.lineIds : []).forEach((lineId) => {
+            const id = text(lineId);
+            if (id) orderLineIds.add(id);
+        });
+        if (!orderNo || !orderLineIds.size) errors.push('Faz 3 cleanup sipariş no/satır kimliği eksik.');
+
+        const targetPlans = plans.filter((plan) => text(plan?.sourceOrderId) === targetOrderId);
+        const planItemByKey = new Map();
+        const allowedInputMovementIds = new Set();
+        targetPlans.forEach((plan) => {
+            const planId = text(plan?.id);
+            const planNo = text(plan?.planNo);
+            const status = upper(plan?.status);
+            const items = Array.isArray(plan?.items) ? plan.items : [];
+            if (!planId || targetPlanIds.has(planId)) errors.push(`SVP id eksik veya mükerrer: ${planId || '-'}.`);
+            if (!planNo || text(plan?.sourceOrderNo) !== orderNo
+                || !['PLANNED', 'DISPATCHED', 'CANCELLED'].includes(status)) {
+                errors.push(`${planNo || planId || 'SVP'} üst kimlik/durum bilgisi Faz 3 ile uyuşmuyor.`);
+            }
+            if (!items.length) errors.push(`${planNo || planId || 'SVP'} ürün satırı içermiyor.`);
+            const seenLineIds = new Set();
+            items.forEach((item) => {
+                const sourceLineId = text(item?.sourceLineId);
+                const productId = text(item?.productId);
+                const variantId = text(item?.variantId).replace(/^salesvar_/i, '');
+                const salCode = upper(item?.salCode || item?.productCode);
+                const svrCode = upper(item?.svrCode || item?.variantCode);
+                const plannedQty = numberQty(item?.plannedQty);
+                const allocations = Array.isArray(item?.stockAllocations) ? item.stockAllocations : [];
+                if (!sourceLineId || !orderLineIds.has(sourceLineId) || seenLineIds.has(sourceLineId)
+                    || !productId || !variantId || !salCode || !svrCode
+                    || !Number.isSafeInteger(plannedQty) || plannedQty <= 0 || !allocations.length) {
+                    errors.push(`${planNo || planId || 'SVP'} satır kimliği/ürün/miktar bilgisi eksik veya çelişkili.`);
+                    return;
+                }
+                seenLineIds.add(sourceLineId);
+                let allocationTotal = 0;
+                const seenStockIds = new Set();
+                allocations.forEach((allocation) => {
+                    const stockItemId = text(allocation?.stockItemId);
+                    const allocatedQty = numberQty(allocation?.allocatedQty);
+                    const depotId = text(allocation?.depotId);
+                    const locationId = text(allocation?.locationId);
+                    const stockMatches = stockRows.filter((row) => text(row?.id) === stockItemId);
+                    const stockRow = stockMatches.length === 1 ? stockMatches[0] : null;
+                    const stockVariantId = text(stockRow?.variantId || stockRow?.variationId).replace(/^salesvar_/i, '');
+                    const stockVariantCode = upper(stockRow?.variantCode || stockRow?.productCode || stockRow?.code);
+                    const proof = allocation?.sanalTaksimAllocationProof;
+                    const staticTarget = upper(stockRow?.sourceType) === 'SALES_ORDER'
+                        && text(stockRow?.sourceOrderId) === targetOrderId
+                        && text(stockRow?.sourceLineId) === sourceLineId;
+                    const proofTarget = !!proof
+                        && text(proof?.stockItemId) === stockItemId
+                        && text(proof?.targetOrderId) === targetOrderId
+                        && text(proof?.targetOrderLineId) === sourceLineId
+                        && text(proof?.productId) === productId
+                        && text(proof?.variantId).replace(/^salesvar_/i, '') === variantId
+                        && upper(proof?.variantCode) === svrCode
+                        && upper(proof?.unit) === 'ADET'
+                        && sameQty(proof?.qty, allocatedQty);
+                    if (!stockItemId || seenStockIds.has(stockItemId) || !stockRow
+                        || !Number.isSafeInteger(allocatedQty) || allocatedQty <= 0
+                        || text(allocation?.sourceOrderId) !== targetOrderId
+                        || text(allocation?.sourceLineId) !== sourceLineId
+                        || (!staticTarget && !proofTarget)
+                        || text(stockRow?.productId) !== productId
+                        || stockVariantId !== variantId || stockVariantCode !== svrCode
+                        || text(stockRow?.depotId) !== depotId
+                        || text(stockRow?.locationId || stockRow?.targetLocationId) !== locationId
+                        || upper(stockRow?.unit) !== 'ADET') {
+                        errors.push(`${planNo || planId || 'SVP'} allocation exact stok/ürün lineage bilgisi uyuşmuyor: ${stockItemId || '-'}.`);
+                        return;
+                    }
+                    seenStockIds.add(stockItemId);
+                    targetStockIds.add(stockItemId);
+                    allocationTotal += allocatedQty;
+                    const matchingTransfers = transfers.filter((transfer) => text(transfer?.finishedProductStockItemId) === stockItemId
+                        && upper(transfer?.status) === 'POSTED');
+                    if (matchingTransfers.length === 1) {
+                        const inputMovementId = text(matchingTransfers[0]?.finishedProductMovementId);
+                        const inputMovement = movements.find((movement) => text(movement?.id) === inputMovementId) || null;
+                        if (inputMovement && movementType(inputMovement) === 'MONTAGE_FINISHED_PRODUCT_IN'
+                            && text(inputMovement?.stockDepotItemId) === stockItemId) {
+                            allowedInputMovementIds.add(inputMovementId);
+                        }
+                    }
+                    planItemByKey.set(`${planId}|${sourceLineId}|${stockItemId}`, {
+                        plan, item, allocation, stockRow, productId, variantId, salCode, svrCode,
+                        sourceLineId, allocatedQty, depotId, locationId
+                    });
+                });
+                if (!sameQty(allocationTotal, plannedQty)) {
+                    errors.push(`${planNo || planId || 'SVP'} allocation toplamı plannedQty ile uyuşmuyor: ${sourceLineId}.`);
+                }
+            });
+            if (planId) targetPlanIds.add(planId);
+        });
+
+        const orphanShipments = shipments.filter((shipment) => text(shipment?.sourceOrderId) === targetOrderId
+            && !targetPlanIds.has(text(shipment?.shipmentPlanId)));
+        if (orphanShipments.length) errors.push(`Siparişe ait fakat target SVP'ye bağlanamayan shipment bulundu (${orphanShipments.length}).`);
+        targetPlans.forEach((plan) => {
+            const planId = text(plan?.id);
+            const planNo = text(plan?.planNo);
+            const status = upper(plan?.status);
+            const linkedShipments = shipments.filter((shipment) => text(shipment?.shipmentPlanId) === planId);
+            const linkedOutMovements = movements.filter((movement) => movementType(movement) === 'SALES_SHIPMENT_OUT'
+                && text(movement?.shipmentPlanId) === planId);
+            if (status === 'PLANNED' || status === 'CANCELLED') {
+                if (linkedShipments.length || linkedOutMovements.length
+                    || text(plan?.shipmentId) || text(plan?.shipmentNo) || text(plan?.dispatchedAt)) {
+                    errors.push(`${planNo || planId} ${status} olmasına rağmen shipment/OUT fiziksel izi içeriyor.`);
+                }
+                return;
+            }
+            if (linkedShipments.length !== 1) {
+                errors.push(`${planNo || planId} tek bir DISPATCHED shipment'a bağlanamıyor.`);
+                return;
+            }
+            const shipment = linkedShipments[0];
+            const shipmentId = text(shipment?.id);
+            const shipmentNo = text(shipment?.shipmentNo);
+            const snapshot = shipment?.snapshot && typeof shipment.snapshot === 'object' ? shipment.snapshot : null;
+            const snapshotItems = Array.isArray(snapshot?.items) ? snapshot.items : [];
+            if (!shipmentId || targetShipmentIds.has(shipmentId) || upper(shipment?.status) !== 'DISPATCHED'
+                || text(shipment?.sourceOrderId) !== targetOrderId || text(shipment?.sourceOrderNo) !== orderNo
+                || text(shipment?.shipmentPlanNo) !== planNo
+                || text(plan?.shipmentId) !== shipmentId || text(plan?.shipmentNo) !== shipmentNo
+                || !snapshot || text(snapshot?.sourceOrderId) !== targetOrderId
+                || text(snapshot?.sourceOrderNo) !== orderNo || text(snapshot?.shipmentNo) !== shipmentNo
+                || text(snapshot?.shipmentPlanNo) !== planNo || snapshotItems.length !== (plan?.items || []).length) {
+                errors.push(`${shipmentNo || shipmentId || 'shipment'} immutable snapshot/plan üst bağlantısı uyuşmuyor.`);
+                return;
+            }
+            targetShipmentIds.add(shipmentId);
+            const expectedMovementIds = new Set();
+            snapshotItems.forEach((snapshotItem) => {
+                const sourceLineId = text(snapshotItem?.sourceLineId);
+                const planItem = (Array.isArray(plan?.items) ? plan.items : [])
+                    .find((item) => text(item?.sourceLineId) === sourceLineId) || null;
+                const snapshotAllocations = Array.isArray(snapshotItem?.stockAllocations) ? snapshotItem.stockAllocations : [];
+                if (!planItem || text(snapshotItem?.productId) !== text(planItem?.productId)
+                    || text(snapshotItem?.variantId).replace(/^salesvar_/i, '') !== text(planItem?.variantId).replace(/^salesvar_/i, '')
+                    || upper(snapshotItem?.salCode) !== upper(planItem?.salCode || planItem?.productCode)
+                    || upper(snapshotItem?.svrCode) !== upper(planItem?.svrCode || planItem?.variantCode)
+                    || !sameQty(snapshotItem?.dispatchQty, planItem?.plannedQty)
+                    || snapshotAllocations.length !== (Array.isArray(planItem?.stockAllocations) ? planItem.stockAllocations.length : 0)) {
+                    errors.push(`${shipmentNo || shipmentId} snapshot ürün satırı SVP ile uyuşmuyor: ${sourceLineId || '-'}.`);
+                    return;
+                }
+                let snapshotAllocationTotal = 0;
+                snapshotAllocations.forEach((allocation) => {
+                    const stockItemId = text(allocation?.stockItemId);
+                    const movementId = text(allocation?.stockMovementId);
+                    const allocatedQty = numberQty(allocation?.allocatedQty);
+                    const planEntry = planItemByKey.get(`${planId}|${sourceLineId}|${stockItemId}`) || null;
+                    const movementMatches = movements.filter((row) => text(row?.id) === movementId);
+                    const movement = movementMatches.length === 1 ? movementMatches[0] : null;
+                    if (!planEntry || !movement || !movementId || expectedMovementIds.has(movementId)
+                        || movementType(movement) !== 'SALES_SHIPMENT_OUT'
+                        || text(movement?.shipmentId) !== shipmentId || text(movement?.shipmentNo) !== shipmentNo
+                        || text(movement?.shipmentPlanId) !== planId || text(movement?.shipmentPlanNo) !== planNo
+                        || upper(movement?.sourceType) !== 'SALES_ORDER'
+                        || text(movement?.sourceOrderId) !== targetOrderId || text(movement?.sourceOrderNo) !== orderNo
+                        || text(movement?.sourceLineId) !== sourceLineId
+                        || text(movement?.stockItemId || movement?.stockDepotItemId) !== stockItemId
+                        || text(movement?.depotId || movement?.sourceDepotId) !== planEntry.depotId
+                        || text(movement?.locationId || movement?.sourceLocationId) !== planEntry.locationId
+                        || text(movement?.productId) !== planEntry.productId
+                        || text(movement?.variantId).replace(/^salesvar_/i, '') !== planEntry.variantId
+                        || upper(movement?.salCode || movement?.productCode) !== planEntry.salCode
+                        || upper(movement?.svrCode || movement?.variantCode) !== planEntry.svrCode
+                        || !sameQty(movement?.qty ?? movement?.quantity, allocatedQty)
+                        || !sameQty(allocatedQty, planEntry.allocatedQty) || upper(movement?.unit) !== 'ADET') {
+                        errors.push(`${shipmentNo || shipmentId} SALES_SHIPMENT_OUT exact snapshot/movement bağlantısı uyuşmuyor: ${movementId || '-'}.`);
+                        return;
+                    }
+                    expectedMovementIds.add(movementId);
+                    targetMovementIds.add(movementId);
+                    snapshotAllocationTotal += allocatedQty;
+                    addStockReturn(planEntry.stockRow, allocatedQty);
+                });
+                if (!sameQty(snapshotAllocationTotal, snapshotItem?.dispatchQty)) {
+                    errors.push(`${shipmentNo || shipmentId} snapshot allocation toplamı dispatchQty ile uyuşmuyor: ${sourceLineId || '-'}.`);
+                }
+            });
+            const shipmentOutMovements = movements.filter((movement) => movementType(movement) === 'SALES_SHIPMENT_OUT'
+                && text(movement?.shipmentId) === shipmentId);
+            if (shipmentOutMovements.length !== expectedMovementIds.size
+                || shipmentOutMovements.some((movement) => !expectedMovementIds.has(text(movement?.id)))) {
+                errors.push(`${shipmentNo || shipmentId} OUT hareket kümesi immutable snapshot ile uyuşmuyor.`);
+            }
+        });
+
+        const orphanOutMovements = movements.filter((movement) => movementType(movement) === 'SALES_SHIPMENT_OUT'
+            && (text(movement?.sourceOrderId) === targetOrderId || targetPlanIds.has(text(movement?.shipmentPlanId)))
+            && !targetMovementIds.has(text(movement?.id)));
+        if (orphanOutMovements.length) errors.push(`Exact shipment snapshot'ına alınamayan SALES_SHIPMENT_OUT bulundu (${orphanOutMovements.length}).`);
+
+        const stockReferenceKeys = new Set(['stockItemId', 'stockDepotItemId', 'sourceStockItemId', 'sourceStockDepotItemId']);
+        const recursivelyReferencesStock = (value) => {
+            if (!value || typeof value !== 'object') return false;
+            if (Array.isArray(value)) return value.some(recursivelyReferencesStock);
+            return Object.entries(value).some(([key, child]) =>
+                (stockReferenceKeys.has(key) && targetStockIds.has(text(child)))
+                || (child && typeof child === 'object' && recursivelyReferencesStock(child)));
+        };
+        const foreignPlanRefs = plans.filter((plan) => !targetPlanIds.has(text(plan?.id)) && recursivelyReferencesStock(plan));
+        const foreignShipmentRefs = shipments.filter((shipment) => !targetShipmentIds.has(text(shipment?.id)) && recursivelyReferencesStock(shipment));
+        const foreignMovementRefs = movements.filter((movement) => !targetMovementIds.has(text(movement?.id))
+            && !allowedInputMovementIds.has(text(movement?.id)) && recursivelyReferencesStock(movement));
+        if (foreignPlanRefs.length) errors.push(`Faz 3 stok satırında yabancı SVP reservation bulundu (${foreignPlanRefs.length}).`);
+        if (foreignShipmentRefs.length) errors.push(`Faz 3 stok satırında yabancı shipment consumer bulundu (${foreignShipmentRefs.length}).`);
+        if (foreignMovementRefs.length) errors.push(`Faz 3 stok satırında yabancı movement consumer bulundu (${foreignMovementRefs.length}).`);
+
+        return {
+            ok: errors.length === 0,
+            errors,
+            order,
+            targetPlanIds,
+            targetShipmentIds,
+            targetMovementIds,
+            targetStockIds,
+            stockReturns
+        };
+    },
+
+    applySalesOrderShipmentDemoCleanupPlan: (plan) => {
+        if (!plan) return;
+        const targetPlanIds = plan.targetPlanIds instanceof Set ? plan.targetPlanIds : new Set();
+        const targetShipmentIds = plan.targetShipmentIds instanceof Set ? plan.targetShipmentIds : new Set();
+        const targetMovementIds = plan.targetMovementIds instanceof Set ? plan.targetMovementIds : new Set();
+        Array.from(plan?.stockReturns?.values?.() || []).forEach((entry) => {
+            PlanningModule.setDepotRowDecimalQty(entry.row, PlanningModule.getDepotRowQty(entry.row) + entry.qty);
+        });
+        if (Array.isArray(DB.data?.data?.stock_movements)) {
+            DB.data.data.stock_movements = DB.data.data.stock_movements
+                .filter((row) => !targetMovementIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.salesShipments)) {
+            DB.data.data.salesShipments = DB.data.data.salesShipments
+                .filter((row) => !targetShipmentIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.salesShipmentPlans)) {
+            DB.data.data.salesShipmentPlans = DB.data.data.salesShipmentPlans
+                .filter((row) => !targetPlanIds.has(String(row?.id || '').trim()));
+        }
+    },
+
+    getDemandModernMontageCleanupPlan: (demand, options = {}) => {
+        const errors = [];
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : {};
+        const requestedDemands = Array.isArray(options?.demands) && options.demands.length
+            ? options.demands : [demand];
+        const demandId = String(demand?.id || '').trim();
+        const sourceType = String(demand?.sourceType || '').trim().toUpperCase();
+        const sourceOrderId = String(demand?.sourceOrderId || '').trim();
+        const sourceLineId = String(demand?.sourceLineId || '').trim();
+        const emptyPlan = {
+            ok: true,
+            errors,
+            targetPlanIds: new Set(),
+            targetShipmentIds: new Set(),
+            targetInstructionIds: new Set(),
+            targetTransferIds: new Set(),
+            targetStockIds: new Set(),
+            targetMovementIds: new Set(),
+            sourceReturns: new Map(),
+            componentRestores: new Map(),
+            surplusReversals: []
+        };
+        if (sourceType !== 'SALES_ORDER') return emptyPlan;
+        const targetIdentityByDemandId = new Map();
+        requestedDemands.forEach((targetDemand) => {
+            const targetDemandId = String(targetDemand?.id || '').trim();
+            const targetSourceType = String(targetDemand?.sourceType || '').trim().toUpperCase();
+            const targetOrderId = String(targetDemand?.sourceOrderId || '').trim();
+            const targetLineId = String(targetDemand?.sourceLineId || '').trim();
+            const itemKeys = new Set((Array.isArray(targetDemand?.items) ? targetDemand.items : [])
+                .map((item) => String(item?.itemKey || item?.id || item?.key || '').trim()).filter(Boolean));
+            if (targetSourceType !== 'SALES_ORDER' || !targetDemandId || !targetOrderId || !targetLineId
+                || targetOrderId !== sourceOrderId || targetIdentityByDemandId.has(targetDemandId)) {
+                errors.push('Modern Montaj cleanup için order-scoped demand/sourceLine kimlik seti eksik veya çelişkili.');
+                return;
+            }
+            targetIdentityByDemandId.set(targetDemandId, { sourceOrderId: targetOrderId, sourceLineId: targetLineId, itemKeys });
+        });
+        if (!demandId || !sourceOrderId || !sourceLineId || !targetIdentityByDemandId.has(demandId)) {
+            errors.push('Modern Montaj cleanup için demand/sourceOrder/sourceLine exact kimliği eksik.');
+            return { ...emptyPlan, ok: false };
+        }
+        if (errors.length) return { ...emptyPlan, ok: false };
+
+        const plans = Array.isArray(data.montageDispatchPlans) ? data.montageDispatchPlans : [];
+        const shipments = Array.isArray(data.montageDispatchShipments) ? data.montageDispatchShipments : [];
+        const instructions = Array.isArray(data.sanalTaksimAllocationInstructions) ? data.sanalTaksimAllocationInstructions : [];
+        const transfers = Array.isArray(data.montageCompletionTransfers) ? data.montageCompletionTransfers : [];
+        const stockRows = Array.isArray(data.stockDepotItems) ? data.stockDepotItems : [];
+        const movements = Array.isArray(data.stock_movements) ? data.stock_movements : [];
+        const salesShipmentPlans = Array.isArray(data.salesShipmentPlans) ? data.salesShipmentPlans : [];
+        const salesShipments = Array.isArray(data.salesShipments) ? data.salesShipments : [];
+        const salesCleanupPlan = options?.salesShipmentCleanupPlan || null;
+        const allowedSalesPlanIds = salesCleanupPlan?.targetPlanIds instanceof Set
+            ? salesCleanupPlan.targetPlanIds : new Set();
+        const allowedSalesShipmentIds = salesCleanupPlan?.targetShipmentIds instanceof Set
+            ? salesCleanupPlan.targetShipmentIds : new Set();
+        const allowedSalesMovementIds = salesCleanupPlan?.targetMovementIds instanceof Set
+            ? salesCleanupPlan.targetMovementIds : new Set();
+        const projectedSalesStockReturns = salesCleanupPlan?.stockReturns instanceof Map
+            ? salesCleanupPlan.stockReturns : new Map();
+        const text = (value) => String(value || '').trim();
+        const upper = (value) => text(value).toUpperCase();
+        const hasOwn = (value, key) => !!value && Object.prototype.hasOwnProperty.call(value, key);
+        const qty = (value) => PlanningModule.parseDecimalQty(value, 0);
+        const movementType = (row) => upper(row?.movementType || row?.type);
+        const stockQty = (row) => PlanningModule.getDepotRowQty(row);
+        const sameQty = (left, right) => Math.abs(qty(left) - qty(right)) <= 0.000001;
+        const exactIdentity = (row) => {
+            if (upper(row?.sourceType) !== 'SALES_ORDER') return false;
+            const identity = targetIdentityByDemandId.get(text(row?.demandId));
+            if (!identity || text(row?.sourceOrderId) !== identity.sourceOrderId
+                || text(row?.sourceLineId) !== identity.sourceLineId) return false;
+            const itemKey = text(row?.itemKey);
+            return !itemKey || identity.itemKeys.size === 0 || identity.itemKeys.has(itemKey);
+        };
+        const pointsAtDemand = (row) => {
+            const rowDemandId = text(row?.demandId);
+            const identity = targetIdentityByDemandId.get(rowDemandId);
+            if (identity) return true;
+            const rowOrderId = text(row?.sourceOrderId);
+            const rowLineId = text(row?.sourceLineId);
+            return rowOrderId === sourceOrderId && Array.from(targetIdentityByDemandId.values())
+                .some((target) => target.sourceLineId === rowLineId);
+        };
+        const findOneById = (rows, id, label) => {
+            const matches = rows.filter((row) => text(row?.id) === id);
+            if (matches.length !== 1) {
+                errors.push(`${label} exact kimliği tekil bulunamadı: ${id || '-'}.`);
+                return null;
+            }
+            return matches[0];
+        };
+        const addQty = (map, row, amount, label) => {
+            const rowId = text(row?.id);
+            if (!rowId || amount <= 0) {
+                errors.push(`${label} exact stok/miktar bağlantısı eksik.`);
+                return;
+            }
+            const current = map.get(rowId) || { row, qty: 0 };
+            if (current.row !== row) errors.push(`${label} stok kimliği tekil değil: ${rowId}.`);
+            current.qty = Number((current.qty + amount).toFixed(6));
+            map.set(rowId, current);
+        };
+        const stockReferenceKeys = new Set([
+            'stockRowId', 'stockItemId', 'sourceStockItemId', 'sourceStockDepotItemId',
+            'stockDepotItemId', 'targetStockDepotItemId', 'outputStockItemId', 'finishedProductStockItemId'
+        ]);
+        const hasRecursiveReference = (value, predicate) => {
+            if (!value || typeof value !== 'object') return false;
+            if (Array.isArray(value)) return value.some((child) => hasRecursiveReference(child, predicate));
+            return Object.entries(value).some(([key, child]) => predicate(key, child)
+                || (child && typeof child === 'object' && hasRecursiveReference(child, predicate)));
+        };
+        const hasExactDemandReference = (value) => {
+            if (!value || typeof value !== 'object') return false;
+            if (Array.isArray(value)) return value.some(hasExactDemandReference);
+            if (pointsAtDemand(value)) return true;
+            return Object.values(value).some((child) => child && typeof child === 'object' && hasExactDemandReference(child));
+        };
+
+        const candidatePlans = plans.filter((plan) =>
+            (Array.isArray(plan?.items) ? plan.items : []).some(pointsAtDemand)
+            || (Array.isArray(plan?.exactReservations) ? plan.exactReservations : []).some(pointsAtDemand));
+        const targetPlanIds = new Set();
+        const targetShipmentIds = new Set();
+        const targetInstructionIds = new Set();
+        const targetTransferIds = new Set();
+        const targetStockIds = new Set();
+        const targetMovementIds = new Set();
+        const sourceReturns = new Map();
+        const componentRestores = new Map();
+        const surplusReversals = [];
+        const receiptRowsById = new Map();
+        const receiptOriginalQtyById = new Map();
+        const reservationOwnerByKey = new Map();
+
+        candidatePlans.forEach((plan) => {
+            const planId = text(plan?.id);
+            const items = Array.isArray(plan?.items) ? plan.items : [];
+            const status = upper(plan?.status || 'DRAFT');
+            if (!planId || targetPlanIds.has(planId)) errors.push(`MGP exact kimliği eksik veya mükerrer: ${planId || '-'}.`);
+            if (!items.length || items.some((item) => !exactIdentity(item))) {
+                errors.push(`${text(plan?.planNo) || planId || 'MGP'} yalnız hedef demand/source lineage'ına bağlı değil.`);
+            }
+            if (!['DRAFT', 'DISPATCHED_TO_MONTAGE', 'CANCELLED'].includes(status)) {
+                errors.push(`${text(plan?.planNo) || planId || 'MGP'} durumu Faz 2 için güvenli değil: ${status || '-'}.`);
+            }
+            if (planId) targetPlanIds.add(planId);
+
+            const reservations = Array.isArray(plan?.exactReservations) ? plan.exactReservations : [];
+            const reservationKeys = new Set();
+            reservations.forEach((reservation) => {
+                const reservationKey = text(reservation?.reservationKey);
+                const instructionId = text(reservation?.instructionId);
+                const instructionSliceKey = text(reservation?.instructionSliceKey);
+                const hasInstructionLink = !!instructionId || !!instructionSliceKey;
+                if (!reservationKey || text(reservation?.planId) !== planId
+                    || !exactIdentity(reservation) || (hasInstructionLink && (!instructionId || !instructionSliceKey))) {
+                    errors.push(`${text(plan?.planNo) || planId || 'MGP'} exactReservations lineage bilgisi eksik veya çelişkili.`);
+                    return;
+                }
+                if (reservationKeys.has(reservationKey) || reservationOwnerByKey.has(reservationKey)) {
+                    errors.push(`Exact reservationKey mükerrer: ${reservationKey}.`);
+                    return;
+                }
+                reservationKeys.add(reservationKey);
+                reservationOwnerByKey.set(reservationKey, { planId, reservation });
+                const reservationStockId = text(reservation?.stockRowId);
+                const reservationStockMatches = stockRows.filter((row) => text(row?.id) === reservationStockId);
+                if (!reservationStockId || qty(reservation?.qty) <= 0 || reservationStockMatches.length !== 1) {
+                    errors.push(`MGP exact reservation stok/miktar kanıtı uyuşmuyor: ${reservationKey}.`);
+                }
+                if (!hasInstructionLink) return;
+                const instruction = findOneById(instructions, instructionId, 'STAI');
+                if (!instruction) return;
+                const slices = Array.isArray(instruction?.slices) ? instruction.slices : [];
+                const sliceMatches = slices.filter((slice) => text(slice?.sliceKey) === instructionSliceKey);
+                if (sliceMatches.length !== 1) {
+                    errors.push(`STAI exact slice tekil bulunamadı: ${instructionId}/${instructionSliceKey}.`);
+                    return;
+                }
+                const slice = sliceMatches[0];
+                if (text(slice?.planId) !== planId
+                    || text(slice?.reservationKey) !== reservationKey
+                    || text(slice?.stockRowId) !== reservationStockId
+                    || !sameQty(slice?.qty, reservation?.qty)
+                    || qty(reservation?.qty) <= 0
+                    || reservationStockMatches.length !== 1) {
+                    errors.push(`STAI slice ile exact reservation uyuşmuyor: ${instructionId}/${instructionSliceKey}.`);
+                }
+                targetInstructionIds.add(instructionId);
+            });
+        });
+
+        targetInstructionIds.forEach((instructionId) => {
+            const instruction = instructions.find((row) => text(row?.id) === instructionId) || null;
+            const slices = Array.isArray(instruction?.slices) ? instruction.slices : [];
+            if (!slices.length || slices.some((slice) => {
+                const owner = reservationOwnerByKey.get(text(slice?.reservationKey));
+                return !owner || text(slice?.planId) !== owner.planId;
+            })) {
+                errors.push(`STAI yalnız hedef MGP exactReservations dilimlerine bağlı değil: ${instructionId}.`);
+            }
+            const foreignPlanRef = plans.some((plan) => !targetPlanIds.has(text(plan?.id))
+                && (Array.isArray(plan?.exactReservations) ? plan.exactReservations : [])
+                    .some((reservation) => text(reservation?.instructionId) === instructionId));
+            if (foreignPlanRef) errors.push(`STAI yabancı MGP tarafından da kullanılıyor: ${instructionId}.`);
+        });
+        const orphanInstructions = instructions.filter((instruction) => !targetInstructionIds.has(text(instruction?.id))
+            && (hasExactDemandReference(instruction)
+                || (Array.isArray(instruction?.slices) ? instruction.slices : [])
+                    .some((slice) => targetPlanIds.has(text(slice?.planId)))));
+        if (orphanInstructions.length) {
+            errors.push(`Hedef lineage'a ait fakat MGP exactReservations bağıyla doğrulanamayan STAI bulundu (${orphanInstructions.length}).`);
+        }
+
+        const orphanShipments = shipments.filter((shipment) => (Array.isArray(shipment?.items) ? shipment.items : []).some(pointsAtDemand)
+            && !targetPlanIds.has(text(shipment?.planId)));
+        if (orphanShipments.length) errors.push(`Hedef lineage'a ait fakat target MGP'ye bağlanamayan MGS bulundu (${orphanShipments.length}).`);
+
+        candidatePlans.forEach((plan) => {
+            const planId = text(plan?.id);
+            const planStatus = upper(plan?.status || 'DRAFT');
+            const planShipments = shipments.filter((shipment) => text(shipment?.planId) === planId);
+            if (planShipments.length > 1) errors.push(`${text(plan?.planNo) || planId} birden fazla MGS kaydına bağlı.`);
+            if (planStatus === 'DISPATCHED_TO_MONTAGE' && planShipments.length !== 1) {
+                errors.push(`${text(plan?.planNo) || planId} exact MGS bağlantısı bulunamadı.`);
+            }
+            if (['DRAFT', 'CANCELLED'].includes(planStatus) && planShipments.length) {
+                errors.push(`${text(plan?.planNo) || planId} ${planStatus} olmasına rağmen MGS kaydı içeriyor.`);
+            }
+            if (['DRAFT', 'CANCELLED'].includes(planStatus)) {
+                const physicalRows = movements.filter((movement) => text(movement?.planId) === planId);
+                if (physicalRows.length) {
+                    errors.push(`${text(plan?.planNo) || planId} ${planStatus} olmasına rağmen fiziksel movement içeriyor (${physicalRows.length}).`);
+                }
+            }
+            planShipments.forEach((shipment) => {
+                const shipmentId = text(shipment?.id);
+                const shipmentStatus = upper(shipment?.status);
+                const shipmentItems = Array.isArray(shipment?.items) ? shipment.items : [];
+                if (!shipmentId || targetShipmentIds.has(shipmentId)) errors.push(`MGS exact kimliği eksik veya mükerrer: ${shipmentId || '-'}.`);
+                if (!shipmentItems.length || shipmentItems.some((item) => !exactIdentity(item))) {
+                    errors.push(`${text(shipment?.shipmentNo) || shipmentId || 'MGS'} yalnız hedef demand/source lineage'ına bağlı değil.`);
+                }
+                if (!['IN_TRANSIT', 'RECEIVED'].includes(shipmentStatus)) {
+                    errors.push(`${text(shipment?.shipmentNo) || shipmentId || 'MGS'} durumu Faz 2 için güvenli değil: ${shipmentStatus || '-'}.`);
+                }
+                if (shipmentId) targetShipmentIds.add(shipmentId);
+
+                const shipmentMovementRows = movements.filter((row) => text(row?.shipmentId) === shipmentId
+                    || text(row?.sourceShipmentId) === shipmentId);
+                const receiptKey = text(shipment?.receiptKey);
+                const receiptRows = stockRows.filter((row) => upper(row?.stockClass) === 'MONTAGE_RECEIVED'
+                    && (text(row?.sourceShipmentId || row?.shipmentId) === shipmentId
+                        || (receiptKey && text(row?.receiptKey) === receiptKey)));
+                const receiptMovements = shipmentMovementRows.filter((row) => movementType(row) === 'MONTAGE_DISPATCH_RECEIPT');
+                const parts = Array.isArray(shipment?.parts) ? shipment.parts : [];
+                const outIdsForShipment = new Set();
+                const planReservationKeys = new Set((Array.isArray(plan?.exactReservations) ? plan.exactReservations : [])
+                    .map((reservation) => text(reservation?.reservationKey)).filter(Boolean));
+                const legacyReservationCompatibility = !hasOwn(plan, 'exactReservations');
+                if (!legacyReservationCompatibility && planReservationKeys.size === 0) {
+                    errors.push(`${text(plan?.planNo) || planId} reservation metadata kısmi veya çelişkili.`);
+                }
+                const shipmentReservationKeys = new Set();
+                parts.forEach((part) => {
+                    const allocations = Array.isArray(part?.allocations) ? part.allocations : [];
+                    const allocationQty = allocations.reduce((sum, allocation) => sum + qty(allocation?.qty), 0);
+                    if (!allocations.length || !sameQty(allocationQty, part?.shippedQty)) {
+                        errors.push(`${text(shipment?.shipmentNo) || shipmentId} parça allocation toplamı uyuşmuyor: ${upper(part?.code) || '-'}.`);
+                    }
+                    allocations.forEach((allocation) => {
+                        const stockItemId = text(allocation?.stockRowId || allocation?.stockDepotItemId);
+                        const allocationReservationKeys = (Array.isArray(allocation?.exactReservationKeys)
+                            ? allocation.exactReservationKeys : []).map(text).filter(Boolean);
+                        const segmentRanges = Array.isArray(allocation?.segmentRanges) ? allocation.segmentRanges : [];
+                        const hasAllocationReservationMetadata = hasOwn(allocation, 'exactReservationKeys')
+                            || hasOwn(allocation, 'segmentRanges');
+                        const reservationMetadataInvalid = legacyReservationCompatibility
+                            ? hasAllocationReservationMetadata
+                            : (!allocationReservationKeys.length || segmentRanges.length !== allocationReservationKeys.length
+                                || allocationReservationKeys.some((key) => !planReservationKeys.has(key)
+                                    || shipmentReservationKeys.has(key))
+                                || segmentRanges.some((range) => !allocationReservationKeys.includes(text(range?.reservationKey))
+                                    || text(range?.planId) !== planId
+                                    || text(range?.stockRowId) !== stockItemId));
+                        if (reservationMetadataInvalid) {
+                            errors.push(`MGS allocation exactReservations lineage bilgisi eksik veya çelişkili: ${text(shipment?.shipmentNo) || shipmentId}.`);
+                        }
+                        allocationReservationKeys.forEach((key) => shipmentReservationKeys.add(key));
+                        const sourceRow = findOneById(stockRows, stockItemId, 'MONTAGE_DISPATCH_OUT kaynak stok');
+                        const movementId = text(allocation?.stockMovementId);
+                        if (shipmentStatus === 'IN_TRANSIT' && !movementId) return;
+                        const movement = findOneById(movements, movementId, 'MONTAGE_DISPATCH_OUT hareket');
+                        if (!sourceRow || !movement) return;
+                        const allocationQtyValue = qty(allocation?.qty);
+                        if (movementType(movement) !== 'MONTAGE_DISPATCH_OUT'
+                            || text(movement?.shipmentId) !== shipmentId
+                            || text(movement?.planId) !== planId
+                            || text(movement?.stockDepotItemId) !== stockItemId
+                            || text(movement?.sourceDepotId) !== text(allocation?.sourceDepotId)
+                            || text(movement?.sourceLocationId) !== text(allocation?.sourceLocationId)
+                            || text(sourceRow?.depotId) !== text(allocation?.sourceDepotId)
+                            || text(sourceRow?.locationId) !== text(allocation?.sourceLocationId)
+                            || text(movement?.refId || movement?.productId) !== text(part?.refId)
+                            || upper(movement?.code || movement?.productCode) !== upper(part?.code)
+                            || !sameQty(movement?.qty ?? movement?.quantity, allocationQtyValue)
+                            || allocationQtyValue <= 0) {
+                            errors.push(`MONTAGE_DISPATCH_OUT allocation/movement/source stock exact bağlantısı uyuşmuyor: ${movementId || '-'}.`);
+                            return;
+                        }
+                        if (outIdsForShipment.has(movementId) || targetMovementIds.has(movementId)) {
+                            errors.push(`MONTAGE_DISPATCH_OUT hareketi mükerrer allocation tarafından kullanılıyor: ${movementId}.`);
+                            return;
+                        }
+                        outIdsForShipment.add(movementId);
+                        targetMovementIds.add(movementId);
+                        addQty(sourceReturns, sourceRow, allocationQtyValue, 'MONTAGE_DISPATCH_OUT');
+                    });
+                });
+                if (shipmentReservationKeys.size !== planReservationKeys.size
+                    || Array.from(planReservationKeys).some((key) => !shipmentReservationKeys.has(key))) {
+                    errors.push(`${text(shipment?.shipmentNo) || shipmentId} MGP exactReservations paketini birebir taşımıyor.`);
+                }
+
+                if (shipmentStatus === 'IN_TRANSIT') {
+                    if (receiptRows.length || receiptMovements.length) {
+                        errors.push(`${text(shipment?.shipmentNo) || shipmentId} IN_TRANSIT olmasına rağmen receipt stok/hareketi içeriyor.`);
+                    }
+                    return;
+                }
+                if (!receiptKey || !parts.length) {
+                    errors.push(`${text(shipment?.shipmentNo) || shipmentId} RECEIVED receiptKey/parça kanıtı eksik.`);
+                    return;
+                }
+                if (receiptRows.length !== parts.length || receiptMovements.length !== parts.length) {
+                    errors.push(`${text(shipment?.shipmentNo) || shipmentId} receipt stok/hareket satır sayısı parça snapshot'ıyla uyuşmuyor.`);
+                }
+                parts.forEach((part) => {
+                    const partCode = upper(part?.code);
+                    const partRefId = text(part?.refId);
+                    const matchingRows = receiptRows.filter((row) => text(row?.receiptKey) === receiptKey
+                        && text(row?.refId || row?.productId) === partRefId
+                        && upper(row?.code || row?.productCode) === partCode
+                        && upper(row?.stockClass) === 'MONTAGE_RECEIVED');
+                    if (matchingRows.length !== 1) {
+                        errors.push(`MGS receipt stok satırı tekil bulunamadı: ${text(shipment?.shipmentNo) || shipmentId}/${partCode || '-'}.`);
+                        return;
+                    }
+                    const receiptRow = matchingRows[0];
+                    const receiptLineKey = text(receiptRow?.receiptLineKey);
+                    const matchingMovements = receiptMovements.filter((row) => text(row?.receiptKey) === receiptKey
+                        && text(row?.receiptLineKey) === receiptLineKey
+                        && text(row?.refId || row?.productId) === partRefId
+                        && upper(row?.code || row?.productCode) === partCode);
+                    if (!receiptLineKey || matchingMovements.length !== 1) {
+                        errors.push(`MGS receipt movement exact receiptLineKey ile tekil bulunamadı: ${receiptLineKey || '-'}.`);
+                        return;
+                    }
+                    const receiptMovement = matchingMovements[0];
+                    const allocationMovementIds = (Array.isArray(part?.allocations) ? part.allocations : [])
+                        .map((allocation) => text(allocation?.stockMovementId)).filter(Boolean).sort();
+                    const sourceMovementIds = (Array.isArray(receiptMovement?.sourceMovementIds)
+                        ? receiptMovement.sourceMovementIds : []).map(text).filter(Boolean).sort();
+                    if (!sameQty(receiptMovement?.qty ?? receiptMovement?.quantity, part?.shippedQty)
+                        || JSON.stringify(sourceMovementIds) !== JSON.stringify(allocationMovementIds)) {
+                        errors.push(`MGS receipt movement OUT lineage/miktarı uyuşmuyor: ${text(receiptMovement?.id) || '-'}.`);
+                    }
+                    const receiptRowId = text(receiptRow?.id);
+                    const receiptMovementId = text(receiptMovement?.id);
+                    if (!receiptRowId || receiptRowsById.has(receiptRowId) || !receiptMovementId
+                        || targetMovementIds.has(receiptMovementId)) {
+                        errors.push(`MGS receipt stok/hareket kimliği eksik veya mükerrer: ${receiptRowId || receiptMovementId || '-'}.`);
+                        return;
+                    }
+                    receiptRowsById.set(receiptRowId, receiptRow);
+                    receiptOriginalQtyById.set(receiptRowId, qty(part?.shippedQty));
+                    targetStockIds.add(receiptRowId);
+                    targetMovementIds.add(receiptMovementId);
+                });
+            });
+        });
+
+        const orphanTransfers = transfers.filter((transfer) => pointsAtDemand(transfer)
+            && !targetShipmentIds.has(text(transfer?.sourceShipmentId)));
+        if (orphanTransfers.length) errors.push(`Hedef lineage'a ait fakat target MGS'ye bağlanamayan MCT bulundu (${orphanTransfers.length}).`);
+        const targetTransfers = transfers.filter((transfer) => targetShipmentIds.has(text(transfer?.sourceShipmentId)));
+        targetTransfers.forEach((transfer) => {
+            const transferId = text(transfer?.id);
+            const status = upper(transfer?.status);
+            if (!transferId || targetTransferIds.has(transferId) || !exactIdentity(transfer)) {
+                errors.push(`MCT exact kimliği/lineage bilgisi eksik veya çelişkili: ${transferId || '-'}.`);
+                return;
+            }
+            targetTransferIds.add(transferId);
+            const related = movements.filter((row) => text(row?.completionTransferId || row?.transferId) === transferId);
+            if (['PENDING', 'PENDING_DEPOT_RECEIPT'].includes(status)) {
+                if (related.length || text(transfer?.finishedProductStockItemId) || text(transfer?.finishedProductMovementId)
+                    || (Array.isArray(transfer?.componentAllocations) && transfer.componentAllocations.length)
+                    || (Array.isArray(transfer?.componentMovementIds) && transfer.componentMovementIds.length)) {
+                    errors.push(`${text(transfer?.transferNo) || transferId} PENDING olmasına rağmen fiziksel POSTED etkisi içeriyor.`);
+                }
+                return;
+            }
+            if (status !== 'POSTED' || transfer?.reversedAt) {
+                errors.push(`${text(transfer?.transferNo) || transferId} durumu Faz 2 için güvenli değil: ${status || '-'}.`);
+                return;
+            }
+
+            const finishedStockId = text(transfer?.finishedProductStockItemId);
+            const finishedMovementId = text(transfer?.finishedProductMovementId);
+            const finishedRow = findOneById(stockRows, finishedStockId, 'MCT finished stock');
+            const finishedMovement = findOneById(movements, finishedMovementId, 'MCT finished movement');
+            const transferQty = qty(transfer?.qty ?? transfer?.quantity);
+            if (!finishedRow || !finishedMovement) return;
+            if (text(finishedRow?.completionTransferId || finishedRow?.transferId) !== transferId
+                || movementType(finishedMovement) !== 'MONTAGE_FINISHED_PRODUCT_IN'
+                || text(finishedMovement?.completionTransferId || finishedMovement?.transferId) !== transferId
+                || text(finishedMovement?.stockDepotItemId) !== finishedStockId
+                || !sameQty(stockQty(finishedRow) + (projectedSalesStockReturns.get(finishedStockId)?.qty || 0), transferQty)
+                || !sameQty(finishedMovement?.qty ?? finishedMovement?.quantity, transferQty)
+                || transferQty <= 0) {
+                errors.push(`${text(transfer?.transferNo) || transferId} finished stock/movement exact bağlantısı uyuşmuyor.`);
+            }
+            if (targetStockIds.has(finishedStockId) || targetMovementIds.has(finishedMovementId)) {
+                errors.push(`${text(transfer?.transferNo) || transferId} finished stok/hareket kimliği mükerrer.`);
+            }
+            targetStockIds.add(finishedStockId);
+            targetMovementIds.add(finishedMovementId);
+
+            const componentAllocations = Array.isArray(transfer?.componentAllocations) ? transfer.componentAllocations : [];
+            const componentMovementIds = (Array.isArray(transfer?.componentMovementIds) ? transfer.componentMovementIds : [])
+                .map(text).filter(Boolean);
+            if (!componentAllocations.length || componentAllocations.length !== componentMovementIds.length
+                || new Set(componentMovementIds).size !== componentMovementIds.length) {
+                errors.push(`${text(transfer?.transferNo) || transferId} component allocation/movement listesi uyuşmuyor.`);
+            }
+            componentAllocations.forEach((allocation) => {
+                const stockItemId = text(allocation?.stockDepotItemId);
+                const movementId = text(allocation?.stockMovementId);
+                const receiptRow = receiptRowsById.get(stockItemId) || null;
+                const movement = findOneById(movements, movementId, 'MCT component movement');
+                const allocationQty = qty(allocation?.qty);
+                if (!receiptRow || !componentMovementIds.includes(movementId) || !movement
+                    || movementType(movement) !== 'MONTAGE_COMPONENT_CONSUMPTION'
+                    || text(movement?.completionTransferId || movement?.transferId) !== transferId
+                    || text(movement?.stockDepotItemId) !== stockItemId
+                    || !sameQty(movement?.qty ?? movement?.quantity, allocationQty)
+                    || allocationQty <= 0) {
+                    errors.push(`${text(transfer?.transferNo) || transferId} component receipt/movement exact bağlantısı uyuşmuyor: ${movementId || '-'}.`);
+                    return;
+                }
+                if (targetMovementIds.has(movementId)) errors.push(`MCT component movement mükerrer kullanılıyor: ${movementId}.`);
+                targetMovementIds.add(movementId);
+                addQty(componentRestores, receiptRow, allocationQty, 'MCT component consumption');
+            });
+            const unexpectedRelated = related.filter((row) => !targetMovementIds.has(text(row?.id)));
+            if (unexpectedRelated.length) {
+                errors.push(`${text(transfer?.transferNo) || transferId} bilinmeyen/bağlantısız movement içeriyor (${unexpectedRelated.length}).`);
+            }
+        });
+
+        receiptRowsById.forEach((row, rowId) => {
+            const restoredQty = componentRestores.get(rowId)?.qty || 0;
+            const expectedQty = receiptOriginalQtyById.get(rowId) || 0;
+            if (!sameQty(stockQty(row) + restoredQty, expectedQty)) {
+                errors.push(`Montaj receipt stok bakiyesi consumption lineage ile uyuşmuyor: ${rowId}.`);
+            }
+        });
+
+        movements.filter((row) => movementType(row) === 'SALES_COMPONENT_SURPLUS_RELEASE' && pointsAtDemand(row))
+            .forEach((movement) => {
+                const movementId = text(movement?.id);
+                const sourceStockId = text(movement?.sourceStockDepotItemId);
+                const targetStockId = text(movement?.targetStockDepotItemId || movement?.stockDepotItemId);
+                const sourceRow = findOneById(stockRows, sourceStockId, 'Surplus source stock');
+                const targetRow = findOneById(stockRows, targetStockId, 'Surplus target stock');
+                const releaseQty = qty(movement?.qty ?? movement?.quantity);
+                const triggerIds = [movement?.triggerMontageCompletionTransferId,
+                    ...(Array.isArray(movement?.triggerMontageCompletionTransferIds)
+                        ? movement.triggerMontageCompletionTransferIds : [])].map(text).filter(Boolean);
+                if (!movementId || targetMovementIds.has(movementId) || !exactIdentity(movement)
+                    || movement?.reversedAt || ['CANCELLED', 'REVERSED'].includes(upper(movement?.status))
+                    || !sourceRow || !targetRow || sourceRow === targetRow || releaseQty <= 0
+                    || targetStockIds.has(sourceStockId) || targetStockIds.has(targetStockId)
+                    || stockQty(targetRow) + 0.000001 < releaseQty
+                    || (triggerIds.length && triggerIds.some((id) => !targetTransferIds.has(id)))) {
+                    errors.push(`SALES_COMPONENT_SURPLUS_RELEASE exact ters kayıt kanıtı uyuşmuyor: ${movementId || '-'}.`);
+                    return;
+                }
+                targetMovementIds.add(movementId);
+                surplusReversals.push({ movement, sourceRow, targetRow, qty: releaseQty });
+            });
+
+        const allowedMovementTypes = new Set([
+            'MONTAGE_DISPATCH_OUT', 'MONTAGE_DISPATCH_RECEIPT', 'MONTAGE_COMPONENT_CONSUMPTION',
+            'MONTAGE_FINISHED_PRODUCT_IN', 'SALES_COMPONENT_SURPLUS_RELEASE'
+        ]);
+        const relatedModernMovements = movements.filter((row) => targetShipmentIds.has(text(row?.shipmentId || row?.sourceShipmentId))
+            || targetTransferIds.has(text(row?.completionTransferId || row?.transferId))
+            || (movementType(row) === 'SALES_COMPONENT_SURPLUS_RELEASE' && pointsAtDemand(row)));
+        relatedModernMovements.forEach((movement) => {
+            const id = text(movement?.id);
+            if (!allowedMovementTypes.has(movementType(movement)) || !targetMovementIds.has(id)) {
+                errors.push(`Modern Montaj zincirinde exact plana alınamayan movement var: ${id || '-'}/${movementType(movement) || '-'}.`);
+            }
+        });
+        const orphanModernMovements = movements.filter((row) => allowedMovementTypes.has(movementType(row))
+            && !targetMovementIds.has(text(row?.id))
+            && (hasExactDemandReference(row)
+                || targetPlanIds.has(text(row?.planId))
+                || targetShipmentIds.has(text(row?.shipmentId || row?.sourceShipmentId))
+                || targetTransferIds.has(text(row?.completionTransferId || row?.transferId))));
+        if (orphanModernMovements.length) {
+            errors.push(`Hedef lineage'a ait fakat exact stock/movement planına alınamayan modern hareket bulundu (${orphanModernMovements.length}).`);
+        }
+        const orphanModernStockRows = stockRows.filter((row) => !targetStockIds.has(text(row?.id))
+            && (upper(row?.stockClass) === 'MONTAGE_RECEIVED' || text(row?.completionTransferId || row?.transferId))
+            && (hasExactDemandReference(row)
+                || targetPlanIds.has(text(row?.sourcePlanId || row?.planId))
+                || targetShipmentIds.has(text(row?.sourceShipmentId || row?.shipmentId))
+                || targetTransferIds.has(text(row?.completionTransferId || row?.transferId))));
+        if (orphanModernStockRows.length) {
+            errors.push(`Hedef lineage'a ait fakat exact cleanup stok planına alınamayan modern stok satırı bulundu (${orphanModernStockRows.length}).`);
+        }
+
+        const foreignStockMovementRefs = movements.filter((movement) => !targetMovementIds.has(text(movement?.id))
+            && !allowedSalesMovementIds.has(text(movement?.id))
+            && hasRecursiveReference(movement, (key, child) => stockReferenceKeys.has(key) && targetStockIds.has(text(child))));
+        if (foreignStockMovementRefs.length) {
+            errors.push(`Silinecek receipt/finished stok satırında yabancı movement referansı bulundu (${foreignStockMovementRefs.length}).`);
+        }
+        const foreignTransferRefs = transfers.filter((transfer) => !targetTransferIds.has(text(transfer?.id))
+            && hasRecursiveReference(transfer, (key, child) => stockReferenceKeys.has(key) && targetStockIds.has(text(child))));
+        if (foreignTransferRefs.length) errors.push(`Silinecek receipt/finished stok satırında yabancı MCT referansı bulundu (${foreignTransferRefs.length}).`);
+        const foreignMontageShipmentRefs = shipments.filter((shipment) => !targetShipmentIds.has(text(shipment?.id))
+            && hasRecursiveReference(shipment, (key, child) => stockReferenceKeys.has(key) && targetStockIds.has(text(child))));
+        if (foreignMontageShipmentRefs.length) errors.push(`Silinecek receipt/finished stok satırında yabancı MGS referansı bulundu (${foreignMontageShipmentRefs.length}).`);
+        const hasTargetSalesIdentityRef = (row) => hasRecursiveReference(row, (key, child) =>
+            (key === 'demandId' && targetIdentityByDemandId.has(text(child)))
+            || (key === 'sourceOrderId' && text(child) === sourceOrderId));
+        const isOutOfScopeSalesRef = (row) => pointsAtDemand(row) || hasTargetSalesIdentityRef(row)
+            || hasRecursiveReference(row, (key, child) => stockReferenceKeys.has(key) && targetStockIds.has(text(child)));
+        const blockingSalesPlans = salesShipmentPlans.filter((row) => !allowedSalesPlanIds.has(text(row?.id)) && isOutOfScopeSalesRef(row));
+        const blockingSalesShipments = salesShipments.filter((row) => !allowedSalesShipmentIds.has(text(row?.id)) && isOutOfScopeSalesRef(row));
+        const blockingSalesOut = movements.filter((row) => movementType(row) === 'SALES_SHIPMENT_OUT'
+            && !allowedSalesMovementIds.has(text(row?.id))
+            && (pointsAtDemand(row) || hasTargetSalesIdentityRef(row) || hasRecursiveReference(row,
+                (key, child) => stockReferenceKeys.has(key) && targetStockIds.has(text(child)))));
+        if (blockingSalesPlans.length) errors.push(`SVP Faz 3 referansı bulundu (${blockingSalesPlans.length}); Faz 2 cleanup başlatılmadı.`);
+        if (blockingSalesShipments.length) errors.push(`Gerçek shipment Faz 3 referansı bulundu (${blockingSalesShipments.length}); Faz 2 cleanup başlatılmadı.`);
+        if (blockingSalesOut.length) errors.push(`SALES_SHIPMENT_OUT Faz 3 referansı bulundu (${blockingSalesOut.length}); Faz 2 cleanup başlatılmadı.`);
+
+        return {
+            ok: errors.length === 0,
+            errors,
+            targetPlanIds,
+            targetShipmentIds,
+            targetInstructionIds,
+            targetTransferIds,
+            targetStockIds,
+            targetMovementIds,
+            sourceReturns,
+            componentRestores,
+            surplusReversals
+        };
+    },
+
     getStockDemandDemoCleanupPlan: (demandId, options = {}) => {
         const errors = [];
         const warnings = [];
-        const allDemands = PlanningModule.getDemands();
+        const allDemands = Array.isArray(DB.data?.data?.planningDemands) ? DB.data.data.planningDemands : [];
         const demand = allDemands.find((item) => String(item?.id || '') === String(demandId || '')) || null;
         if (!demand) {
             return { ok: false, errors: ['Talep kaydı bulunamadı.'] };
@@ -6153,6 +8594,7 @@
         const linkedTxns = txns.filter(isLinkedWorkOrder);
         const stockMovements = Array.isArray(DB.data?.data?.stock_movements) ? DB.data.data.stock_movements : [];
         const linkedStockMovements = stockMovements.filter(isLinkedWorkOrder);
+        const workOrderById = new Map(linkedWorkOrders.map((order) => [String(order?.id || '').trim(), order]));
         const issueMovements = [];
         const storeMovements = [];
         const unknownStockMovements = [];
@@ -6168,78 +8610,101 @@
 
         const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
         const locations = Array.isArray(DB.data?.data?.stockDepotLocations) ? DB.data.data.stockDepotLocations : [];
+        const salesShipmentCleanupPlan = options?.salesShipmentCleanupPlan || null;
+        const skipModernMontageCleanup = options?.skipModernMontageCleanup === true;
+        const orderModernMontageCleanupPlan = options?.orderModernMontageCleanupPlan || null;
+        const modernMontageCleanupPlan = sourceType === 'SALES_ORDER' && !skipModernMontageCleanup
+            ? PlanningModule.getDemandModernMontageCleanupPlan(demand, { salesShipmentCleanupPlan })
+            : null;
+        const effectiveModernMontageCleanupPlan = orderModernMontageCleanupPlan || modernMontageCleanupPlan;
         const issueRestorePlans = [];
         issueMovements.forEach((movement) => {
-            const code = String(movement?.productCode || movement?.code || '').trim().toUpperCase();
-            const name = String(movement?.productName || movement?.name || code || '-').trim();
-            const sourceQty = PlanningModule.parseDecimalQty(movement?.sourceQty ?? movement?.sourceQuantity ?? movement?.qty ?? movement?.quantity, 0);
-            const sourceUnit = String(movement?.sourceUnit || movement?.unit || '').trim();
-            const sourceDepotId = String(movement?.sourceDepotId || movement?.depotId || '').trim();
-            const sourceLocationId = String(movement?.sourceLocationId || movement?.locationId || '').trim();
-            const sourceLocationCode = String(movement?.sourceLocationCode || movement?.locationCode || '').trim().toUpperCase();
-            if (!code || sourceQty <= 0 || !sourceUnit || !sourceDepotId || !sourceLocationId) {
-                errors.push(`WORK_ORDER_ISSUE geri alma bilgisi eksik: ${String(movement?.id || movement?.workOrderCode || '-')}`);
-                return;
-            }
-            const locationExists = locations.some((row) => String(row?.id || '').trim() === sourceLocationId);
-            if (!locationExists) {
-                errors.push(`WORK_ORDER_ISSUE kaynak hücresi bulunamadı: ${sourceLocationId}`);
-                return;
-            }
-            issueRestorePlans.push({
-                movement,
-                code,
-                name,
-                qty: sourceQty,
-                unit: sourceUnit,
-                depotId: sourceDepotId,
-                locationId: sourceLocationId,
-                locationCode: sourceLocationCode
+            const resolved = PlanningModule.resolveDemandDemoCleanupStockRow({
+                kind: 'ISSUE', movement, demand, stockRows, workOrderById
             });
+            if (!resolved.ok) {
+                errors.push(resolved.message);
+                return;
+            }
+            if (resolved.locationId && !locations.some((row) => String(row?.id || '').trim() === resolved.locationId)) {
+                errors.push(`WORK_ORDER_ISSUE kaynak hücresi bulunamadı: ${resolved.locationId}`);
+                return;
+            }
+            issueRestorePlans.push({ movement, ...resolved });
         });
 
         const storeTxns = linkedTxns.filter((txn) => String(txn?.type || '').trim().toUpperCase() === 'STORE');
         const storeTxnQty = storeTxns.reduce((sum, txn) => sum + PlanningModule.parseDecimalQty(txn?.qty, 0), 0);
         const storeMovementQty = storeMovements.reduce((sum, movement) => sum + PlanningModule.parseDecimalQty(movement?.qty ?? movement?.quantity, 0), 0);
-        if (storeTxnQty > 0 && storeMovementQty + 0.000001 < storeTxnQty) {
-            warnings.push('STORE stok hareketi eksik olduğu için stok satırına dokunulmadı.');
+        const useLegacyStoreTransactionCompatibility = sourceType === 'SALES_ORDER'
+            && storeTxnQty > 0 && storeMovements.length === 0;
+        if (Math.abs(storeTxnQty - storeMovementQty) > 0.000001 && !useLegacyStoreTransactionCompatibility) {
+            errors.push(`STORE işlem ve stok hareketi miktarları uyuşmuyor (${storeTxnQty} / ${storeMovementQty}).`);
         }
 
         const storeDecrementPlans = [];
-        const plannedStoreUseByRow = new Map();
-        storeMovements.forEach((movement) => {
-            const code = String(movement?.productCode || movement?.code || '').trim().toUpperCase();
-            const qty = PlanningModule.parseDecimalQty(movement?.qty ?? movement?.quantity, 0);
-            const depotId = String(movement?.depotId || '').trim();
-            const locationId = String(movement?.locationId || '').trim();
-            if (!code || qty <= 0 || !depotId || !locationId) {
-                warnings.push(`STORE stok hareketi hedef bilgisi eksik olduğu için stok satırına dokunulmadı: ${String(movement?.id || movement?.workOrderCode || '-')}`);
-                return;
-            }
-            let remaining = qty;
-            const allocations = [];
-            const candidates = stockRows
-                .filter((row) => PlanningModule.getDepotRowCode(row) === code)
-                .filter((row) => PlanningModule.getDepotRowDepotId(row) === depotId)
-                .filter((row) => PlanningModule.getDepotRowLocationId(row) === locationId)
-                .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || ''), 'tr'));
-            candidates.forEach((row) => {
-                if (remaining <= 0) return;
-                const rowId = String(row?.id || '');
-                const alreadyPlanned = plannedStoreUseByRow.get(rowId) || 0;
-                const available = Math.max(0, PlanningModule.getDepotRowQty(row) - alreadyPlanned);
-                if (available <= 0) return;
-                const used = Math.min(available, remaining);
-                plannedStoreUseByRow.set(rowId, alreadyPlanned + used);
-                allocations.push({ row, qty: used });
-                remaining = Number((remaining - used).toFixed(6));
+        if (useLegacyStoreTransactionCompatibility) {
+            const compatibility = PlanningModule.getLegacyStoreTransactionCleanupPlans({
+                demand,
+                storeTxns,
+                linkedWorkOrders,
+                stockRows,
+                modernMontageCleanupPlan: effectiveModernMontageCleanupPlan
             });
-            if (remaining > 0.000001) {
-                warnings.push(`STORE stok etkisi güvenli azaltılamadığı için stok satırına dokunulmadı: ${code} / ${depotId} / ${locationId} için ${remaining} eksik.`);
-                return;
-            }
-            storeDecrementPlans.push({ movement, code, qty, depotId, locationId, allocations });
-        });
+            errors.push(...compatibility.errors);
+            storeDecrementPlans.push(...compatibility.plans);
+        } else {
+            storeMovements.forEach((movement) => {
+                const resolved = PlanningModule.resolveDemandDemoCleanupStockRow({
+                    kind: 'STORE', movement, demand, stockRows, workOrderById
+                });
+                if (!resolved.ok) {
+                    errors.push(resolved.message);
+                    return;
+                }
+                storeDecrementPlans.push({ movement, ...resolved });
+            });
+        }
+
+        const poolRestorePlans = [];
+        const isReleased = String(demand?.status || 'OPEN').trim().toUpperCase() === 'RELEASED';
+        if (isReleased && !PlanningModule.isMontageOnlyNet0Demand(demand)
+            && !PlanningModule.isVirtualPlanningPoolDemand(demand)) {
+            (Array.isArray(demand?.poolAnalysis?.rows) ? demand.poolAnalysis.rows : []).forEach((poolRow) => {
+                if (!poolRow || !poolRow.useEnabled) return;
+                const qty = PlanningModule.parseDecimalQty(poolRow?.useStockQty, 0)
+                    + PlanningModule.parseDecimalQty(poolRow?.useSemiQty, 0);
+                if (qty <= 0) return;
+                const code = String(poolRow?.code || '').trim().toUpperCase();
+                const explicitIds = [poolRow?.sourceStockItemId, poolRow?.stockDepotItemId, poolRow?.stockRowId]
+                    .map((value) => String(value || '').trim()).filter(Boolean);
+                const uniqueIds = Array.from(new Set(explicitIds));
+                let candidates = [];
+                if (uniqueIds.length > 1) {
+                    errors.push(`PLN stok tüketimi exact stok kimlikleri çelişkili: ${String(poolRow?.key || code || '-')}`);
+                    return;
+                }
+                if (uniqueIds.length === 1) {
+                    candidates = stockRows.filter((row) => String(row?.id || '').trim() === uniqueIds[0]);
+                } else {
+                    const depotId = String(poolRow?.depotId || '').trim();
+                    const locationId = String(poolRow?.locationId || '').trim();
+                    if (!code || !depotId || !locationId) {
+                        errors.push(`PLN stok tüketimi exact kaynağı doğrulanamadı: ${String(poolRow?.key || code || '-')}`);
+                        return;
+                    }
+                    candidates = stockRows
+                        .filter((row) => PlanningModule.getDepotRowCode(row) === code)
+                        .filter((row) => PlanningModule.getDepotRowDepotId(row) === depotId)
+                        .filter((row) => PlanningModule.getDepotRowLocationId(row) === locationId);
+                }
+                if (candidates.length !== 1 || (code && PlanningModule.getDepotRowCode(candidates[0]) !== code)) {
+                    errors.push(`PLN stok tüketimi tekil stok satırına bağlanamadı: ${String(poolRow?.key || code || '-')}`);
+                    return;
+                }
+                poolRestorePlans.push({ poolRow, row: candidates[0], qty, code });
+            });
+        }
 
         const assignmentRows = Array.isArray(DB.data?.data?.workOrderExternalSupplierAssignments)
             ? DB.data.data.workOrderExternalSupplierAssignments.filter(isLinkedWorkOrder)
@@ -6279,6 +8744,60 @@
                 || (rowWorkOrderText && linkedWorkOrderCodes.has(rowWorkOrderText));
         });
 
+        const outputStockRowIds = new Set(
+            storeDecrementPlans.map((entry) => String(entry?.row?.id || '').trim()).filter(Boolean)
+        );
+        if (modernMontageCleanupPlan) {
+            errors.push(...(Array.isArray(modernMontageCleanupPlan.errors) ? modernMontageCleanupPlan.errors : []));
+        } else if (!skipModernMontageCleanup) {
+            errors.push(...PlanningModule.getDemandDemoCleanupModernReferenceErrors(
+                demand,
+                linkedWorkOrderIds,
+                outputStockRowIds
+            ));
+        }
+        if (outputStockRowIds.size > 0) {
+            const linkedMovementObjects = new Set(linkedStockMovements);
+            const allowedModernMovementIds = effectiveModernMontageCleanupPlan?.targetMovementIds instanceof Set
+                ? effectiveModernMontageCleanupPlan.targetMovementIds : new Set();
+            const allowedSalesMovementIds = salesShipmentCleanupPlan?.targetMovementIds instanceof Set
+                ? salesShipmentCleanupPlan.targetMovementIds : new Set();
+            const stockReferenceKeys = new Set([
+                'stockRowId', 'stockItemId', 'sourceStockItemId', 'sourceStockDepotItemId',
+                'stockDepotItemId', 'targetStockDepotItemId', 'outputStockItemId', 'finishedProductStockItemId'
+            ]);
+            const hasOutputStockReference = (value) => {
+                if (!value || typeof value !== 'object') return false;
+                if (Array.isArray(value)) return value.some(hasOutputStockReference);
+                return Object.entries(value).some(([key, child]) =>
+                    (stockReferenceKeys.has(key) && outputStockRowIds.has(String(child || '').trim()))
+                    || (child && typeof child === 'object' && hasOutputStockReference(child)));
+            };
+            const foreignOutputRefs = stockMovements.filter((movement) => {
+                if (linkedMovementObjects.has(movement)) return false;
+                const movementId = String(movement?.id || '').trim();
+                if (allowedModernMovementIds.has(movementId) || allowedSalesMovementIds.has(movementId)) return false;
+                return hasOutputStockReference(movement);
+            });
+            const targetIdSets = [
+                ['montageDispatchPlans', effectiveModernMontageCleanupPlan?.targetPlanIds],
+                ['montageDispatchShipments', effectiveModernMontageCleanupPlan?.targetShipmentIds],
+                ['sanalTaksimAllocationInstructions', effectiveModernMontageCleanupPlan?.targetInstructionIds],
+                ['montageCompletionTransfers', effectiveModernMontageCleanupPlan?.targetTransferIds],
+                ['salesShipmentPlans', salesShipmentCleanupPlan?.targetPlanIds],
+                ['salesShipments', salesShipmentCleanupPlan?.targetShipmentIds]
+            ];
+            const foreignConsumerRefs = targetIdSets.flatMap(([collectionKey, allowedIds]) => {
+                const safeAllowedIds = allowedIds instanceof Set ? allowedIds : new Set();
+                const rows = Array.isArray(DB.data?.data?.[collectionKey]) ? DB.data.data[collectionKey] : [];
+                return rows.filter((row) => !safeAllowedIds.has(String(row?.id || '').trim())
+                    && hasOutputStockReference(row));
+            });
+            if (foreignOutputRefs.length > 0 || foreignConsumerRefs.length > 0) {
+                errors.push(`STORE çıktı stok satırında yabancı hareket/consumer referansı var (${foreignOutputRefs.length + foreignConsumerRefs.length}).`);
+            }
+        }
+
         return {
             ok: errors.length === 0,
             errors,
@@ -6288,14 +8807,116 @@
             linkedWorkOrderCodes,
             linkedWorkOrders,
             linkedTxns,
+            poolRestorePlans,
             issueRestorePlans,
             storeDecrementPlans,
             linkedStockMovements,
             assignmentRows,
             dispatchDraftPlans,
             dispatchNoteRowCount,
-            montageDispatchRows
+            montageDispatchRows,
+            modernMontageCleanupPlan,
+            salesShipmentCleanupPlan
         };
+    },
+
+    validateDemandDemoCleanupPlans: (plans, orderModernMontageCleanupPlan = null) => {
+        const errors = [];
+        const safePlans = Array.isArray(plans) ? plans : [];
+        safePlans.forEach((plan) => {
+            (Array.isArray(plan?.errors) ? plan.errors : []).forEach((error) => errors.push(error));
+        });
+        const ownerByWorkOrderId = new Map();
+        safePlans.forEach((plan) => {
+            const demandId = String(plan?.demand?.id || '').trim();
+            Array.from(plan?.linkedWorkOrderIds || []).forEach((workOrderIdRaw) => {
+                const workOrderId = String(workOrderIdRaw || '').trim();
+                if (!workOrderId) return;
+                const previousOwner = ownerByWorkOrderId.get(workOrderId);
+                if (previousOwner && previousOwner !== demandId) {
+                    errors.push(`İş emri birden fazla PLN kaydına bağlı: ${workOrderId}.`);
+                } else {
+                    ownerByWorkOrderId.set(workOrderId, demandId);
+                }
+            });
+        });
+
+        const aggregateStoreUse = new Map();
+        safePlans.forEach((plan) => {
+            (Array.isArray(plan?.storeDecrementPlans) ? plan.storeDecrementPlans : []).forEach((entry) => {
+                const rowId = String(entry?.row?.id || '').trim();
+                if (!rowId) {
+                    errors.push('STORE cleanup planında exact stok satırı kimliği eksik.');
+                    return;
+                }
+                const current = aggregateStoreUse.get(rowId) || { row: entry.row, qty: 0 };
+                current.qty += PlanningModule.parseDecimalQty(entry?.qty, 0);
+                aggregateStoreUse.set(rowId, current);
+            });
+        });
+        const modernStockDeltas = new Map();
+        Array.from(orderModernMontageCleanupPlan?.sourceReturns?.values?.() || []).forEach((entry) => {
+            const rowId = String(entry?.row?.id || '').trim();
+            if (rowId) modernStockDeltas.set(rowId,
+                (modernStockDeltas.get(rowId) || 0) + PlanningModule.parseDecimalQty(entry?.qty, 0));
+        });
+        (Array.isArray(orderModernMontageCleanupPlan?.surplusReversals)
+            ? orderModernMontageCleanupPlan.surplusReversals : []).forEach((entry) => {
+            const sourceId = String(entry?.sourceRow?.id || '').trim();
+            const targetId = String(entry?.targetRow?.id || '').trim();
+            if (sourceId) modernStockDeltas.set(sourceId,
+                (modernStockDeltas.get(sourceId) || 0) + PlanningModule.parseDecimalQty(entry?.qty, 0));
+            if (targetId) modernStockDeltas.set(targetId,
+                (modernStockDeltas.get(targetId) || 0) - PlanningModule.parseDecimalQty(entry?.qty, 0));
+        });
+        safePlans.forEach((plan) => {
+            Array.from(plan?.modernMontageCleanupPlan?.sourceReturns?.values?.() || []).forEach((entry) => {
+                const rowId = String(entry?.row?.id || '').trim();
+                if (rowId) modernStockDeltas.set(rowId,
+                    (modernStockDeltas.get(rowId) || 0) + PlanningModule.parseDecimalQty(entry?.qty, 0));
+            });
+            (Array.isArray(plan?.modernMontageCleanupPlan?.surplusReversals)
+                ? plan.modernMontageCleanupPlan.surplusReversals : []).forEach((entry) => {
+                const sourceId = String(entry?.sourceRow?.id || '').trim();
+                const targetId = String(entry?.targetRow?.id || '').trim();
+                if (sourceId) modernStockDeltas.set(sourceId,
+                    (modernStockDeltas.get(sourceId) || 0) + PlanningModule.parseDecimalQty(entry?.qty, 0));
+                if (targetId) modernStockDeltas.set(targetId,
+                    (modernStockDeltas.get(targetId) || 0) - PlanningModule.parseDecimalQty(entry?.qty, 0));
+            });
+        });
+        aggregateStoreUse.forEach((entry, rowId) => {
+            const projectedQty = PlanningModule.getDepotRowQty(entry.row) + (modernStockDeltas.get(rowId) || 0);
+            if (entry.qty > projectedQty + 0.000001) {
+                errors.push(`STORE exact stok etkisi geri alınamıyor: ${PlanningModule.getDepotRowCode(entry.row)} / ${String(entry?.row?.id || '-')} için stok yetersiz.`);
+            }
+        });
+
+        const modernOwners = [
+            ['MGP', 'targetPlanIds'],
+            ['MGS', 'targetShipmentIds'],
+            ['STAI', 'targetInstructionIds'],
+            ['MCT', 'targetTransferIds'],
+            ['modern stock', 'targetStockIds'],
+            ['modern movement', 'targetMovementIds']
+        ];
+        modernOwners.forEach(([label, key]) => {
+            const ownerById = new Map();
+            safePlans.forEach((plan) => {
+                const demandId = String(plan?.demand?.id || '').trim();
+                Array.from(plan?.modernMontageCleanupPlan?.[key] || []).forEach((rawId) => {
+                    const id = String(rawId || '').trim();
+                    if (!id) return;
+                    const previousOwner = ownerById.get(id);
+                    if (previousOwner && previousOwner !== demandId) {
+                        errors.push(`${label} birden fazla PLN cleanup planına bağlı: ${id}.`);
+                    } else {
+                        ownerById.set(id, demandId);
+                    }
+                });
+            });
+        });
+        return Array.from(new Set(errors.filter(Boolean)));
     },
 
     getStockDemandDemoCleanupSummaryText: (plan) => {
@@ -6316,6 +8937,7 @@
             `Bağlı WO: ${workOrderCodes.length ? workOrderCodes.join(', ') : '-'}`,
             `Silinecek iş emri: ${Number(plan?.linkedWorkOrders?.length || 0)}`,
             `Silinecek işlem hareketi: ${Number(plan?.linkedTxns?.length || 0)}`,
+            `Geri alınacak PLN stok tüketimi: ${Number(plan?.poolRestorePlans?.length || 0)}`,
             `Geri alınacak WORK_ORDER_ISSUE: ${Number(plan?.issueRestorePlans?.length || 0)}`,
             `Azaltılacak STORE stok etkisi: ${Number(plan?.storeDecrementPlans?.length || 0)}`,
             `Silinecek stock movement: ${Number(plan?.linkedStockMovements?.length || 0)}`,
@@ -6352,8 +8974,76 @@
         }
     },
 
+    applyModernMontageCleanupPlan: (modernPlan) => {
+        if (!modernPlan) return;
+        const targetStockIds = modernPlan.targetStockIds instanceof Set ? modernPlan.targetStockIds : new Set();
+        const targetMovementIds = modernPlan.targetMovementIds instanceof Set ? modernPlan.targetMovementIds : new Set();
+        const targetTransferIds = modernPlan.targetTransferIds instanceof Set ? modernPlan.targetTransferIds : new Set();
+        const targetShipmentIds = modernPlan.targetShipmentIds instanceof Set ? modernPlan.targetShipmentIds : new Set();
+        const targetPlanIds = modernPlan.targetPlanIds instanceof Set ? modernPlan.targetPlanIds : new Set();
+        const targetInstructionIds = modernPlan.targetInstructionIds instanceof Set ? modernPlan.targetInstructionIds : new Set();
+
+        if (Array.isArray(DB.data?.data?.stockDepotItems)) {
+            const finishedStockIds = new Set(
+                (Array.isArray(DB.data?.data?.montageCompletionTransfers) ? DB.data.data.montageCompletionTransfers : [])
+                    .filter((row) => targetTransferIds.has(String(row?.id || '').trim()))
+                    .map((row) => String(row?.finishedProductStockItemId || '').trim())
+                    .filter(Boolean)
+            );
+            DB.data.data.stockDepotItems = DB.data.data.stockDepotItems
+                .filter((row) => !finishedStockIds.has(String(row?.id || '').trim()));
+        }
+        (Array.isArray(modernPlan?.surplusReversals) ? modernPlan.surplusReversals : []).forEach((entry) => {
+            PlanningModule.setDepotRowDecimalQty(
+                entry.sourceRow,
+                PlanningModule.getDepotRowQty(entry.sourceRow) + entry.qty
+            );
+            PlanningModule.setDepotRowDecimalQty(
+                entry.targetRow,
+                PlanningModule.getDepotRowQty(entry.targetRow) - entry.qty
+            );
+        });
+        Array.from(modernPlan?.componentRestores?.values?.() || []).forEach((entry) => {
+            PlanningModule.setDepotRowDecimalQty(
+                entry.row,
+                PlanningModule.getDepotRowQty(entry.row) + entry.qty
+            );
+        });
+        if (Array.isArray(DB.data?.data?.montageCompletionTransfers)) {
+            DB.data.data.montageCompletionTransfers = DB.data.data.montageCompletionTransfers
+                .filter((row) => !targetTransferIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.stockDepotItems)) {
+            DB.data.data.stockDepotItems = DB.data.data.stockDepotItems
+                .filter((row) => !targetStockIds.has(String(row?.id || '').trim()));
+        }
+        Array.from(modernPlan?.sourceReturns?.values?.() || []).forEach((entry) => {
+            PlanningModule.setDepotRowDecimalQty(
+                entry.row,
+                PlanningModule.getDepotRowQty(entry.row) + entry.qty
+            );
+        });
+        if (Array.isArray(DB.data?.data?.stock_movements)) {
+            DB.data.data.stock_movements = DB.data.data.stock_movements
+                .filter((row) => !targetMovementIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.montageDispatchShipments)) {
+            DB.data.data.montageDispatchShipments = DB.data.data.montageDispatchShipments
+                .filter((row) => !targetShipmentIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.montageDispatchPlans)) {
+            DB.data.data.montageDispatchPlans = DB.data.data.montageDispatchPlans
+                .filter((row) => !targetPlanIds.has(String(row?.id || '').trim()));
+        }
+        if (Array.isArray(DB.data?.data?.sanalTaksimAllocationInstructions)) {
+            DB.data.data.sanalTaksimAllocationInstructions = DB.data.data.sanalTaksimAllocationInstructions
+                .filter((row) => !targetInstructionIds.has(String(row?.id || '').trim()));
+        }
+    },
+
     applyDemandDemoCleanupPlan: (finalPlan, demandId) => {
         const demand = finalPlan?.demand || {};
+        const modernPlan = finalPlan?.modernMontageCleanupPlan || null;
         const linkedIds = finalPlan?.linkedWorkOrderIds instanceof Set ? finalPlan.linkedWorkOrderIds : new Set();
         const linkedCodes = finalPlan?.linkedWorkOrderCodes instanceof Set ? finalPlan.linkedWorkOrderCodes : new Set();
         const isLinkedWorkOrder = (row) => {
@@ -6369,30 +9059,37 @@
                 || (rowWorkOrderCode && linkedCodes.has(rowWorkOrderCode));
         };
 
-        const isReleased = String(demand?.status || 'OPEN').toUpperCase() === 'RELEASED';
-        const isMontageOnlyReleased = PlanningModule.isMontageOnlyNet0Demand(demand);
-        if (isReleased && !isMontageOnlyReleased) PlanningModule.rollbackDemandPoolConsumption(demand);
+        PlanningModule.applyModernMontageCleanupPlan(modernPlan);
 
+        (Array.isArray(finalPlan?.poolRestorePlans) ? finalPlan.poolRestorePlans : []).forEach((entry) => {
+            PlanningModule.setDepotRowDecimalQty(
+                entry.row,
+                PlanningModule.getDepotRowQty(entry.row) + entry.qty
+            );
+        });
         (Array.isArray(finalPlan?.issueRestorePlans) ? finalPlan.issueRestorePlans : []).forEach((entry) => {
-            PlanningModule.increaseDepotQuantityByCodeExact(entry.code, entry.name, entry.qty, {
-                depotId: entry.depotId,
-                locationId: entry.locationId,
-                locationCode: entry.locationCode,
-                unit: entry.unit,
-                stockClass: 'KULLANILABILIR',
-                status: 'KULLANILABILIR',
-                note: `Demo temizliği: ${String(demand?.demandCode || '-')}`
-            });
+            PlanningModule.setDepotRowDecimalQty(
+                entry.row,
+                PlanningModule.getDepotRowQty(entry.row) + entry.qty
+            );
         });
 
-        (Array.isArray(finalPlan?.storeDecrementPlans) ? finalPlan.storeDecrementPlans : []).forEach((entry) => {
-            (Array.isArray(entry?.allocations) ? entry.allocations : []).forEach((allocation) => {
-                const currentQty = PlanningModule.getDepotRowQty(allocation.row);
-                PlanningModule.setDepotRowQty(allocation.row, currentQty - allocation.qty);
-            });
+        const storeDecrementPlans = Array.isArray(finalPlan?.storeDecrementPlans)
+            ? finalPlan.storeDecrementPlans : [];
+        storeDecrementPlans.forEach((entry) => {
+            const currentQty = PlanningModule.getDepotRowQty(entry.row);
+            PlanningModule.setDepotRowDecimalQty(entry.row, currentQty - entry.qty);
         });
-        if (Array.isArray(finalPlan?.storeDecrementPlans) && finalPlan.storeDecrementPlans.length > 0 && Array.isArray(DB.data?.data?.stockDepotItems)) {
-            DB.data.data.stockDepotItems = DB.data.data.stockDepotItems.filter((row) => PlanningModule.getDepotRowQty(row) > 0);
+        if (storeDecrementPlans.length > 0 && Array.isArray(DB.data?.data?.stockDepotItems)) {
+            const zeroQtyStoreTargetIds = new Set(
+                storeDecrementPlans
+                    .filter((entry) => PlanningModule.getDepotRowQty(entry?.row) <= 0)
+                    .map((entry) => String(entry?.row?.id || '').trim())
+                    .filter(Boolean)
+            );
+            DB.data.data.stockDepotItems = DB.data.data.stockDepotItems.filter((row) =>
+                !zeroQtyStoreTargetIds.has(String(row?.id || '').trim())
+            );
         }
 
         if (Array.isArray(DB.data?.data?.planningDemands)) {
@@ -6450,127 +9147,32 @@
                 return true;
             });
         }
-
-        PlanningModule.clearStockDemandDemoCleanupUiState(demandId);
     },
 
     cleanupStockDemandForDemo: async (demandId) => {
         const plan = PlanningModule.getStockDemandDemoCleanupPlan(demandId);
-        if (!plan.ok) return alert(`Demo kaydı temizlenemedi:\n\n${plan.errors.join('\n')}`);
+        const planErrors = PlanningModule.validateDemandDemoCleanupPlans([plan]);
+        if (planErrors.length > 0) return alert(`Demo kaydı temizlenemedi:\n\n${planErrors.join('\n')}`);
         if (!confirm(PlanningModule.getStockDemandDemoCleanupSummaryText(plan))) return;
         const finalPlan = PlanningModule.getStockDemandDemoCleanupPlan(demandId);
-        if (!finalPlan.ok) return alert(`Demo kaydı temizlenemedi:\n\n${finalPlan.errors.join('\n')}`);
+        const finalErrors = PlanningModule.validateDemandDemoCleanupPlans([finalPlan]);
+        if (finalErrors.length > 0) return alert(`Demo kaydı temizlenemedi:\n\n${finalErrors.join('\n')}`);
 
         const demand = finalPlan.demand;
-        const linkedIds = finalPlan.linkedWorkOrderIds;
-        const linkedCodes = finalPlan.linkedWorkOrderCodes;
-        const beforeCleanupState = (typeof DB.cloneState === 'function')
-            ? DB.cloneState(DB.data)
-            : JSON.parse(JSON.stringify(DB.data || {}));
-        const isLinkedWorkOrder = (row) => {
-            const rowWorkOrderId = String(row?.workOrderId || '').trim();
-            const rowWorkOrderCode = String(row?.workOrderCode || '').trim().toUpperCase();
-            return (rowWorkOrderId && linkedIds.has(rowWorkOrderId))
-                || (rowWorkOrderCode && linkedCodes.has(rowWorkOrderCode));
-        };
-        const isLinkedRef = (ref) => {
-            const rowWorkOrderId = String(ref?.workOrderId || '').trim();
-            const rowWorkOrderCode = String(ref?.workOrderCode || '').trim().toUpperCase();
-            return (rowWorkOrderId && linkedIds.has(rowWorkOrderId))
-                || (rowWorkOrderCode && linkedCodes.has(rowWorkOrderCode));
-        };
-
-        const isReleased = String(demand?.status || 'OPEN').toUpperCase() === 'RELEASED';
-        const isMontageOnlyReleased = PlanningModule.isMontageOnlyNet0Demand(demand);
-        if (isReleased && !isMontageOnlyReleased) PlanningModule.rollbackDemandPoolConsumption(demand);
-
-        finalPlan.issueRestorePlans.forEach((entry) => {
-            PlanningModule.increaseDepotQuantityByCodeExact(entry.code, entry.name, entry.qty, {
-                depotId: entry.depotId,
-                locationId: entry.locationId,
-                locationCode: entry.locationCode,
-                unit: entry.unit,
-                stockClass: 'KULLANILABILIR',
-                status: 'KULLANILABILIR',
-                note: `Demo temizliği: ${String(demand?.demandCode || '-')}`
-            });
-        });
-
-        finalPlan.storeDecrementPlans.forEach((entry) => {
-            entry.allocations.forEach((allocation) => {
-                const currentQty = PlanningModule.getDepotRowQty(allocation.row);
-                PlanningModule.setDepotRowQty(allocation.row, currentQty - allocation.qty);
-            });
-        });
-        if (finalPlan.storeDecrementPlans.length > 0 && Array.isArray(DB.data?.data?.stockDepotItems)) {
-            DB.data.data.stockDepotItems = DB.data.data.stockDepotItems.filter((row) => PlanningModule.getDepotRowQty(row) > 0);
-        }
-
-        if (Array.isArray(DB.data?.data?.planningDemands)) {
-            DB.data.data.planningDemands = DB.data.data.planningDemands.filter((row) => String(row?.id || '') !== String(demandId || ''));
-        }
-        if (Array.isArray(DB.data?.data?.workOrders)) {
-            DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '').trim()));
-        }
-        if (Array.isArray(DB.data?.data?.workOrderTransactions)) {
-            DB.data.data.workOrderTransactions = DB.data.data.workOrderTransactions.filter((txn) => !isLinkedWorkOrder(txn));
-        }
-        if (Array.isArray(DB.data?.data?.stock_movements)) {
-            DB.data.data.stock_movements = DB.data.data.stock_movements.filter((movement) => !isLinkedWorkOrder(movement));
-        }
-        if (Array.isArray(DB.data?.data?.workOrderExternalSupplierAssignments)) {
-            DB.data.data.workOrderExternalSupplierAssignments = DB.data.data.workOrderExternalSupplierAssignments.filter((row) => !isLinkedWorkOrder(row));
-        }
-        if (Array.isArray(DB.data?.data?.outsourceDispatchDrafts)) {
-            const now = new Date().toISOString();
-            const nextDrafts = [];
-            DB.data.data.outsourceDispatchDrafts.forEach((draft) => {
-                let changed = false;
-                const nextItems = (Array.isArray(draft?.items) ? draft.items : []).map((item) => {
-                    const refs = Array.isArray(item?.workOrderRefs) ? item.workOrderRefs : [];
-                    if (!refs.length) return item;
-                    const keptRefs = refs.filter((ref) => !isLinkedRef(ref));
-                    if (keptRefs.length === refs.length) return item;
-                    changed = true;
-                    if (!keptRefs.length) return null;
-                    const nextQty = keptRefs.reduce((sum, ref) => sum + PlanningModule.parseDecimalQty(ref?.qty, 0), 0);
-                    return { ...item, workOrderRefs: keptRefs, qty: nextQty };
-                }).filter(Boolean);
-                if (!changed) {
-                    nextDrafts.push(draft);
-                    return;
-                }
-                if (!nextItems.length) return;
-                nextDrafts.push({ ...draft, items: nextItems, updatedAt: now });
-            });
-            DB.data.data.outsourceDispatchDrafts = nextDrafts;
-        }
-        PlanningModule.purgeDispatchNotesByWorkOrderIds(linkedIds);
-        if (Array.isArray(DB.data?.data?.montageJobDispatches)) {
-            const demandKey = String(demand?.id || '').trim();
-            const demandCodeKey = String(demand?.demandCode || '').trim().toUpperCase();
-            DB.data.data.montageJobDispatches = DB.data.data.montageJobDispatches.filter((row) => {
-                const rowDemandId = String(row?.demandId || '').trim();
-                const rowDemandCode = String(row?.demandCode || '').trim().toUpperCase();
-                const rowWorkOrderId = String(row?.workOrderId || '').trim();
-                const rowWorkOrderText = String(row?.workOrderText || row?.workOrderCode || '').trim().toUpperCase();
-                if (rowDemandId && rowDemandId === demandKey) return false;
-                if (demandCodeKey && rowDemandCode === demandCodeKey) return false;
-                if (rowWorkOrderId && linkedIds.has(rowWorkOrderId)) return false;
-                if (rowWorkOrderText && linkedCodes.has(rowWorkOrderText)) return false;
-                return true;
-            });
-        }
-
-        PlanningModule.clearStockDemandDemoCleanupUiState(demandId);
-        const criticalDropApproval = typeof DB.createCriticalDropApproval === 'function'
-            ? DB.createCriticalDropApproval('stock_demand_demo_cleanup', beforeCleanupState, DB.data, {
+        const beforeCleanupState = PlanningModule.cloneDemoCleanupState(DB.data);
+        PlanningModule.applyDemandDemoCleanupPlan(finalPlan, demandId);
+        const persisted = await PlanningModule.persistDemoCleanupAtomically(beforeCleanupState, {
+            approvalType: 'stock_demand_demo_cleanup',
+            approvalMeta: {
                 demandId: String(demandId || ''),
                 demandCode: String(demand?.demandCode || '')
-            })
-            : null;
-        const saveResult = await DB.save({ criticalDropApproval });
-        if (saveResult?.ok === false) return;
+            }
+        });
+        if (!persisted.ok) {
+            alert(`Demo kaydı temizlenemedi ve bellek geri yüklendi:\n\n${String(persisted?.error?.message || 'Kayıt hatası')}`);
+            return;
+        }
+        PlanningModule.clearStockDemandDemoCleanupUiState(demandId);
         if (Array.isArray(finalPlan?.warnings) && finalPlan.warnings.length > 0) {
             alert(`Demo kaydı temizlendi.\n\nUyarılar:\n${finalPlan.warnings.join('\n')}`);
         }
@@ -6588,6 +9190,16 @@
         const linkedIds = PlanningModule.getDemandLinkedWorkOrderIds(row);
         const isReleased = String(row?.status || 'OPEN').toUpperCase() === 'RELEASED';
         const isMontageOnlyReleased = PlanningModule.isMontageOnlyNet0Demand(row);
+        const sourceType = String(row?.sourceType || '').trim().toUpperCase();
+        if (sourceType === 'STOCK' && !options?.openOnly && (isReleased || linkedIds.size > 0)) {
+            return PlanningModule.cleanupStockDemandForDemo(demandId);
+        }
+        if (sourceType === 'SALES_ORDER' && !options?.openOnly && (isReleased || linkedIds.size > 0)) {
+            return alert('SALES_ORDER kaynaklı üretim zinciri sipariş ekranındaki güvenli silme akışından temizlenmelidir.');
+        }
+        if (!options?.openOnly && (isReleased || linkedIds.size > 0)) {
+            return alert('Bağlı üretim zinciri yalnız exact preflight cleanup motoruyla silinebilir.');
+        }
         if (options?.openOnly && (isReleased || linkedIds.size > 0)) {
             return alert('Sadece bekleyen ve iş emrine dönüşmemiş talep silinebilir.');
         }
@@ -6596,7 +9208,6 @@
             : 'Silmek istediginizden emin misiniz?');
         if (!confirm(confirmText)) return;
         if (isReleased && !isMontageOnlyReleased) PlanningModule.rollbackDemandPoolConsumption(row);
-        if (linkedIds.size > 0) PlanningModule.purgeDepotOutputsByWorkOrderIds(linkedIds);
         DB.data.data.planningDemands = all.filter((item) => String(item?.id || '') !== String(demandId || ''));
         if (linkedIds.size > 0 && Array.isArray(DB.data?.data?.workOrders)) {
             DB.data.data.workOrders = DB.data.data.workOrders.filter((order) => !linkedIds.has(String(order?.id || '')));
@@ -6699,72 +9310,11 @@
         if (changed) DB.data.data.workOrderDispatchNotes = nextNotes;
     },
     purgeDepotOutputsByWorkOrderIds: (linkedIds) => {
-        if (!(linkedIds instanceof Set) || linkedIds.size === 0) return;
-        const txns = Array.isArray(DB.data?.data?.workOrderTransactions) ? DB.data.data.workOrderTransactions : [];
-        const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
-        const orders = Array.isArray(DB.data?.data?.workOrders) ? DB.data.data.workOrders : [];
-        if (!txns.length || !stockRows.length || !orders.length) return;
-
-        const orderById = new Map();
-        orders.forEach((order) => {
-            const key = String(order?.id || '').trim();
-            if (key) orderById.set(key, order);
-        });
-
-        const removalMap = new Map();
-        txns.forEach((txn) => {
-            if (String(txn?.type || '').trim().toUpperCase() !== 'STORE') return;
-            const workOrderId = String(txn?.workOrderId || '').trim();
-            if (!workOrderId || !linkedIds.has(workOrderId)) return;
-            const order = orderById.get(workOrderId);
-            if (!order) return;
-            const lineId = String(txn?.lineId || '').trim();
-            const line = (Array.isArray(order?.lines) ? order.lines : []).find((row) => String(row?.id || '').trim() === lineId) || null;
-            const code = String(line?.componentCode || order?.productCode || '').trim().toUpperCase();
-            const stationId = String(txn?.stationId || '').trim();
-            const qty = PlanningModule.parseQty(txn?.qty, 0);
-            if (!code || !stationId || qty <= 0) return;
-            const key = `${stationId}|${code}`;
-            removalMap.set(key, (removalMap.get(key) || 0) + qty);
-        });
-        if (!removalMap.size) return;
-
-        const touchedRowIds = new Set();
-        removalMap.forEach((removeQty, key) => {
-            let remaining = PlanningModule.parseQty(removeQty, 0);
-            if (remaining <= 0) return;
-            const [stationIdRaw, codeRaw] = String(key || '').split('|');
-            const stationId = String(stationIdRaw || '').trim();
-            const code = String(codeRaw || '').trim().toUpperCase();
-            const candidates = stockRows
-                .filter((row) => {
-                    const rowCode = PlanningModule.getDepotRowCode(row);
-                    if (rowCode !== code) return false;
-                    const rowStation = String(row?.unitId || row?.stationId || '').trim();
-                    const rowNodeKey = String(row?.nodeKey || row?.depotKey || row?.key || '').trim();
-                    const stationMatch = rowStation === stationId || rowNodeKey === `unit:${stationId}`;
-                    if (!stationMatch) return false;
-                    return PlanningModule.getDepotRowQty(row) > 0;
-                })
-                .sort((a, b) => String(a?.created_at || '').localeCompare(String(b?.created_at || '')));
-            candidates.forEach((row) => {
-                if (remaining <= 0) return;
-                const available = PlanningModule.getDepotRowQty(row);
-                if (available <= 0) return;
-                const used = Math.min(available, remaining);
-                PlanningModule.setDepotRowQty(row, available - used);
-                touchedRowIds.add(String(row?.id || ''));
-                remaining -= used;
-            });
-        });
-
-        if (touchedRowIds.size > 0) {
-            DB.data.data.stockDepotItems = stockRows.filter((row) => {
-                const rowId = String(row?.id || '');
-                if (!touchedRowIds.has(rowId)) return true;
-                return PlanningModule.getDepotRowQty(row) > 0;
-            });
-        }
+        return {
+            ok: false,
+            linkedWorkOrderIds: linkedIds instanceof Set ? Array.from(linkedIds) : [],
+            errors: ['Kör FIFO STORE geri alması devre dışı. Exact demand cleanup preflight motorunu kullanın.']
+        };
     },
 
     deleteReleasedDemand: async (demandId) => {
@@ -6880,6 +9430,15 @@
 
     renderMenuLayout: () => {
         const all = PlanningModule.getDemands();
+        const combinedCleanupPlan = PlanningModule.buildPrototypeSalesTestCohortCleanupPlan();
+        const demoTestResetEnabled = typeof DB?.isDemoTestResetEnabled === 'function'
+            && DB.isDemoTestResetEnabled();
+        const combinedCleanupReady = combinedCleanupPlan?.ok === true && combinedCleanupPlan?.noOp !== true;
+        const combinedCleanupStatus = combinedCleanupPlan?.ok !== true
+            ? 'Sıfırlama preflight engelli'
+            : (combinedCleanupPlan?.noOp === true
+                ? 'Test ortamı temiz'
+                : `${Number(combinedCleanupPlan?.summary?.DELETE || 0)} kayıt temizlenecek`);
         const openCount = all.filter((row) =>
             String(row?.status || 'OPEN').toUpperCase() === 'OPEN'
             && String(row?.sourceType || '').trim().toUpperCase() === 'STOCK'
@@ -6898,9 +9457,21 @@
         return `
             <section style="max-width:1880px; margin:0 auto;">
                 <div style="background:rgba(255,255,255,0.72); border:1px solid #cbd5e1; border-radius:1.8rem; padding:1.4rem;">
-                    <div style="margin-bottom:1.1rem;">
-                        <h2 class="page-title" style="margin:0; font-size:1.95rem;">planlama</h2>
-                        <div style="color:#64748b; margin-top:0.25rem;">Stok icin uretim talebi ac, havuza dusur ve is emrine cevir.</div>
+                    <div style="margin-bottom:1.1rem; display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+                        <div>
+                            <h2 class="page-title" style="margin:0; font-size:1.95rem;">planlama</h2>
+                            <div style="color:#64748b; margin-top:0.25rem;">Stok icin uretim talebi ac, havuza dusur ve is emrine cevir.</div>
+                        </div>
+                        ${demoTestResetEnabled ? `
+                            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:0.32rem;">
+                                <button type="button" class="btn-sm" onclick="PlanningModule.cleanupPrototypeSalesTestCohortForDemo()" ${combinedCleanupReady ? '' : 'disabled'} style="border-color:#dc2626; color:#b91c1c; background:#fff7f7; ${combinedCleanupReady ? '' : 'opacity:0.55; cursor:not-allowed;'}">
+                                    Demo Test Ortamını Sıfırla
+                                </button>
+                                <span style="font-size:0.72rem; color:${combinedCleanupPlan?.ok === true ? '#64748b' : '#b91c1c'}; font-weight:700;">
+                                    ${PlanningModule.escapeHtml(combinedCleanupStatus)}
+                                </span>
+                            </div>
+                        ` : ''}
                     </div>
                     <div class="apps-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem;">
                         ${cards.map((card) => `
@@ -7086,7 +9657,7 @@
                                                             ? `<button class="btn-sm" onclick="PlanningModule.openDraftItemPreview('${PlanningModule.escapeJsString(item.id)}')">goruntule</button>`
                                                             : `<span style="display:inline-block; min-width:68px; padding:0.25rem 0.45rem; border:1px solid #e2e8f0; border-radius:0.45rem; color:#94a3b8; font-size:0.76rem;">yok</span>`
                                                         }</td>
-                                                        <td style="padding:0.45rem; text-align:center;"><input type="number" min="1" value="${PlanningModule.escapeHtml(String(item.qty || 1))}" onchange="PlanningModule.setStockDraftItemQty('${PlanningModule.escapeHtml(item.id)}', this.value)" style="width:84px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700; text-align:center;"></td>
+                                                        <td style="padding:0.45rem; text-align:center;"><input type="number" min="1" value="${PlanningModule.escapeHtml(String(item.qty || 1))}" data-stock-draft-item-qty="true" data-draft-item-id="${PlanningModule.escapeHtml(item.id)}" onchange="PlanningModule.setStockDraftItemQty('${PlanningModule.escapeHtml(item.id)}', this.value)" style="width:84px; height:34px; border:1px solid #cbd5e1; border-radius:0.5rem; padding:0 0.45rem; font-weight:700; text-align:center;"></td>
                                                         <td style="padding:0.45rem; text-align:center;"><button class="btn-sm" onclick="PlanningModule.removeStockDraftItem('${PlanningModule.escapeHtml(item.id)}')">sil</button></td>
                                                     </tr>
                                                 `;
@@ -8969,7 +11540,7 @@
             });
         const demandDistributionText = demandStationLoads.length
             ? demandStationLoads.map((row) => `${String(row?.stationName || '-')}: ${PlanningModule.parseQty(row?.qty, 0)}`).join(' | ')
-            : 'Dagilim yok';
+            : 'WO / istasyon dağılımı yok';
         const workOrderMap = new Map();
         groups.forEach((group) => {
             const lines = Array.isArray(group?.lines) ? group.lines : [];
@@ -9438,6 +12009,8 @@
             montageDispatchPlans: readCollection('montageDispatchPlans'),
             montageDispatchShipments: readCollection('montageDispatchShipments'),
             montageCompletionTransfers: readCollection('montageCompletionTransfers'),
+            outsourceDispatchDrafts: readCollection('outsourceDispatchDrafts'),
+            workOrderExternalSupplierAssignments: readCollection('workOrderExternalSupplierAssignments'),
             sanalTaksimAllocationInstructions: readCollection('sanalTaksimAllocationInstructions')
         };
     },
@@ -9746,6 +12319,7 @@
         if (key === 'COMMERCIAL_DEBT_NOT_FOUND') return 'Seçili PLN için kesin üretim borcu bulunamadı.';
         if (key === 'WORK_ORDER_LINK_MISSING') return 'Seçili PLN için kesin iş emri bağlantısı bulunamadı.';
         if (key === 'PHYSICAL_SEGMENT_NOT_FOUND') return 'Tahsis edilen fiziksel segment doğrulanamadı.';
+        if (key === 'SIBLING_ALLOCATION_PROOF_INVALID') return 'Kardeş PRC tahsisinin canonical teknik kanıtı doğrulanamadı.';
         if (key === 'EXECUTION_COMMITMENT_UNCERTAIN') return 'Kaynak WO yürütme miktarı doğrulanamadı.';
         if (key === 'SOR_MANUAL_QUEUE_INVALID') return 'Manuel SOR sıra metadata’sı geçersiz.';
         if (key === 'SOR_MANUAL_ORDER_INVALID') return 'Manuel SOR sırası pozitif tam sayı olmalıdır.';
@@ -9867,11 +12441,10 @@
     ].join('|'),
 
     getNextSanalTaksimAllocationInstructionCode: () => {
-        const max = PlanningModule.getSanalTaksimAllocationInstructions().reduce((current, record) => {
-            const match = String(record?.instructionCode || '').trim().toUpperCase().match(/^STAI-(\d{6})$/);
-            return match ? Math.max(current, Number(match[1])) : current;
-        }, 0);
-        return `STAI-${String(max + 1).padStart(6, '0')}`;
+        const usedCodes = new Set(PlanningModule.getSanalTaksimAllocationInstructions()
+            .map((record) => String(record?.instructionCode || '').trim().toUpperCase())
+            .filter(Boolean));
+        return PlanningModule.getNextOperationalCode('STAI', Array.from(usedCodes));
     },
 
     getSanalTaksimAllocationInstructionRequestFingerprint: (request) => JSON.stringify({
@@ -9887,6 +12460,7 @@
         },
         slices: (Array.isArray(request?.slices) ? request.slices : []).map((slice) => ({
             stockRowId: String(slice?.stockRowId || '').trim(),
+            physicalSegmentId: String(slice?.physicalSegmentId || '').trim(),
             segmentOffsetStart: Number(slice?.segmentOffsetStart),
             segmentOffsetEnd: Number(slice?.segmentOffsetEnd),
             qty: Number(slice?.qty)
@@ -10068,8 +12642,12 @@
         const createdAtDate = options?.now ? new Date(options.now) : new Date();
         const createdAt = String(request?.createdAt || (Number.isFinite(createdAtDate.getTime()) ? createdAtDate.toISOString() : '')).trim();
         const createdBy = String(request?.createdBy || options?.createdBy || PlanningModule.getSanalTaksimCurrentUser()).trim();
+        const validInstructionCode = typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.isSequentialCode === 'function'
+            ? IdentityPolicy.isSequentialCode(instructionCode, 'STAI')
+            : /^STAI-(?:\d{6}|[1-9]\d{6,})$/.test(instructionCode);
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(instructionId)
-            || !/^STAI-\d{6}$/.test(instructionCode)
+            || !validInstructionCode
             || !Number.isFinite(Date.parse(createdAt)) || !createdBy) {
             return fail('INSTRUCTION_AUDIT_INVALID', 'Talimat kimliği, kodu veya oluşturma audit bilgisi geçersizdir.');
         }
@@ -10081,7 +12659,9 @@
         for (let index = 0; index < requestedSlices.length; index += 1) {
             const requestedSlice = requestedSlices[index] || {};
             const stockRowId = String(requestedSlice?.stockRowId || '').trim();
-            const physicalSegmentId = String(requestedSlice?.physicalSegmentId || `STOCK|${stockRowId}`).trim();
+            const physicalSegmentId = String(
+                requestedSlice?.physicalSegmentId || (stockRowId ? `STOCK|${stockRowId}` : '')
+            ).trim();
             const segmentMatches = segments.filter((segment) =>
                 String(segment?.segmentKey || '').trim() === physicalSegmentId
                 && String(segment?.stockRowId || '').trim() === stockRowId
@@ -10092,10 +12672,26 @@
             const sliceQty = Number(requestedSlice?.qty);
             const capacity = Number(segment?.physicalQty ?? segment?.qty);
             const sliceKey = String(requestedSlice?.sliceKey || `INSTRUCTION_SLICE|${instructionId}|${index + 1}`).trim();
+            const segmentStage = String(segment?.stage || '').trim().toUpperCase();
+            const segmentSourceKind = String(segment?.sourceKind || '').trim().toUpperCase();
+            const isDepotStock = segmentSourceKind === 'CURRENT_STOCK_ROW'
+                && segmentStage === 'DEPOT_STOCK'
+                && segment?.mainDepot === true
+                && !!stockRowId
+                && physicalSegmentId === `STOCK|${stockRowId}`;
+            const isTrustedWip = segmentSourceKind === 'WORK_ORDER'
+                && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(segmentStage)
+                && !stockRowId
+                && !physicalSegmentId.startsWith('STOCK|')
+                && !!String(segment?.originWorkOrderId || '').trim()
+                && !!String(segment?.originWorkOrderLineId || '').trim()
+                && !!String(segment?.originDemandId || '').trim()
+                && !!String(segment?.originItemKey || '').trim()
+                && ['SALES_ORDER', 'STOCK'].includes(String(segment?.originSourceType || '').trim().toUpperCase())
+                && segment?.productionOriginVerified === true
+                && segment?.physicalOrigin?.verified === true;
             if (!segment
-                || segment?.sourceKind !== 'CURRENT_STOCK_ROW'
-                || segment?.stage !== 'DEPOT_STOCK'
-                || segment?.mainDepot !== true
+                || (!isDepotStock && !isTrustedWip)
                 || segment?.allocationState !== 'REALLOCATABLE'
                 || segment?.reallocatable !== true
                 || String(segment?.originSourceType || '').trim().toUpperCase() === 'UNSCOPED'
@@ -10106,7 +12702,7 @@
                 || !Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(sliceQty)
                 || start < 0 || end <= start || Math.abs((end - start) - sliceQty) > 1e-6
                 || end > capacity + 1e-6 || sliceQty <= 0 || !sliceKey || seenSliceKeys.has(sliceKey)) {
-                return fail('INSTRUCTION_SLICE_INVALID', 'Talimat yalnız Ana Depo REALLOCATABLE exact stok diliminden oluşturulabilir.', { sliceIndex: index });
+                return fail('INSTRUCTION_SLICE_INVALID', 'Talimat yalnız güvenilir REALLOCATABLE exact PRC stok/WIP diliminden oluşturulabilir.', { sliceIndex: index });
             }
             if (requestedSlice?.segmentCapacityQtyAtCreate !== undefined
                 && Math.abs(Number(requestedSlice.segmentCapacityQtyAtCreate) - capacity) > 1e-6) {
@@ -10293,10 +12889,6 @@
             .map((record) => String(record?.instructionCode || '').trim().toUpperCase()).filter(Boolean));
         const existingIdempotencyKeys = new Set(existingInstructions
             .map((record) => String(record?.idempotencyKey || '').trim()).filter(Boolean));
-        let nextCodeNumber = existingInstructions.reduce((current, record) => {
-            const match = String(record?.instructionCode || '').trim().toUpperCase().match(/^STAI-(\d{6})$/);
-            return match ? Math.max(current, Number(match[1])) : current;
-        }, 0) + 1;
         const preparedInstructions = [];
         const matchedReservationKeys = new Set();
         const requestedIntervalsBySegment = new Map();
@@ -10538,10 +13130,11 @@
                     || (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : '');
                 let instructionCode = String(rawRequest?.instructionCode || '').trim().toUpperCase();
                 if (!instructionCode) {
-                    while (existingCodes.has(`STAI-${String(nextCodeNumber).padStart(6, '0')}`)
-                        || pendingCodes.has(`STAI-${String(nextCodeNumber).padStart(6, '0')}`)) nextCodeNumber += 1;
-                    instructionCode = `STAI-${String(nextCodeNumber).padStart(6, '0')}`;
-                    nextCodeNumber += 1;
+                    const reservedCodes = new Set([...existingCodes, ...pendingCodes]);
+                    instructionCode = PlanningModule.getNextOperationalCode(
+                        'STAI',
+                        Array.from(reservedCodes)
+                    );
                 }
                 const idempotencyKey = String(rawRequest?.idempotencyKey || '').trim();
                 if (!instructionId || existingIds.has(instructionId) || pendingIds.has(instructionId)
@@ -11038,62 +13631,7 @@
         };
     },
 
-    saveSalesProductionQueueManualOrderFromInput: (orderId, inputId) => {
-        const input = typeof document !== 'undefined'
-            ? document.getElementById(String(inputId || '').trim())
-            : null;
-        return PlanningModule.saveSalesProductionQueueManualOrder(orderId, input?.value);
-    },
-
-    clearSalesProductionQueueManualOrder: (orderId) => (
-        PlanningModule.saveSalesProductionQueueManualOrder(orderId, null, { clear: true })
-    ),
-
-    renderSalesProductionQueueHeaderHtml: (demand) => {
-        const sourceOrderId = String(demand?.sourceOrderId || '').trim();
-        if (!sourceOrderId) return '';
-        const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
-        const matches = orders.filter((order) => String(order?.id || '').trim() === sourceOrderId);
-        if (matches.length !== 1) return '';
-        const persistedQueue = matches[0]?.productionQueue
-            && typeof matches[0].productionQueue === 'object'
-            && !Array.isArray(matches[0].productionQueue)
-            ? matches[0].productionQueue
-            : {};
-        const persistedManualOrder = Number(persistedQueue?.manualOrder);
-        const manualOrder = Number.isSafeInteger(persistedManualOrder) && persistedManualOrder > 0
-            ? persistedManualOrder
-            : null;
-        const manualOrderText = manualOrder === null ? '' : String(manualOrder);
-        const queueMode = manualOrder === null ? 'FALLBACK' : 'MANUAL';
-        const queueStatusText = manualOrder === null
-            ? 'Otomatik öncelik kullanılıyor'
-            : `Manuel SOR önceliği: ${manualOrderText}`;
-        const queueAuditText = manualOrder === null
-            ? 'Termin, production-ready zamanı ve deterministik SOR anahtarı kullanılır.'
-            : [
-                String(persistedQueue?.updatedBy || '').trim(),
-                String(persistedQueue?.updatedAt || '').trim()
-            ].filter(Boolean).join(' • ');
-        const queueInputId = 'sanal-taksim-manual-order-input';
-        const escapedOrderId = PlanningModule.escapeJsString(sourceOrderId);
-        return `
-            <section data-sanal-taksim-production-queue="true" style="display:flex; align-items:flex-end; justify-content:space-between; gap:0.55rem; flex-wrap:wrap; margin-bottom:0.8rem; border:1px solid #c7d2fe; border-radius:0.68rem; background:#eef2ff; padding:0.55rem;">
-                <div style="min-width:220px; flex:1;">
-                    <div style="font-size:0.7rem; color:#3730a3; font-weight:900; text-transform:uppercase;">Manuel SOR Önceliği</div>
-                    <div data-sanal-taksim-queue-mode="${queueMode}" style="margin-top:0.12rem; color:#312e81; font-weight:900;">${PlanningModule.escapeHtml(queueStatusText)}</div>
-                    <div style="margin-top:0.12rem; color:#6366f1; font-size:0.67rem; line-height:1.35;">${PlanningModule.escapeHtml(queueAuditText)}</div>
-                </div>
-                <div style="display:flex; align-items:flex-end; gap:0.35rem; flex-wrap:wrap;">
-                    <label style="display:grid; gap:0.18rem; color:#475569; font-size:0.68rem; font-weight:800;">Pozitif tam sayı
-                        <input id="${queueInputId}" data-sanal-taksim-manual-order-input="true" type="number" min="1" step="1" value="${PlanningModule.escapeHtml(manualOrderText)}" style="width:110px; border:1px solid #a5b4fc; border-radius:0.48rem; background:#fff; padding:0.38rem 0.45rem; color:#0f172a; font-weight:900;">
-                    </label>
-                    <button type="button" class="btn-sm" data-sanal-taksim-manual-order-save="true" style="border-color:#6366f1; background:#4f46e5; color:#fff; font-weight:900;" onclick="PlanningModule.saveSalesProductionQueueManualOrderFromInput('${escapedOrderId}', '${queueInputId}')">Sırayı Kaydet</button>
-                    ${manualOrder !== null ? `<button type="button" class="btn-sm" data-sanal-taksim-manual-order-clear="true" style="border-color:#cbd5e1; background:#fff; color:#475569; font-weight:800;" onclick="PlanningModule.clearSalesProductionQueueManualOrder('${escapedOrderId}')">Otomatik Önceliğe Dön</button>` : ''}
-                </div>
-            </section>
-        `;
-    },
+    renderSalesProductionQueueHeaderHtml: () => '',
 
     getReleasedSalesSanalTaksimModel: (demand, options = {}) => {
         const fail = (reasonCode, message = '') => ({
@@ -11155,8 +13693,6 @@
         const selectedWorkOrderIds = new Set(selectedWorkOrders
             .map((workOrder) => String(workOrder?.id || '').trim())
             .filter(Boolean));
-        if (!selectedWorkOrderIds.size) return fail('WORK_ORDER_LINK_MISSING');
-
         let resolved;
         try {
             resolved = SanalTaksimResolver.resolve(snapshot);
@@ -11173,7 +13709,9 @@
         }
 
         const debts = resolved.debts.filter((debt) =>
-            selectedWorkOrderIds.has(String(debt?.originWorkOrderId || '').trim())
+            String(debt?.debtType || '').trim().toUpperCase() === 'SALES'
+            && String(debt?.originDemandId || '').trim() === demandId
+            && (!selectedItemKey || String(debt?.originItemKey || '').trim() === selectedItemKey)
         );
         if (!debts.length) return fail('COMMERCIAL_DEBT_NOT_FOUND');
         const sourceOrders = snapshot.orders.filter((order) =>
@@ -11199,14 +13737,106 @@
         const segmentById = new Map(resolved.segments
             .map((segment) => [String(segment?.segmentKey || '').trim(), segment])
             .filter(([key]) => !!key));
+        const technicalCompatibilityByPair = new Map();
+        (Array.isArray(resolved?.technicalEligibility?.compatibility)
+            ? resolved.technicalEligibility.compatibility
+            : []).forEach((compatibility) => {
+            const key = [
+                String(compatibility?.segmentKey || '').trim(),
+                String(compatibility?.targetPrcId || '').trim(),
+                String(compatibility?.targetPrcCode || '').trim().toUpperCase()
+            ].join('|');
+            if (!technicalCompatibilityByPair.has(key)) technicalCompatibilityByPair.set(key, []);
+            technicalCompatibilityByPair.get(key).push(compatibility);
+        });
         const orderKeys = Array.isArray(resolved?.diagnostics?.allocationOrder)
             ? resolved.diagnostics.allocationOrder.map((value) => String(value || '').trim())
             : [];
+        const resolverInvariants = resolved?.diagnostics?.invariants || {};
         const rowMap = new Map();
         const roundQty = (value) => Number(Number(value || 0).toFixed(6));
         const addReason = (row, reasonCode) => {
             const key = String(reasonCode || '').trim();
             if (key) row.reasonCodes.add(key);
+        };
+        const validateAllocationProof = (allocation, segment, debt) => {
+            const allocationQty = Number(allocation?.qty);
+            const segmentKey = String(segment?.segmentKey || '').trim();
+            const debtKey = String(debt?.debtKey || '').trim();
+            const targetPrcId = String(debt?.prcId || '').trim();
+            const targetPrcCode = String(debt?.prcCode || '').trim().toUpperCase();
+            const targetUnit = String(debt?.unit || '').trim().toUpperCase();
+            if (!Number.isFinite(allocationQty) || allocationQty <= 0
+                || !segmentKey || !debtKey
+                || String(allocation?.targetDebtKey || '').trim() !== debtKey
+                || String(allocation?.prcId || '').trim() !== targetPrcId
+                || String(allocation?.prcCode || '').trim().toUpperCase() !== targetPrcCode
+                || String(allocation?.unit || '').trim().toUpperCase() !== targetUnit) {
+                return { ok: false, relation: '', qty: 0 };
+            }
+
+            const technicalCompatibility = String(allocation?.technicalCompatibility || '').trim().toUpperCase();
+            if (!technicalCompatibility) {
+                const exact = String(segment?.prcCode || '').trim().toUpperCase() === targetPrcCode
+                    && String(segment?.unit || '').trim().toUpperCase() === targetUnit;
+                return { ok: exact, relation: exact ? 'EXACT' : '', qty: exact ? allocationQty : 0 };
+            }
+            if (technicalCompatibility !== 'SIBLING_PRE_SPLIT') {
+                return { ok: false, relation: '', qty: 0 };
+            }
+
+            const invariantsValid = [
+                'segmentAllocationWithinQty',
+                'debtAllocationWithinOpenDebt',
+                'segmentKeysConsumedOnce',
+                'siblingAllocationWithinTechnicalQty',
+                'canonicalTechnicalCompatibilityOnly'
+            ].every((key) => resolverInvariants?.[key] === true);
+            const compatibilityKey = [segmentKey, targetPrcId, targetPrcCode].join('|');
+            const matches = technicalCompatibilityByPair.get(compatibilityKey) || [];
+            const compatibility = matches.length === 1 ? matches[0] : null;
+            const routeSeq = Number(compatibility?.routeSeq);
+            const commonPrefixLength = Number(compatibility?.commonPrefixLength);
+            const sourceNextToken = String(compatibility?.sourceNextToken || '').trim();
+            const targetNextToken = String(compatibility?.targetNextToken || '').trim();
+            const siblingAvailableQty = Number(compatibility?.siblingAvailableQty);
+            const physicalPrcId = String(segment?.prcId || '').trim();
+            const physicalPrcCode = String(segment?.prcCode || '').trim().toUpperCase();
+            const physicalUnit = String(segment?.unit || '').trim().toUpperCase();
+            const sourceKind = String(segment?.sourceKind || '').trim().toUpperCase();
+            const stage = String(segment?.stage || '').trim().toUpperCase();
+            const proofValid = invariantsValid
+                && !!compatibility
+                && String(compatibility?.relation || '').trim().toUpperCase() === 'SIBLING_PRE_SPLIT'
+                && !String(compatibility?.reasonCode || '').trim()
+                && String(compatibility?.segmentKey || '').trim() === segmentKey
+                && String(compatibility?.sourcePrcId || '').trim() === physicalPrcId
+                && String(compatibility?.sourcePrcCode || '').trim().toUpperCase() === physicalPrcCode
+                && String(compatibility?.targetPrcId || '').trim() === targetPrcId
+                && String(compatibility?.targetPrcCode || '').trim().toUpperCase() === targetPrcCode
+                && String(compatibility?.sourceKind || '').trim().toUpperCase() === sourceKind
+                && String(compatibility?.stage || '').trim().toUpperCase() === stage
+                && Number(compatibility?.routeSeq) === Number(segment?.routeSeq)
+                && Number.isSafeInteger(routeSeq) && routeSeq > 0
+                && Number.isSafeInteger(commonPrefixLength) && commonPrefixLength > 0
+                && routeSeq <= commonPrefixLength
+                && !!sourceNextToken && !!targetNextToken && sourceNextToken !== targetNextToken
+                && Number.isFinite(siblingAvailableQty) && siblingAvailableQty > 0
+                && allocationQty <= siblingAvailableQty + 0.000001
+                && physicalPrcId !== targetPrcId
+                && physicalPrcCode !== targetPrcCode
+                && physicalUnit === targetUnit
+                && String(allocation?.physicalPrcId || '').trim() === physicalPrcId
+                && String(allocation?.physicalPrcCode || '').trim().toUpperCase() === physicalPrcCode
+                && String(allocation?.physicalUnit || '').trim().toUpperCase() === physicalUnit
+                && String(allocation?.targetPrcId || '').trim() === targetPrcId
+                && String(allocation?.targetPrcCode || '').trim().toUpperCase() === targetPrcCode
+                && String(allocation?.targetUnit || '').trim().toUpperCase() === targetUnit;
+            return {
+                ok: proofValid,
+                relation: proofValid ? 'SIBLING_PRE_SPLIT' : '',
+                qty: proofValid ? allocationQty : 0
+            };
         };
 
         debts.forEach((debt) => {
@@ -11230,6 +13860,7 @@
                     lifecycleLocked: false,
                     reasonCodes: new Set(),
                     stageQtyByLabel: new Map(),
+                    technicalCompatibilities: new Set(),
                     debtKeys: [],
                     originWorkOrderIds: new Set(),
                     allocationOrderPositions: []
@@ -11238,7 +13869,9 @@
             const row = rowMap.get(groupKey);
             row.debtKeys.push(debtKey);
             row.originWorkOrderIds.add(String(debt?.originWorkOrderId || '').trim());
-            row.targetQty = roundQty(row.targetQty + Math.max(0, Number(debt?.targetQty || 0)));
+            row.targetQty = roundQty(row.targetQty + Math.max(0, Number(
+                Number.isFinite(Number(debt?.openDebtQty)) ? debt.openDebtQty : debt?.targetQty || 0
+            )));
             if (String(debt?.debtType || '').trim().toUpperCase() !== 'SALES'
                 || (String(debt?.originDemandId || '').trim() && String(debt.originDemandId).trim() !== demandId)
                 || (String(debt?.originOrderId || '').trim() && String(debt.originOrderId).trim() !== sourceOrderId)) {
@@ -11253,6 +13886,7 @@
             }
 
             const debtAllocations = allocationsByDebt.get(debtKey) || [];
+            let validatedAllocationQty = 0;
             debtAllocations.forEach((allocation) => {
                 const segment = segmentById.get(String(allocation?.physicalSegmentId || '').trim()) || null;
                 if (!segment) {
@@ -11260,15 +13894,19 @@
                     addReason(row, 'PHYSICAL_SEGMENT_NOT_FOUND');
                     return;
                 }
-                const allocationQty = Number(allocation?.qty);
-                if (!Number.isFinite(allocationQty) || allocationQty < 0
-                    || String(segment?.prcCode || '').trim().toUpperCase() !== prcCode
-                    || String(segment?.unit || '').trim().toUpperCase() !== unit) {
+                const proof = validateAllocationProof(allocation, segment, debt);
+                if (!proof.ok) {
                     row.allocationCertain = false;
-                    addReason(row, 'PHYSICAL_SEGMENT_CONFLICT');
+                    row.uncoveredCertain = false;
+                    addReason(row, String(allocation?.technicalCompatibility || '').trim().toUpperCase() === 'SIBLING_PRE_SPLIT'
+                        ? 'SIBLING_ALLOCATION_PROOF_INVALID'
+                        : 'PHYSICAL_SEGMENT_CONFLICT');
                     return;
                 }
+                const allocationQty = proof.qty;
+                validatedAllocationQty = roundQty(validatedAllocationQty + allocationQty);
                 row.allocatedQty = roundQty(row.allocatedQty + allocationQty);
+                row.technicalCompatibilities.add(proof.relation);
                 if (segment?.allocatableToOthers === false) row.lifecycleLocked = true;
                 const stageLabel = PlanningModule.getSanalTaksimSegmentStageLabel(segment, snapshot);
                 row.stageQtyByLabel.set(
@@ -11285,15 +13923,18 @@
                 row.uncoveredQty = roundQty(row.uncoveredQty + Math.max(0, Number(uncovered.qty)));
             } else if (Number.isFinite(Number(debt?.openDebtQty))) {
                 row.uncoveredQty = roundQty(row.uncoveredQty
-                    + Math.max(0, Number(debt.openDebtQty) - debtAllocations.reduce((sum, item) =>
-                        sum + Math.max(0, Number(item?.qty || 0)), 0)));
+                    + Math.max(0, Number(debt.openDebtQty) - validatedAllocationQty));
             } else {
                 row.uncoveredCertain = false;
             }
 
             const commitmentKey = `${String(debt?.originWorkOrderId || '').trim()}|${String(debt?.originWorkOrderLineId || '').trim()}`;
             const commitments = commitmentsByLine.get(commitmentKey) || [];
-            if (commitments.length !== 1
+            const requiresExecutionCommitment = String(debt?.sourceBucket || '').trim().toUpperCase() === 'PRODUCTION'
+                || !!String(debt?.originWorkOrderId || '').trim();
+            if (!requiresExecutionCommitment) {
+                row.unstartedExecutionQty = roundQty(row.unstartedExecutionQty);
+            } else if (commitments.length !== 1
                 || commitments[0]?.status !== 'RESOLVED'
                 || !Number.isFinite(Number(commitments[0]?.unstartedExecutionQty))) {
                 row.executionCertain = false;
@@ -11325,11 +13966,13 @@
                 prcCode: row.prcCode,
                 unit: row.unit,
                 targetQty: row.targetQty,
+                hasOpenDebt: row.targetQty > 0,
                 allocatedQty: row.allocationCertain ? row.allocatedQty : null,
                 uncoveredQty: row.uncoveredCertain ? row.uncoveredQty : null,
                 uncertainQty: row.allocationCertain && row.uncoveredCertain ? 0 : row.targetQty,
                 unstartedExecutionQty: row.executionCertain ? row.unstartedExecutionQty : null,
                 stages: Array.from(row.stageQtyByLabel, ([label, qty]) => ({ label, qty })),
+                technicalCompatibilities: Array.from(row.technicalCompatibilities).sort((a, b) => a.localeCompare(b, 'tr')),
                 allocationOrderPosition: row.allocationOrderPositions.length
                     ? Math.min(...row.allocationOrderPositions)
                     : null,
@@ -11439,6 +14082,61 @@
                     ? entry.evidenceIds.map((value) => String(value || '').trim()).filter(Boolean)
                     : []
             }));
+        const demandItemByKey = new Map(demandItems.map((item) => [
+            String(item?.id || item?.itemKey || item?.key || '').trim(),
+            item
+        ]));
+        const finishedAllocations = Array.isArray(resolved?.finishedReadyAllocations)
+            ? resolved.finishedReadyAllocations
+            : [];
+        const finishedProducts = (Array.isArray(resolved?.productDebts) ? resolved.productDebts : [])
+            .filter((productDebt) => String(productDebt?.originDemandId || '').trim() === demandId
+                && (!selectedItemKey || String(productDebt?.originItemKey || '').trim() === selectedItemKey))
+            .map((productDebt) => {
+                const productDebtKey = String(productDebt?.productDebtKey || '').trim();
+                const allocations = finishedAllocations.filter((allocation) =>
+                    String(allocation?.targetProductDebtKey || '').trim() === productDebtKey
+                );
+                const item = demandItemByKey.get(String(productDebt?.originItemKey || '').trim()) || null;
+                return {
+                    productDebtKey,
+                    demandId,
+                    itemKey: String(productDebt?.originItemKey || '').trim(),
+                    productId: String(productDebt?.productId || '').trim(),
+                    variantCode: String(productDebt?.variantCode || '').trim().toUpperCase(),
+                    unit: String(productDebt?.unit || '').trim().toUpperCase(),
+                    productName: String(item?.productName || source?.productName || productDebt?.variantCode || '-').trim() || '-',
+                    openSetQty: Number.isFinite(Number(productDebt?.openSetQty))
+                        ? roundQty(productDebt.openSetQty)
+                        : null,
+                    fixedSvpQty: Number.isFinite(Number(productDebt?.fixedSvpQty))
+                        ? roundQty(productDebt.fixedSvpQty)
+                        : null,
+                    dynamicReadyQty: Number.isFinite(Number(productDebt?.dynamicReadyQty))
+                        ? roundQty(productDebt.dynamicReadyQty)
+                        : null,
+                    finishedReadyQty: Number.isFinite(Number(productDebt?.finishedReadyQty))
+                        ? roundQty(productDebt.finishedReadyQty)
+                        : null,
+                    residualSetQty: Number.isFinite(Number(productDebt?.residualSetQty))
+                        ? roundQty(productDebt.residualSetQty)
+                        : null,
+                    allocationEligible: productDebt?.allocationEligible === true,
+                    reasonCodes: Array.isArray(productDebt?.reasonCodes)
+                        ? productDebt.reasonCodes.map((value) => String(value || '').trim()).filter(Boolean)
+                        : [],
+                    allocations: allocations.map((allocation) => ({
+                        allocationKey: String(allocation?.allocationKey || '').trim(),
+                        stockItemId: String(allocation?.stockItemId || '').trim(),
+                        qty: roundQty(allocation?.qty),
+                        fixedBySalesShipmentPlan: allocation?.fixedBySalesShipmentPlan === true,
+                        salesShipmentPlanId: String(allocation?.salesShipmentPlanId || '').trim(),
+                        originOrderId: String(allocation?.originOrderId || '').trim(),
+                        originOrderLineId: String(allocation?.originOrderLineId || '').trim(),
+                        stageLabel: 'Sevkiyata Hazır'
+                    }))
+                };
+            });
         return {
             ok: true,
             reasonCode: '',
@@ -11446,6 +14144,7 @@
             demandId,
             sourceOrderId,
             rows,
+            finishedProducts,
             lifecycle: {
                 contractActive: resolved?.lifecycle?.contractActive === true,
                 reservations: lifecycleReservations,
@@ -11486,12 +14185,6 @@
                 </section>
             `;
         }
-        const queue = model.productionQueue || {};
-        const manualPriorityBadge = queue.mode === 'MANUAL'
-            && Number.isSafeInteger(Number(queue.manualOrder))
-            && Number(queue.manualOrder) > 0
-            ? `SOR manuel önceliği: ${Number(queue.manualOrder)}`
-            : '';
         const lifecycle = model.lifecycle || {};
         const reservationsHtml = (Array.isArray(lifecycle.reservations) ? lifecycle.reservations : [])
             .map((reservation) => `
@@ -11537,9 +14230,35 @@
                 </div>
             `
             : '';
+        const finishedProductsHtml = (Array.isArray(model.finishedProducts) ? model.finishedProducts : [])
+            .map((product) => {
+                const readyQty = formatQty(product?.finishedReadyQty);
+                const residualQty = formatQty(product?.residualSetQty);
+                const openQty = formatQty(product?.openSetQty);
+                const fixedQty = formatQty(product?.fixedSvpQty);
+                const dynamicQty = formatQty(product?.dynamicReadyQty);
+                const reasonLabels = (Array.isArray(product?.reasonCodes) ? product.reasonCodes : [])
+                    .map((reason) => PlanningModule.getSanalTaksimReasonLabel(reason));
+                return `
+                    <article data-sanal-taksim-finished-product="${PlanningModule.escapeHtml(product?.productDebtKey || '')}" data-sanal-taksim-allocation-eligible="${product?.allocationEligible ? 'true' : 'false'}" style="border:1px solid #86efac; border-left:4px solid #16a34a; border-radius:0.72rem; background:#f0fdf4; padding:0.62rem;">
+                        <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:0.45rem; flex-wrap:wrap;">
+                            <div><div style="font-weight:950; color:#166534;">${PlanningModule.escapeHtml(product?.productName || product?.variantCode || '-')}</div><div style="margin-top:0.12rem; font-family:Consolas,monospace; color:#15803d; font-size:0.7rem;">${PlanningModule.escapeHtml(product?.variantCode || '-')} · BİTMİŞ ÜRÜN</div></div>
+                            <span data-sanal-taksim-finished-stage="true" style="border:1px solid #86efac; border-radius:999px; background:#fff; color:#166534; padding:0.12rem 0.46rem; font-size:0.68rem; font-weight:900;">${PlanningModule.escapeHtml(`${readyQty} Sevkiyata Hazır`)}</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:0.42rem; margin-top:0.5rem;">
+                            <div style="border:1px solid #bbf7d0; border-radius:0.58rem; background:#fff; padding:0.42rem;"><div style="font-size:0.64rem; color:#64748b; font-weight:800; text-transform:uppercase;">Açık ürün borcu</div><div data-sanal-taksim-product-open="true" style="margin-top:0.1rem; color:#0f172a; font-weight:950;">${PlanningModule.escapeHtml(`${openQty} ${product?.unit || 'ADET'}`)}</div></div>
+                            <div style="border:1px solid #bbf7d0; border-radius:0.58rem; background:#fff; padding:0.42rem;"><div style="font-size:0.64rem; color:#64748b; font-weight:800; text-transform:uppercase;">PLANNED SVP taahhüdü</div><div data-sanal-taksim-product-fixed="true" style="margin-top:0.1rem; color:#166534; font-weight:950;">${PlanningModule.escapeHtml(`${fixedQty} ${product?.unit || 'ADET'}`)}</div></div>
+                            <div style="border:1px solid #bbf7d0; border-radius:0.58rem; background:#fff; padding:0.42rem;"><div style="font-size:0.64rem; color:#64748b; font-weight:800; text-transform:uppercase;">Dinamik ready tahsisi</div><div data-sanal-taksim-product-dynamic="true" style="margin-top:0.1rem; color:#166534; font-weight:950;">${PlanningModule.escapeHtml(`${dynamicQty} ${product?.unit || 'ADET'}`)}</div></div>
+                            <div style="border:1px solid #fed7aa; border-radius:0.58rem; background:#fff7ed; padding:0.42rem;"><div style="font-size:0.64rem; color:#9a3412; font-weight:800; text-transform:uppercase;">Residual ürün ihtiyacı</div><div data-sanal-taksim-product-residual="true" style="margin-top:0.1rem; color:#9a3412; font-weight:950;">${PlanningModule.escapeHtml(`${residualQty} ${product?.unit || 'ADET'}`)}</div></div>
+                        </div>
+                        ${reasonLabels.length ? `<div style="margin-top:0.42rem; color:#991b1b; font-size:0.7rem; font-weight:800;">${PlanningModule.escapeHtml(Array.from(new Set(reasonLabels)).join(' | '))}</div>` : ''}
+                    </article>
+                `;
+            }).join('');
         const rowsHtml = model.rows.map((row) => {
             const reasonLabels = row.reasonCodes
                 .map((reason) => PlanningModule.getSanalTaksimReasonLabel(reason));
+            const siblingAllocation = row.technicalCompatibilities.includes('SIBLING_PRE_SPLIT');
             const stageText = row.allocatedQty === null
                 ? 'Tahsis edilemez'
                 : (row.stages.length
@@ -11558,12 +14277,13 @@
                 ? 'Hesaplanamadı'
                 : `${formatQty(row.unstartedExecutionQty)} ${row.unit}`;
             return `
-                <article data-sanal-taksim-prc="${PlanningModule.escapeHtml(row.prcCode)}" data-sanal-taksim-allocation-eligible="${row.allocationEligible ? 'true' : 'false'}" style="border:1px solid #dbe2ec; border-radius:0.72rem; background:#ffffff; padding:0.62rem;">
+                <article data-sanal-taksim-prc="${PlanningModule.escapeHtml(row.prcCode)}" data-sanal-taksim-allocation-eligible="${row.allocationEligible ? 'true' : 'false'}" data-sanal-taksim-open-debt="${row.hasOpenDebt ? 'true' : 'false'}" data-sanal-taksim-technical-compatibility="${PlanningModule.escapeHtml(row.technicalCompatibilities.join(','))}" style="border:1px solid #dbe2ec; border-radius:0.72rem; background:#ffffff; padding:0.62rem;">
                     <div style="display:flex; align-items:center; justify-content:space-between; gap:0.45rem; flex-wrap:wrap;">
                         <div style="font-family:Consolas,monospace; font-weight:900; color:#1d4ed8;">${PlanningModule.escapeHtml(row.prcCode || '-')}</div>
                         <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
                              <span style="border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; padding:0.1rem 0.42rem; font-size:0.67rem; font-weight:800;">Birim: ${PlanningModule.escapeHtml(row.unit || '-')}</span>
-                             ${manualPriorityBadge ? `<span data-sanal-taksim-sor-priority="true" style="border:1px solid #bfdbfe; border-radius:999px; background:#eff6ff; color:#1d4ed8; padding:0.1rem 0.42rem; font-size:0.67rem; font-weight:800;">${PlanningModule.escapeHtml(manualPriorityBadge)}</span>` : ''}
+                             ${siblingAllocation ? '<span data-sanal-taksim-sibling-pre-split="true" style="border:1px solid #93c5fd; border-radius:999px; background:#eff6ff; color:#1d4ed8; padding:0.1rem 0.42rem; font-size:0.67rem; font-weight:900;">Kardeş PRC · ayrışma öncesi</span>' : ''}
+                             ${row.hasOpenDebt ? '' : '<span data-sanal-taksim-no-open-debt="true" style="border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#475569; padding:0.1rem 0.42rem; font-size:0.67rem; font-weight:900;">Açık fiziksel borç yok</span>'}
                              ${row.lifecycleLocked ? '<span data-sanal-taksim-exact-sor-lock="true" style="border:1px solid #a78bfa; border-radius:999px; background:#f5f3ff; color:#6d28d9; padding:0.1rem 0.42rem; font-size:0.67rem; font-weight:900;">Exact SOR kilidi</span>' : ''}
                         </div>
                     </div>
@@ -11584,6 +14304,7 @@
                     <div><div style="font-size:0.94rem; font-weight:900; color:#0f172a;">Sanal Taksim</div><div style="margin-top:0.12rem; color:#64748b; font-size:0.72rem;">Güncel ortak fiziksel havuz her render sırasında yeniden hesaplanır; allocation kaydedilmez.</div></div>
                      <span style="border:1px solid #a7f3d0; background:#ecfdf5; color:#047857; border-radius:999px; padding:0.12rem 0.48rem; font-size:0.68rem; font-weight:900;">Tahsis salt okunur</span>
                  </div>
+                 ${finishedProductsHtml ? `<div data-sanal-taksim-finished-products="true" style="display:grid; gap:0.5rem; margin-top:0.58rem;">${finishedProductsHtml}</div>` : ''}
                  ${lifecycleHtml}
                  <div style="display:grid; gap:0.5rem; margin-top:0.58rem;">${rowsHtml}</div>
             </section>
@@ -12423,11 +15144,17 @@
                     itemCode: detailItemCode
                 })
                 : '';
+            const sanalTaksimDetailContent = sanalTaksimContent ? `
+                <details data-sanal-taksim-detail="true" style="margin-bottom:0.75rem;">
+                    <summary data-sanal-taksim-detail-toggle="true" style="display:inline-flex; align-items:center; min-height:38px; border:1px solid #93c5fd; border-radius:0.62rem; background:#eff6ff; color:#1d4ed8; padding:0.38rem 0.65rem; font-weight:900; cursor:pointer; user-select:none;">Sanal Taksim Detayı</summary>
+                    <div data-sanal-taksim-detail-content="true" style="margin-top:0.55rem;">${sanalTaksimContent}</div>
+                </details>
+            ` : '';
             const productionContent = isSalesOrderFlow ? `
                 <div style="border:1px solid #fecaca; border-left:4px solid #dc2626; background:#ffffff; color:#1f2937; border-radius:0.75rem; padding:0.72rem 0.82rem; margin-bottom:0.75rem; line-height:1.5; font-weight:800; box-shadow:0 2px 8px rgba(15,23,42,0.06);">
                     Bu bölüm, siparişe ait parça ve bileşenlerin iş emrinden üretim sonu depoya alınmasına kadar olan hareketlerini gösterir.
                 </div>
-                ${sanalTaksimContent}
+                ${sanalTaksimDetailContent}
                 ${trackingContent}
             ` : trackingContent;
             const montageContent = isSalesOrderFlow && activeTab === 'montage'
@@ -12451,14 +15178,10 @@
                     ${tabButton('shipments', 'Sevkiyatlar')}
                 </div>
             ` : '';
-            const productionQueueHeaderContent = isSalesOrderFlow
-                ? PlanningModule.renderSalesProductionQueueHeaderHtml(demand)
-                : '';
             const visibleContent = !isSalesOrderFlow || activeTab === 'production'
                 ? productionContent
                 : (activeTab === 'montage' ? montageContent : shipmentsContent);
             return shellStart(isSalesOrderFlow ? 'planlama / sipariş akışı' : 'planlama / üretim akışı', summary)
-                + productionQueueHeaderContent
                 + tabsHtml
                 + visibleContent
                 + shellEnd;

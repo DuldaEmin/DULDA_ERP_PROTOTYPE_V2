@@ -37,19 +37,23 @@ const MontageLibraryModule = {
 
     getNextCardCode: () => {
         MontageLibraryModule.ensureData();
-        const max = (DB.data.data.montageCards || []).reduce((acc, row) => {
-            const code = String(row?.cardCode || '').trim().toUpperCase();
-            const m = code.match(/^MON-(\d{6})$/);
-            if (!m) return acc;
-            return Math.max(acc, Number(m[1]));
-        }, 0);
-        let n = max + 1;
-        let candidate = `MON-${String(n).padStart(6, '0')}`;
-        while (UnitModule.isGlobalCodeTaken(candidate)) {
-            n += 1;
-            candidate = `MON-${String(n).padStart(6, '0')}`;
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
+            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'MON', digits: 6 });
         }
-        return candidate;
+        const used = (DB.data.data.montageCards || []).map((row) => row?.cardCode);
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && OperationalCodeHighWater
+            && typeof OperationalCodeHighWater.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'MON', used);
+        }
+        let maximum = 0n;
+        used.forEach((value) => {
+            const match = String(value || '').trim().toUpperCase().match(/^MON-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `MON-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
 
     setSearch: (value, focusId) => {

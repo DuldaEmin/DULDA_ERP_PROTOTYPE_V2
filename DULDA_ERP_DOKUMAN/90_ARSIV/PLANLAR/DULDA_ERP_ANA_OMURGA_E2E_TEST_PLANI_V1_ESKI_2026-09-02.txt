@@ -1,0 +1,1335 @@
+# DULDA ERP — ANA OMURGA GERÇEK EKRAN E2E TEST PLANI V1
+
+Belge statüsü: AKTİF TEST PLANI VE İLERLEME KAYIT DEFTERİ
+Mimari referans: DULDA_ERP_MIMARI_HARITASI_V29
+Başlangıç tarihi: 2026-09-01
+
+Bu dosya, ana omurga gerçek ekran kabul testi tamamlanana kadar aynı testin tek aktif planı ve
+ilerleme kayıt defteridir. Aynı kapsam için ikinci veya paralel aktif test planı oluşturulmaz.
+
+Test ilerledikçe bu dosya baştan yeniden yazılmaz. PASS, FAIL ve BLOCKED kayıtları korunur;
+sonraki gelişmeler kronolojik olarak ilgili fazın altına ve dosyanın sonundaki ilerleme günlüğüne
+eklenir.
+
+==========================================================================================
+
+# TESTİN AMACI
+
+Bu çalışma ayrı bir Sanal Taksim testi veya geliştirme workstream'i değildir.
+
+Ana amaç:
+
+**DULDA ERP'nin satıştan gerçek müşteri sevkiyatına kadar ANA OMURGASININ gerçek fabrika
+senaryolarında güvenilir çalışıp çalışmadığını doğrulamaktır.**
+
+Test zinciri:
+
+**SALES / STOCK
+→ Planlama
+→ İş Emri
+→ Üretim
+→ Fason
+→ Tahsis
+→ Montaj
+→ Depo
+→ Sevkiyat Planı
+→ Gerçek Müşteri Sevkiyatı**
+
+Sanal Taksim, V29'a göre ERP omurgasının yerleşik tahsis mekanizmasıdır; ayrı geliştirme
+workstream'i olarak yeniden açılmaz.
+
+Ana kabul sorusu:
+
+**DULDA ERP; ticari önceliği, fiziksel tahsisi, kardeş PRC ayrışmasını, operational commitment'ı,
+montajı ve terminal müşteri sevkiyatını aynı fiziksel miktarı iki kez kullanmadan doğru yönetiyor
+mu?**
+
+==========================================================================================
+
+# ÇALIŞMA ROLLERİ
+
+## Kullanıcı
+
+Kullanıcı test hazırlığını hızlandırmak için:
+
+- Demo Test Ortamını Sıfırla işlemini yapar veya mevcut clean baseline'ı doğrular.
+- SALES siparişlerini oluşturur.
+- STOCK üretim talebini oluşturur.
+- Termin ve miktarları girer.
+- Kayıtları planlamaya gönderir.
+- Planlama Havuzu kararlarını tamamlar.
+- İş Emrine Dönüştür işlemini yapar.
+
+Bu hazırlığın kullanıcı tarafından yapılması, SOR → PLN → WO zincirini test kapsamından çıkarmaz.
+İş emrine dönüşümden sonra bütün bağlantılar ayrıca doğrulanır.
+
+## Masaüstü ChatGPT
+
+- İş emirleri oluştuktan sonraki gerçek ekran testinin ana operatörüdür.
+- Verilen fazdaki gerçek kullanıcı işlemlerini uygular.
+- Ekran sonucunu ve kullanılan gerçek kayıt kodlarını kaydeder.
+- PASS / FAIL / BLOCKED sonucu verir.
+- FAIL gördüğünde kendi başına düzeltme yapmadan durur.
+
+## Codex
+
+- Gerekli checkpoint'lerde repo/state/runtime'ı salt okunur doğrular.
+- Miktar, revision, invariant, physical origin, bağlantı ve kod devamlılığı kanıtlarını kontrol eder.
+- Gerçek FAIL çıkarsa teknik kök nedeni inceler.
+- Kullanıcı onayı olmadan kod, state, runtime veya ERP kaydı değiştirmez.
+- Normal gerçek ekran operatörü gibi bütün senaryoyu tek başına yürütmez.
+
+## Ana ChatGPT
+
+- İşletme kabul şartlarını ve faz sonuçlarını değerlendirir.
+- Aktif mimariyle somut çelişki varsa belirtir.
+- Codex'in teknik yöntemini sebepsiz yere yeniden tasarlamaz.
+
+==========================================================================================
+
+# TEST DEFTERİ ÇALIŞMA KURALI
+
+Her fazın sonunda ilgili fazın altındaki `FAZ SONUCU / GERÇEK TEST NOTU` alanı doldurulur.
+
+En az şu bilgiler kaydedilir:
+
+- tarih/saat,
+- kullanılan gerçek kayıt kodları,
+- işlemi uygulayan kişi/araç,
+- PASS / FAIL / BLOCKED,
+- ekranda görülen sonuç,
+- önemli miktarlar,
+- revision/checkpoint,
+- ekran kanıtı açıklaması,
+- bulunan problem,
+- sonraki karar.
+
+## FAIL / BLOCKED kuralı
+
+Bir faz FAIL veya BLOCKED olursa:
+
+- sonraki faza geçilmez,
+- problemi gizlemek için Demo Test Ortamını Sıfırla çalıştırılmaz,
+- ilgili kayıtlar, runtime ve state kanıtı korunur,
+- sorun aynı fazın altına yazılır,
+- teknik inceleme gerekiyorsa Codex salt okunur inceleme yapar,
+- düzeltme ayrı onaylı çalışma olarak uygulanır,
+- yeniden test sonucu aynı bölümün altına `DÜZELTME / YENİDEN TEST SONUCU` olarak eklenir,
+- eski FAIL/BLOCKED kaydı silinmez.
+
+Faz PASS olmadan sonraki faza geçilmez. İlgisiz eski fixture/backbone hataları testi genişletmez;
+ancak yeni kohortla aynı invariant kırılırsa gerçek regresyon kabul edilir.
+
+Test bitmeden Demo Test Ortamını Sıfırla kullanılmaz. Test sırasında kod değiştirilmez. Kod
+düzeltmesi gerekirse aktif test durdurulur; düzeltme ve yeniden test ayrı kontrollü adımlardır.
+
+==========================================================================================
+
+# HIZLI EKRAN TESTİ ÇALIŞMA KURALI
+
+Bu bölüm, Masaüstü ChatGPT'nin gerçek ekran testini faz kapsamını veya kabul şartlarını
+değiştirmeden daha hızlı ve kontrollü yürütme yöntemini tanımlar.
+
+## 1. Kullanıcı başlangıç ekranını hazırlayabilir
+
+Kullanıcı mümkünse aktif fazın başlangıç ERP ekranını önceden açıp Masaüstü ChatGPT'ye bırakabilir.
+
+Bu test kapsamını azaltmaz. Amaç yalnız gereksiz menü gezinmesini ve beklemeyi azaltmaktır.
+
+Aktif fazın:
+
+- esas mutasyonları,
+- miktar kontrolleri,
+- refresh/reopen kontrolleri,
+- PASS/FAIL/BLOCKED kabulü
+
+test asistanının sorumluluğunda kalır.
+
+## 2. Aynı ekran bağlamı mümkün olduğunca korunur
+
+Test asistanı mümkün olduğunca:
+
+- aynı sekme,
+- aynı oturum,
+- aynı ekran bağlamı
+
+üzerinden ilerler.
+
+Her işlemden sonra bütün sayfayı baştan taramak yerine yalnız değişen panel, satır, durum, miktar
+veya kayıt kodu kontrol edilir.
+
+Ancak bu kural aktif test planındaki zorunlu refresh, reopen, ekranı kapatıp yeniden açma veya
+yeniden giriş kontrollerini kaldırmaz. Planın istediği refresh/reopen checkpoint'i mutlaka uygulanır.
+
+## 3. Mikro çalışma döngüsü
+
+Normal gerçek ekran çalışma sırası:
+
+**Bul → Bir kez tıkla → Yerel sonucu doğrula → Devam et**
+
+Yerel başarı sinyali örnekleri:
+
+- toast,
+- beklenen modal,
+- durum değişimi,
+- yeni kayıt kodu,
+- satırın sekme değiştirmesi,
+- miktar değişimi,
+- planın görünür hale gelmesi.
+
+**Yerel başarı sinyali yalnız işlemin bir sonraki adıma geçebilecek şekilde gerçekleştiğini
+gösterir. Tek başına FAZ PASS kanıtı değildir.**
+
+Aktif test planındaki kritik checkpoint, miktar, refresh, invariant ve faz sonu kabul kontrolleri
+aynen korunur.
+
+## 4. Mutasyon butonu normalde tekrar tıklanmaz
+
+Veri değiştiren bir işlem normalde yalnız bir kez uygulanır.
+
+Örnek:
+
+- Kaydet
+- Planla
+- Teslim Al
+- Tamamla
+- Sevk Et
+- Depoya Al
+- İptal
+- MGP/MGS/MCT/SVP/TF oluşturan işlemler
+
+İlk tıklamanın sonucu belirsizse aynı mutasyon kontrolsüz şekilde tekrar edilmez.
+
+İkinci deneme yalnız ilk tıklamanın hiç işleme alınmadığı kesin olarak kanıtlanabiliyorsa
+yapılabilir. Sonuç belirsizse **BLOCKED** verilir.
+
+### Bilinçli idempotency testi istisnası
+
+Aktif test planında ikinci mutasyonun özellikle test adımı olarak istendiği durumlar bu yasağın
+dışındadır.
+
+Örneğin Faz 5'te aynı sevkiyat planının ikinci kez sevk edilmeye çalışılması bilinçli bir
+**idempotency / duplicate guard testi**dir. Bu durumda ikinci işlem planın açık test adımı olduğu
+için uygulanır.
+
+## 5. Beklenen guard reddi FAIL değildir
+
+Plan belirli bir işlemin sistem tarafından reddedilmesini bekliyorsa bu reddin gerçekleşmesi hata
+değildir.
+
+Örnek:
+
+- aynı sevkiyat planının ikinci kez sevk edilmesinin engellenmesi,
+- duplicate işlemin reddedilmesi,
+- geçersiz tekrar mutation'ın engellenmesi.
+
+Beklenen guard doğru şekilde çalışıyorsa **PASS kanıtıdır**.
+
+Ancak işlem guard'a rağmen ikinci kez gerçekleşirse, yeni TF/movement/stok düşümü oluşursa veya
+beklenen koruma çalışmazsa **FAIL** verilir.
+
+## 6. Salt-okunur navigasyon sınırı
+
+Ekran açma, sekme değiştirme, Görüntüle, detay açma ve menü navigasyonu gibi salt-okunur işlemlerde
+en fazla iki kontrollü erişim denemesi yapılır.
+
+İki denemeden sonra hedef ekrana güvenilir biçimde ulaşılamıyorsa **BLOCKED** verilir.
+
+## 7. Buton görünür ama kullanılamıyorsa
+
+Önce şu koşullar kontrol edilir:
+
+- gerçekten etkin mi,
+- modal veya uyarı tarafından örtülmüş mü,
+- ekran yeniden çiziliyor mu,
+- gerekli seçim yapılmış mı,
+- planın önkoşulları gerçekten sağlanmış mı.
+
+Planın bütün gerekli önkoşulları kesin olarak sağlanmış olmasına rağmen buton pasif veya
+kullanılamazsa **FAIL** verilir.
+
+Önkoşulların sağlanıp sağlanmadığı güvenilir biçimde belirlenemiyorsa **BLOCKED** verilir.
+
+## 8. Sabit bekleme yerine görünür ilerleme sinyali
+
+Gereksiz sabit bekleme kullanılmaz.
+
+Şu sinyaller esas alınır:
+
+- spinner,
+- yükleniyor göstergesi,
+- tablo oluşması,
+- buton etkinleşmesi,
+- toast,
+- durum veya miktar değişimi.
+
+Yaklaşık 15 saniye boyunca hiçbir ilerleme sinyali yoksa durum yeniden incelenir.
+
+Gerçek ve ilerleyen yükleme göstergesi varsa yaklaşık 30 saniye veya gerekli makul süre kadar
+beklenebilir. Bu süreler kesin timeout değildir. Görünür ilerleme sürüyorsa sırf süre doldu diye
+işlem kesilmez.
+
+İlerleme yoksa ve işlem sonucu güvenilir biçimde belirlenemiyorsa **BLOCKED** verilir.
+
+## 9. Kritik kanıtlar her tıklamada alınmaz
+
+Ekran görüntüsü veya kapsamlı kanıt yalnız kritik noktalarda alınır:
+
+- faz başlangıcı,
+- önemli mutasyon sonucu,
+- kritik lock/unlock sonucu,
+- refresh/reopen sonucu,
+- FAIL,
+- BLOCKED,
+- faz sonu kabulü.
+
+Her küçük navigasyon veya salt-okunur tıklamada ekran görüntüsü zorunlu değildir.
+
+## 10. Faz bazlı kontrol sıklığı
+
+### FAZ 1
+
+- İleri aşama taşıma sonrası tahsis.
+- Refresh sonrası aynı sonuç.
+
+### FAZ 2
+
+- FTS DRAFT lock.
+- DRAFT iptal/reopen.
+- Gerçek branch sonrası sonuç.
+
+### FAZ 3
+
+- MGP iptali.
+- Yeni fixed commitment.
+- Termin değişikliği.
+- Refresh/reopen.
+
+### FAZ 4
+
+- MGS.
+- Teslim alma.
+- Kısmi tamamlama.
+- MCT.
+- Depo kabulü.
+- Refresh.
+
+### FAZ 5
+
+- SVP.
+- İlk gerçek TF.
+- Planın açıkça istediği ikinci sevk/idempotency denemesi.
+- Refresh/reopen.
+
+Her faz sonunda mevcut aktif plandaki faz kabul kriterleri üzerinden tek kapsamlı
+PASS/FAIL/BLOCKED değerlendirmesi yapılır.
+
+## 11. FAIL / BLOCKED disiplini
+
+Görünür gerçek hata, yanlış miktar veya beklenmeyen ERP davranışı varsa **FAIL** verilir ve faz
+durur.
+
+Ekran veya işlem sonucu güvenilir biçimde belirlenemiyorsa **BLOCKED** verilir.
+
+Planın açıkça beklediği güvenlik/guard reddi FAIL değildir; beklenen koruma gerçekleşiyorsa PASS
+kanıtıdır.
+
+FAIL veya BLOCKED halinde sonraki faza geçilmez.
+
+## ÖNEMLİ
+
+Bu hızlı çalışma kuralı:
+
+- faz kapsamını azaltmaz,
+- checkpoint'leri kaldırmaz,
+- faz PASS kriterlerini değiştirmez,
+- zorunlu refresh/reopen kontrollerini kaldırmaz,
+- güvenlik için yapılması gereken ikinci/idempotency denemelerini engellemez.
+
+Yalnız Masaüstü ChatGPT'nin gerçek ekran testini daha hızlı ve kontrollü yürütmesini sağlar.
+
+==========================================================================================
+
+# ÇALIŞTIRMA ÖNCESİ KAPILAR
+
+## KAPI 1 — TF HIGH-WATER TRUST
+
+Son salt-okunur teknik checkpoint:
+
+- Runtime: `PROTOTYPE`
+- Revision: `11926`
+- TF high-water: `1`
+- Untrusted family: `TF`
+- Prospective yeni kod: `TF-000002`
+- Beklenen mevcut server sonucu: `OPERATIONAL_CODE_HIGH_WATER_UNTRUSTED`
+
+Çalışan runtime, güncel high-water çekirdeğinden sonra açılmıştır. Bu checkpoint'te sorun yalnız
+stale runtime olarak açıklanamamaktadır.
+
+Başlangıç durumu:
+
+**BLOCKED — TF HIGH-WATER TRUST**
+
+Bu problem çözülüp güncel PROTOTYPE runtime üzerinde kapı PASS olmadan test kohortu oluşturulmaz.
+Bu plan dosyasının oluşturulması TF problemini çözme yetkisi vermez.
+
+Kapı PASS şartları:
+
+- TF tarihsel high-water güvenilir kanıtla doğrulanmış olmalı,
+- untrusted işareti kontrollü şekilde kapanmış olmalı,
+- yeni kod geçmiş kodu yeniden kullanmamalı,
+- prospective geçiş server policy tarafından kabul edilmeli,
+- LIVE/PROTOTYPE güvenlik ayrımı korunmalı,
+- düzeltme kod/state kapsamına göre ayrı onay ve teknik kanıt taşımalı.
+
+### KAPI 1 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat: 2026-09-01 15:16:45 +03:00
+- Uygulayan kişi/araç: Codex — salt okunur teknik inceleme
+- Durum: BLOCKED
+- Kullanılan kayıt kodları: TF high-water `1`; prospective `TF-000002`
+- Ekranda görülen sonuç: Test başlatılmadı.
+- Önemli miktarlar: Canlı test TF kaydı `0`; tarihsel high-water `1`
+- Revision/checkpoint: `11926`
+- Kanıt: Runtime `PROTOTYPE`; `operationalCodeHighWaterUntrustedFamilies=["TF"]`;
+  prospective geçiş `OPERATIONAL_CODE_HIGH_WATER_UNTRUSTED`.
+- Bulunan problem: TF ailesinin trust metadata'sı yeni gerçek sevkiyatı fail-closed engelliyor.
+- Karar: TF kapısı ayrı onaylı çalışma ile PASS olmadan Faz 0 başlamaz.
+- Sonraki adım: TF HIGH-WATER çalıştırma kapısını ele al.
+
+## KAPI 2 — RUNTIME / KOD SABİTLİĞİ
+
+E2E başlamadan önce:
+
+- runtime açıkça PROTOTYPE olmalı,
+- kullanılan worktree/commit checkpoint'i kaydedilmeli,
+- PID ve runtime başlangıç zamanı kaydedilmeli,
+- başlangıç revision'ı kaydedilmeli,
+- gerekli kritik dosya hash/checkpoint bilgileri kaydedilmeli,
+- test süresince kod ve runtime kaynağı sabit tutulmalı.
+
+Bir FAIL nedeniyle kod düzeltilecekse aktif test durdurulur. Düzeltme ayrı uygulanır ve aynı faz
+kontrollü biçimde yeniden test edilir.
+
+### KAPI 2 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- Worktree/commit:
+- PID/runtime başlangıcı:
+- Revision:
+- Kritik hash/checkpoint:
+- Ekran/runtime kanıtı:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+## KAPI 3 — CLEAN BASELINE
+
+Beklenen test başlangıcı:
+
+- SOR: `0`
+- PLN: `0`
+- WO: `0`
+- Aktif MGP/MGS/MCT/STAI/SVP/TF: `0`
+
+Mevcut doğrulanmış prototip checkpoint'i:
+
+- başlangıç stok kaydı: `9`
+- başlangıç stok toplamı: `13.200`
+
+`9 / 13.200` değişmez işletme sabiti değildir; yalnız mevcut doğrulanmış test checkpoint'idir.
+Test başlangıç stoğu bilinçli olarak değişirse checkpoint ayrıca doğrulanıp güncellenir.
+
+Planlama ekranında `Test ortamı temiz` durumu doğrulanmalıdır. Ortam zaten clean baseline ise no-op
+durum mutation üretmemelidir.
+
+### KAPI 3 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- SOR/PLN/WO sayıları:
+- Aktif operasyon sayıları:
+- Başlangıç stok checkpoint'i:
+- Revision:
+- Ekran kanıtı:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+==========================================================================================
+
+# TEST KOHORTU
+
+Ana ürün:
+
+`SAL-000001 — Bombeli 2008 Aluminyum Dikme`
+
+## SALES-A
+
+- Varyant: `SVR-000002 — P5 parlak`
+- Adet: `5`
+- Termin: `T0+2`
+- Not: `E2E-V29-A`
+- Rol: Ana E2E izi, kısmi commitment ve gerçek müşteri sevki.
+
+## SALES-B
+
+- Varyant: `SVR-000001 — P3 sarı`
+- Adet: `4`
+- Termin: `T0+4`
+- Not: `E2E-V29-B`
+- Rol: GOLD kardeş PRC ve branch ayrışması.
+
+## SALES-C
+
+- Varyant: `SVR-000002 — P5 parlak`
+- Adet: `3`
+- Termin: `T0+6`
+- Not: `E2E-V29-C`
+- Rol: Termin değişikliği ve yeniden tahsis.
+
+## STOCK-D
+
+- Varyant: `SVR-000001 — P3 sarı`
+- Adet: `4`
+- Termin: `T0+1`
+- Not: `E2E-V29-STOCK-D`
+- Rol: SALES → STOCK önceliği ve physical-origin doğrulaması.
+
+Beklenen ilk ticari sıra:
+
+**SALES-A → SALES-B → SALES-C → STOCK-D**
+
+STOCK-D'nin termini daha erken olsa bile bütün açık SALES borçlarının arkasında kalmalıdır.
+
+Yeni müşteri veya başka master kayıt açılmaz. SALES-A/B/C için mevcut üç farklı müşteri kullanılır.
+
+==========================================================================================
+
+# FAZ 0 — KULLANICININ TEST KOHORTUNU HAZIRLAMASI
+
+## Kullanıcının işlemleri
+
+1. Demo Test Ortamını Sıfırla veya clean baseline'ı doğrula.
+2. SALES-A oluştur.
+3. SALES-B oluştur.
+4. SALES-C oluştur.
+5. STOCK-D oluştur.
+6. Dört talebi Planlamaya gönder.
+7. Planlama Havuzu kararlarını tamamla.
+8. Mevcut plan kararına göre bütün satırları üretime bırak.
+9. Dört talebi İş Emrine Dönüştür.
+
+## Hazırlık kabulü
+
+Codex salt okunur olarak doğrular:
+
+- 3 tekil SALES,
+- 1 STOCK,
+- doğru sourceType,
+- doğru termin ve miktarlar,
+- doğru SOR–PLN bağlantıları,
+- güncel reçeteye uygun PRC/WO zinciri,
+- kodların tekil ve monoton olması,
+- orphan PLN/WO bulunmaması,
+- ticari sıranın A → B → C → D olması.
+
+Mevcut baseline ve ürün reçetesi değişmezse her demand için 7 PRC WO ve toplam 28 yeni WO
+beklenmektedir. Bu sayı değişmez işletme sabiti değildir. Güncel ürün reçetesi veya repo gerçeği
+farklıysa tahminle PASS verilmez.
+
+## PASS şartı
+
+Bütün hazırlık kayıtları, bağlantılar, kodlar, miktarlar ve başlangıç ticari sırası doğrudur.
+
+## FAIL / BLOCKED durma şartı
+
+- Yanlış sourceType, miktar veya termin.
+- Eksik veya mükerrer kayıt/kod.
+- Orphan PLN/WO.
+- Reçete ile WO farkı.
+- Yanlış ticari sıra.
+- Güvenilir teknik kontrol yapılamaması.
+
+## Geçiş şartı
+
+Faz 0 PASS olmadan Faz 1 başlamaz.
+
+### FAZ 0 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Kullanılan gerçek kayıt kodları:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- Ekranda görülen sonuç:
+- Önemli miktarlar:
+- Revision/checkpoint:
+- Ekran kanıtı açıklaması:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+==========================================================================================
+
+# FAZ 1 — ÜRETİM / ÖNCELİK / İLERİ AŞAMA
+
+Temsilci kardeş aile:
+
+- GOLD: `PRC-000017`
+- BRIGHT: `PRC-000018`
+- masterCode: `AKS0003`
+
+## Test amacı
+
+Aynı teknik ailede daha ileri aşamaya ulaşmış uygun fiziksel miktarın ticari sıraya göre doğru
+SALES borcuna kullanılmasını, fakat fiziksel geçmişinin değiştirilmemesini doğrulamak.
+
+## Kullanıcı / test asistanı işlemleri
+
+1. SALES-A-origin BRIGHT miktarının bir kısmını erken ortak aşamada tut.
+2. STOCK-D-origin GOLD miktarının `2` birimini ayrışma branch'ine girmeden ortak prefix'te daha
+   ileri aşamaya taşı.
+3. Tahsis ekranını kontrol et.
+4. Refresh yap ve aynı ekranı tekrar aç.
+
+## Ekranda beklenen ve kritik miktarlar
+
+- SALES-A daha ileri STOCK-D-origin kardeş miktarı kullanabilir.
+- Ticari hedef SALES-A olabilir; physical origin STOCK-D kalmalıdır.
+- Temsilci ileri miktar tam `2` birimdir.
+- Aynı fiziksel miktar başka hedefte ikinci kez görünmemelidir.
+- STOCK-D erken terminine rağmen SALES borçlarının önüne geçmemelidir.
+
+## PASS şartı
+
+İleri aşama önceliği ile physical-origin/virtual-target ayrımı doğrudur; exact overlap ve
+double-count yoktur; refresh sonucu değişmez.
+
+## FAIL / BLOCKED durma şartı
+
+- Origin rewrite.
+- SALES/STOCK sıra hatası.
+- Aynı miktarın iki hedefte veya iki aşamada görünmesi.
+- Refresh sonrası farklı tahsis.
+- Güvenilir fiziksel segment kanıtı kurulamaması.
+
+## Geçiş şartı
+
+Faz 1 PASS olmadan Faz 2 başlamaz.
+
+### FAZ 1 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat: 2026-09-01 16:52:31 +03:00
+- Kullanılan gerçek kayıt kodları: SALES-A `SOR-000019 / PLN-000032 / WO-000184`; SALES-B
+  `SOR-000020 / PLN-000031`; SALES-C `SOR-000021 / PLN-000030`; STOCK-D
+  `PLN-000029 / WO-000177`.
+- Uygulayan kişi/araç: Kullanıcı + Masaüstü ChatGPT — gerçek ekran testi; Codex yalnız test
+  sonucunu aktif plana kaydetti.
+- Durum: PASS
+- Ekranda görülen sonuç: Temsilci `masterCode AKS0003` ailesinde BRIGHT `PRC-000018` ve GOLD
+  `PRC-000017` izlendi. SALES-A başlangıç TESTERE durumu `0/5` iken `2` birim tamamlanan/devir
+  bekleyen aşamaya ilerledi, `3` birim TESTERE'de kaldı. STOCK-D'nin tam `2` birimi TESTERE + CNC
+  üzerinden ilerletildi ve son durumda `CNC ATOLYESI / Devir Bekliyor: 2` görüldü; kalan `2` birim
+  TESTERE'de kaldı.
+- Önemli miktarlar: SALES-A `PRC-000018` tahsisi `5 ADET`, bekleyen fiziksel borç `0`; ticari
+  tahsis SALES-A `5`, SALES-B `4`, SALES-C `0`. İleri `2` birimin physical origin'i
+  `STOCK-D / PLN-000029 / WO-000177 / PRC-000017` olarak değişmeden kaldı; SALES-A yalnız ticari
+  hedef oldu.
+- Revision/checkpoint: Masaüstü ChatGPT gerçek ekran checkpoint'i; revision bilgisi bu sonuç
+  aktarımında verilmedi.
+- Ekran kanıtı açıklaması: Erken terminli STOCK-D SALES borçlarının önüne geçmedi. Görünür
+  double-count / overlap oluşmadı; refresh sonrasında tahsis, borç ve aşama dağılımı değişmedi.
+  Kritik ekran kanıtları alındı.
+- Bulunan problem: Yok.
+- Karar: FAZ 1 PASS.
+- Sonraki adım: FAZ 2 — KARDEŞ PRC / FASON / AYRIŞMA aktif sıradaki fazdır; henüz başlatılmadı.
+
+==========================================================================================
+
+# FAZ 2 — KARDEŞ PRC / FASON / AYRIŞMA
+
+Ortak prefix'in ardından GOLD/BRIGHT ayrışması gerçek eloksal/renk branch'inde oluşur.
+
+## Kullanıcı / test asistanı işlemleri
+
+1. İleri STOCK-D-origin miktarın `2` birimi için GOLD fason/eloksal DRAFT oluştur.
+2. Tahsisi kontrol et.
+3. DRAFT iptal et.
+4. Refresh yap.
+5. Exact miktarın yeniden açıldığını kontrol et.
+6. Yeni GOLD taslağını gerçek fason sevkine dönüştür.
+7. Fiziksel miktarı gerçek GOLD branch'ine geçir.
+
+## Ekranda beklenen ve kritik miktarlar
+
+- DRAFT sırasında `2` birim BRIGHT A/C için kullanılamaz.
+- DRAFT iptalinde aynı `2` birim yeniden kardeş havuzuna açılır.
+- Gerçek GOLD branch'e giren miktar artık BRIGHT'a dönemez.
+- GOLD miktarda SALES-B, STOCK-D'nin önünde olmalıdır.
+- FTS kodları monoton devam etmeli; iptal edilen kod tekrar kullanılmamalıdır.
+
+## PASS şartı
+
+Fason DRAFT lock, cancel/reopen ve gerçek branch ayrışması exact miktarla doğru çalışır.
+
+## FAIL / BLOCKED durma şartı
+
+- DRAFT miktarı kilitlemez.
+- İptal aynı exact miktarı açmaz.
+- Hayalet assignment/reservation kalır.
+- Gerçek branch sonrası GOLD miktar BRIGHT'a tahsis edilir.
+- FTS kodu yeniden kullanılır.
+
+## Geçiş şartı
+
+Faz 2 PASS olmadan Faz 3 başlamaz.
+
+### FAZ 2 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat: 2026-09-01 17:10:15 +03:00
+- Kullanılan gerçek kayıt kodları: `WO-000177`; GOLD `PRC-000017`; BRIGHT `PRC-000018`;
+  iptal edilen DRAFT `FTS-000027`; gerçek GOLD/eloksal sevki `FTS-000028`.
+- Uygulayan kişi/araç: Kullanıcı + Masaüstü ChatGPT — gerçek ekran testi; Codex yalnız test
+  sonucunu aktif plana kaydetti.
+- Durum: PASS
+- Ekranda görülen sonuç: GOLD/eloksal için oluşturulan `FTS-000027` DRAFT iptal edildiğinde aynı
+  exact `2` adet yeniden kardeş havuzuna açıldı. `FTS-000028` ile gerçek GOLD/eloksal sevki
+  yapıldıktan sonra bu `2` adet artık BRIGHT'a tahsis edilmedi.
+- Önemli miktarlar: Exact miktar `2`. GOLD miktarda SALES-B, STOCK-D'nin önünde kaldı. Physical
+  origin `PLN-000029 / WO-000177` olarak korundu.
+- Revision/checkpoint: Masaüstü ChatGPT gerçek ekran checkpoint'i; revision bilgisi bu sonuç
+  aktarımında verilmedi.
+- Ekran kanıtı açıklaması: DRAFT cancel/reopen ve gerçek branch ayrışması exact miktarla çalıştı;
+  hayalet reservation/assignment kalmadı. FTS kod devamlılığı PASS; iptal edilen `FTS-000027`
+  yeniden kullanılmadan gerçek sevk `FTS-000028` ile devam etti.
+- Bulunan problem: Yok.
+- Karar: FAZ 2 PASS.
+- Sonraki adım: FAZ 3 — MGP / FIXED COMMITMENT / TERMİN DEĞİŞİKLİĞİ aktif sıradaki fazdır;
+  henüz başlatılmadı.
+
+==========================================================================================
+
+# FAZ 3 — MGP / FIXED COMMITMENT / TERMİN DEĞİŞİKLİĞİ
+
+SALES-A için 3 takım montajı karşılayacak güncel reçetedeki gerekli PRC setleri hazırlanır.
+
+Güncel reçete değişmezse üç takım için beklenen temsilci miktarlar:
+
+- `PRC-000018`: `3`
+- `PRC-000004`: `3`
+- `PRC-000025`: `3`
+- `PRC-000016`: `6`
+- `PRC-000022`: `3`
+- `PRC-000013`: `3`
+- `PRC-000009`: `3`
+
+Bu liste test anında güncel ürün reçetesiyle tekrar doğrulanır; tahminle kullanılmaz.
+
+## Kullanıcı / test asistanı işlemleri
+
+1. SALES-A için `2 takım` MGP DRAFT oluştur.
+2. DRAFT iptal et.
+3. Exact miktarın serbest kaldığını doğrula.
+4. SALES-A için yeni `3 takım` MGP oluştur.
+5. Yeni MGP'yi aktif fixed commitment olarak bırak.
+6. SALES-C terminini T0+6'dan T0+1'e çek.
+7. Refresh yap.
+8. Ekranı kapatıp yeniden aç.
+
+## Ekranda beklenen ve kritik miktarlar
+
+- İptal edilen MGP/STAI exact miktarı tamamen açılır.
+- Yeni `3 takım` SALES-A'ya fixed kalır.
+- SALES-A'nın residual `2 takım` borcu serbesttir.
+- Termin değişiminden sonra serbest ticari sıra:
+  **SALES-C → SALES-A residual → SALES-B → STOCK-D**
+- SALES-A'ya fixed `3 takım` SALES-C'ye taşınmaz.
+- Exact overlap oluşmaz.
+
+## PASS şartı
+
+Yalnız serbest miktar yeniden dağıtılır; fixed commitment ve exact kanıt değişmeden korunur.
+
+## FAIL / BLOCKED durma şartı
+
+- Fixed commitment başka hedefe taşınır.
+- İptal sonrası ghost hold kalır.
+- Residual miktar yanlış hesaplanır.
+- MGP/STAI exact overlap oluşur.
+- Refresh sonrası tahsis değişir.
+
+## Geçiş şartı
+
+Faz 3 PASS olmadan Faz 4 başlamaz.
+
+### FAZ 3 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Kullanılan gerçek kayıt kodları:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- Ekranda görülen sonuç:
+- Önemli miktarlar:
+- Revision/checkpoint:
+- Ekran kanıtı açıklaması:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+### 2026-09-02 15:29:45 +03:00 — DÜZELTME / YENİDEN TEST SONUCU
+
+- Durum: PASS
+- Kullanılan gerçek kayıt kodları: İptal edilen `MGP-000032`; yeni aktif DRAFT `MGP-000033`;
+  `STAI-000113…STAI-000119` iptal edildi; `STAI-000120…STAI-000126` ACTIVE.
+- Uygulayan kişi/araç: Kullanıcı / gerçek ekran.
+- Ekranda görülen sonuç: `MGP-000032` iptal edildi ve bağlı `7` STAI aktif durumdan çıktı.
+  Exact hold `16 → 0` açıldı; ghost hold kalmadı. Ardından SALES-A için `MGP-000033` ile
+  `3 takım / 24 parça` fixed commitment kuruldu; SALES-A residual borcu `2 takım` kaldı.
+- Önemli miktarlar: SALES-A fixed `3 takım / 24 parça`; SALES-A residual `2 takım`;
+  serbest ticari sıra `SALES-C → SALES-A residual → SALES-B → STOCK-D`.
+- Termin kanıtı: SALES-C yeni termin `02.09.2026`.
+- Revision/checkpoint: Revision `11974`; fixed `3 takım` SALES-C'ye taşınmadı; physical origin
+  korundu; exact overlap `0`; double-count `0`.
+- Ekran kanıtı açıklaması: Refresh ve ekranı kapatıp yeniden açma sonrasında fixed commitment,
+  residual miktar, ticari sıra ve exact sonuç değişmedi.
+- Test güvenliği: Demo Reset yapılmadı; FAZ 1–2 tekrarlanmadı; FAZ 4 başlatılmadı.
+- Tarihsel kayıt koruması: Önceki FAZ 3 FAIL/BLOCKED kanıtları silinmedi veya yeniden yazılmadı;
+  bu kayıt append-only düzeltme sonrası yeniden test sonucudur.
+- Bulunan problem: Yok.
+- Karar: FAZ 3 PASS.
+- Sonraki adım: FAZ 4 — KISMİ MONTAJ / MCT / READY-FIRST aktif sıradaki fazdır; henüz başlatılmadı.
+
+==========================================================================================
+
+# FAZ 4 — KISMİ MONTAJ / MCT / READY-FIRST
+
+## Kullanıcı / test asistanı işlemleri
+
+1. SALES-A'nın aktif `3` takımlık MGP'sini MGS ile montaja sevk et.
+2. Montaj `3` takımı teslim alsın.
+3. Yalnız `2` takım tamamlansın.
+4. `2` takımlık MCT oluştur.
+5. PENDING durumunu kontrol et.
+6. Depo `2` takımı kabul et.
+7. Refresh yap.
+
+## Ekranda beklenen ve kritik miktarlar
+
+- Toplam `3 = 2 tamamlanan + 1 montajda`.
+- MCT pending miktarı `2`.
+- Pending aşamasında tüketilmiş PRC ile bitmiş ürün aynı fiziksel miktar için birlikte sayılmaz.
+- Depo kabulüyle MCT POSTED olur.
+- Tam `2` adet canonical `SVR-000002` finished stock oluşur.
+- İlgili stock movement miktarı tam `2` olur.
+- SALES-A'nın kalan üretim borcu ile montajdaki miktar ayrı görünür.
+
+## PASS şartı
+
+Miktar dengesi doğrudur; movement–stock eşleşir; double-count ve negative stock yoktur.
+
+## FAIL / BLOCKED durma şartı
+
+- Miktar kaybı veya artışı.
+- Pending PRC/SVR çift sayımı.
+- Movement–stock farkı.
+- Yanlış hedef tahsisi.
+- Montajdaki `1` miktarın kaybolması.
+
+## Geçiş şartı
+
+Faz 4 PASS olmadan Faz 5 başlamaz.
+
+### FAZ 4 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Kullanılan gerçek kayıt kodları:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- Ekranda görülen sonuç:
+- Önemli miktarlar:
+- Revision/checkpoint:
+- Ekran kanıtı açıklaması:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+==========================================================================================
+
+# FAZ 5 — SVP / GERÇEK MÜŞTERİ SEVKİYATI
+
+## Kullanıcı / test asistanı işlemleri
+
+1. SALES-A için hazır `2` üründen yalnız `1` adedi SVP'ye bağla.
+2. PLANNED commitment'ı kontrol et.
+3. `1` adet gerçek müşteri sevki yap.
+4. Aynı planı ikinci kez sevk etmeyi dene.
+5. Refresh yap.
+6. Ekrandan çıkıp yeniden gir.
+
+## Ekranda beklenen ve kritik miktarlar
+
+- Yalnız `1` finished product SVP ile sabitlenir.
+- TF kodu monoton devam eder ve geçmiş kodu yeniden kullanmaz.
+- Tam `1` adet `SALES_SHIPMENT_OUT` oluşur.
+- Finished stock `1` azalır.
+- Satışın gerçek sevk miktarı `1` artar.
+- Sevk edilen segment resolver/ready havuzundan tamamen çıkar.
+- İkinci sevk yeni TF, movement veya stok düşümü oluşturmaz.
+
+Kalan görünüm birbirinden ayrılabilmelidir:
+
+- `1` finished-ready,
+- `1` montajda,
+- `2` henüz tamamlanmamış SALES-A borcu,
+- `1` gerçek sevk edilmiş ürün.
+
+## PASS şartı
+
+TF, stok, movement ve satış borcu birebir uyumludur; ikinci sevk idempotent biçimde reddedilir;
+sevk edilen miktar tekrar tahsis edilemez.
+
+## FAIL / BLOCKED durma şartı
+
+- TF save reddi.
+- Çift sevk veya ikinci stok düşümü.
+- Fazla/eksik stok hareketi.
+- Sevk edilen ürünün yeniden tahsise girmesi.
+- Sevk snapshot'ının sonradan değişmesi.
+- Refresh sonrası terminal durumun kaybolması.
+
+## Geçiş şartı
+
+Faz 5 PASS olmadan Final Ana Omurga Kabulü yapılmaz.
+
+### FAZ 5 SONUCU / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Kullanılan gerçek kayıt kodları:
+- Uygulayan kişi/araç:
+- Durum: BEKLİYOR
+- Ekranda görülen sonuç:
+- Önemli miktarlar:
+- Revision/checkpoint:
+- Ekran kanıtı açıklaması:
+- Bulunan problem:
+- Karar:
+- Sonraki adım:
+
+### 2026-09-02 — İLK GERÇEK EKRAN SONUCU
+
+- Tarih/saat: 2026-09-02; kesin test saati bildirilmedi.
+- Kullanılan gerçek kayıt kodları: SALES-A `SOR-000019 / PLN-000032`; `MGP-000033`;
+  `MGS-000010`; `MCT-000015`; ürün `SVR-000002`.
+- Uygulayan kişi/araç: Kullanıcı + Masaüstü ChatGPT — gerçek ekran testi; Codex yalnız salt-okunur
+  kök neden incelemesi yaptı.
+- Durum: FAIL
+- Ekranda görülen sonuç: SALES-A Sevkiyat Planlama ekranında `Sevkiyata Hazır: 0` ve
+  `Planlanabilir: 0` görüldü; ürün seçimi ve miktar girişi devre dışı kaldı.
+- Önemli miktarlar: Sevkiyat Deposu `R01-A1` içinde `2` adet canonical `SVR-000002` stok ve tam
+  `2` adet `MONTAGE_FINISHED_PRODUCT_IN` hareketi korunuyordu. SVP, TF ve
+  `SALES_SHIPMENT_OUT` oluşturulmadı; fiziksel stok değişmedi.
+- Revision/checkpoint: Revision `11980`.
+- Ekran kanıtı açıklaması: Test, ilk plandaki “SALES-A için hazır 2 üründen 1 adedi SVP'ye bağla”
+  adımında durduruldu; duplicate/idempotency adımlarına geçilmedi.
+- Bulunan problem: Test planı beklentisi aktif V29 ticari tahsis sırasıyla çelişiyordu. FAZ 3'te
+  SALES-C termini `02.09.2026` yapıldığı için serbest finished-ready miktarın current commercial
+  target'ı SALES-C'dir. Bu sonuç program hatası değildir.
+- Karar: İlk gerçek ekran FAIL kaydı tarihsel kanıt olarak korunur; PASS'e çevrilmez.
+- Sonraki adım: Aşağıdaki düzeltilmiş SALES-C başlangıç kararıyla FAZ 5 gerçek ekran yeniden testi.
+
+### 2026-09-02 16:02:46 +03:00 — DÜZELTME / YENİDEN TEST NOTU
+
+#### Düzeltilmiş FAZ 5 başlangıç kararı
+
+FAZ 4'te SALES-A origin'inden doğan `2` adet `SVR-000002` finished stock, `MCT-000015` POSTED
+sonrasında serbest ready-first havuzuna dönmüştür. FAZ 3'teki termin değişikliği nedeniyle current
+commercial target SALES-C'dir.
+
+Bu nedenle FAZ 5 yeniden testinde sevkiyat:
+
+**SALES-C / SOR-000021**
+
+üzerinden yapılacaktır. Physical origin:
+
+**SALES-A / SOR-000019**
+
+olarak korunmalıdır. Bu cross-origin durum hata değildir; V29 physical-origin / virtual-target
+ayrımının beklenen davranışıdır.
+
+#### Düzeltilmiş FAZ 5 test akışı
+
+1. SALES-C Sevkiyat Planlama ekranında `2` adet `SVR-000002` finished-ready görünmesini doğrula.
+2. Bu `2` üründen yalnız `1` adedini SVP'ye bağla.
+3. PLANNED SVP'nin yalnız `1` finished product'u fixed commitment yaptığını doğrula.
+4. Diğer `1` finished-ready miktarın doğru göründüğünü doğrula.
+5. `1` adet gerçek müşteri sevki yap.
+6. Yeni, tekil ve monoton TF oluştuğunu doğrula.
+7. Tam `1` adet `SALES_SHIPMENT_OUT` oluştuğunu doğrula.
+8. Finished stock'un tam `1` azaldığını doğrula.
+9. SALES-C gerçek sevk miktarının tam `1` arttığını doğrula.
+10. Sevk edilen segmentin ready/tahsis havuzundan tamamen çıktığını doğrula.
+11. Aynı SVP'yi ikinci kez bilerek sevk etmeyi dene.
+12. İkinci sevkin reddedildiğini doğrula.
+13. İkinci TF oluşmadığını doğrula.
+14. İkinci movement oluşmadığını doğrula.
+15. İkinci stok düşümü oluşmadığını doğrula.
+16. Refresh yap.
+17. Ekrandan çıkıp yeniden gir.
+18. Terminal durumun stabil kaldığını doğrula.
+
+#### Cross-origin doğrulaması
+
+- Physical origin: SALES-A / `SOR-000019`.
+- Current commercial target: SALES-C / `SOR-000021`.
+- SVP/TF ticari hedefi SALES-C olabilir; bu işlem physical origin'i SALES-C olarak rewrite etmez.
+- Üretim/MGP/MGS/MCT geçmişi SALES-C'ye taşınmış gibi davranılmaz.
+
+#### Düzeltilmiş PASS şartı
+
+FAZ 5 yalnız şu koşulların tümünde PASS kabul edilir:
+
+- SALES-C `2` ready ürün görür.
+- Yalnız `1` adet SVP ile fixed olur ve yalnız `1` adet gerçekten sevk edilir.
+- Stok, movement ve satış borcu birebir uyumludur.
+- Duplicate sevk engellenir ve sevk edilmiş miktar tekrar tahsis edilmez.
+- Physical origin SALES-A olarak korunur; commercial target SALES-C olur.
+- Negative stock ve double-count yoktur.
+- Refresh/reopen sonucu stabildir.
+
+#### Düzeltilmiş FAIL / BLOCKED durma şartı
+
+- SALES-C beklenen `2` ready ürünü göremezse.
+- Physical origin rewrite edilirse veya yanlış SOR'a sevk/tahsis oluşursa.
+- Çift sevk ya da ikinci TF, movement veya stok düşümü oluşursa.
+- Sevk edilen miktar havuza geri girerse.
+- Movement–stock farkı oluşursa.
+- Terminal durum refresh/reopen sonrasında değişirse.
+- Güvenilir sonuç belirlenemezse.
+
+Bu düzeltme yalnız yeniden test beklentisini değiştirir. İlk FAIL kaydı korunur. FAZ 5 yeniden test
+PASS olmadan Final Ana Omurga Kabulüne geçilmez.
+
+### 2026-09-02 16:10:23 +03:00 — DÜZELTME / YENİDEN TEST SONUCU
+
+- Kullanılan gerçek kayıt kodları: SALES-C `SOR-000021 / PLN-000030`; physical origin SALES-A
+  `SOR-000019`; `SVR-000002`; `SVP-000003`; `TF-000002`; kaynak `MCT-000015`.
+- Uygulayan kişi/araç: Kullanıcı + Masaüstü ChatGPT — gerçek ekran yeniden testi; Codex final
+  state'i salt-okunur doğruladı.
+- Durum: PASS
+- Ekranda görülen sonuç: SALES-C başlangıçta `2 ready / 2 planlanabilir` gördü. Yalnız `1` adet
+  SVP'ye bağlandı; `SVP-000003` yalnız `1` finished product'u fixed yaptı ve diğer `1` adet
+  finished-ready kaldı. Gerçek müşteri sevkinde `TF-000002` oluştu.
+- Önemli miktarlar: Finished stock `2 → 1`; SALES-C gerçek sevk miktarı `1`; kalan canonical
+  finished-ready `1`. Sevk edilen fiziksel miktar ready/tahsis havuzundan çıktı.
+- Duplicate/idempotency kanıtı: Aynı SVP terminal salt-okunur durumda kaldı ve ikinci sevk aksiyonu
+  sunulmadı. İkinci TF, movement, stok düşümü veya duplicate gerçek sevk oluşmadı.
+- Cross-origin kanıtı: Physical origin `SALES-A / SOR-000019`; commercial target ve gerçek sevkiyat
+  `SALES-C / SOR-000021`. MGP/MGS/MCT geçmişi rewrite edilmedi.
+- Teknik checkpoint: Revision `11982`; `SVP-000003 = DISPATCHED`; `TF-000002 = DISPATCHED`;
+  canonical stok `1`; resolver finished segment `1`; SALES-C dispatched `1`, open `2`, ready `1`,
+  residual `1`.
+- Invariant sonucu: Negative stock `0`; exact overlap `0`; double-count `0`; hayalet
+  rezerv/tahsis `0`; orphan operasyon `0`; movement–stock farkı `0`.
+- Ekran kanıtı sınırı: Stok ekranında ayrıca isimlendirilmiş bir `SALES_SHIPMENT_OUT` satırı
+  görünmedi. State'te `TF-000002`ye bağlı tekil ve tam `1` miktarlı `SALES_SHIPMENT_OUT` hareketi
+  doğrulandı; görünmeyen UI satırı varmış gibi kabul edilmedi.
+- Kararlılık: Refresh ve reopen sonrasında sonuç değişmedi.
+- Bulunan problem: Yeni problem yok.
+- Karar: FAZ 5 PASS. İlk SALES-A FAIL kaydı tarihsel kanıt olarak korunur.
+- Sonraki adım: Final Ana Omurga Kabulü.
+
+==========================================================================================
+
+# FİNAL ANA OMURGA KABULÜ
+
+Bütün fazlar tamamlandığında birlikte kontrol edilir:
+
+- SALES → STOCK önceliği doğru.
+- SALES termin sırası doğru.
+- Termin değişikliği yalnız free miktarı değiştirdi.
+- STOCK-origin physical provenance korundu.
+- Kardeş PRC yalnız ayrışma öncesi ortak kullanılabildi.
+- FTS DRAFT lock doğru çalıştı.
+- DRAFT cancellation exact miktarı yeniden açtı.
+- Gerçek branch sonrası yanlış kardeş kullanımı olmadı.
+- MGP/STAI fixed commitment korundu.
+- Kısmi üretim/montaj/MCT/sevkiyat miktarları doğru.
+- Ready-first doğru çalıştı.
+- Gerçek müşteri sevki terminal sınır oldu.
+- Sevk edilen fiziksel miktar tekrar kullanılamadı.
+- Negative stock: `0`.
+- Exact overlap: `0`.
+- Double-count: `0`.
+- Hayalet rezerv/tahsis: `0`.
+- Orphan operasyon: `0`.
+- Refresh sonrası sonuç değişikliği: `0`.
+- Operasyon kodları tekil ve monoton devam etti.
+
+Nihai sonuç yalnız:
+
+**PASS / FAIL / BLOCKED**
+
+olarak kapatılır.
+
+### FİNAL SONUÇ / GERÇEK TEST NOTU
+
+- Tarih/saat:
+- Kullanılan gerçek kayıt kodları:
+- Değerlendiren kişi/araçlar:
+- Nihai durum: BEKLİYOR
+- Faz sonuçları:
+- Final miktar dengesi:
+- Final revision/checkpoint:
+- Negative stock:
+- Exact overlap:
+- Double-count:
+- Hayalet rezerv/tahsis:
+- Orphan operasyon:
+- Ekran kanıtı özeti:
+- Açık problem:
+- Ana kabul sorusunun cevabı:
+- Sonraki karar:
+
+### 2026-09-02 16:18:12 +03:00 — FİNAL TEKNİK / GERÇEK EKRAN KABUL SONUCU
+
+- Kullanılan gerçek kayıt kodları: `SOR-000019..SOR-000021`; `PLN-000029..PLN-000032`;
+  `WO-000177..WO-000204`; `FTS-000027..FTS-000028`; `MGP-000032..MGP-000033`;
+  `STAI-000113..STAI-000126`; `MGS-000010`; `MCT-000015`; `SVP-000003`; `TF-000002`.
+- Değerlendiren kişi/araçlar: Kullanıcı + Masaüstü ChatGPT gerçek ekran kanıtı; Codex güncel
+  repo/worktree/state/runtime üzerinde salt-okunur final checkpoint.
+- Nihai durum: PASS
+- Faz sonuçları: KAPI 1 PASS; FAZ 0 PASS; FAZ 1 PASS; FAZ 2 PASS; FAZ 3 PASS; FAZ 4 PASS;
+  FAZ 5 ilk SALES-A testi tarihsel FAIL; FAZ 5 SALES-C düzeltme/yeniden test PASS.
+- Final miktar dengesi: `3 SALES + 1 STOCK`, `28 WO`; `MGP-000032 = CANCELLED`;
+  `MGP-000033 = DISPATCHED_TO_MONTAGE`; STAI `7 CANCELLED + 7 COMPLETED`, ACTIVE `0`;
+  `MGS-000010 = RECEIVED`; `MCT-000015 = POSTED / 2`; finished input `2`;
+  `SALES_SHIPMENT_OUT = 1`; canonical finished stock `1`; montajda kalan `1` takım.
+- Final revision/checkpoint: Revision `11982`; runtime `PROTOTYPE`, port `5501`, PID `14192`;
+  ardışık iki runtime state okuması aynı revision ve aynı SHA-256 sonucu verdi.
+- Negative stock: `0`.
+- Exact overlap: `0`; resolver exact hold ledger geçerli, active exact hold `0`.
+- Double-count: `0`; bütün resolver miktar/tek-sayım invariant'ları `true`.
+- Hayalet rezerv/tahsis: `0`; active STAI, DRAFT MGP ve PLANNED SVP yok.
+- Orphan operasyon: `0`; MGP/MGS/MCT/SVP/TF/stock/movement bağlantıları tekil ve doğrulandı.
+- Physical origin / commercial target: Kalan finished segmentin physical origin'i SALES-A
+  `SOR-000019`; current commercial target'ı SALES-C `SOR-000021`; provenance rewrite yok.
+- Gerçek sevk terminal sınırı: `SVP-000003` yalnız `1` adedi fixed yaptı; `TF-000002` ve tekil
+  `SALES_SHIPMENT_OUT` tam `1`; stok `2 → 1`; SALES-C gerçek sevki `1`; ikinci fiziksel etki yok;
+  sevk edilen miktar ready/tahsis havuzuna dönmedi.
+- Operasyon kodları: Tekil ve monoton; high-water değerleri current maksimumlarla uyumlu;
+  `SVP = 3`, `TF = 2`; untrusted family yok.
+- Ekran kanıtı özeti: FAZ 0–4 PASS kanıtları korundu. FAZ 5'in ilk SALES-A FAIL'i silinmedi;
+  V29'a uygun SALES-C yeniden testi PASS oldu. Refresh/reopen sonucu değişmedi.
+- Açık risk: `SALES_SHIPMENT_OUT` stok ekranında ayrıca isimlendirilmiş satır olarak görünmedi;
+  state'teki exact terminal hareket doğrulandı. Resolver'ın fail-closed dışarıda tuttuğu eski genel
+  stok belirsizlikleri mevcut E2E kohortunu ve final invariant'ları etkilemiyor.
+- Ana kabul sorusunun cevabı: Ana omurga E2E teknik ve gerçek ekran kabul kriterleri güncel kanıtlarla
+  desteklenmektedir.
+- Sonraki karar: ANA OMURGA E2E TEKNİK/GERÇEK EKRAN KABULÜ TAMAMLANDI — KULLANICININ NİHAİ
+  İŞLETME KABULÜ BEKLENİYOR.
+
+### 2026-09-02 16:29:15 +03:00 — NİHAİ İŞLETME KABULÜ VE KAPANIŞ
+
+- Kabulü veren: Kullanıcı.
+- Nihai işletme kabulü: PASS.
+- Kabul kapsamı: KAPI 1 ile FAZ 0–5 gerçek ekran testleri, FAZ 5'in tarihsel SALES-A FAIL kaydı,
+  düzeltilmiş SALES-C yeniden test PASS sonucu ve Final Teknik/Gerçek Ekran Kabulü.
+- Tarihsel kayıt koruması: Önceki bütün FAIL/PASS ve düzeltme/yeniden test kayıtları aynen
+  korunur; hiçbir kayıt silinmez veya yeniden yazılmaz.
+- Kapanış kararı: Kullanıcı, DULDA ERP Ana Omurga E2E çalışmasının gerçek ekran testlerini ve final
+  sonucunu işletme açısından kabul etti.
+- Final iş durumu: TAMAMLANDI — ANA OMURGA E2E KAPANDI.
+- Sonraki adım: Yok. Yeni analiz, test veya teknik geliştirme başlatılmadı.
+
+==========================================================================================
+
+## TEST İLERLEME VE SORUN GÜNLÜĞÜ
+
+Başlangıç durumu:
+
+- İş durumu: PLANLANIYOR
+- Aktif kapı: TF HIGH-WATER TRUST
+- Mevcut durum: BLOCKED
+- Test kohortu henüz oluşturulmadı.
+- Demo baseline korunuyor.
+
+### 2026-09-01 15:16:45 +03:00 — KAPI 1 / TF HIGH-WATER TRUST
+
+- Durum: BLOCKED
+- Yapılan: Güncel repo/state/runtime üzerinde salt-okunur TF high-water kontrolü yapıldı.
+- Beklenen: Yeni TF kodunun tarihsel high-water'dan ileri ve güvenilir biçimde kabul edilmesi.
+- Gerçek sonuç: TF high-water `1`; untrusted family `TF`; prospective `TF-000002` geçişi
+  `OPERATIONAL_CODE_HIGH_WATER_UNTRUSTED` ile reddediliyor.
+- Kanıt: PROTOTYPE runtime, revision `11926`, test kohortu `0`.
+- Bulunan sorun: TF trust kapısı kapanmamış durumda.
+- Karar: E2E kohortu oluşturulmayacak; Faz 0 başlamayacak.
+- Sonraki adım: Ayrı onaylı çalışma ile TF HIGH-WATER çalıştırma kapısını PASS hale getirmek.
+
+### 2026-09-01 16:30:27 +03:00 — KAPI 1 / TF HIGH-WATER TRUST — DÜZELTME / YENİDEN TEST
+
+- Durum: PASS
+- Yapılan: Dondurulmuş tarihsel state kanıtlarıyla TF high-water attestation yapıldı; yalnız TF trust metadatası düzeltildi.
+- Beklenen: Tarihsel TF high-water güvenilir olmalı; yeni `TF-000002` kabul edilmeli, `TF-000001` yeniden kullanılamamalı.
+- Gerçek sonuç: TF high-water `1` olarak korundu; `TF` untrusted işareti kapandı; prospective `TF-000002` server policy tarafından kabul edildi; `TF-000001` denemesi `OPERATIONAL_CODE_REUSE` ile reddedildi.
+- Kanıt: Dondurulmuş revision `11923`, `11924`, `11925` checkpoint SHA-256 değerleri kayıtlı kanıtla birebir eşleşti. State revision `11947 → 11948`; `data` SHA-256 attestation öncesi/sonrası `BD21C1546EA209AC5DB25DFF548358F75468C50AE8F476AB68A7265D99D4070F`; resolver SHA-256 öncesi/sonrası `364BF4149AF77061DB31C6B42F6B909FE4FDBCC4D60CF9EC7DD9BF563271BEE5`.
+- Kohort koruması: `SOR-000019..SOR-000021`, `PLN-000029..PLN-000032` ve `WO-000177..WO-000204` aynen korundu; 3 SALES + 1 STOCK ve toplam 28 WO değişmedi.
+- Runtime güvenliği: PROTOTYPE runtime aynı modda yeniden başlatıldı. Uygulama kodu değiştirilmedi; hedefli high-water ve PROTOTYPE/LIVE kapı guard testleri PASS.
+- Bulunan sorun: KAPI 1 blocker'ı kapandı; yeni somut high-water sorunu yok.
+- Karar: KAPI 1 PASS. Bu kayıt FAZ 0 kabul sonucunu otomatik değiştirmez.
+- Sonraki adım: Güncel revision `11948` üzerinden FAZ 0 salt-okunur kabul kontrolünü yeniden çalıştır; PASS değilse FAZ 1'e geçme.
+
+### 2026-09-01 16:52:31 +03:00 — FAZ 1 / ÜRETİM / ÖNCELİK / İLERİ AŞAMA
+
+- Durum: PASS
+- Yapılan: Masaüstü ChatGPT ile gerçek ekran üzerinde SALES-A ve STOCK-D temsilci kardeş miktarları
+  ilerletildi; tahsis, physical-origin, ticari sıra ve refresh kararlılığı kontrol edildi.
+- Beklenen: İleri ortak-prefix miktarı ticari sıraya göre SALES borcuna kullanılmalı; physical origin
+  STOCK-D olarak kalmalı; aynı miktar iki kez sayılmamalı.
+- Gerçek sonuç: STOCK-D-origin `2` birim `CNC ATOLYESI / Devir Bekliyor` aşamasına ulaştı ve SALES-A
+  yalnız ticari hedef oldu. SALES-A `5`, SALES-B `4`, SALES-C `0` tahsis aldı; STOCK-D erken terminine
+  rağmen SALES borçlarının önüne geçmedi.
+- Kanıt: SALES-A `SOR-000019 / PLN-000032 / WO-000184`; SALES-B `SOR-000020 / PLN-000031`;
+  SALES-C `SOR-000021 / PLN-000030`; STOCK-D `PLN-000029 / WO-000177`; BRIGHT `PRC-000018`,
+  GOLD `PRC-000017`, `masterCode AKS0003`. Refresh sonrası tahsis, borç ve aşama dağılımı aynı kaldı;
+  kritik ekran kanıtları alındı.
+- Bulunan sorun: Yok; görünür double-count / overlap yok.
+- Karar: FAZ 1 PASS. FAZ 2 bu kayıtla başlatılmadı.
+- Sonraki adım: FAZ 2 — KARDEŞ PRC / FASON / AYRIŞMA.
+
+### 2026-09-01 17:10:15 +03:00 — FAZ 2 / KARDEŞ PRC / FASON / AYRIŞMA
+
+- Durum: PASS
+- Yapılan: GOLD `PRC-000017` için `FTS-000027` DRAFT oluşturulup iptal edildi; exact miktarın
+  yeniden açılması kontrol edildi. Ardından `FTS-000028` ile gerçek GOLD/eloksal sevki yapıldı.
+- Beklenen: DRAFT exact miktarı kilitlemeli, iptal aynı miktarı yeniden açmalı, gerçek GOLD branch
+  sonrasında miktar BRIGHT `PRC-000018` için kullanılamamalı ve FTS kodu tekrar kullanılmamalı.
+- Gerçek sonuç: Exact `2` adet iptal sonrası kardeş havuzuna geri açıldı; gerçek branch sonrasında
+  BRIGHT'a tahsis edilmedi. SALES-B, GOLD miktarda STOCK-D'nin önünde kaldı ve physical origin
+  `PLN-000029 / WO-000177` olarak korundu.
+- Kanıt: `WO-000177`, GOLD `PRC-000017`, BRIGHT `PRC-000018`, `FTS-000027 → iptal`,
+  `FTS-000028 → gerçek sevk`; hayalet reservation/assignment yok ve FTS kod devamlılığı PASS.
+- Bulunan sorun: Yok.
+- Karar: FAZ 2 PASS. FAZ 3 bu kayıtla başlatılmadı.
+- Sonraki adım: FAZ 3 — MGP / FIXED COMMITMENT / TERMİN DEĞİŞİKLİĞİ.
+
+### 2026-09-02 15:29:45 +03:00 — FAZ 3 / MGP / FIXED COMMITMENT / TERMİN DEĞİŞİKLİĞİ — DÜZELTME / YENİDEN TEST
+
+- Durum: PASS
+- Yapılan: Mevcut `MGP-000032` DRAFT gerçek ekrandan iptal edildi; exact miktarın açılması
+  doğrulandı. SALES-A için `MGP-000033` ile `3 takım` fixed commitment kuruldu, SALES-C termini
+  `02.09.2026` yapıldı; refresh ve reopen kontrolleri tamamlandı.
+- Beklenen: İptal edilen MGP/STAI exact miktarı tamamen açılmalı; yeni `3 takım` SALES-A'ya fixed
+  kalmalı; yalnız serbest miktar `SALES-C → SALES-A residual → SALES-B → STOCK-D` sırasında
+  yeniden dağılmalı.
+- Gerçek sonuç: `MGP-000032 = CANCELLED`; bağlı `7` STAI aktif durumdan çıktı; exact hold
+  `16 → 0`; ghost hold `0`. `MGP-000033` SALES-A için `3 takım / 24 parça` fixed kaldı;
+  SALES-A residual `2 takım` oldu ve fixed miktar SALES-C'ye taşınmadı.
+- Kanıt: Revision `11974`; physical origin korundu; exact overlap ve double-count yok;
+  refresh ve reopen sonrası sonuç değişmedi. Demo Reset yapılmadı, FAZ 1–2 tekrarlanmadı.
+- Bulunan sorun: Yok.
+- Karar: FAZ 3 PASS. Önceki FAIL/BLOCKED kanıtları korunur; FAZ 4 bu kayıtla başlatılmadı.
+- Sonraki adım: FAZ 4 — KISMİ MONTAJ / MCT / READY-FIRST.
+
+### 2026-09-02 — FAZ 5 / SVP / GERÇEK MÜŞTERİ SEVKİYATI — İLK GERÇEK EKRAN TESTİ
+
+- Durum: FAIL
+- Yapılan: İlk test planındaki SALES-A için `2` hazır üründen `1` adedini SVP'ye bağlama adımı
+  gerçek ekranda denendi.
+- Beklenen: SALES-A Sevkiyat Planlama ekranında `2` ready ve en az `1` planlanabilir ürün görünmesi.
+- Gerçek sonuç: SALES-A için `Sevkiyata Hazır: 0 / Planlanabilir: 0` görüldü; SVP, TF veya
+  `SALES_SHIPMENT_OUT` oluşturulmadan test durduruldu ve fiziksel stok değişmedi.
+- Kanıt: `MCT-000015 = POSTED`; `R01-A1` içinde `2` adet `SVR-000002`; revision `11980`.
+- Bulunan sorun: İlk test beklentisi, FAZ 3'te kurulan
+  `SALES-C → SALES-A residual → SALES-B → STOCK-D` ticari sırasıyla çelişiyordu. Resolver serbest
+  `2` ürünü SALES-C'ye tahsis etmektedir; bu program hatası değildir.
+- Karar: FAIL tarihsel kanıt olarak korunur; PASS'e çevrilmez.
+- Sonraki adım: Düzeltilmiş SALES-C başlangıç kararı append edilecek; gerçek ekran testi henüz
+  yeniden başlatılmayacak.
+
+### 2026-09-02 16:02:46 +03:00 — FAZ 5 / DÜZELTME / YENİDEN TEST KARARI
+
+- Durum: PLANLANIYOR
+- Yapılan: Salt-okunur teknik kök neden sonucu V29 ile karşılaştırıldı ve yalnız aktif test planının
+  FAZ 5 beklentisi düzeltildi.
+- Beklenen: SALES-A physical origin'inden doğan serbest canonical finished stock'un current
+  commercial target olan SALES-C üzerinden planlanması; provenance'in değişmemesi.
+- Gerçek sonuç: Düzeltilmiş yeniden test başlangıcı `SALES-C / SOR-000021`; physical origin
+  `SALES-A / SOR-000019` olarak kaydedildi. Yalnız `1` adet SVP, `1` gerçek TF ve tam `1`
+  `SALES_SHIPMENT_OUT` ile duplicate/idempotency kontrolü yapılacak.
+- Kanıt: V29 MCT POSTED → serbest ready-first → termin sıralı dynamic allocation sözleşmesi;
+  revision `11980` salt-okunur resolver sonucu target SALES-C `2`, origin SALES-A `2`.
+- Bulunan sorun: Yeni program problemi yok; ilk FAIL'in nedeni test planı–aktif tahsis sırası
+  çelişkisidir.
+- Karar: İlk FAIL append-only korunur. Düzeltilmiş gerçek ekran testi yapılmadan FAZ 5 PASS sayılmaz.
+- Sonraki adım: FAZ 5 — SALES-C üzerinden düzeltilmiş gerçek ekran yeniden testi. Final Ana Omurga
+  Kabulüne henüz geçilmez.
+
+### 2026-09-02 16:10:23 +03:00 — FAZ 5 / DÜZELTME / YENİDEN TEST
+
+- Durum: PASS
+- Yapılan: SALES-C `SOR-000021` için görülen `2` finished-ready üründen yalnız `1` adet
+  `SVP-000003`e bağlandı; `TF-000002` ile gerçek sevk yapıldı; duplicate denemesi, refresh ve reopen
+  kontrolleri tamamlandı.
+- Beklenen: Tek SVP/TF/stok etkisi; sevk edilen miktarın havuzdan çıkması; physical origin SALES-A,
+  commercial target SALES-C; duplicate fiziksel etki olmaması.
+- Gerçek sonuç: `SVP-000003 = DISPATCHED`; `TF-000002 = DISPATCHED`; stok `2 → 1`;
+  SALES-C gerçek sevk `1`; kalan ready `1`; ikinci TF/movement/stok düşümü yok.
+- Kanıt: Revision `11982`; physical origin `SOR-000019`; commercial target `SOR-000021`;
+  tekil `SALES_SHIPMENT_OUT = 1`; refresh/reopen stabil; negative stock, overlap ve double-count yok.
+- Bulunan sorun: Yeni problem yok. `SALES_SHIPMENT_OUT` UI'da ayrıca isimlendirilmiş satır olarak
+  görünmedi; state terminal hareketi tekil ve exact doğruladı.
+- Karar: FAZ 5 PASS. İlk SALES-A FAIL kaydı tarihsel kanıt olarak korunur.
+- Sonraki adım: Final Ana Omurga Kabulü.
+
+### 2026-09-02 16:18:12 +03:00 — FİNAL ANA OMURGA KABULÜ
+
+- Durum: PASS
+- Yapılan: Mevcut FAZ 0–5 gerçek ekran kayıtları ve revision `11982` final state'i birlikte,
+  salt-okunur değerlendirildi; faz senaryoları yeniden çalıştırılmadı.
+- Beklenen: Ana omurga lifecycle, miktar, provenance, ready-first, terminal sevk, idempotency ve
+  operasyon kodu kriterlerinin tamamının desteklenmesi.
+- Gerçek sonuç: Bütün final kabul kriterleri desteklendi; negative stock, exact overlap,
+  double-count, hayalet rezerv/tahsis ve orphan operasyon `0`.
+- Kanıt: Canonical input `2`, terminal OUT `1`, current finished stock `1`; SALES-C dispatched `1`;
+  physical origin SALES-A ve commercial target SALES-C; tekil `SVP-000003 / TF-000002`;
+  server zincir doğrulayıcılarında hata yok; resolver invariant'ları `true`.
+- Bulunan sorun: Final PASS'i engelleyen açık problem yok. Tarihsel/ilgisiz belirsizlikler
+  fail-closed kalıyor.
+- Karar: ANA OMURGA E2E TEKNİK/GERÇEK EKRAN KABULÜ PASS.
+- Sonraki adım: Kullanıcının nihai işletme kabulü.
+
+### 2026-09-02 16:29:15 +03:00 — NİHAİ İŞLETME KABULÜ / KAPANIŞ
+
+- Durum: TAMAMLANDI
+- Yapılan: Kullanıcının açık `NİHAİ İŞLETME KABULÜ: PASS` beyanı aktif test defterine append-only
+  olarak kaydedildi.
+- Beklenen: Teknik/gerçek ekran PASS sonucunun kullanıcı işletme kabulüyle kapanması; bütün
+  tarihsel FAIL/PASS kanıtlarının korunması.
+- Gerçek sonuç: KAPI 1 ve FAZ 0–5 zinciri, düzeltilmiş FAZ 5 yeniden testi, Final Teknik/Gerçek
+  Ekran Kabulü ve Nihai İşletme Kabulü PASS olarak kapandı.
+- Kanıt: Kullanıcının 2026-09-02 tarihli nihai işletme kabul beyanı; Final Teknik/Gerçek Ekran
+  Kabulü revision `11982` PASS kaydı.
+- Bulunan sorun: Yok.
+- Karar: TAMAMLANDI — ANA OMURGA E2E KAPANDI.
+- Sonraki adım: Yok; yeni geliştirme veya test başlatılmadı.
+
+------------------------------------------------------------------------------------------
+
+Yeni günlük kayıt formatı:
+
+### [Tarih/Saat] — [Faz/Kapı]
+
+- Durum:
+- Yapılan:
+- Beklenen:
+- Gerçek sonuç:
+- Kanıt:
+- Bulunan sorun:
+- Karar:
+- Sonraki adım:
+
+PASS olmuş eski kayıt silinmez. FAIL/BLOCKED kayıtları sorun düzeltildikten sonra silinmez;
+altına yeni `DÜZELTME / YENİDEN TEST` kaydı eklenir.

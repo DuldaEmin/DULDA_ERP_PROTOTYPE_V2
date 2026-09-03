@@ -833,13 +833,22 @@ const StockModule = {
 
     getNextLocationIdCode: (usedCodes = null) => {
         const used = usedCodes instanceof Set ? usedCodes : StockModule.getUsedLocationIdCodes();
-        let seq = 1;
-        let candidate = `LOC-${String(seq).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            seq += 1;
-            candidate = `LOC-${String(seq).padStart(6, '0')}`;
+        if (typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'LOC', digits: 6, usedCodes: used });
         }
-        return candidate;
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && OperationalCodeHighWater
+            && typeof OperationalCodeHighWater.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'LOC', used);
+        }
+        let maximum = 0n;
+        used.forEach((value) => {
+            const match = String(value || '').trim().toUpperCase().match(/^LOC-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `LOC-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
 
     resolveLocationIdCode: (rawCode, options = {}) => {
@@ -1235,13 +1244,62 @@ const StockModule = {
         if (key === 'CANCELLED' || key === 'CANCELED') return 'İptal Edildi';
         return String(status || '-').trim() || '-';
     },
+    getOperationalCodeHighWaterMark: (prefix) => {
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getCodeHighWaterMark === 'function') {
+            return IdentityPolicy.getCodeHighWaterMark(DB.data, prefix);
+        }
+        const key = String(prefix || '').trim().toUpperCase();
+        return String(DB.data?.meta?.operationalCodeHighWaterMarks?.[key] || '0');
+    },
+    getNextOperationalCode: (prefix, records, field) => {
+        const safePrefix = String(prefix || '').trim().toUpperCase();
+        const usedCodes = new Set((Array.isArray(records) ? records : [])
+            .map((row) => String(row?.[field] || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: safePrefix, usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, safePrefix, Array.from(usedCodes));
+        }
+        const highWater = StockModule.getOperationalCodeHighWaterMark(safePrefix);
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        const pattern = new RegExp(`^${safePrefix}-(\\d{6}|[1-9]\\d{6,})$`);
+        usedCodes.forEach((value) => {
+            const match = value.match(pattern);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `${safePrefix}-${(maximum + 1n).toString().padStart(6, '0')}`;
+    },
+    getNextYearOperationalCode: (prefix, year, records, field) => {
+        const safePrefix = String(prefix || '').trim().toUpperCase();
+        const safeYear = String(year || '').trim();
+        const usedCodes = (Array.isArray(records) ? records : [])
+            .map((row) => String(row?.[field] || '').trim().toUpperCase())
+            .filter(Boolean);
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextYearCode === 'function') {
+            return OperationalCodeHighWater.nextYearCode(DB.data, safePrefix, safeYear, usedCodes);
+        }
+        const markKey = `${safePrefix}:${safeYear}`;
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.[markKey] || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        const pattern = new RegExp(`^${safePrefix}-${safeYear}-(\\d{6}|[1-9]\\d{6,})$`);
+        usedCodes.forEach((value) => {
+            const match = value.match(pattern);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+        });
+        return `${safePrefix}-${safeYear}-${(maximum + 1n).toString().padStart(6, '0')}`;
+    },
     getNextOutsourceDispatchNo: () => {
-        const maxNo = StockModule.getOutsourceDispatchDraftRows().reduce((max, row) => {
-            const match = String(row?.dispatchNo || '').trim().toUpperCase().match(/^FTS-(\d+)$/);
-            const num = match ? Number(match[1]) : 0;
-            return Number.isFinite(num) && num > max ? num : max;
-        }, 0);
-        return `FTS-${String(maxNo + 1).padStart(6, '0')}`;
+        return StockModule.getNextOperationalCode(
+            'FTS',
+            StockModule.getOutsourceDispatchDraftRows(),
+            'dispatchNo'
+        );
     },
     getNextOutsourceDispatchDraftId: () => {
         const used = new Set(StockModule.getOutsourceDispatchDraftRows().map((row) => String(row?.id || '').trim()).filter(Boolean));
@@ -3999,17 +4057,7 @@ const StockModule = {
         const date = dateLike instanceof Date ? dateLike : new Date(dateLike || Date.now());
         const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
         const rows = Array.isArray(DB.data?.data?.stockGoodsReceipts) ? DB.data.data.stockGoodsReceipts : [];
-        let maxSeq = 0;
-        rows.forEach((row) => {
-            const docNo = String(row?.docNo || '').trim().toUpperCase();
-            const match = docNo.match(/^MK-(\d{4})-(\d{6})$/);
-            if (!match) return;
-            const docYear = Number(match[1] || 0);
-            const seq = Number(match[2] || 0);
-            if (docYear !== year) return;
-            if (seq > maxSeq) maxSeq = seq;
-        });
-        return `MK-${year}-${String(maxSeq + 1).padStart(6, '0')}`;
+        return StockModule.getNextYearOperationalCode('MK', year, rows, 'docNo');
     },
 
     buildEmptyGoodsReceiptDraft: (seed = {}) => {
@@ -5008,17 +5056,7 @@ const StockModule = {
         const date = dateLike instanceof Date ? dateLike : new Date(dateLike || Date.now());
         const year = Number.isNaN(date.getTime()) ? new Date().getFullYear() : date.getFullYear();
         const rows = Array.isArray(DB.data?.data?.stockManualEntries) ? DB.data.data.stockManualEntries : [];
-        let maxSeq = 0;
-        rows.forEach((row) => {
-            const docNo = String(row?.docNo || '').trim().toUpperCase();
-            const match = docNo.match(/^EK-(\d{4})-(\d{6})$/);
-            if (!match) return;
-            const docYear = Number(match[1] || 0);
-            const seq = Number(match[2] || 0);
-            if (docYear !== year) return;
-            if (seq > maxSeq) maxSeq = seq;
-        });
-        return `EK-${year}-${String(maxSeq + 1).padStart(6, '0')}`;
+        return StockModule.getNextYearOperationalCode('EK', year, rows, 'docNo');
     },
 
     getMasterProductById: (id) => {
@@ -6344,24 +6382,11 @@ const StockModule = {
     },
 
     getNextOperationCode: () => {
-        if (typeof IdentityPolicy !== 'undefined'
-            && IdentityPolicy
-            && typeof IdentityPolicy.getNextGlobalCode === 'function') {
-            return IdentityPolicy.getNextGlobalCode(DB.data, { prefix: 'DTR', digits: 6 });
-        }
-        const max = (DB.data.data.depoTransferTasks || []).reduce((acc, row) => {
-            const code = String(row?.taskCode || '').trim().toUpperCase();
-            const match = code.match(/^DTR-(\d{6})$/);
-            if (!match) return acc;
-            return Math.max(acc, Number(match[1]));
-        }, 0);
-        let next = max + 1;
-        let candidate = `DTR-${String(next).padStart(6, '0')}`;
-        while (typeof UnitModule !== 'undefined' && UnitModule && typeof UnitModule.isGlobalCodeTaken === 'function' && UnitModule.isGlobalCodeTaken(candidate)) {
-            next += 1;
-            candidate = `DTR-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode(
+            'DTR',
+            DB.data.data.depoTransferTasks || [],
+            'taskCode'
+        );
     },
 
     openOperationForm: () => {
@@ -8057,7 +8082,8 @@ const StockModule = {
                 const stockRowId = String(candidate?.stockRowId || '').trim();
                 const candidateStart = Number(candidate?.segmentOffsetStart);
                 const candidateEnd = Number(candidate?.segmentOffsetEnd);
-                if (!physicalSegmentId || !stockRowId
+                if (!physicalSegmentId
+                    || (stockRowId && physicalSegmentId !== `STOCK|${stockRowId}`)
                     || !Number.isFinite(candidateStart) || !Number.isFinite(candidateEnd)
                     || candidateEnd <= candidateStart) continue;
                 const claims = (claimedBySegment.get(physicalSegmentId) || [])
@@ -8472,21 +8498,7 @@ const StockModule = {
     },
 
     getNextSalesShipmentNo: () => {
-        const used = new Set();
-        let max = 0;
-        StockModule.getSalesShipments().forEach((shipment) => {
-            const shipmentNo = String(shipment?.shipmentNo || '').trim().toUpperCase();
-            if (shipmentNo) used.add(shipmentNo);
-            const match = shipmentNo.match(/^TF-(\d{6})$/);
-            if (match) max = Math.max(max, Number(match[1]) || 0);
-        });
-        let next = max + 1;
-        let candidate = `TF-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            next += 1;
-            candidate = `TF-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode('TF', StockModule.getSalesShipments(), 'shipmentNo');
     },
 
     getActiveSalesShipmentPlanForOrder: (sourceOrderId) => {
@@ -8929,6 +8941,7 @@ const StockModule = {
                 const allocatedQty = Number(allocation?.allocatedQty);
                 const depotId = String(allocation?.depotId || '').trim();
                 const locationId = String(allocation?.locationId || '').trim();
+                const proof = allocation?.sanalTaksimAllocationProof;
                 if (!stockItemId || usedStockItemIds.has(stockItemId) || !Number.isSafeInteger(allocatedQty) || allocatedQty <= 0
                     || depotId !== 'depot_profil' || !locationId
                     || String(allocation?.sourceOrderId || '').trim() !== identity.sourceOrderId
@@ -8941,9 +8954,26 @@ const StockModule = {
                 const stockVariantId = String(stockRow?.variantId || stockRow?.variationId || '').trim().replace(/^salesvar_/i, '');
                 const stockVariantCode = String(stockRow?.variantCode || stockRow?.productCode || stockRow?.code || '').trim().toUpperCase();
                 const stockQty = StockModule.getStockRowQty(stockRow);
-                if (String(stockRow?.sourceType || '').trim().toUpperCase() !== 'SALES_ORDER'
-                    || String(stockRow?.sourceOrderId || '').trim() !== identity.sourceOrderId
-                    || String(stockRow?.sourceLineId || '').trim() !== identity.sourceLineId
+                const staticTargetExact = String(stockRow?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER'
+                    && String(stockRow?.sourceOrderId || '').trim() === identity.sourceOrderId
+                    && String(stockRow?.sourceLineId || '').trim() === identity.sourceLineId;
+                const activeResolverVersion = typeof SanalTaksimResolver !== 'undefined'
+                    && SanalTaksimResolver
+                    ? String(SanalTaksimResolver.VERSION || '').trim()
+                    : '';
+                const proofTargetExact = !!proof
+                    && !!activeResolverVersion
+                    && String(proof?.resolverVersion || '').trim() === activeResolverVersion
+                    && String(proof?.stockItemId || '').trim() === stockItemId
+                    && String(proof?.targetOrderId || '').trim() === identity.sourceOrderId
+                    && String(proof?.targetOrderLineId || '').trim() === identity.sourceLineId
+                    && String(proof?.productId || '').trim() === identity.productId
+                    && String(proof?.variantId || '').trim().replace(/^salesvar_/i, '') === String(identity.variantId || '').replace(/^salesvar_/i, '')
+                    && String(proof?.variantCode || '').trim().toUpperCase() === identity.svrCode
+                    && String(proof?.unit || '').trim().toUpperCase() === 'ADET'
+                    && Number(proof?.qty) === allocatedQty
+                    && Number(proof?.sourceAllocationQty) >= allocatedQty;
+                if ((!staticTargetExact && !proofTargetExact)
                     || String(stockRow?.productId || '').trim() !== identity.productId
                     || stockVariantId !== String(identity.variantId || '').replace(/^salesvar_/i, '')
                     || stockVariantCode !== identity.svrCode
@@ -8958,8 +8988,6 @@ const StockModule = {
                 const transferMatches = completionTransfers.filter((transfer) =>
                     String(transfer?.status || '').trim().toUpperCase() === 'POSTED'
                     && String(transfer?.finishedProductStockItemId || '').trim() === stockItemId
-                    && String(transfer?.sourceOrderId || '').trim() === identity.sourceOrderId
-                    && String(transfer?.sourceLineId || '').trim() === identity.sourceLineId
                     && String(transfer?.productId || '').trim() === identity.productId
                     && String(transfer?.variantId || transfer?.variationId || '').trim().replace(/^salesvar_/i, '') === String(identity.variantId || '').replace(/^salesvar_/i, '')
                     && String(transfer?.variantCode || '').trim().toUpperCase() === identity.svrCode
@@ -8969,9 +8997,6 @@ const StockModule = {
                 const inputMovementMatches = movements.filter((movement) =>
                     String(movement?.id || '').trim() === String(transfer?.finishedProductMovementId || '').trim()
                     && String(movement?.movementType || movement?.type || '').trim().toUpperCase() === 'MONTAGE_FINISHED_PRODUCT_IN'
-                    && String(movement?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER'
-                    && String(movement?.sourceOrderId || '').trim() === identity.sourceOrderId
-                    && String(movement?.sourceLineId || '').trim() === identity.sourceLineId
                     && String(movement?.productId || '').trim() === identity.productId
                     && String(movement?.variantId || movement?.variationId || '').trim().replace(/^salesvar_/i, '') === String(identity.variantId || '').replace(/^salesvar_/i, '')
                     && String(movement?.variantCode || movement?.productCode || '').trim().toUpperCase() === identity.svrCode
@@ -8980,6 +9005,11 @@ const StockModule = {
                     && String(movement?.targetLocationId || '').trim() === locationId
                 );
                 if (inputMovementMatches.length !== 1) return fail(`${stockItemId} canonical stok giriş hareketi doğrulanamadı.`);
+                if (proofTargetExact
+                    && (String(proof?.completionTransferId || '').trim() !== String(transfer?.id || '').trim()
+                        || String(proof?.inputMovementId || '').trim() !== String(inputMovementMatches[0]?.id || '').trim())) {
+                    return fail(`${stockItemId} Sanal Taksim allocation lineage kanıtı uyuşmuyor.`);
+                }
                 usedStockItemIds.add(stockItemId);
                 allocatedTotal += allocatedQty;
                 executionAllocations.push({
@@ -9527,21 +9557,7 @@ const StockModule = {
     },
 
     getNextSalesShipmentPlanNo: () => {
-        const used = new Set();
-        let max = 0;
-        StockModule.getSalesShipmentPlans().forEach((plan) => {
-            const planNo = String(plan?.planNo || '').trim().toUpperCase();
-            if (planNo) used.add(planNo);
-            const match = planNo.match(/^SVP-(\d{6})$/);
-            if (match) max = Math.max(max, Number(match[1]) || 0);
-        });
-        let next = max + 1;
-        let candidate = `SVP-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            next += 1;
-            candidate = `SVP-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode('SVP', StockModule.getSalesShipmentPlans(), 'planNo');
     },
 
     getMontageDispatchPlans: () => {
@@ -10039,6 +10055,32 @@ const StockModule = {
         const parts = Array.isArray(shipment?.parts) ? shipment.parts : [];
         const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
         const movements = Array.isArray(DB.data?.data?.stock_movements) ? DB.data.data.stock_movements : [];
+        const hasWipSource = parts.some((part) =>
+            (Array.isArray(part?.allocations) ? part.allocations : []).some((allocation) =>
+                String(allocation?.sourceKind || '').trim().toUpperCase() === 'WORK_ORDER'
+            )
+        );
+        let currentResolved = null;
+        if (hasWipSource) {
+            try {
+                if (typeof SanalTaksimResolver === 'undefined'
+                    || !SanalTaksimResolver
+                    || typeof SanalTaksimResolver.resolve !== 'function') return fail('Sanal Taksim resolver kullanılamıyor.');
+                currentResolved = SanalTaksimResolver.resolve(StockModule.buildMontageExactPreflightSnapshot());
+            } catch (_error) {
+                return fail('Güncel exact stok/WIP kaynakları çözülemedi.');
+            }
+            if (currentResolved?.diagnostics?.exactHoldLedger?.valid !== true) {
+                return fail('Güncel exact hold defteri güvenilir değil.');
+            }
+        }
+        const segmentsById = new Map();
+        (Array.isArray(currentResolved?.segments) ? currentResolved.segments : []).forEach((segment) => {
+            const segmentId = String(segment?.segmentKey || '').trim();
+            if (!segmentId) return;
+            if (!segmentsById.has(segmentId)) segmentsById.set(segmentId, []);
+            segmentsById.get(segmentId).push(segment);
+        });
         const rowsById = new Map();
         stockRows.forEach((row) => {
             const rowId = String(row?.id || '').trim();
@@ -10070,34 +10112,54 @@ const StockModule = {
                 const sourceDepotId = String(allocation?.sourceDepotId || '').trim();
                 const sourceLocationId = String(allocation?.sourceLocationId || '').trim();
                 const ranges = Array.isArray(allocation?.segmentRanges) ? allocation.segmentRanges : [];
+                const sourceKind = String(allocation?.sourceKind || (stockRowId ? 'CURRENT_STOCK_ROW' : '')).trim().toUpperCase();
+                const sourceStage = String(allocation?.sourceStage || '').trim().toUpperCase();
+                const segmentMatches = segmentsById.get(physicalSegmentId) || [];
+                const segment = segmentMatches.length === 1 ? segmentMatches[0] : null;
+                const isStockSource = sourceKind === 'CURRENT_STOCK_ROW'
+                    && !!stockRowId
+                    && physicalSegmentId === `STOCK|${stockRowId}`;
+                const isWipSource = sourceKind === 'WORK_ORDER'
+                    && !stockRowId
+                    && !physicalSegmentId.startsWith('STOCK|')
+                    && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(sourceStage)
+                    && !!String(allocation?.sourceWorkOrderId || '').trim()
+                    && !!String(allocation?.sourceWorkOrderLineId || '').trim()
+                    && !!segment
+                    && String(segment?.sourceKind || '').trim().toUpperCase() === 'WORK_ORDER'
+                    && String(segment?.stage || '').trim().toUpperCase() === sourceStage
+                    && String(segment?.originWorkOrderId || '').trim() === String(allocation?.sourceWorkOrderId || '').trim()
+                    && String(segment?.originWorkOrderLineId || '').trim() === String(allocation?.sourceWorkOrderLineId || '').trim()
+                    && String(segment?.prcId || '').trim() === prcId
+                    && String(segment?.prcCode || '').trim().toUpperCase() === prcCode
+                    && StockModule.normalizeMontageDispatchUnit(segment?.unit) === unit
+                    && Number(segment?.physicalQty || 0) + 0.000001 >= allocationQty;
                 if (!idempotencyKey
                     || !movementIdempotencyKey
                     || idempotencyKeys.has(idempotencyKey)
-                    || !stockRowId
-                    || physicalSegmentId !== `STOCK|${stockRowId}`
+                    || (!isStockSource && !isWipSource)
                     || !['FROM_STOCK', 'FROM_PRODUCTION'].includes(sourceBucket)
                     || !Number.isFinite(allocationQty)
                     || allocationQty <= 0
-                    || !sourceDepotId
-                    || !sourceLocationId
+                    || (isStockSource && (!sourceDepotId || !sourceLocationId))
                     || String(allocation?.prcId || '').trim() !== prcId
                     || String(allocation?.prcCode || '').trim().toUpperCase() !== prcCode
                     || StockModule.normalizeMontageDispatchUnit(allocation?.unit) !== unit
                     || String(allocation?.stockMovementId || '').trim()
                     || !ranges.length) {
-                    return fail(`${prcCode} exact MGS stok kilidi geçersiz.`);
+                    return fail(`${prcCode} exact MGS stok/WIP kilidi geçersiz.`);
                 }
                 idempotencyKeys.add(idempotencyKey);
                 const rowMatches = rowsById.get(stockRowId) || [];
-                if (rowMatches.length !== 1) return fail(`${prcCode} kaynak stok satırı tekil bulunamadı.`);
-                const row = rowMatches[0];
+                if (isStockSource && rowMatches.length !== 1) return fail(`${prcCode} kaynak stok satırı tekil bulunamadı.`);
+                const row = isStockSource ? rowMatches[0] : null;
                 const rowPrcId = String(row?.refId || row?.productId || '').trim();
-                if (String(row?.productCode || row?.code || '').trim().toUpperCase() !== prcCode
+                if (isStockSource && (String(row?.productCode || row?.code || '').trim().toUpperCase() !== prcCode
                     || StockModule.normalizeMontageDispatchUnit(row?.unit) !== unit
                     || (rowPrcId && rowPrcId !== prcId)
                     || StockModule.resolveScopeIdFromStockRow(row) !== sourceDepotId
                     || String(row?.locationId || '').trim() !== sourceLocationId
-                    || StockModule.getStockRowQty(row) + 0.000001 < allocationQty) {
+                    || StockModule.getStockRowQty(row) + 0.000001 < allocationQty)) {
                     return fail(`${prcCode} kaynak stok satırı sevk kilidiyle uyuşmuyor veya miktarı yetersiz.`);
                 }
                 let rangeQty = 0;
@@ -10113,6 +10175,9 @@ const StockModule = {
                         || String(range?.itemKey || '').trim() === ''
                         || String(range?.stockRowId || '').trim() !== stockRowId
                         || String(range?.physicalSegmentId || '').trim() !== physicalSegmentId
+                        || (isWipSource && (String(range?.sourceKind || '').trim().toUpperCase() !== 'WORK_ORDER'
+                            || String(range?.sourceWorkOrderId || '').trim() !== String(allocation?.sourceWorkOrderId || '').trim()
+                            || String(range?.sourceWorkOrderLineId || '').trim() !== String(allocation?.sourceWorkOrderLineId || '').trim()))
                         || String(range?.prcId || '').trim() !== prcId
                         || String(range?.prcCode || '').trim().toUpperCase() !== prcCode
                         || StockModule.normalizeMontageDispatchUnit(range?.unit) !== unit
@@ -10137,11 +10202,11 @@ const StockModule = {
                 const duplicateMovement = movements.some((movement) =>
                     String(movement?.idempotencyKey || '').trim() === movementIdempotencyKey
                     || (String(movement?.shipmentId || '').trim() === shipmentId
-                        && String(movement?.stockDepotItemId || '').trim() === stockRowId
+                        && String(movement?.physicalSegmentId || '').trim() === physicalSegmentId
                         && String(movement?.movementType || movement?.type || '').trim().toUpperCase() === 'MONTAGE_DISPATCH_OUT')
                 );
                 if (duplicateMovement) return fail(`${prcCode} için fiziksel çıkış hareketi zaten mevcut.`);
-                normalizedAllocations.push({ part, allocation, row, qty: allocationQty });
+                normalizedAllocations.push({ part, allocation, row, segment, sourceKind, qty: allocationQty });
                 partAllocationQty = Number((partAllocationQty + allocationQty).toFixed(6));
             }
             if (Math.abs(partAllocationQty - shippedQty) > 0.000001) {
@@ -10169,12 +10234,20 @@ const StockModule = {
             for (const activePart of (Array.isArray(activeShipment?.parts) ? activeShipment.parts : [])) {
                 for (const activeAllocation of (Array.isArray(activePart?.allocations) ? activePart.allocations : [])) {
                     const rowId = String(activeAllocation?.stockRowId || activeAllocation?.stockDepotItemId || '').trim();
+                    const allocationSegmentId = String(activeAllocation?.physicalSegmentId || '').trim();
+                    const activeSourceKind = String(activeAllocation?.sourceKind || (rowId ? 'CURRENT_STOCK_ROW' : '')).trim().toUpperCase();
+                    const activeSourceValid = activeSourceKind === 'CURRENT_STOCK_ROW'
+                        ? !!rowId && allocationSegmentId === `STOCK|${rowId}`
+                        : activeSourceKind === 'WORK_ORDER'
+                            && !rowId
+                            && !!allocationSegmentId
+                            && !allocationSegmentId.startsWith('STOCK|');
                     const qty = Number(activeAllocation?.qty || 0);
                     const activeRanges = Array.isArray(activeAllocation?.segmentRanges)
                         ? activeAllocation.segmentRanges
                         : [];
                     const rangeQty = activeRanges.reduce((sum, range) => sum + Number(range?.qty || 0), 0);
-                    if (!rowId
+                    if (!activeSourceValid
                         || !Number.isFinite(qty)
                         || qty <= 0
                         || !activeRanges.length
@@ -10188,7 +10261,7 @@ const StockModule = {
                         const end = Number(range?.segmentOffsetEnd);
                         if (!reservationKey
                             || activeReservationKeys.has(reservationKey)
-                            || physicalSegmentId !== `STOCK|${rowId}`
+                            || physicalSegmentId !== allocationSegmentId
                             || !Number.isFinite(start)
                             || !Number.isFinite(end)
                             || start < 0
@@ -10201,10 +10274,12 @@ const StockModule = {
                         }
                         activeIntervalsBySegment.get(physicalSegmentId).push({ start, end });
                     }
-                    activeHeldQtyByRow.set(
-                        rowId,
-                        Number(((activeHeldQtyByRow.get(rowId) || 0) + qty).toFixed(6))
-                    );
+                    if (rowId) {
+                        activeHeldQtyByRow.set(
+                            rowId,
+                            Number(((activeHeldQtyByRow.get(rowId) || 0) + qty).toFixed(6))
+                        );
+                    }
                 }
             }
         }
@@ -10341,12 +10416,14 @@ const StockModule = {
             if (!targetLocationId || String(location?.depotId || '').trim() !== 'unit:u3') throw new Error('Montaj giriş lokasyonu güvenilir değil.');
             if (!Array.isArray(DB.data.data.stockDepotItems)) DB.data.data.stockDepotItems = [];
             if (!Array.isArray(DB.data.data.stock_movements)) DB.data.data.stock_movements = [];
-            validation.deferredTransferAllocations.forEach(({ part, allocation, row, qty }) => {
+            validation.deferredTransferAllocations.forEach(({ part, allocation, row, segment, sourceKind, qty }) => {
                 const stockMovementId = crypto.randomUUID();
-                StockModule.setStockRowQty(
-                    row,
-                    Number((StockModule.getStockRowQty(row) - qty).toFixed(6))
-                );
+                if (sourceKind === 'CURRENT_STOCK_ROW') {
+                    StockModule.setStockRowQty(
+                        row,
+                        Number((StockModule.getStockRowQty(row) - qty).toFixed(6))
+                    );
+                }
                 DB.data.data.stock_movements.push({
                     id: stockMovementId,
                     movementType: 'MONTAGE_DISPATCH_OUT',
@@ -10357,11 +10434,19 @@ const StockModule = {
                     planNo: String(validation.shipment?.planNo || '').trim(),
                     idempotencyKey: String(allocation?.movementIdempotencyKey || '').trim(),
                     stockDepotItemId: String(allocation?.stockRowId || allocation?.stockDepotItemId || '').trim(),
+                    sourceKind,
+                    sourceStage: String(allocation?.sourceStage || segment?.stage || '').trim().toUpperCase(),
+                    sourceWorkOrderId: String(allocation?.sourceWorkOrderId || segment?.originWorkOrderId || '').trim(),
+                    sourceWorkOrderLineId: String(allocation?.sourceWorkOrderLineId || segment?.originWorkOrderLineId || '').trim(),
+                    sourceRouteId: String(allocation?.sourceRouteId || segment?.routeId || '').trim(),
+                    sourceRouteSeq: Number(allocation?.sourceRouteSeq ?? segment?.routeSeq),
                     physicalSegmentId: String(allocation?.physicalSegmentId || '').trim(),
                     physicalSegmentIds: [String(allocation?.physicalSegmentId || '').trim()],
                     exactReservationKeys: (Array.isArray(allocation?.exactReservationKeys)
                         ? allocation.exactReservationKeys
                         : []).slice(),
+                    segmentRanges: JSON.parse(JSON.stringify(Array.isArray(allocation?.segmentRanges)
+                        ? allocation.segmentRanges : [])),
                     sourceBucket: String(allocation?.sourceBucket || '').trim().toUpperCase(),
                     demandId: String(allocation?.demandId || '').trim(),
                     demandIds: (Array.isArray(allocation?.demandIds) ? allocation.demandIds : []).slice(),
@@ -10869,21 +10954,11 @@ const StockModule = {
     },
 
     getNextMontageCompletionTransferNo: () => {
-        const used = new Set();
-        let max = 0;
-        StockModule.getMontageCompletionTransfers().forEach((transfer) => {
-            const transferNo = String(transfer?.transferNo || '').trim().toUpperCase();
-            if (transferNo) used.add(transferNo);
-            const match = transferNo.match(/^MCT-(\d{6})$/);
-            if (match) max = Math.max(max, Number(match[1]) || 0);
-        });
-        let next = max + 1;
-        let candidate = `MCT-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            next += 1;
-            candidate = `MCT-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode(
+            'MCT',
+            StockModule.getMontageCompletionTransfers(),
+            'transferNo'
+        );
     },
 
     getMontageCompletionTransferLineKey: (transfer) => {
@@ -10915,6 +10990,146 @@ const StockModule = {
         if (expectedProductId && expectedProductId !== String(item?.productId || '').trim()) return false;
         if (expectedVariantId && expectedVariantId !== String(item?.variantId || item?.variationId || '').trim()) return false;
         return true;
+    },
+
+    getTrustedMontageCompletionShipmentItems: (shipment) => {
+        const rawItems = Array.isArray(shipment?.items) ? shipment.items : [];
+        const events = Array.isArray(shipment?.operationalRebindEvents)
+            ? shipment.operationalRebindEvents
+            : [];
+        if (!events.length) return shipment?.receiptOwnership ? [] : rawItems;
+        if (events.length !== 1
+            || rawItems.length !== 1
+            || !StockModule.isMontageStockTransferPostedOnReceipt(shipment)
+            || !StockModule.isTrustedMontageCompletionShipmentItem(shipment, rawItems[0])) return [];
+        if (typeof SanalTaksimResolver === 'undefined'
+            || !SanalTaksimResolver
+            || typeof SanalTaksimResolver.resolveMontageShipmentOperationalTarget !== 'function'
+            || typeof SanalTaksimResolver.resolveMontageShipmentOperationalItems !== 'function') return [];
+
+        const effective = SanalTaksimResolver.resolveMontageShipmentOperationalTarget(shipment);
+        const resolvedItems = SanalTaksimResolver.resolveMontageShipmentOperationalItems(shipment);
+        const operationalItem = resolvedItems?.ok === true
+            && Array.isArray(resolvedItems.items)
+            && resolvedItems.items.length === 1
+            ? resolvedItems.items[0]
+            : null;
+        if (effective?.ok !== true || effective?.rebound !== true || !operationalItem) return [];
+
+        const targetKeys = ['sourceOrderId', 'sourceLineId', 'demandId', 'itemKey'];
+        const target = Object.fromEntries(targetKeys.map((key) => [key, String(effective.target?.[key] || '').trim()]));
+        if (Object.values(target).some((value) => !value)
+            || String(operationalItem?.sourceType || '').trim().toUpperCase() !== 'SALES_ORDER'
+            || targetKeys.some((key) => String(operationalItem?.[key] || '').trim() !== target[key])
+            || Number(operationalItem?.shippedQty) !== Number(rawItems[0]?.shippedQty)
+            || String(operationalItem?.productId || '').trim() !== String(rawItems[0]?.productId || '').trim()
+            || String(operationalItem?.variantId || operationalItem?.variationId || '').trim()
+                !== String(rawItems[0]?.variantId || rawItems[0]?.variationId || '').trim()
+            || JSON.stringify(StockModule.normalizeMontageCompletionRecipeParts(operationalItem?.recipeParts))
+                !== JSON.stringify(StockModule.normalizeMontageCompletionRecipeParts(rawItems[0]?.recipeParts))) return [];
+
+        const data = DB.data?.data && typeof DB.data.data === 'object' ? DB.data.data : {};
+        const orderMatches = (Array.isArray(data.orders) ? data.orders : [])
+            .filter((order) => String(order?.id || '').trim() === target.sourceOrderId);
+        const orderLineMatches = orderMatches.length === 1
+            ? (Array.isArray(orderMatches[0]?.lines) ? orderMatches[0].lines : [])
+                .filter((line) => String(line?.id || line?.lineId || '').trim() === target.sourceLineId)
+            : [];
+        const demandMatches = (Array.isArray(data.planningDemands) ? data.planningDemands : [])
+            .filter((demand) => String(demand?.id || '').trim() === target.demandId);
+        const demand = demandMatches.length === 1 ? demandMatches[0] : null;
+        const demandItemMatches = demand
+            ? (Array.isArray(demand?.items) ? demand.items : [])
+                .filter((item) => String(item?.id || item?.itemKey || '').trim() === target.itemKey)
+            : [];
+        const orderLine = orderLineMatches.length === 1 ? orderLineMatches[0] : null;
+        const normalizeVariantId = (value) => String(value || '').trim().replace(/^salesvar_/i, '');
+        const productId = String(operationalItem?.productId || '').trim();
+        const variantId = normalizeVariantId(operationalItem?.variantId || operationalItem?.variationId);
+        if (orderMatches.length !== 1
+            || orderLineMatches.length !== 1
+            || demandMatches.length !== 1
+            || demandItemMatches.length !== 1
+            || String(demand?.sourceType || '').trim().toUpperCase() !== 'SALES_ORDER'
+            || String(demand?.sourceOrderId || '').trim() !== target.sourceOrderId
+            || String(demand?.sourceLineId || '').trim() !== target.sourceLineId
+            || String(orderLine?.productId || '').trim() !== productId
+            || normalizeVariantId(orderLine?.variationId || orderLine?.variantId) !== variantId
+            || (String(demand?.productId || '').trim() && String(demand.productId).trim() !== productId)
+            || (normalizeVariantId(demand?.variantId || demand?.variationId)
+                && normalizeVariantId(demand?.variantId || demand?.variationId) !== variantId)
+            || (normalizeVariantId(demandItemMatches[0]?.variantId || demandItemMatches[0]?.variationId)
+                && normalizeVariantId(demandItemMatches[0]?.variantId || demandItemMatches[0]?.variationId) !== variantId)) return [];
+
+        const event = events[0];
+        const ownership = shipment?.receiptOwnership && typeof shipment.receiptOwnership === 'object'
+            ? shipment.receiptOwnership
+            : null;
+        const receiptKey = String(shipment?.receiptKey || '').trim();
+        const receivedAt = String(shipment?.receivedAt || '').trim();
+        const expectedReceiptKey = `MONTAGE_SHIPMENT_RECEIPT|${String(shipment?.id || '').trim()}`;
+        const ownershipMatches = (candidate) => candidate && typeof candidate === 'object'
+            && Number(candidate.contractVersion) === 1
+            && String(candidate.type || '').trim().toUpperCase() === 'MONTAGE_RECEIPT_OWNERSHIP'
+            && String(candidate.receiptKey || '').trim() === receiptKey
+            && String(candidate.operationalRebindEventId || '').trim() === String(event?.eventId || '').trim()
+            && String(candidate.operationalRebindKey || '').trim() === String(event?.rebindKey || '').trim()
+            && String(candidate.exactRangeFingerprint || '').trim() === String(event?.exactRangeFingerprint || '').trim()
+            && targetKeys.every((key) => String(candidate.target?.[key] || '').trim() === target[key]);
+        if (!receiptKey
+            || receiptKey !== expectedReceiptKey
+            || !receivedAt
+            || !Number.isFinite(Date.parse(receivedAt))
+            || !ownershipMatches(ownership)
+            || String(ownership?.lockedAt || '').trim() !== receivedAt) return [];
+
+        const shipmentId = String(shipment?.id || '').trim();
+        const recipeParts = StockModule.normalizeMontageCompletionRecipeParts(operationalItem.recipeParts);
+        const receiptRows = (Array.isArray(data.stockDepotItems) ? data.stockDepotItems : [])
+            .filter((row) => String(row?.receiptKey || '').trim() === receiptKey
+                && String(row?.sourceShipmentId || row?.shipmentId || '').trim() === shipmentId
+                && String(row?.stockClass || '').trim().toUpperCase() === 'MONTAGE_RECEIVED');
+        const receiptMovements = (Array.isArray(data.stock_movements) ? data.stock_movements : [])
+            .filter((row) => String(row?.receiptKey || '').trim() === receiptKey
+                && String(row?.shipmentId || '').trim() === shipmentId
+                && String(row?.movementType || row?.type || '').trim().toUpperCase() === 'MONTAGE_DISPATCH_RECEIPT');
+        const evidenceMatches = (row, part, expectedQty, requireCurrentStock) => {
+            const qtyValues = (requireCurrentStock ? ['qty', 'quantity', 'amount'] : ['qty', 'quantity'])
+                .filter((key) => row?.[key] !== undefined && row?.[key] !== null && row?.[key] !== '')
+                .map((key) => Number(row[key]));
+            const currentQty = qtyValues[0];
+            return String(row?.receiptLineKey || '').trim()
+                && String(row?.refId || row?.productId || '').trim() === part.refId
+                && String(row?.code || row?.productCode || '').trim().toUpperCase() === part.code
+                && StockModule.normalizeMontageDispatchUnit(row?.unit) === part.unit
+                && String(row?.targetUnitId || row?.unitId || '').trim() === 'u3'
+                && (!requireCurrentStock || (StockModule.resolveScopeIdFromStockRow(row) === 'unit:u3'
+                    && String(row?.status || '').trim().toUpperCase() === 'MONTAGE_RECEIVED_AWAITING_START'
+                    && qtyValues.length > 0
+                    && qtyValues.every((qty) => Number.isFinite(qty) && qty === currentQty)
+                    && Number.isFinite(currentQty)
+                    && currentQty >= 0
+                    && currentQty <= expectedQty))
+                && (!requireCurrentStock || targetKeys.every((key) => String(row?.[key] || '').trim() === target[key]))
+                && (!requireCurrentStock || ownershipMatches(row?.receiptOwnership))
+                && (requireCurrentStock || (qtyValues.length > 0
+                    && qtyValues.every((qty) => Number.isFinite(qty) && qty === expectedQty)
+                    && targetKeys.every((key) => String(row?.[key] || '').trim() === target[key])
+                    && ownershipMatches(row?.receiptOwnership)));
+        };
+        if (receiptRows.length !== recipeParts.length || receiptMovements.length !== recipeParts.length) return [];
+        const usedReceiptLineKeys = new Set();
+        for (const part of recipeParts) {
+            const expectedQty = Number((part.qtyPerSet * Number(operationalItem.shippedQty)).toFixed(6));
+            const rowMatches = receiptRows.filter((row) => evidenceMatches(row, part, expectedQty, true));
+            const movementMatches = receiptMovements.filter((row) => evidenceMatches(row, part, expectedQty, false));
+            if (rowMatches.length !== 1
+                || movementMatches.length !== 1
+                || String(rowMatches[0].receiptLineKey).trim() !== String(movementMatches[0].receiptLineKey).trim()
+                || usedReceiptLineKeys.has(String(rowMatches[0].receiptLineKey).trim())) return [];
+            usedReceiptLineKeys.add(String(rowMatches[0].receiptLineKey).trim());
+        }
+        return [operationalItem];
     },
 
     getPostedMontageCompletionTransfersForLine: (item) => {
@@ -11028,7 +11243,122 @@ const StockModule = {
         };
     },
 
+    getSanalTaksimSalesShipmentReadyStock: (item) => {
+        if (typeof PlanningModule === 'undefined'
+            || !PlanningModule
+            || typeof PlanningModule.buildSanalTaksimSnapshot !== 'function'
+            || typeof SanalTaksimResolver === 'undefined'
+            || !SanalTaksimResolver
+            || typeof SanalTaksimResolver.resolve !== 'function') return null;
+        const identity = StockModule.resolveSalesShipmentPlanningLineIdentity(item);
+        if (!identity.ok) return { ...identity, readyQty: 0, stockRows: [] };
+        let resolved;
+        try {
+            resolved = SanalTaksimResolver.resolve(PlanningModule.buildSanalTaksimSnapshot());
+        } catch (error) {
+            return {
+                ...identity,
+                ok: false,
+                message: `Sanal Taksim Sevkiyata Hazır havuzu hesaplanamadı: ${String(error?.message || 'Resolver hatası')}`,
+                readyQty: 0,
+                stockRows: []
+            };
+        }
+        const invariants = resolved?.diagnostics?.invariants || {};
+        if (!invariants.finishedAllocationWithinQty
+            || !invariants.productAllocationWithinOpenDebt
+            || !invariants.segmentConsumedOnce) {
+            return {
+                ...identity,
+                ok: false,
+                message: 'Sanal Taksim bitmiş ürün tek-sayım invariantı doğrulanamadı.',
+                readyQty: 0,
+                stockRows: []
+            };
+        }
+        const productDebts = (Array.isArray(resolved?.productDebts) ? resolved.productDebts : [])
+            .filter((debt) => String(debt?.originOrderId || '').trim() === identity.sourceOrderId
+                && String(debt?.originOrderLineId || '').trim() === identity.sourceLineId
+                && String(debt?.productId || '').trim() === identity.productId
+                && String(debt?.variantId || '').trim().replace(/^salesvar_/i, '') === identity.variantId
+                && String(debt?.variantCode || '').trim().toUpperCase() === identity.svrCode
+                && String(debt?.unit || '').trim().toUpperCase() === 'ADET');
+        if (productDebts.length !== 1 || productDebts[0]?.allocationEligible !== true) {
+            return {
+                ...identity,
+                ok: false,
+                message: productDebts.length > 1
+                    ? 'Sanal Taksim ürün borcu mükerrer.'
+                    : 'RELEASED demand-item ürün borcu kesin olarak doğrulanamadı.',
+                readyQty: 0,
+                stockRows: []
+            };
+        }
+        const productDebt = productDebts[0];
+        const allocations = (Array.isArray(resolved?.finishedReadyAllocations)
+            ? resolved.finishedReadyAllocations
+            : []).filter((allocation) =>
+            allocation?.fixedBySalesShipmentPlan !== true
+            && String(allocation?.targetProductDebtKey || '').trim() === String(productDebt?.productDebtKey || '').trim()
+        );
+        const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
+        const seenStockIds = new Set();
+        const resolvedRows = [];
+        for (const allocation of allocations) {
+            const stockItemId = String(allocation?.stockItemId || '').trim();
+            const qty = Number(allocation?.qty);
+            const stockMatches = stockRows.filter((row) => String(row?.id || '').trim() === stockItemId);
+            if (!stockItemId
+                || seenStockIds.has(stockItemId)
+                || !Number.isSafeInteger(qty)
+                || qty <= 0
+                || stockMatches.length !== 1
+                || !allocation?.sanalTaksimAllocationProof) {
+                return {
+                    ...identity,
+                    ok: false,
+                    message: 'Sanal Taksim bitmiş ürün allocation kanıtı eksik veya mükerrer.',
+                    readyQty: 0,
+                    stockRows: []
+                };
+            }
+            const stockRow = stockMatches[0];
+            const depotId = String(stockRow?.depotId || '').trim();
+            const locationId = String(stockRow?.locationId || stockRow?.targetLocationId || '').trim();
+            if (depotId !== 'depot_profil' || !locationId || StockModule.getStockRowQty(stockRow) < qty) {
+                return {
+                    ...identity,
+                    ok: false,
+                    message: 'Sanal Taksim allocation güncel canonical stokla uyuşmuyor.',
+                    readyQty: 0,
+                    stockRows: []
+                };
+            }
+            seenStockIds.add(stockItemId);
+            resolvedRows.push({
+                transfer: null,
+                stockRow,
+                movement: null,
+                qty,
+                resolverAllocation: allocation
+            });
+        }
+        const readyQty = resolvedRows.reduce((sum, row) => sum + Number(row.qty || 0), 0);
+        return {
+            ...identity,
+            ok: true,
+            message: '',
+            readyQty,
+            productDebtKey: String(productDebt.productDebtKey || '').trim(),
+            openSetQty: Number(productDebt.openSetQty || 0),
+            stockRows: resolvedRows,
+            resolverVersion: String(resolved?.version || '')
+        };
+    },
+
     getCanonicalSalesShipmentReadyStock: (item) => {
+        const sanalTaksimReady = StockModule.getSanalTaksimSalesShipmentReadyStock(item);
+        if (sanalTaksimReady) return sanalTaksimReady;
         const identity = StockModule.resolveSalesShipmentPlanningLineIdentity(item);
         if (!identity.ok) return { ...identity, readyQty: 0, stockRows: [] };
         const stockRows = Array.isArray(DB.data?.data?.stockDepotItems) ? DB.data.data.stockDepotItems : [];
@@ -11234,7 +11564,17 @@ const StockModule = {
                 depotId,
                 locationId,
                 sourceOrderId: availability.sourceOrderId,
-                sourceLineId: availability.sourceLineId
+                sourceLineId: availability.sourceLineId,
+                ...(resolved?.resolverAllocation?.sanalTaksimAllocationProof
+                    ? {
+                        sanalTaksimAllocationProof: {
+                            ...resolved.resolverAllocation.sanalTaksimAllocationProof,
+                            sourceAllocationKey: String(resolved.resolverAllocation?.allocationKey || '').trim(),
+                            sourceAllocationQty: Number(resolved.resolverAllocation?.qty || 0),
+                            qty: allocatedQty
+                        }
+                    }
+                    : {})
             });
             remaining -= allocatedQty;
         }
@@ -11259,7 +11599,7 @@ const StockModule = {
             });
         const sources = [];
         shipments.forEach((shipment) => {
-            (Array.isArray(shipment?.items) ? shipment.items : []).forEach((shipmentItem, itemIndex) => {
+            StockModule.getTrustedMontageCompletionShipmentItems(shipment).forEach((shipmentItem, itemIndex) => {
                 if (!StockModule.isTrustedMontageCompletionShipmentItem(shipment, shipmentItem, item)) return;
                 const shippedQty = Math.max(0, Number(shipmentItem?.shippedQty || 0));
                 const postedQty = posted
@@ -11471,7 +11811,7 @@ const StockModule = {
             .find((row) => String(row?.id || '').trim() === String(transfer?.sourceShipmentId || '').trim()) || null;
         const sourceItemIndex = Number(transfer?.sourceShipmentItemIndex);
         const shipmentItem = shipment && Number.isInteger(sourceItemIndex)
-            ? (Array.isArray(shipment?.items) ? shipment.items[sourceItemIndex] : null)
+            ? StockModule.getTrustedMontageCompletionShipmentItems(shipment)[sourceItemIndex]
             : null;
         if (!shipmentItem || !StockModule.isTrustedMontageCompletionShipmentItem(shipment, shipmentItem, transfer)) {
             return { ok: false, message: 'MCT için güvenilir RECEIVED shipment item snapshot’ı bulunamadı.' };
@@ -12747,21 +13087,11 @@ const StockModule = {
     },
 
     getNextMontageDispatchShipmentNo: () => {
-        const used = new Set();
-        let max = 0;
-        StockModule.getMontageDispatchShipments().forEach((shipment) => {
-            const shipmentNo = String(shipment?.shipmentNo || '').trim().toUpperCase();
-            if (shipmentNo) used.add(shipmentNo);
-            const match = shipmentNo.match(/^MGS-(\d{6})$/);
-            if (match) max = Math.max(max, Number(match[1]) || 0);
-        });
-        let next = max + 1;
-        let candidate = `MGS-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            next += 1;
-            candidate = `MGS-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode(
+            'MGS',
+            StockModule.getMontageDispatchShipments(),
+            'shipmentNo'
+        );
     },
 
     normalizeMontageDispatchUnit: (value) => String(value || '').trim().toLocaleUpperCase('tr-TR'),
@@ -13908,20 +14238,33 @@ const StockModule = {
             const allocationItemKey = String(ownPlanBoundHold
                 ? allocation?.targetItemKey
                 : allocation?.originItemKey || '').trim();
-            const isExactMainStock = segment?.stage === 'DEPOT_STOCK'
-                && segment?.sourceKind === 'CURRENT_STOCK_ROW'
+            const segmentStage = String(segment?.stage || '').trim().toUpperCase();
+            const segmentSourceKind = String(segment?.sourceKind || '').trim().toUpperCase();
+            const isExactDepotStock = segmentStage === 'DEPOT_STOCK'
+                && segmentSourceKind === 'CURRENT_STOCK_ROW'
+                && eligibleStockRowIds.has(String(segment?.stockRowId || '').trim());
+            const isExactTrustedWip = ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(segmentStage)
+                && segmentSourceKind === 'WORK_ORDER'
+                && !String(segment?.stockRowId || '').trim()
+                && String(segment?.originWorkOrderId || '').trim()
+                && String(segment?.originWorkOrderLineId || '').trim()
+                && String(segment?.originDemandId || '').trim()
+                && String(segment?.originItemKey || '').trim()
+                && ['SALES_ORDER', 'STOCK'].includes(String(segment?.originSourceType || '').trim().toUpperCase())
+                && segment?.productionOriginVerified === true
+                && segment?.physicalOrigin?.verified === true;
+            const isExactPhysicalSource = (isExactDepotStock || isExactTrustedWip)
                 && ((segment?.allocatable === true && Number(segment?.allocatableQty || 0) > 0)
                     || ownPlanBoundHold)
                 && segment?.prcId === requirement.prcId
                 && segment?.prcCode === requirement.prcCode
                 && StockModule.normalizeMontageDispatchUnit(segment?.unit) === requirement.unit
-                && eligibleStockRowIds.has(String(segment?.stockRowId || '').trim())
                 && allocationDemandId === requirement.demandId
                 && allocationItemKey === requirement.itemKey
                 && String(allocation?.prcId || '').trim() === requirement.prcId
                 && String(allocation?.prcCode || '').trim().toUpperCase() === requirement.prcCode
                 && StockModule.normalizeMontageDispatchUnit(allocation?.unit) === requirement.unit;
-            if (!isExactMainStock
+            if (!isExactPhysicalSource
                 || !sourceBucket
                 || !Number.isFinite(allocationQty)
                 || allocationQty <= 0) continue;
@@ -14465,11 +14808,20 @@ const StockModule = {
                     unit: StockModule.normalizeMontageDispatchUnit(segment?.unit),
                     stage: String(segment?.stage || '').trim().toUpperCase(),
                     sourceKind: String(segment?.sourceKind || '').trim().toUpperCase(),
+                    physicalQty: Number(segment?.physicalQty ?? segment?.qty ?? 0),
                     allocatable: segment?.allocatable === true,
                     allocatableQty: Number(segment?.allocatableQty || 0),
                     productionOriginVerified: segment?.productionOriginVerified === true,
                     originDemandId: String(segment?.originDemandId || segment?.physicalOrigin?.demandId || '').trim(),
                     originItemKey: String(segment?.originItemKey || segment?.physicalOrigin?.itemKey || '').trim(),
+                    originSourceType: String(segment?.originSourceType || segment?.physicalOrigin?.sourceType || '').trim().toUpperCase(),
+                    originOrderId: String(segment?.originOrderId || segment?.physicalOrigin?.orderId || '').trim(),
+                    originOrderLineId: String(segment?.originOrderLineId || segment?.physicalOrigin?.orderLineId || '').trim(),
+                    originWorkOrderId: String(segment?.originWorkOrderId || segment?.physicalOrigin?.workOrderId || '').trim(),
+                    originWorkOrderLineId: String(segment?.originWorkOrderLineId || segment?.physicalOrigin?.workOrderLineId || '').trim(),
+                    routeId: String(segment?.routeId || '').trim(),
+                    routeSeq: Number(segment?.routeSeq),
+                    evidenceIds: Array.isArray(segment?.evidenceIds) ? segment.evidenceIds.slice() : [],
                     physicalOrigin: segment?.physicalOrigin && typeof segment.physicalOrigin === 'object'
                         ? { ...segment.physicalOrigin }
                         : null
@@ -14608,7 +14960,7 @@ const StockModule = {
             if (remaining > 0.000001) {
                 return fail(
                     'MGP_EXACT_SEGMENT_CAPACITY_INSUFFICIENT',
-                    `${requirement.prcCode} için exact Ana Depo stoğu yetersiz. Gereken: ${requirement.qty}, kullanılabilir: ${availableQty}.`
+                    `${requirement.prcCode} için exact uygun PRC stok/WIP miktarı yetersiz. Gereken: ${requirement.qty}, kullanılabilir: ${availableQty}.`
                 );
             }
         }
@@ -14628,6 +14980,78 @@ const StockModule = {
             ),
             exactSegments
         };
+    },
+
+    buildMontagePlanBoundInstructionRequests: (plan) => {
+        const planId = String(plan?.id || '').trim();
+        const reservations = Array.isArray(plan?.exactReservations) ? plan.exactReservations : [];
+        if (!planId || !reservations.length) return { ok: false, requests: [] };
+        const grouped = new Map();
+        for (const raw of reservations) {
+            const normalized = StockModule.normalizeMontageExactReservation(raw, planId);
+            if (!normalized.ok) return { ok: false, requests: [] };
+            const reservation = {
+                ...normalized.reservation,
+                reservationKey: String(raw?.reservationKey || normalized.reservation.reservationKey).trim()
+            };
+            if (reservation.sourceType !== 'SALES_ORDER'
+                || !reservation.sourceOrderId
+                || !reservation.sourceLineId
+                || !reservation.demandId
+                || !reservation.itemKey) return { ok: false, requests: [] };
+            const key = [
+                reservation.sourceOrderId,
+                reservation.sourceLineId,
+                reservation.demandId,
+                reservation.itemKey,
+                reservation.prcId,
+                reservation.prcCode,
+                reservation.unit
+            ].join('|');
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    key,
+                    prcId: reservation.prcId,
+                    prcCode: reservation.prcCode,
+                    unit: reservation.unit,
+                    qty: 0,
+                    target: {
+                        sourceOrderId: reservation.sourceOrderId,
+                        sourceLineId: reservation.sourceLineId,
+                        demandId: reservation.demandId,
+                        itemKey: reservation.itemKey
+                    },
+                    slices: []
+                });
+            }
+            const entry = grouped.get(key);
+            const sliceIndex = entry.slices.length + 1;
+            entry.qty = Number((entry.qty + reservation.qty).toFixed(6));
+            entry.slices.push({
+                sliceKey: `MGP_STAI_SLICE|${planId}|${grouped.size}|${sliceIndex}`,
+                stockRowId: String(reservation.stockRowId || '').trim(),
+                physicalSegmentId: reservation.physicalSegmentId,
+                segmentOffsetStart: reservation.segmentOffsetStart,
+                segmentOffsetEnd: reservation.segmentOffsetEnd,
+                qty: reservation.qty
+            });
+        }
+        const requests = Array.from(grouped.values())
+            .sort((left, right) => left.key.localeCompare(right.key, 'tr'))
+            .map((entry, index) => ({
+                prcId: entry.prcId,
+                prcCode: entry.prcCode,
+                unit: entry.unit,
+                qty: entry.qty,
+                target: entry.target,
+                slices: entry.slices.map((slice, sliceIndex) => ({
+                    ...slice,
+                    sliceKey: `MGP_STAI_SLICE|${planId}|${index + 1}|${sliceIndex + 1}`
+                })),
+                reason: `${String(plan?.planNo || planId).trim()} montaj planı exact PRC/WIP taahhüdü.`,
+                idempotencyKey: `MGP_PLAN_BOUND_STAI|${planId}|${index + 1}`
+            }));
+        return { ok: requests.length > 0, requests };
     },
 
     buildMontageExactDispatchPhysicalAllocations: ({ plan, items, normalizedParts } = {}) => {
@@ -14751,25 +15175,38 @@ const StockModule = {
             }
             const stockRowId = String(segment?.stockRowId || '').trim();
             const rowMatches = stockRowsById.get(stockRowId) || [];
-            if (!stockRowId || rowMatches.length !== 1) {
+            const sourceKind = String(segment?.sourceKind || '').trim().toUpperCase();
+            const sourceStage = String(segment?.stage || '').trim().toUpperCase();
+            const isDepotStock = sourceKind === 'CURRENT_STOCK_ROW'
+                && sourceStage === 'DEPOT_STOCK'
+                && !!stockRowId
+                && rowMatches.length === 1
+                && exact.physicalSegmentId === `STOCK|${stockRowId}`;
+            const isTrustedWip = sourceKind === 'WORK_ORDER'
+                && ['IN_PROCESS', 'TRANSFER_PENDING', 'DEPOT_PENDING'].includes(sourceStage)
+                && !stockRowId
+                && !exact.physicalSegmentId.startsWith('STOCK|')
+                && !!String(segment?.originWorkOrderId || '').trim()
+                && !!String(segment?.originWorkOrderLineId || '').trim()
+                && segment?.productionOriginVerified === true
+                && segment?.physicalOrigin?.verified === true;
+            if (!isDepotStock && !isTrustedWip) {
                 return fail(
-                    'MGS_EXACT_STOCK_ROW_NOT_UNIQUE',
-                    `${exact.prcCode} fiziksel segmenti tekil stok satırına bağlanamadı.`
+                    'MGS_EXACT_SOURCE_NOT_TRUSTED',
+                    `${exact.prcCode} fiziksel segmenti güvenilir stok/WIP kaynağına bağlanamadı.`
                 );
             }
-            const row = rowMatches[0];
+            const row = isDepotStock ? rowMatches[0] : null;
             const rowCode = String(row?.productCode || row?.code || '').trim().toUpperCase();
             const rowUnit = StockModule.normalizeMontageDispatchUnit(row?.unit);
             const rowPrcId = String(row?.refId || row?.productId || '').trim();
-            if (String(segment?.stage || '').trim().toUpperCase() !== 'DEPOT_STOCK'
-                || String(segment?.sourceKind || '').trim().toUpperCase() !== 'CURRENT_STOCK_ROW'
-                || segment?.allocatable !== true
+            if (segment?.allocatable !== true
                 || String(segment?.prcId || '').trim() !== exact.prcId
                 || String(segment?.prcCode || '').trim().toUpperCase() !== exact.prcCode
                 || StockModule.normalizeMontageDispatchUnit(segment?.unit) !== exact.unit
-                || rowCode !== exact.prcCode
-                || rowUnit !== exact.unit
-                || (rowPrcId && rowPrcId !== exact.prcId)) {
+                || (isDepotStock && (rowCode !== exact.prcCode
+                    || rowUnit !== exact.unit
+                    || (rowPrcId && rowPrcId !== exact.prcId)))) {
                 return fail(
                     'MGS_EXACT_STOCK_IDENTITY_MISMATCH',
                     `${exact.prcCode} fiziksel stok satırı PRC/birim kimliği exact rezervle uyuşmuyor.`
@@ -14782,13 +15219,13 @@ const StockModule = {
                     `${exact.prcCode} exact rezervinin demandId + itemKey bağı MGP içinde bulunamadı.`
                 );
             }
-            const eligibleRowIds = new Set(
+            const eligibleRowIds = isDepotStock ? new Set(
                 StockModule.getMontageDispatchEligibleStockRows(exact.prcCode, [item])
                     .filter((candidate) => StockModule.normalizeMontageDispatchUnit(candidate?.unit) === exact.unit)
                     .map((candidate) => String(candidate?.id || '').trim())
                     .filter(Boolean)
-            );
-            if (!eligibleRowIds.has(stockRowId)) {
+            ) : new Set();
+            if (isDepotStock && !eligibleRowIds.has(stockRowId)) {
                 return fail(
                     'MGS_EXACT_STOCK_ROW_NOT_ELIGIBLE',
                     `${exact.prcCode} exact stok satırı montaj sevki için uygun değil.`
@@ -14832,7 +15269,7 @@ const StockModule = {
                     `${exact.prcCode} exact rezervi MGP parça snapshotında bulunamadı.`
                 );
             }
-            const aggregateKey = stockRowId;
+            const aggregateKey = exact.physicalSegmentId;
             const current = aggregateByStockExact.get(aggregateKey);
             if (!current) {
                 aggregateByStockExact.set(aggregateKey, {
@@ -14840,13 +15277,20 @@ const StockModule = {
                     partExactKey,
                     row,
                     stockDepotItemId: stockRowId,
-                    sourceDepotId: StockModule.resolveScopeIdFromStockRow(row),
+                    sourceKind,
+                    sourceStage,
+                    sourceWorkOrderId: String(segment?.originWorkOrderId || '').trim(),
+                    sourceWorkOrderLineId: String(segment?.originWorkOrderLineId || '').trim(),
+                    sourceRouteId: String(segment?.routeId || '').trim(),
+                    sourceRouteSeq: Number(segment?.routeSeq),
+                    sourceDepotId: row ? StockModule.resolveScopeIdFromStockRow(row) : '',
                     sourceLocationId: String(row?.locationId || '').trim(),
                     prcId: exact.prcId,
                     prcCode: exact.prcCode,
                     unit: exact.unit,
                     sourceBucket: exact.sourceBucket,
                     physicalSegmentId: exact.physicalSegmentId,
+                    segmentCapacityQty: Number(segment?.physicalQty || 0),
                     qty: exact.qty,
                     exactReservations: [exact]
                 });
@@ -14871,17 +15315,20 @@ const StockModule = {
             String(left?.aggregateKey || '').localeCompare(String(right?.aggregateKey || ''), 'tr')
         );
         for (const aggregate of aggregates) {
-            if (!aggregate.sourceDepotId || !aggregate.sourceLocationId) {
+            if (aggregate.sourceKind === 'CURRENT_STOCK_ROW'
+                && (!aggregate.sourceDepotId || !aggregate.sourceLocationId)) {
                 return fail(
                     'MGS_EXACT_STOCK_LOCATION_MISSING',
                     `${aggregate.prcCode} exact stok satırının depo/lokasyon bağı eksik.`
                 );
             }
-            const currentQty = StockModule.getStockRowQty(aggregate.row);
+            const currentQty = aggregate.sourceKind === 'CURRENT_STOCK_ROW'
+                ? StockModule.getStockRowQty(aggregate.row)
+                : Number(aggregate.segmentCapacityQty || 0);
             if (aggregate.qty > currentQty + 0.000001) {
                 return fail(
-                    'MGS_EXACT_STOCK_QTY_INSUFFICIENT',
-                    `${aggregate.prcCode} exact stok satırı yetersiz. Gereken: ${aggregate.qty}, mevcut: ${currentQty}.`
+                    'MGS_EXACT_SOURCE_QTY_INSUFFICIENT',
+                    `${aggregate.prcCode} exact stok/WIP kaynağı yetersiz. Gereken: ${aggregate.qty}, mevcut: ${currentQty}.`
                 );
             }
             aggregate.exactReservations.sort((left, right) =>
@@ -14912,7 +15359,7 @@ const StockModule = {
             aggregate.movementIdempotencyKey = [
                 'MONTAGE_PLAN_DISPATCH_MOVEMENT',
                 planId,
-                aggregate.stockDepotItemId,
+                aggregate.physicalSegmentId,
                 aggregate.prcId,
                 aggregate.prcCode,
                 aggregate.unit
@@ -14922,7 +15369,7 @@ const StockModule = {
                 : []).find((movement) =>
                 String(movement?.idempotencyKey || '').trim() === aggregate.movementIdempotencyKey
                 || (String(movement?.planId || '').trim() === planId
-                    && String(movement?.stockDepotItemId || '').trim() === aggregate.stockDepotItemId
+                    && String(movement?.physicalSegmentId || '').trim() === aggregate.physicalSegmentId
                     && String(movement?.refId || movement?.productId || '').trim() === aggregate.prcId
                     && StockModule.normalizeMontageDispatchUnit(movement?.unit) === aggregate.unit)
             );
@@ -15109,7 +15556,7 @@ const StockModule = {
                         idempotencyKey: [
                             'MONTAGE_PLAN_DISPATCH_ALLOCATION',
                             id,
-                            allocation.stockDepotItemId,
+                            allocation.physicalSegmentId,
                             part.refId,
                             part.code,
                             allocation.unit
@@ -15117,6 +15564,12 @@ const StockModule = {
                         movementIdempotencyKey: allocation.movementIdempotencyKey,
                         stockRowId: allocation.stockDepotItemId,
                         stockDepotItemId: allocation.stockDepotItemId,
+                        sourceKind: allocation.sourceKind,
+                        sourceStage: allocation.sourceStage,
+                        sourceWorkOrderId: allocation.sourceWorkOrderId,
+                        sourceWorkOrderLineId: allocation.sourceWorkOrderLineId,
+                        sourceRouteId: allocation.sourceRouteId,
+                        sourceRouteSeq: allocation.sourceRouteSeq,
                         physicalSegmentId: allocation.physicalSegmentId,
                         physicalSegmentIds: [allocation.physicalSegmentId],
                         exactReservationKeys: allocation.exactReservationKeys.slice(),
@@ -15131,7 +15584,7 @@ const StockModule = {
                         sourceLocationId: allocation.sourceLocationId,
                         qty: allocation.qty,
                         unit: allocation.unit,
-                        segmentCapacityQty: StockModule.getStockRowQty(allocation.row),
+                        segmentCapacityQty: Number(allocation.segmentCapacityQty || 0),
                         segmentRanges: allocation.exactReservations.map((reservation) => ({
                             reservationKey: String(reservation?.reservationKey || '').trim(),
                             planId: id,
@@ -15142,6 +15595,10 @@ const StockModule = {
                             itemKey: String(reservation?.itemKey || '').trim(),
                             stockRowId: allocation.stockDepotItemId,
                             physicalSegmentId: allocation.physicalSegmentId,
+                            sourceKind: allocation.sourceKind,
+                            sourceStage: allocation.sourceStage,
+                            sourceWorkOrderId: allocation.sourceWorkOrderId,
+                            sourceWorkOrderLineId: allocation.sourceWorkOrderLineId,
                             prcId: String(reservation?.prcId || '').trim(),
                             prcCode: String(reservation?.prcCode || '').trim().toUpperCase(),
                             unit: StockModule.normalizeMontageDispatchUnit(reservation?.unit),
@@ -15220,21 +15677,7 @@ const StockModule = {
     },
 
     getNextMontageDispatchPlanNo: () => {
-        const used = new Set();
-        let max = 0;
-        StockModule.getMontageDispatchPlans().forEach((plan) => {
-            const planNo = String(plan?.planNo || '').trim().toUpperCase();
-            if (planNo) used.add(planNo);
-            const match = planNo.match(/^MGP-(\d{6})$/);
-            if (match) max = Math.max(max, Number(match[1]) || 0);
-        });
-        let next = max + 1;
-        let candidate = `MGP-${String(next).padStart(6, '0')}`;
-        while (used.has(candidate)) {
-            next += 1;
-            candidate = `MGP-${String(next).padStart(6, '0')}`;
-        }
-        return candidate;
+        return StockModule.getNextOperationalCode('MGP', StockModule.getMontageDispatchPlans(), 'planNo');
     },
 
     getMontagePlanLineAllocationKey: (item) => {
@@ -15458,6 +15901,7 @@ const StockModule = {
                 const qtyPerSet = Math.max(0, Number(part?.qtyPerSet || 0));
                 const requiredQty = Number((qtyPerSet * plannedQty).toFixed(6));
                 const reservationKey = StockModule.getMontagePlanPartReservationKey(part);
+                const unit = StockModule.normalizeMontageDispatchUnit(part?.unit);
                 if (!reservationKey || requiredQty <= 0) return;
                 const current = grouped.get(reservationKey);
                 if (!current) {
@@ -15467,6 +15911,7 @@ const StockModule = {
                         refId: String(part?.refId || '').trim(),
                         code: String(part?.code || '').trim().toUpperCase(),
                         name: String(part?.name || part?.code || '-').trim() || '-',
+                        unit,
                         qtyPerSet,
                         requiredQty
                     });
@@ -15474,6 +15919,7 @@ const StockModule = {
                 }
                 current.requiredQty = Number((Number(current.requiredQty || 0) + requiredQty).toFixed(6));
                 if (Number(current.qtyPerSet) !== qtyPerSet) current.qtyPerSet = null;
+                if (current.unit !== unit) current.unit = '';
             });
         });
         return Array.from(grouped.values()).map((part) => ({
@@ -16188,7 +16634,10 @@ const StockModule = {
             if (!line) {
                 return alert('Seçili satır bulunamadı. Lütfen seçim modunu yeniden açın.');
             }
-            const qty = StockModule.parseMontageQty(qtyMap[key]);
+            const qtyInput = typeof document !== 'undefined'
+                ? document.getElementById(`montage_send_qty_${StockModule.escapeSafeId(key)}`)
+                : null;
+            const qty = StockModule.parseMontageQty(qtyInput ? qtyInput.value : qtyMap[key]);
             const montageJobKey = String(line?.montageJobKey || '').trim();
             const job = jobsByKey.get(montageJobKey) || null;
             const priorityAvailability = priorityMode
@@ -16416,12 +16865,11 @@ const StockModule = {
         if (parts.some((part) => !String(part?.unit || '').trim())) {
             return alert('Seçilen ürünlerde güvenilir parça birimi çözülemedi. Stok ve parça kartı birimlerini kontrol edin.');
         }
-        if (!priorityMode) {
-            const capacityCheck = StockModule.validateMontageDispatchPlanPartCapacity(parts, null, planItems);
-            if (!capacityCheck.ok) return alert(capacityCheck.message);
-        }
         const recordId = crypto.randomUUID();
         let exactReservations = [];
+        const normalSalesPlan = !priorityMode && planItems.every((item) =>
+            String(item?.sourceType || '').trim().toUpperCase() === 'SALES_ORDER'
+        );
         if (!priorityMode) {
             const preflight = StockModule.runMontageExactAllocationPreflight({
                 items: planItems,
@@ -16452,6 +16900,33 @@ const StockModule = {
             parts,
             exactReservations
         };
+        if (normalSalesPlan) {
+            const instructionBundle = StockModule.buildMontagePlanBoundInstructionRequests(record);
+            if (!instructionBundle.ok || !instructionBundle.requests.length) {
+                return alert('MGP exact rezervleri ACTIVE STAI kayıtlarına bağlanamadı; plan oluşturulmadı.');
+            }
+            if (typeof PlanningModule === 'undefined'
+                || !PlanningModule
+                || typeof PlanningModule.createSanalTaksimPlanBoundMontageAllocation !== 'function') {
+                return alert('Atomik MGP ve tahsis talimatı kayıt yolu kullanılamıyor.');
+            }
+            const result = await PlanningModule.createSanalTaksimPlanBoundMontageAllocation({
+                plan: record,
+                instructionRequests: instructionBundle.requests
+            });
+            if (!result || result.ok !== true) {
+                return alert(`Montaj gönderim planı kaydedilemedi: ${String(result?.message || 'Kayıt tamamlanamadı.')}`);
+            }
+            if (typeof SanalTaksimResolver !== 'undefined'
+                && SanalTaksimResolver
+                && typeof SanalTaksimResolver.resolve === 'function') {
+                SanalTaksimResolver.resolve(PlanningModule.buildSanalTaksimSnapshot());
+            }
+            StockModule.resetMontageReadyDetailSendDraft();
+            UI.renderCurrentPage();
+            alert(`${result.plan?.planNo || record.planNo} montaj gönderim planı ve bağlı ACTIVE tahsis talimatları kaydedildi.`);
+            return true;
+        }
         if (priorityMode) {
             const currentSessionKey = String(prioritySession?.sessionKey || '').trim();
             const currentSnapshot = PlanningModule.buildSanalTaksimSnapshot();
@@ -16465,7 +16940,9 @@ const StockModule = {
                 alert(bundleResult.message || 'Güvenli exact kaynaklar güncel snapshot üzerinde doğrulanamadı.');
                 return false;
             }
-            if (typeof PlanningModule.createSanalTaksimPlanBoundMontageAllocation !== 'function') {
+            if (typeof PlanningModule === 'undefined'
+                || !PlanningModule
+                || typeof PlanningModule.createSanalTaksimPlanBoundMontageAllocation !== 'function') {
                 alert('Atomik MGP ve tahsis talimatı kayıt yolu kullanılamıyor.');
                 return false;
             }
@@ -16514,11 +16991,12 @@ const StockModule = {
             const index = plans.indexOf(record);
             if (index >= 0) plans.splice(index, 1);
             alert(`Montaj gönderim planı kaydedilemedi: ${String(error?.message || 'Kayıt hatası')}`);
-            return;
+            return false;
         }
         StockModule.resetMontageReadyDetailSendDraft();
         UI.renderCurrentPage();
         alert(`${record.planNo} montaj gönderim planı taslak olarak kaydedildi.`);
+        return true;
     },
 
     toggleMontageReadyJobDetail: (jobKey) => {
@@ -16963,11 +17441,17 @@ const StockModule = {
                     stockAllocationContext.demandId,
                     stockAllocationContext.itemKey
                 );
+                const resolverResidualSetQty = Number(resolverItemAllocation?.readiness?.residualSetQty);
+                const productionRequestedQty = resolverItemAllocation.trusted
+                    && Number.isFinite(resolverResidualSetQty)
+                    && resolverResidualSetQty >= 0
+                    ? Math.min(requestedQty, resolverResidualSetQty)
+                    : requestedQty;
                 const recipeRows = StockModule.getMontageReadyRecipeRows(variant);
                 const partRows = recipeRows.map((recipe) => {
                     const code = String(recipe?.code || '').trim().toUpperCase();
                     const qtyPerSet = StockModule.parseMontageQty(recipe?.qtyPerSet || 0);
-                    const requiredQty = qtyPerSet > 0 ? qtyPerSet * requestedQty : 0;
+                    const requiredQty = qtyPerSet > 0 ? qtyPerSet * productionRequestedQty : 0;
                     const resolverPart = StockModule.resolveMontageReadyResolverPartAllocation(
                         resolverContext,
                         stockAllocationContext.demandId,
@@ -17038,9 +17522,11 @@ const StockModule = {
                     ? Math.max(0, Math.floor(Number(resolverItemAllocation.allocatableQty || 0)))
                     : 0;
                 const readySetQty = calculable
-                    ? Math.max(0, Math.min(requestedQty, resolverReadyCap, Number(partReadySetQty || 0)))
+                    ? Math.max(0, Math.min(productionRequestedQty, resolverReadyCap, Number(partReadySetQty || 0)))
                     : null;
-                const missingSetQty = calculable ? Math.max(0, requestedQty - Number(readySetQty || 0)) : null;
+                const missingSetQty = calculable
+                    ? Math.max(0, productionRequestedQty - Number(readySetQty || 0))
+                    : null;
                 const variantCode = String(item?.variantCode || variant?.variantCode || '-').trim().toUpperCase() || '-';
                 const productName = String(item?.productName || variant?.productName || '-').trim() || '-';
                 const resolverAvailability = {
@@ -17050,7 +17536,7 @@ const StockModule = {
                         && Number(readySetQty || 0) > 0,
                     readyQty: calculable ? Math.max(0, Number(readySetQty || 0)) : 0,
                     physicalReadyQty: resolverItemAllocation.trusted
-                        ? Math.max(0, Math.min(requestedQty, Number(resolverItemAllocation.allocatableQty || 0)))
+                        ? Math.max(0, Math.min(productionRequestedQty, Number(resolverItemAllocation.allocatableQty || 0)))
                         : 0,
                     reasonCode: String(
                         calculable && Number(readySetQty || 0) > 0
@@ -17073,6 +17559,7 @@ const StockModule = {
                     productName,
                     variantCode,
                     requestedQty,
+                    productionRequestedQty,
                     readySetQty,
                     missingSetQty,
                     calculable,
@@ -18728,7 +19215,7 @@ const StockModule = {
                                         ${activeMontagePlanWarning}
                                     </td>
                                     <td style="padding:0.44rem 0.38rem;">
-                                        <input type="number" min="0" max="${StockModule.escapeHtml(String(sendableQty))}" step="1" value="${StockModule.escapeHtml(sendQtyValue)}" ${isSelectedForSend && canSelectForSend ? '' : 'disabled'} onchange="StockModule.setMontageReadyDetailSendQty('${StockModule.escapeJsString(rowKey)}', this.value, '${StockModule.escapeJsString(String(sendableQty))}')" style="width:100%; max-width:112px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:900; text-align:center; ${isSelectedForSend && canSelectForSend ? 'background:#ffffff;' : 'background:#f8fafc; color:#94a3b8;'}">
+                                        <input type="number" id="montage_send_qty_${StockModule.escapeSafeId(rowKey)}" min="0" max="${StockModule.escapeHtml(String(sendableQty))}" step="1" value="${StockModule.escapeHtml(sendQtyValue)}" ${isSelectedForSend && canSelectForSend ? '' : 'disabled'} onchange="StockModule.setMontageReadyDetailSendQty('${StockModule.escapeJsString(rowKey)}', this.value, '${StockModule.escapeJsString(String(sendableQty))}')" style="width:100%; max-width:112px; height:32px; border:1px solid #cbd5e1; border-radius:0.45rem; padding:0 0.45rem; font-weight:900; text-align:center; ${isSelectedForSend && canSelectForSend ? 'background:#ffffff;' : 'background:#f8fafc; color:#94a3b8;'}">
                                     </td>
                                 ` : '';
                                 const shipmentReadyDisplay = shipmentAvailability?.ok

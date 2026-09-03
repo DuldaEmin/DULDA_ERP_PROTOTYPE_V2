@@ -1,0 +1,64 @@
+======================================================================
+DULDA ERP — AÇIK İŞLER KULLANIM KURALI
+======================================================================
+
+AMAÇ
+
+06_ACIK_ISLER klasörü, DULDA ERP üzerinde çalışırken fark ettiğimiz fakat
+o anda çözmeyeceğimiz hata, risk veya iyileştirmeleri unutmamak için kullanılır.
+
+Bu klasör:
+
+- aktif mimari değildir,
+- aktif çalışma planı değildir,
+- buradaki bir kayıt otomatik olarak "hemen uygulanacak" anlamına gelmez.
+
+NASIL KULLANILIR?
+
+- Her konu ayrı bir TXT dosyası olarak açılır.
+- Her TXT yalnız bir ana konu taşır.
+- Dosya adı sorunu mümkün olduğunca açık anlatır.
+- Kayıtlar AI-001, AI-002, AI-003 şeklinde devam eder.
+- Yeni kayıt Durum: AÇIK olarak tutulur.
+- Sorunun neden açıldığı, risk, hedef ve varsa hazırlanmış plan dosyada
+  yazılı kalır.
+
+BİR AÇIK İŞİ ELE ALDIĞIMIZDA
+
+- Önce ilgili TXT okunur.
+- Sonra güncel repo, state ve runtime tekrar kontrol edilir.
+- Eski not tek başına teknik gerçek kabul edilmez.
+- Gerekirse plan güncellenir.
+- Kullanıcı onayı olmadan uygulama yapılmaz.
+
+İŞ TAMAMLANDIĞINDA
+
+Dosyanın altına kısa olarak:
+
+- Durum: TAMAMLANDI
+- Tamamlanma tarihi
+- Yapılan işlem
+- Sonuç
+- Test / doğrulama sonucu
+
+yazılır.
+
+Dosya silinmez. Şu klasöre taşınır:
+
+DULDA_ERP_DOKUMAN/90_ARSIV/ACIK_ISLER_TAMAMLANAN
+
+Böylece 06_ACIK_ISLER içinde yalnız henüz yapılmamış işler kalır.
+
+TEMEL KURAL
+
+Bu klasör fikir/not çöplüğüne çevrilmeyecek.
+
+Yalnız gerçekten:
+
+- düzeltilmesi gereken hata,
+- gerçek teknik risk,
+- kabul edilmiş iyileştirme
+
+konuları buraya kaydedilecek.
+
+======================================================================

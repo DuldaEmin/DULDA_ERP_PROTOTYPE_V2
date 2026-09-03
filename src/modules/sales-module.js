@@ -381,7 +381,8 @@
             bag.push(String(customer?.defaultPaymentMethod || '').trim());
         }
         const orders = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
-        orders.slice(-50).forEach((row) => bag.push(String(row?.paymentMethod || '').trim()));
+        orders.filter((row) => !SalesModule.isPrototypeResetTombstonedOrder(row))
+            .slice(-50).forEach((row) => bag.push(String(row?.paymentMethod || '').trim()));
         return SalesModule.normalizeSalesPaymentMethods(bag);
     },
 
@@ -764,6 +765,7 @@
 
         const candidates = [];
         rows.forEach((order) => {
+            if (SalesModule.isPrototypeResetTombstonedOrder(order)) return;
             const orderCustomerId = String(order?.customerId || order?.customer?.id || '').trim();
             if (orderCustomerId !== targetCustomerId) return;
             if (isIgnoredStatus(order?.status)) return;
@@ -947,14 +949,22 @@
         return { group, text: rawLabel || 'Onay Bekliyor', border: '#e2e8f0', bg: '#f8fafc', color: '#475569' };
     },
 
+    isPrototypeResetTombstonedOrder: (row) => String(row?.prototypeResetTombstone?.type || '').trim()
+        === 'PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE',
+
     getSalesOrderHistoryRows: () => {
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         return rows
+            .filter((row) => !SalesModule.isPrototypeResetTombstonedOrder(row))
             .filter((row) => {
                 const orderType = SalesModule.normalize(String(row?.orderType || ''));
                 if (orderType === 'proforma' || orderType === 'sales') return true;
                 const orderNo = String(row?.orderNo || row?.orderCode || '').trim().toUpperCase();
-                if (/^SOR-\d{6}$/.test(orderNo)) return true;
+                const validSalesOrderCode = typeof IdentityPolicy !== 'undefined'
+                    && typeof IdentityPolicy?.isSequentialCode === 'function'
+                    ? IdentityPolicy.isSequentialCode(orderNo, 'SOR')
+                    : /^SOR-(?:\d{6}|[1-9]\d{6,})$/.test(orderNo);
+                if (validSalesOrderCode) return true;
                 const lines = Array.isArray(row?.lines) ? row.lines : [];
                 return !!(String(row?.customerId || '').trim() && lines.some((line) => String(line?.productId || '').trim()));
             })
@@ -4059,19 +4069,55 @@
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
         const targetOrder = rows.find((row) => String(row?.id || '').trim() === targetId) || null;
         if (!targetOrder) return alert('Sipariş kaydı bulunamadı.');
-        const next = rows.filter((row) => String(row?.id || '').trim() !== targetId);
+        const targetOrderNo = String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim();
+        const targetLineIds = (Array.isArray(targetOrder?.lines) ? targetOrder.lines : [])
+            .map((line) => String(line?.id || line?.lineId || '').trim())
+            .filter(Boolean);
         let cleanupSummary = null;
-        const beforeCleanupState = (typeof DB.cloneState === 'function')
-            ? DB.cloneState(DB.data)
-            : JSON.parse(JSON.stringify(DB.data || {}));
-        if (typeof PlanningModule !== 'undefined'
+        const hasDetachPlanner = typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.buildSalesOrderPrototypeDetachPlan === 'function'
+            && typeof PlanningModule.getSalesOrderPrototypeDetachPlanSignature === 'function'
+            && typeof PlanningModule.applySalesOrderPrototypeDetachPlan === 'function';
+        let confirmedPlanSignature = '';
+        if (hasDetachPlanner) {
+            const confirmationPlan = PlanningModule.buildSalesOrderPrototypeDetachPlan(targetId);
+            if (!confirmationPlan?.ok || confirmationPlan?.failClosed
+                || (Array.isArray(confirmationPlan?.uncertainties) && confirmationPlan.uncertainties.length)) {
+                const reasons = (Array.isArray(confirmationPlan?.uncertainties) ? confirmationPlan.uncertainties : [])
+                    .map((row) => String(row?.message || '').trim()).filter(Boolean);
+                alert(`Sipariş silinemedi:\n\n${reasons.join('\n') || 'Bağlantı kanıtı belirsiz; hiçbir kayıt değiştirilmedi.'}`);
+                return;
+            }
+            confirmedPlanSignature = PlanningModule.getSalesOrderPrototypeDetachPlanSignature(confirmationPlan);
+            if (!confirm(`"${targetOrderNo || targetId}" test siparişi silinsin mi?\n\nOrtak fiziksel kanıtlar otomatik korunacaktır.`)) return;
+        }
+        const beforeCleanupState = typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.cloneDemoCleanupState === 'function'
+            ? PlanningModule.cloneDemoCleanupState(DB.data)
+            : ((typeof DB.cloneState === 'function')
+                ? DB.cloneState(DB.data)
+                : JSON.parse(JSON.stringify(DB.data || {})));
+        if (hasDetachPlanner) {
+            cleanupSummary = PlanningModule.applySalesOrderPrototypeDetachPlan(targetId, confirmedPlanSignature, {
+                lineIds: targetLineIds
+            });
+            if (cleanupSummary?.ok === false) {
+                if (typeof PlanningModule.restoreDemoCleanupState === 'function') {
+                    PlanningModule.restoreDemoCleanupState(beforeCleanupState);
+                }
+                const errors = Array.isArray(cleanupSummary?.errors) && cleanupSummary.errors.length
+                    ? cleanupSummary.errors.join('\n')
+                    : 'Güvenli Prototype Reset tamamlanamadı.';
+                alert(`Sipariş silinemedi:\n\n${errors}`);
+                return;
+            }
+        } else if (typeof PlanningModule !== 'undefined'
             && PlanningModule
             && typeof PlanningModule.cleanupSalesOrderCascadeForDemo === 'function') {
-            const targetLineIds = (Array.isArray(targetOrder?.lines) ? targetOrder.lines : [])
-                .map((line) => String(line?.id || line?.lineId || '').trim())
-                .filter(Boolean);
             cleanupSummary = PlanningModule.cleanupSalesOrderCascadeForDemo(targetId, {
-                orderNo: String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim(),
+                orderNo: targetOrderNo,
                 lineIds: targetLineIds,
                 confirmBeforeApply: true
             });
@@ -4086,19 +4132,85 @@
         } else if (!confirm('Sipariş kaydı kalıcı olarak silinsin mi?')) {
             return;
         }
-        DB.data.data.orders = next;
-        const criticalDropApproval = cleanupSummary
-            && typeof DB.createCriticalDropApproval === 'function'
-            ? DB.createCriticalDropApproval('sales_order_demo_cleanup', beforeCleanupState, DB.data, {
-                orderId: targetId,
-                orderNo: String(targetOrder?.orderNo || targetOrder?.orderCode || '').trim()
-            })
-            : null;
-        const saveResult = await DB.save({ criticalDropApproval });
-        if (saveResult?.ok === false) return;
+        const currentRows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
+        if (currentRows.filter((row) => String(row?.id || '').trim() === targetId).length !== 1) {
+            if (typeof PlanningModule !== 'undefined'
+                && PlanningModule
+                && typeof PlanningModule.restoreDemoCleanupState === 'function') {
+                PlanningModule.restoreDemoCleanupState(beforeCleanupState);
+            }
+            alert('Sipariş silinemedi:\n\nSipariş kimliği apply sırasında değişti.');
+            return;
+        }
+        if (String(cleanupSummary?.prototypeResetMode || '') === 'RETAINED_EVIDENCE_DETACH') {
+            const retainedOrder = currentRows.find((row) => String(row?.id || '').trim() === targetId);
+            if (String(retainedOrder?.prototypeResetTombstone?.type || '').trim()
+                !== 'PROTOTYPE_TEST_RESET_RETAINED_EVIDENCE') {
+                if (typeof PlanningModule !== 'undefined'
+                    && PlanningModule
+                    && typeof PlanningModule.restoreDemoCleanupState === 'function') {
+                    PlanningModule.restoreDemoCleanupState(beforeCleanupState);
+                }
+                alert('Sipariş silinemedi:\n\nRetained-evidence kimlik işareti doğrulanamadı.');
+                return;
+            }
+        } else {
+            DB.data.data.orders = currentRows.filter((row) => String(row?.id || '').trim() !== targetId);
+        }
+        const prototypeResetVersion = Number(cleanupSummary?.prototypeResetVersion || 3);
+        const approvalMeta = {
+            orderId: targetId,
+            orderNo: targetOrderNo,
+            prototypeResetVersion,
+            prototypeResetMode: String(cleanupSummary?.prototypeResetMode || 'DELETE_EXCLUSIVE').trim(),
+            planSignature: String(cleanupSummary?.planSignature || '').trim(),
+            demandIds: Array.isArray(cleanupSummary?.tombstonedDemandIds) ? cleanupSummary.tombstonedDemandIds : [],
+            workOrderIds: Array.isArray(cleanupSummary?.tombstonedWorkOrderIds) ? cleanupSummary.tombstonedWorkOrderIds : []
+        };
+        let persisted;
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.persistDemoCleanupAtomically === 'function') {
+            persisted = await PlanningModule.persistDemoCleanupAtomically(beforeCleanupState, {
+                approvalType: 'sales_order_demo_cleanup',
+                approvalMeta
+            });
+        } else {
+            try {
+                const criticalDropApproval = cleanupSummary && typeof DB.createCriticalDropApproval === 'function'
+                    ? DB.createCriticalDropApproval('sales_order_demo_cleanup', beforeCleanupState, DB.data, approvalMeta)
+                    : null;
+                const saveResult = await DB.save({ criticalDropApproval, conflictStrategy: 'fail' });
+                persisted = saveResult?.ok === false
+                    ? { ok: false, error: saveResult?.error || new Error(String(saveResult?.code || 'Sipariş silme kaydedilemedi.')) }
+                    : { ok: true, saveResult };
+            } catch (error) {
+                persisted = { ok: false, error };
+            }
+        }
+        if (!persisted?.ok) {
+            if (typeof PlanningModule !== 'undefined'
+                && PlanningModule
+                && typeof PlanningModule.restoreDemoCleanupState === 'function') {
+                PlanningModule.restoreDemoCleanupState(beforeCleanupState);
+            } else {
+                DB.data = beforeCleanupState;
+            }
+            alert(`Sipariş silinemedi ve bellek geri yüklendi:\n\n${String(persisted?.error?.message || 'Kayıt hatası')}`);
+            return;
+        }
+        if (typeof PlanningModule !== 'undefined'
+            && PlanningModule
+            && typeof PlanningModule.clearStockDemandDemoCleanupUiState === 'function') {
+            (Array.isArray(cleanupSummary?.cleanedDemandIds) ? cleanupSummary.cleanedDemandIds : []).forEach((demandId) => {
+                PlanningModule.clearStockDemandDemoCleanupUiState(demandId);
+            });
+        }
         const cleanupWarnings = Array.isArray(cleanupSummary?.warnings) ? cleanupSummary.warnings : [];
         if (cleanupSummary && (
-            Number(cleanupSummary?.removedDemandCount || 0) > 0
+            String(cleanupSummary?.prototypeResetMode || '') === 'RETAINED_EVIDENCE_DETACH'
+            || Number(cleanupSummary?.retainedEvidenceCount || 0) > 0
+            || Number(cleanupSummary?.removedDemandCount || 0) > 0
             || Number(cleanupSummary?.removedWorkOrderCount || 0) > 0
             || Number(cleanupSummary?.removedWorkOrderTxnCount || 0) > 0
             || Number(cleanupSummary?.removedDispatchNoteRowCount || 0) > 0
@@ -4522,15 +4634,24 @@
 
     generateSalesOrderNo: () => {
         const rows = Array.isArray(DB.data?.data?.orders) ? DB.data.data.orders : [];
-        let maxSeq = 0;
-        rows.forEach((row) => {
-            const code = String(row?.orderNo || row?.orderCode || '').trim().toUpperCase();
-            const match = code.match(/^SOR-(\d{6})$/);
-            if (!match) return;
-            const seq = Number(match[1] || 0);
-            if (seq > maxSeq) maxSeq = seq;
+        const usedCodes = new Set(rows
+            .map((row) => String(row?.orderNo || row?.orderCode || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'SOR', usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'SOR', Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.SOR || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        usedCodes.forEach((value) => {
+            const match = value.match(/^SOR-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
         });
-        return `SOR-${String(maxSeq + 1).padStart(6, '0')}`;
+        return `SOR-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
 
     cloneSalesOrderMutationValue: (value) => JSON.parse(JSON.stringify(value)),
@@ -5568,15 +5689,24 @@
 
     generateCustomerCode: () => {
         const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
-        let maxSeq = 0;
-        rows.forEach((row) => {
-            const code = String(row?.customerCode || '').trim().toUpperCase();
-            const match = code.match(/^MUS-(\d{6})$/);
-            if (!match) return;
-            const seq = Number(match[1] || 0);
-            if (seq > maxSeq) maxSeq = seq;
+        const usedCodes = new Set(rows
+            .map((row) => String(row?.customerCode || '').trim().toUpperCase())
+            .filter(Boolean));
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            return IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'MUS', usedCodes });
+        }
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            return OperationalCodeHighWater.nextCode(DB.data, 'MUS', Array.from(usedCodes));
+        }
+        const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.MUS || '0');
+        let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+        usedCodes.forEach((value) => {
+            const match = value.match(/^MUS-(\d{6}|[1-9]\d{6,})$/);
+            if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
         });
-        return `MUS-${String(maxSeq + 1).padStart(6, '0')}`;
+        return `MUS-${(maximum + 1n).toString().padStart(6, '0')}`;
     },
 
     normalizeCustomerRefId: (value) => String(value || '')
@@ -5585,7 +5715,10 @@
         .replace(/[\s_]+/g, '-')
         .replace(/-+/g, '-'),
 
-    isValidCustomerRefId: (value) => /^MREF-\d{6}$/i.test(String(value || '').trim()),
+    isValidCustomerRefId: (value) => typeof IdentityPolicy !== 'undefined'
+        && typeof IdentityPolicy?.isSequentialCode === 'function'
+        ? IdentityPolicy.isSequentialCode(value, 'MREF')
+        : /^MREF-(?:\d{6}|[1-9]\d{6,})$/i.test(String(value || '').trim()),
 
     collectUsedCustomerRefIds: (excludeCustomerId = '') => {
         const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
@@ -5607,44 +5740,28 @@
             ? options.usedIds
             : SalesModule.collectUsedCustomerRefIds(excludeCustomerId);
 
-        let maxSeq = 0;
-        usedIds.forEach((code) => {
-            const match = String(code || '').trim().toUpperCase().match(/^MREF-(\d{6})$/);
-            if (!match) return;
-            const seq = Number(match[1] || 0);
-            if (seq > maxSeq) maxSeq = seq;
-        });
-
-        let seq = maxSeq + 1;
-        let candidate = `MREF-${String(seq).padStart(6, '0')}`;
-        while (usedIds.has(candidate)) {
-            seq += 1;
-            candidate = `MREF-${String(seq).padStart(6, '0')}`;
+        let candidate = '';
+        if (typeof IdentityPolicy !== 'undefined'
+            && typeof IdentityPolicy?.getNextMonotonicCode === 'function') {
+            candidate = IdentityPolicy.getNextMonotonicCode(DB.data, { prefix: 'MREF', usedCodes: usedIds });
+        } else if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.nextCode === 'function') {
+            candidate = OperationalCodeHighWater.nextCode(DB.data, 'MREF', Array.from(usedIds));
+        } else {
+            const highWater = String(DB.data?.meta?.operationalCodeHighWaterMarks?.MREF || '0');
+            let maximum = /^\d+$/.test(highWater) ? BigInt(highWater) : 0n;
+            usedIds.forEach((value) => {
+                const match = String(value || '').trim().toUpperCase().match(/^MREF-(\d{6}|[1-9]\d{6,})$/);
+                if (match && BigInt(match[1]) > maximum) maximum = BigInt(match[1]);
+            });
+            candidate = `MREF-${(maximum + 1n).toString().padStart(6, '0')}`;
         }
         usedIds.add(candidate);
         return candidate;
     },
 
     ensureCustomerRefIds: () => {
-        const rows = Array.isArray(DB.data?.data?.customers) ? DB.data.data.customers : [];
-        const used = new Set();
-
-        rows.forEach((row) => {
-            const current = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
-            if (!SalesModule.isValidCustomerRefId(current)) return;
-            if (used.has(current)) return;
-            used.add(current);
-        });
-
-        rows.forEach((row) => {
-            if (!row || typeof row !== 'object') return;
-            const current = SalesModule.normalizeCustomerRefId(row?.customerRefId || '');
-            if (SalesModule.isValidCustomerRefId(current) && used.has(current)) {
-                row.customerRefId = current;
-                return;
-            }
-            row.customerRefId = SalesModule.generateCustomerRefId({ usedIds: used });
-        });
+        return false;
     },
 
     getCustomerStatusMeta: (isActive) => {
@@ -6557,6 +6674,7 @@
         const nameNorm = SalesModule.normalize(customer.name || '');
         return rows
             .filter((row) => {
+                if (SalesModule.isPrototypeResetTombstonedOrder(row)) return false;
                 const customerId = String(row?.customerId || row?.customer?.id || '').trim();
                 const customerName = SalesModule.normalize(row?.customerName || row?.customer?.name || row?.customer || '');
                 if (id && customerId && customerId === id) return true;
@@ -6866,7 +6984,10 @@
         return '';
     },
 
-    isValidCustomerCode: (value) => /^MUS-\d{6}$/i.test(String(value || '').trim()),
+    isValidCustomerCode: (value) => typeof IdentityPolicy !== 'undefined'
+        && typeof IdentityPolicy?.isSequentialCode === 'function'
+        ? IdentityPolicy.isSequentialCode(value, 'MUS')
+        : /^MUS-(?:\d{6}|[1-9]\d{6,})$/i.test(String(value || '').trim()),
 
     isValidUuid: (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || '').trim()),
 

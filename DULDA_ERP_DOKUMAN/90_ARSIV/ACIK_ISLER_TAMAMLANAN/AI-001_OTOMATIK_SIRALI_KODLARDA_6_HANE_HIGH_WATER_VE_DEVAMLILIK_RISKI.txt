@@ -1,0 +1,315 @@
+BU NOTU NEDEN AÇTIK?
+
+DULDA ERP'de WO-000187, FTS-000029 ve TF-000002 gibi sistemin kendi verdiği
+sıralı kodlar kullanıyoruz.
+
+Bu kodlarda 6 hane son sınır olmamalıdır. Sistem örneğin:
+
+WO-999999 -> WO-1000000
+FTS-999999 -> FTS-1000000
+TF-999999 -> TF-1000000
+
+şeklinde kesintisiz devam etmelidir.
+
+Yaptığımız kontrolde programın bazı bölümlerinin 7 haneli kod üretebildiği,
+ancak bazı güvenlik ve kontrol bölümlerinin hâlâ yalnız 6 haneli kodları
+tanıdığı görüldü.
+
+Bu durum ileride eski bir kodun tekrar kullanılmasına veya bazı işlemlerin
+999999 seviyesinde durmasına neden olabilir.
+
+Şu anda sayılar bu sınıra yakın değildir. Bu nedenle acil bir üretim sorunu
+değildir.
+
+Bu not, konuyu unutmamak ve SOR-000020 doğal operasyonu bittikten sonra
+güvenli şekilde düzeltmek için açılmıştır.
+
+===============================================================================
+AI-001 — TEKNİK AÇIK İŞ KAYDI
+===============================================================================
+
+Kayıt kodu: AI-001
+Başlık: OTOMATİK SIRALI KODLARDA 6 HANE, HIGH-WATER VE DEVAMLILIK RİSKİ
+Durum: AÇIK
+Açılış tarihi: 02.09.2026
+
+-------------------------------------------------------------------------------
+KANITLANAN SORUN
+-------------------------------------------------------------------------------
+
+Güncel repo/worktree üzerinde yapılan READ-ONLY incelemede ana persistent
+operasyon kodu aileleri aşağıdaki şekilde doğrulandı:
+
+- SOR
+- PLN
+- WO
+- MGP
+- MGS
+- MCT
+- FTS
+- STAI
+- SVP
+- TF
+
+Bu ailelerde 999999 sonrası davranış mevcut durumda tam güvenli değildir.
+
+- SOR, PLN, WO, MGP, MGS ve MCT üreticileri 1000000 seviyesine geçebilir;
+  ancak 7+ haneli kod ortak high-water, duplicate, reuse ve immutability
+  koruması tarafından güvenilir biçimde izlenmez.
+- FTS üreticisi canlı kayıtlarda 7+ haneyi okuyabilir; ortak persistent
+  high-water katmanı ise yalnız 6 haneyi tanır. Cleanup veya kayıt silinmesi
+  sonrasında daha önce kullanılmış kodun tekrar üretilmesi mümkündür.
+- STAI, SVP ve TF üreticileri 1000000 seviyesine geçebilir; fakat istemci
+  ve/veya sunucu format doğrulamaları yalnız tam 6 haneli kod kabul ettiği
+  için kayıt reddedilebilir ve operasyon durabilir.
+
+Mevcut state bu sınıra yakın değildir. Sorun uzun vadeli sistem kodu
+devamlılığı ve veri bütünlüğü riskidir.
+
+-------------------------------------------------------------------------------
+İŞLETME HEDEFİ
+-------------------------------------------------------------------------------
+
+6 hane yalnız MINIMUM GÖSTERİM GENİŞLİĞİ olacaktır.
+
+999999 son kod değildir. Kodlar:
+
+999998
+999999
+1000000
+1000001
+...
+
+şeklinde doğal olarak devam edecektir.
+
+Bağlayıcı kurallar:
+
+- Sistem 7, 8, 9 ve daha fazla hanede çalışmaya devam etmelidir.
+- Kod yalnız 6 haneyi geçtiği için reddedilmemelidir.
+- Daha önce kullanılmış bir kod tekrar kullanılmamalıdır.
+- Cleanup veya kayıt silinmesi sayacı geriye düşürmemelidir.
+- Duplicate kod oluşmamalıdır.
+- Mevcut kayıtlar yeniden numaralandırılmamalıdır.
+- Mevcut 6 haneli kodların görünümü değişmemelidir.
+- Physical veya business kayıt kimlikleri bu çalışma nedeniyle rewrite
+  edilmemelidir.
+
+-------------------------------------------------------------------------------
+TEKNİK İNCELEME SONUCU
+-------------------------------------------------------------------------------
+
+Ortak kök neden, otomatik sıralı kod zincirindeki katmanların aynı 6+ hane
+sözleşmesini kullanmamasıdır.
+
+- Kod üreticileri padStart(6) kullandığı için 7+ haneye doğal olarak
+  geçebilmektedir.
+- Bazı format doğrulamaları yalnız tam 6 haneli kodları kabul etmektedir.
+- Operational high-water parser'ı yalnız tam 6 haneli suffix okumaktadır.
+- Bu nedenle 7+ haneli kodlar duplicate, reuse ve immutability korumasından
+  düşebilmektedir.
+- Bazı downstream ekran, lineage ve identity kontrolleri yalnız 6 haneli
+  kodları tanımaktadır.
+- Generic kod üretimi canlı kayıtları tarayabilse de persistent geçmişi her
+  aile için korumamaktadır.
+- Sayı karşılaştırma ve artırımlarında JavaScript Number kullanılması çok
+  büyük sayaçlarda hassasiyet kaybı riski taşımaktadır.
+- Bazı generic identity tanımlarındaki prefix'ler gerçek kayıt prefix'leriyle
+  aynı değildir. Bu nedenle operasyon kodları generic auto-repair ile
+  yeniden numaralandırılmamalıdır.
+
+Doğru teknik sözleşmede suffix değeri kayıpsız ve canonical decimal olarak
+okunmalı; altı hane minimum gösterim olmalı; gereksiz ön sıfır, sıfır,
+negatif, ondalık ve bilimsel gösterim fail-closed reddedilmelidir.
+
+-------------------------------------------------------------------------------
+ONAYLANAN TEKNİK PLAN
+-------------------------------------------------------------------------------
+
+FAZ A — OPERASYON VE BELGE KODLARI
+
+1. Ortak canonical sıralı kod parser, formatter, karşılaştırma ve artırma
+   yardımcıları oluşturulacak.
+2. Altı hane minimum genişlik olarak korunacak; 7+ hane geçerli doğal devam
+   kabul edilecek.
+3. Uzun sayaçlar JavaScript Number hassasiyetine bağlı olmadan, JSON ile
+   uyumlu kayıpsız decimal değer olarak işlenecek.
+4. Mevcut güvenli numeric high-water metadata geriye uyumlu okunacak.
+5. Operational high-water içinde 7+ haneli kodlar da kaydedilecek ve:
+   - duplicate,
+   - reuse,
+   - immutability,
+   - untrusted high-water
+   kontrollerine dahil edilecek.
+6. SOR, PLN, WO, MGP, MGS, MCT, FTS, STAI, SVP ve TF üreticileri aynı
+   6+ hane sözleşmesine bağlanacak.
+7. STAI, SVP ve TF sunucu doğrulamaları ile SOR, PLN ve diğer downstream
+   exact-6 okuyucular aynı canonical 6+ hane kuralına geçirilecek.
+8. Immutable operasyon kodları generic auto-repair tarafından yeniden
+   numaralandırılmayacak.
+9. Cleanup high-water bilgisini kayıtlar silinmeden önce hesaplayacak ve
+   kayıtlar çıktıktan sonra da koruyacak.
+10. DSI ve SDT gibi registry dışındaki gerçek operasyon/belge kodlarının
+    persistent devamlılığı güvenli biçimde kurulacak.
+11. MK ve EK yıl bazlı belge biçimi korunacak; high-water kendi yıl
+    semantiğine göre ele alınacak.
+12. Mevcut operasyon kayıtları, kodları ve business kimlikleri
+    değiştirilmeyecek veya yeniden numaralandırılmayacak.
+13. High-water veri bütünlüğü PROTOTYPE ve LIVE save yollarında korunacak;
+    cleanup yetkisi yalnız PROTOTYPE sınırında kalacak.
+
+FAZ B — MASTER / REFERANS KODLARI
+
+1. Master ve referans kodları operasyon geçmişiyle aynı lifecycle'a veya
+   cleanup modeline kör şekilde bağlanmayacak.
+2. Bununla birlikte otomatik sıralı master/referans kodlarında 6 hane
+   sonrasında durma veya silme sonrası reuse oluşmaması ayrıca güvenli
+   biçimde ele alınacak.
+3. Her aile kendi gerçek prefix, koleksiyon, uniqueness ve kullanım
+   semantiğiyle değerlendirilecek.
+4. Mevcut kayıtlar ve mevcut 6 haneli görünümler değiştirilmeyecek.
+5. İlk boş kodu kullanan aileler ile monoton ilerlemesi gereken aileler
+   birbirine karıştırılmayacak; bağlayıcı no-reuse hedefi ilgili otomatik
+   kodlarda korunacak.
+6. İlgisiz kod sistemlerinde gereksiz refactor yapılmayacak.
+
+-------------------------------------------------------------------------------
+AYRI SEMANTİKLE ELE ALINACAK KODLAR
+-------------------------------------------------------------------------------
+
+READ-ONLY incelemede aşağıdaki ek kodlarda da devamlılık riski bulundu:
+
+- DSI: İş emri sevk irsaliyesi kodu.
+- SDT: Serbest dış tedarikçi işi kodu.
+- DTR: Depo transfer işlem/master kodu.
+- MK: Yıl bazlı mal kabul belgesi kodu.
+- EK: Yıl bazlı envanter kayıt belgesi kodu.
+- Master/işlem kartı kodları: CNC, TST, EKS, PLSJ, PVD, IPS, ELX, STB,
+  SVR, MON, URM, PRC, YRM, GRP ve ilgili diğer otomatik sıralı aileler.
+- Master/referans kodları: MUS, MREF, TREF, SAL, ANK, SRF, KLI, LOC, PER
+  ve ilgili diğer otomatik sıralı aileler.
+
+Bu kodların tamamı ana operasyon kodlarıyla aynı teknik yönteme kör şekilde
+sokulmayacaktır.
+
+- DSI ve SDT gerçek operasyon/belge kayıtları olarak değerlendirilir.
+- MK ve EK yıl bileşenli belge numarası semantiğini korur.
+- DTR, rota/işlem tanımı ile operasyonel kullanım ayrımı korunarak ele
+  alınır.
+- Master ve referans kodları kendi lifecycle, silme ve uniqueness
+  kurallarıyla değerlendirilir.
+- Farklı minimum genişlik veya family-içi sayaç kullanan kodlar ortak
+  kurala zorlanmadan kendi canonical biçimlerinde korunur.
+
+-------------------------------------------------------------------------------
+RİSKLER
+-------------------------------------------------------------------------------
+
+- Daha önce kullanılmış kodun tekrar kullanılması.
+- Duplicate kod oluşması veya duplicate kodun server guard'dan geçmesi.
+- Bazı işlemlerin 999999 seviyesinde durması.
+- High-water bilgisinin yanlış veya geride kalması.
+- Cleanup sonrasında sayacın eski değere dönmesi.
+- Downstream ekran, lineage veya identity kontrollerinin 7+ haneli kodu
+  tanımaması.
+- Çok büyük sayılarda sayı hassasiyeti kaybı.
+- Exact-6 max taraması nedeniyle doğrusal retry ve performans kaybı.
+- Mevcut kodların generic repair veya migration tarafından yanlışlıkla
+  yeniden numaralandırılması.
+- Yıl bazlı MK/EK sayaçlarının yanlışlıkla global tek sayaca dönüştürülmesi.
+- Master ve operasyon lifecycle'larının birbirine karıştırılması.
+
+-------------------------------------------------------------------------------
+DOĞRULAMA PLANI
+-------------------------------------------------------------------------------
+
+Uygulama yapılacağı zaman gerçek demo_state.json yerine izole fixture veya
+geçici test state'i kullanılacaktır.
+
+Uygun her kod ailesi için özellikle aşağıdaki geçiş doğrulanacaktır:
+
+999998 -> 999999 -> 1000000 -> 1000001
+
+Ayrıca aşağıdaki kontroller yapılacaktır:
+
+- 7, 8, 9 ve daha uzun suffix üretimi.
+- 7+ haneli kodun istemci ve server tarafından kabul edilmesi.
+- 7+ haneli high-water değerinin kayıpsız saklanması.
+- Cleanup sonrasında bir sonraki koddan devam edilmesi.
+- Eski kod reuse girişiminin fail-closed reddedilmesi.
+- Duplicate kodun fail-closed reddedilmesi.
+- Mevcut kodu değiştirme veya renumber girişiminin reddedilmesi.
+- Mevcut 6 haneli kayıtların değişmemesi.
+- SOR, PLN, DTR ve ilgili kodların downstream ekran/lineage tarafından
+  tanınması.
+- Çok uzun decimal suffix için kesin karşılaştırma ve +1 işlemi.
+- Geçersiz formatların fail-closed reddedilmesi.
+- Çok sayıda 7+ haneli canlı kayıtta doğrusal retry oluşmaması.
+- Mevcut numeric metadata ile yeni uzun high-water gösteriminin geriye
+  uyumlu çalışması.
+- PROTOTYPE/LIVE veri bütünlüğü korumasının aynı kalması.
+- Cleanup yetkisinin yalnız PROTOTYPE olması.
+- MK/EK için yıl ayrımının; master/referans kodlarında kendi lifecycle ve
+  uniqueness kurallarının korunması.
+
+-------------------------------------------------------------------------------
+NEDEN ŞİMDİ UYGULANMIYOR?
+-------------------------------------------------------------------------------
+
+SOR-000020 doğal operasyon denemesi devam ediyor.
+
+Çalışan operasyonun ortasında kod veya runtime değiştirilmemesi kararı
+verildi.
+
+SOR-000020 işi bittikten sonra AI-001 tekrar açılacak, güncel repo/worktree
+ve state yeniden doğrulanacak ve teknik uygulama için ayrıca kullanıcı onayı
+alınacaktır.
+
+-------------------------------------------------------------------------------
+UYGULAMA DURUMU
+-------------------------------------------------------------------------------
+
+Henüz uygulanmadı.
+
+Teknik uygulama onayı verilmedi.
+
+Durum: AÇIK
+
+-------------------------------------------------------------------------------
+TAMAMLANMA BÖLÜMÜ
+-------------------------------------------------------------------------------
+
+BEKLİYOR
+
+İleride iş tamamlandığında bu bölüme aşağıdaki bilgiler append-only olarak
+eklenecektir:
+
+- Durum: TAMAMLANDI
+- Tamamlanma tarihi
+- Yapılan işlem
+- Teknik test sonucu
+- Gerekirse gerçek ekran sonucu
+- Nihai sonuç
+
+Ardından dosya silinmeden:
+
+DULDA_ERP_DOKUMAN/90_ARSIV/ACIK_ISLER_TAMAMLANAN
+
+klasörüne taşınacaktır.
+
+-------------------------------------------------------------------------------
+NİHAİ KAPANIŞ KAYDI
+-------------------------------------------------------------------------------
+
+- Durum: `TAMAMLANDI`
+- Tamamlanma tarihi: `03.09.2026 15:46:51 +03:00`
+- Yapılan işlem: `AI-001_AKTIF_UYGULAMA_PLANI_V1 kapsamındaki üç faz uygulandı`
+- Faz 1: `PASS`
+- Faz 2: `PASS`
+- Faz 3: `PASS`
+- Teknik test sonucu: `PASS`
+- V30 yeni regresyon farkı: `0`
+- Gerçek state değişmedi: `EVET`
+- Mevcut kayıtlar renumber edildi mi: `HAYIR`
+- Gerçek ekran testi: `GEREKMEDİ`
+- Kullanıcı nihai işletme kabulü: `KABUL EDİLDİ`
+- Nihai sonuç: `PASS / TAMAMLANDI`

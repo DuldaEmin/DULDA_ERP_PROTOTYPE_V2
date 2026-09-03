@@ -204,24 +204,29 @@ const CncImportService = {
         const safePrefix = String(prefix || 'ID').replace(/[^a-zA-Z0-9]/g, '').toUpperCase() || 'ID';
         const width = Math.max(1, Number(digits || 6) || 6);
         const pattern = new RegExp(`^${safePrefix}-(\\d+)$`);
-        let maxSeq = 0;
+        let maxSeq = 0n;
         usedCodes.forEach((code) => {
             const match = String(code || '').match(pattern);
             if (!match) return;
-            const seq = Number(match[1]);
-            if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+            const seq = BigInt(match[1]);
+            if (seq > maxSeq) maxSeq = seq;
         });
-        let nextSeq = maxSeq + 1;
-        let candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+        let nextSeq = maxSeq + 1n;
+        let candidate = `${safePrefix}-${nextSeq.toString().padStart(width, '0')}`;
         while (usedCodes.has(CncImportService.normalizeCode(candidate))) {
-            nextSeq += 1;
-            candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+            nextSeq += 1n;
+            candidate = `${safePrefix}-${nextSeq.toString().padStart(width, '0')}`;
         }
         return candidate;
     },
 
-    getNextGlobalCode: (usedCodes, prefix = 'CNC', digits = 6) => {
-        const next = CncImportService.nextCodeFromUsed(usedCodes, prefix, digits);
+    getNextGlobalCode: (usedCodes, prefix = 'CNC', digits = 6, targetState = null) => {
+        const next = targetState
+            && typeof IdentityPolicy !== 'undefined'
+            && IdentityPolicy
+            && typeof IdentityPolicy.getNextMonotonicCode === 'function'
+            ? IdentityPolicy.getNextMonotonicCode(targetState, { prefix, digits, usedCodes })
+            : CncImportService.nextCodeFromUsed(usedCodes, prefix, digits);
         usedCodes.add(CncImportService.normalizeCode(next));
         return next;
     },
@@ -330,7 +335,7 @@ const CncImportService = {
             }
             seenIncomingFingerprints.add(fingerprint);
 
-            const proposedCode = CncImportService.getNextGlobalCode(usedCodes, 'CNC', 6);
+            const proposedCode = CncImportService.getNextGlobalCode(usedCodes, 'CNC', 6, targetState);
             const categoryKey = CncImportService.normalizeText(categoryName);
             if (categoryKey && !existingCategoryMap.has(categoryKey)) pendingCategoryNames.add(categoryName.trim());
 
@@ -430,7 +435,7 @@ const CncImportService = {
                 .sort((a, b) => Number(a?.order || 0) - Number(b?.order || 0))
                 .map((op, idx) => CncImportService.sanitizeOperation(op, idx + 1));
 
-            const cncId = CncImportService.getNextGlobalCode(usedCodes, 'CNC', 6);
+            const cncId = CncImportService.getNextGlobalCode(usedCodes, 'CNC', 6, targetState);
             const now = new Date().toISOString();
             const payload = {
                 id: CncImportService.randomId(),

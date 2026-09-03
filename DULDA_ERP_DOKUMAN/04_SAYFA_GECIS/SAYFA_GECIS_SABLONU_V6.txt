@@ -1,0 +1,225 @@
+======================================================================
+DULDA ERP — SAYFA GEÇİŞ ŞABLONU V6
+======================================================================
+
+AMAÇ
+
+Bu şablon, mevcut sohbet sayfası şiştiğinde eski sayfadaki ChatGPT’ye verilir.
+
+Tek görevin:
+DULDA ERP’de şu anda gerçekten nerede olduğumuzu doğru biçimde ayıklamak ve
+yeni sohbet sayfasına kaldığımız yerden güvenli devam edebilmem için kısa,
+eksiksiz bir devir paketi hazırlamaktır.
+
+Çalışma sözleşmesini, proje Talimatlarını veya ERP mimarisini burada yeniden
+yazma. Bunlar kendi aktif dokümanlarından okunacaktır.
+
+Eski ve aktif işle ilgisi kalmamış proje geçmişini yeni sayfaya taşıma.
+
+
+======================================================================
+1. ÖNCE GÜNCEL DURUMU TOPARLA
+======================================================================
+
+Mevcut sohbeti ve varsa yüklenmiş güncel belgeleri kullanarak yalnız şunları belirle:
+
+- Şu anda aktif olan tek iş nedir?
+- Son kesin işletme kararı nedir?
+- Son Codex görevi neydi?
+- Yalnız analiz mi yapıldı, uygulama mı yapıldı?
+- Son teknik sonuç nedir?
+- Gerçek ekran testi yapıldı mı?
+- İşin mevcut statüsü nedir?
+- Korunması gereken aktif kayıt, test verisi veya worktree değişikliği var mı?
+- Somut açık risk veya blocker var mı?
+- Yeni sayfadaki sıradaki tek iş nedir?
+
+İş durumu yalnız şu sınıflardan biri olsun:
+
+PLANLANIYOR / UYGULANIYOR / UYGULANDI — TEKNİK TEST GEÇTİ /
+EKRAN KABULÜ BEKLİYOR / TAMAMLANDI / FAIL / BLOCKED
+
+
+======================================================================
+2. EKSİK KRİTİK BİLGİ KONTROLÜ
+======================================================================
+
+Devir paketini hazırlamadan önce bana kısa biçimde sor:
+
+“Yeni sayfaya taşınması gereken ve bu sayfada bulunmayan kritik bilgi var mı?
+Varsa ekle; yoksa ‘Eksik kritik bilgi yok’ yaz.”
+
+Gereksiz ayrıntı isteme.
+
+
+======================================================================
+3. GEREKİRSE CODEX’TEN KISA READ-ONLY DURUM RAPORU AL
+======================================================================
+
+Codex raporu yalnız gerçekten gerekiyorsa istenir.
+
+Şu durumlarda gerekebilir:
+- güncel repo/worktree durumu belirsizse,
+- son uygulamanın gerçekten diskte olup olmadığı belirsizse,
+- state/runtime hangi noktada bilinmiyorsa,
+- kritik test kayıtlarının mevcut durumu bilinmiyorsa,
+- eski sohbet bilgisi ile teknik gerçek çelişiyorsa.
+
+Basit sayfa geçişinde otomatik checkpoint isteme.
+
+Codex gerekiyorsa:
+- yalnız aktif işle ilgili alanı READ-ONLY doğrulasın,
+- kod/veri değiştirmesin,
+- yeni çözüm veya yeni kapsam açmasın.
+
+Bana önce:
+“Codex’ten şu kısa doğrulamayı almamız gerekiyor.”
+de ve doğrudan kopyalanabilir kısa promptu ver.
+
+Codex cevabı gelmeden teknik durumu tahmin etme.
+
+
+======================================================================
+4. YENİ SAYFAYA EKLENECEK DOSYALARI SÖYLE
+======================================================================
+
+Bana ayrı ve kısa bir bölüm ver:
+
+YENİ SAYFAYA EKLE:
+
+Zorunlu olduğunda:
+- DULDA_ERP_DOKUMAN/01_CALISMA_PROTOKOLU/ içindeki güncel Çalışma Sözleşmesi
+- DULDA_ERP_DOKUMAN/02_AKTIF_MIMARI/ içindeki tek aktif mimari
+
+Yalnız gerekiyorsa:
+- DULDA_ERP_DOKUMAN/03_AKTIF_PLAN/ içindeki aktif plan
+- DULDA_ERP_DOKUMAN/05_AKTIF_TEKNIK_REFERANS/ içindeki ilgili teknik referans
+- son Codex raporu
+- son gerçek ekran test raporu
+
+Dosya gerekmiyorsa sırf alışkanlık nedeniyle ekletme.
+Arşiv dosyalarını normal geçişte yükletme.
+
+
+======================================================================
+5. YENİ SAYFAYA KOPYALANACAK BAŞLANGIÇ PROMPTUNU HAZIRLA
+======================================================================
+
+Tek parça ve doğrudan kopyalanabilir prompt üret.
+Prompt yalnız güncel durumu taşısın.
+
+Şu başlıkları kullan:
+
+DULDA ERP — SAYFA GEÇİŞİ
+
+PROJE / REPO
+- Proje
+- Repo
+- bilinen güncel branch/worktree durumu
+- korunması gereken kritik değişiklik varsa kısa not
+
+YÜKLENEN AKTİF REFERANSLAR
+- Çalışma Sözleşmesi
+- Aktif Mimari
+- varsa Aktif Plan
+- varsa gerekli Teknik Referans / son rapor
+
+SON KESİN İŞLETME KARARI
+- yalnız aktif işle ilgili kesin kullanıcı kararı
+
+NEREDEN GELİYORUZ
+- son yapılan iş
+- Codex’in yaptığı analiz/uygulama
+- teknik test sonucu
+- varsa gerçek ekran testi sonucu
+
+MEVCUT DURUM
+- yalnız tek geçerli iş statüsü
+- korunacak kayıt veya test senaryosu
+- varsa somut açık risk / blocker
+
+SIRADAKİ TEK İŞ
+- yeni sayfanın ilk ele alacağı tek konu
+
+ÇALIŞMA SINIRI
+- tamamlanmış işleri sebepsiz yeniden açma
+- eski tarihsel planları aktif kabul etme
+- teknik gerçeği tahmin etme
+- kullanıcı açıkça istemeden Codex uygulama promptu hazırlama
+
+
+======================================================================
+6. YENİ SAYFADAN GERİ DOĞRULAMA İSTE
+======================================================================
+
+Hazırladığın başlangıç promptunun en sonunda yeni sayfaya şu görevi ver:
+
+“Henüz uygulamaya veya yeni analize başlama.
+
+Önce kısa olarak:
+1. Ne anladığını,
+2. Şu anda nerede kaldığımızı,
+3. Sıradaki tek işin ne olduğunu,
+4. Aktif mimari/plan ile devir bilgisinde gördüğün bir çelişki olup olmadığını,
+5. Anlamadığın veya eksik gördüğün bir şey olup olmadığını
+
+yaz.
+
+Yeni Codex promptu hazırlama.
+Ben bu kısa cevabı eski sayfaya kontrol için geri götüreceğim.”
+
+
+======================================================================
+7. BEN YENİ SAYFANIN CEVABINI GERİ GETİRDİĞİMDE
+======================================================================
+
+Yeni sayfanın kısa anlama raporunu kontrol et.
+
+Yalnız iki sonuçtan birini ver:
+
+A) DEVAM ET
+Yeni sayfa doğru anlamışsa:
+“Devir doğru. Yeni sayfayla devam et.”
+de.
+
+B) DÜZELT
+Yanlış veya eksik anlamışsa yalnız yanlış/eksik kısmı göster ve yeni sayfaya vereceğim kısa düzeltme notunu yaz.
+
+Bu aşamada yeni teknik çözüm, faz veya uygulama açma.
+
+
+======================================================================
+8. SAYFA GEÇİŞİNDE TEMEL KURALLAR
+======================================================================
+
+- Geçişi prosedür kitabına dönüştürme.
+- Çalışma Sözleşmesini tekrar yazma.
+- Proje Talimatlarını tekrar yazma.
+- Aktif Mimari içeriğini baştan özetleme.
+- Gereksiz tarihçe taşıma.
+- Eski mimari/planları aktif hale getirme.
+- Her geçişte otomatik Codex checkpoint isteme.
+- Güncel teknik durum bilinmiyorsa tahmin etme.
+- Yalnız mevcut iş, gerçek durum, açık risk ve sıradaki tek işi taşı.
+
+
+======================================================================
+9. BANA VERECEĞİN NİHAİ ÇIKTI SIRASI
+======================================================================
+
+1. ADIM ADIM NE YAPACAĞIM
+   - hangi dosyaları yükleyeceğim
+   - varsa önce Codex’e ne soracağım
+   - sonra hangi promptu yeni sayfaya yapıştıracağım
+
+2. YENİ SAYFAYA EKLENECEK DOSYALAR
+   - yalnız gerekli dosyaların tam adları
+
+3. YENİ SAYFA BAŞLANGIÇ PROMPTU
+   - tek parça, doğrudan kopyalanabilir
+
+4. SON ADIM
+   - “Yeni sayfanın kısa anlama raporunu buraya geri getir.”
+
+Başka çıktı üretme.
+======================================================================

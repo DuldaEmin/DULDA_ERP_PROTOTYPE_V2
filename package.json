@@ -4,8 +4,11 @@
   "description": "",
   "main": "aluminum_module_v2.js",
   "scripts": {
+    "start:prototype": "node serve.js 5500 --runtime-mode=PROTOTYPE",
+    "start:live": "node serve.js 5500 --runtime-mode=LIVE",
     "test": "npm run test:backbone",
     "test:backbone": "node tests/backbone.guard.test.cjs",
+    "test:ai001": "node --test tests/ai001.guard.test.cjs",
     "check:parse": "node scripts/check-parse.cjs",
     "check:text": "node scripts/check-text-encoding.cjs",
     "guard:backbone": "npm run check:parse && npm run check:text && npm run test:backbone"

@@ -1,0 +1,382 @@
+# DULDA ERP — DOĞAL OPERASYON TEST PLANI V1
+
+## 1. Plan Statüsü ve Yetki Sınırı
+
+- İş durumu: **PLANLANIYOR**
+- Çalışma türü: Mevcut ERP'nin doğal operasyon / günlük kullanım testi
+- Aktif ana mimari: `DULDA_ERP_MIMARI_HARITASI_V30.txt`
+- Gerçek ekran runtime'ı: `http://localhost:5501/index.html`
+- Öncelikli kayıt: `SOR-000020 / PLN-000031`
+- Gerçek ekran testi: **HENÜZ BAŞLATILMADI**
+- Gerçek müşteri sevki: Yalnız kullanıcı tarafından yapılır
+- Codex teknik kapanışı: Gerek görülürse ayrı READ-ONLY kontrol olarak yürütülür
+
+Bu plan yeni geliştirme değildir. Kapanmış Ana Omurga E2E'yi yeniden açmaz ve Sanal Taksim'i
+ayrı geliştirme projesi haline getirmez. Kod, state veya runtime test amacıyla değiştirilmez.
+
+## 2. READ-ONLY Teknik Başlangıç Checkpoint'i
+
+Plan hazırlanırken doğrulanan checkpoint:
+
+### 2.1 Runtime
+
+| Port | PID | Mod | Revision | Değerlendirme |
+|---|---:|---|---:|---|
+| 5500 | 16180 | LIVE | 11982 | Server kodu stale; testte kullanılmaz |
+| 5501 | 14192 | PROTOTYPE | 11982 | Güncel ve doğrulanmış test instance'ı |
+
+Her iki port aynı state revision'ını göstermiştir. Ancak 5500 süreci son `serve.js`
+güncellemesinden önce başladığı için doğal operasyon testi yalnız 5501 üzerinde yürütülür.
+İki porttan eşzamanlı ERP işlemi yapılmaz.
+
+### 2.2 SOR-000020 / PLN-000031 Başlangıcı
+
+- SOR: `SOR-000020`
+- Sipariş durumu: `Onaylandi`
+- Sipariş miktarı: `4 adet`
+- Termin: `05.09.2026`
+- PLN: `PLN-000031`
+- Plan durumu: `RELEASED`
+- Released miktar: `4`
+- İş emirleri: `WO-000191..WO-000197`
+- Yedi iş emrinin tamamı: `OPEN`
+- Bu yedi iş emrine ait mevcut operasyon hareketi: `0`
+- Sevkiyata Hazır miktar: `0`
+- Açık ürün borcu: `4`
+- Aktif SVP/TF: Yok
+
+Parça ihtiyacı:
+
+- `PRC-000017`: `4 adet`
+- `PRC-000021`: `4 adet`
+- `PRC-000005`: `4 adet`
+- `PRC-000024`: `4 adet`
+- `PRC-000007`: `4 adet`
+- `PRC-000001`: `4 adet`
+- `PRC-000014`: `8 adet`
+
+`PRC-000017` ihtiyacının `2 adedi`, STOCK-origin `PLN-000029 / WO-000177` üzerinden dinamik
+tahsislidir. Bu miktarın physical origin bilgisi korunur; ihtiyaç körlemesine yeniden üretilmez.
+
+### 2.3 Başlangıçtaki Aktif İş Kapsamı
+
+- `SOR-000021 / PLN-000030`: 3 sipariş; 1 sevk edilmiş, 1 hazır, 1 residual.
+- `SOR-000019 / PLN-000032`: 5 açık; mevcut montaj zincirinde 1 takım kalmış.
+- `SOR-000020 / PLN-000031`: 4 açık; Kapı 1 öncelikli hedefi.
+- `PLN-000029`: STOCK talebi; müşteri sevkiyatına alınmaz.
+- `MGP-000033 / MGS-000010`: 3 takım montaja ulaşmış; `MCT-000015` ile 2 takım POSTED,
+  1 takım montajda kalmış.
+
+Bu checkpoint test sırasında değişmez kayıt listesi sayılmaz. Kapı 2 açılırken gerçek ekranın o
+andaki güncel aktif işleri yeniden okunur.
+
+## 3. Test Fazının Kapsamı
+
+Çalışma iki ardışık operasyon kapısı ve gerektiğinde ayrı bir teknik kapanış kontrolünden oluşur:
+
+1. **Kapı 1:** `SOR-000020` gerçek müşteri sevkine hazır normal kullanıcı noktasına kadar ilerletilir.
+2. Kullanıcı gerçek müşteri sevkini yapar; sevk sonrası gerçek ekran sonucu gözlenir.
+3. **Kapı 2:** Kapı 1 PASS ise o anda aktif kalan Montaj & Sevkiyat işleri doğal son noktalarına
+   ilerletilir.
+4. **Codex READ-ONLY Teknik Kapanış:** Gerek görülürse gerçek ekran kabulünden ayrı yürütülür.
+
+Test sırasında yeni görünen ilgisiz kayıtlarla kapsam genişletilmez.
+
+## 4. Kapı 1 — SOR-000020'yi Gerçek Sevke Hazırlama
+
+### 4.1 Başlangıç Noktası
+
+`SOR-000020 / PLN-000031`, dört adet açık ürün ve henüz başlamamış yedi iş emriyle alınır.
+
+### 4.2 Doğal Operasyon Hedefi
+
+Gerçek ekran operatörü yalnız ERP kullanıcı arayüzünü ve ekranın sunduğu güncel miktarları
+kullanarak gerektiği ölçüde:
+
+- üretim,
+- atölye işlemleri,
+- depo transfer,
+- fason sevk ve fason dönüş,
+- tahsis,
+- montaja gönderim,
+- montaj teslim alma,
+- montaj tamamlama,
+- sevkiyat deposu kabulü
+
+işlemlerini doğal ERP sırasıyla yürütür.
+
+Her işlemde:
+
+- ekranda gerçekten aktif olan doğru kayıt seçilir,
+- yalnız ekranın güvenle izin verdiği miktar işlenir,
+- mevcut 2 adet STOCK-origin `PRC-000017` tahsisi korunur,
+- ihtiyaç miktarının tamamı varsayımla yeniden üretilmez,
+- save sonucu kesinleşmeden sonraki adıma geçilmez,
+- hata veya miktar uyuşmazlığı zorla aşılmaz.
+
+### 4.3 Sevkiyata Hazır Kabul Şartı
+
+Kapı 1'in üretim/montaj bölümü şu koşullarda tamamlanır:
+
+- SOR-000020 için toplam `4 adet` Sevkiyata Hazır görünür.
+- Eksik veya fazla görünen miktar yoktur.
+- İlgili ürün, sipariş ve plan kimliği doğru görünür.
+- Refresh/reopen sonrasında sonuç değişmez.
+- ERP'nin normal kullanıcı akışı gerektiriyorsa `SVP PLANNED` oluşturulur.
+- SVP oluşturulursa seçilen 4 adet planlanmış/fixed görünür.
+- Kullanıcıya gerçek sevki başlatabileceği normal ve hazır ekran bırakılır.
+- Gerçek ekran operatörü gerçek müşteri `Sevk Et` işlemini yapmaz.
+- Gerçek ekran operatörü TF oluşturmaz.
+- Operatör gerçek `Sevk Et` işleminden hemen önce durur.
+
+SVP PLANNED oluşturulduğunda planlanan miktarın artık serbest planlanabilir görünmemesi normaldir;
+önemli olan toplam hazır miktar ile SVP'ye fixed edilen miktarın tutarlı görünmesidir.
+
+### 4.4 Kullanıcının Gerçek Sevki Sonrası Ekran Kontrolü
+
+Gerçek müşteri sevkini kullanıcı kendisi yapar. Kullanıcı sevki tamamladıktan sonra ekran
+operatörü yeni sevk oluşturmaz; yalnız sonucu gözler.
+
+Kontrol edilecek görünür sonuçlar:
+
+- Sevk edilen toplam miktar `4` görünür.
+- Sevkiyata Hazır miktarı uygun biçimde düşer.
+- SOR-000020 aktif iş listesinden çıkar ve doğru tamamlanan/arşiv görünümüne geçer.
+- Aynı miktar tekrar sevk edilebilir görünmez.
+- Kalan taleplerin görünür tahsisi güncellenir.
+- Refresh/reopen sonrasında sonuç değişmez.
+- Görünür mükerrer kayıt veya miktar uyuşmazlığı bulunmaz.
+
+Negative stock, exact overlap, double-count, ghost hold, orphan ve benzeri state invariant'ları bu
+gerçek ekran kabulünün parçası değildir; gerekiyorsa ayrı teknik kapanışta incelenir.
+
+### 4.5 Kapı 1 Geçiş Kuralı
+
+Kapı 1 aşağıdaki iki gerçek ekran sonucu birlikte PASS olmadan Kapı 2 açılmaz:
+
+1. SOR-000020 gerçek sevkten hemen önce doğru ve stabil biçimde hazırdır.
+2. Kullanıcının gerçek sevkinden sonra kapanış/arşiv ve görünür miktar davranışı doğrudur.
+
+## 5. Kapı 2 — Kalan Aktif İşlerin Doğal Son Noktaları
+
+Kapı 2 yalnız Kapı 1 PASS ise başlar.
+
+### 5.1 Kapı 2 Başlangıç Okuması
+
+- Gerçek ekranın o andaki aktif işleri yeniden okunur.
+- Plan oluşturulurken görülen kayıt listesi sabit kabul edilmez.
+- `MGS-000010` zincirindeki 1 montaj takımı hâlâ aktifse doğal montaj akışıyla ilerletilir.
+- Yeni görünen ilgisiz işler kapsam dışı bırakılır.
+- Hedef kaydın SALES veya STOCK olduğu kesinleştirilmeden işlem yapılmaz.
+
+### 5.2 SALES Kayıtlarının Hedefi
+
+SALES kayıtları:
+
+- gerekli doğal üretim/montaj/depo adımlarından geçirilir,
+- tam Sevkiyata Hazır noktasına getirilir,
+- normal kullanıcı akışı gerektiriyorsa `SVP PLANNED` aşamasına ilerletilir,
+- kullanıcıya gerçek sevke hazır ekran bırakılır,
+- ekran operatörü tarafından gerçek müşteri sevkine sokulmaz,
+- ekran operatörü tarafından TF oluşturulmaz.
+
+### 5.3 STOCK Kayıtlarının Hedefi
+
+STOCK kayıtları:
+
+- müşteri sevkiyatına sokulmaz,
+- SALES kaydı gibi kapanmaya zorlanmaz,
+- kendi doğal üretim, depo veya bitmiş stok son noktasına kadar ilerletilir.
+
+### 5.4 Sıradaki Kayda Geçiş
+
+Bir sonraki kayda yalnız:
+
+- mevcut hedef kayıt kendi doğru son noktasına ulaştığında,
+- miktar ve kimlikler ekranda tutarlı göründüğünde,
+- refresh/reopen sonucu stabil kaldığında,
+- görünür FAIL veya BLOCKED durumu bulunmadığında
+
+geçilir.
+
+## 6. Gerçek Ekran Operatörünün Sınırları
+
+Gerçek ekran operatörü:
+
+- yalnız `http://localhost:5501/index.html` kullanır,
+- 5500 üzerinde işlem yapmaz,
+- iki porttan eşzamanlı işlem yapmaz,
+- yalnız ERP kullanıcı arayüzünü kullanır,
+- kod, repo, state, API, konsol veya geliştirici araçlarını kullanmaz,
+- Demo Reset kullanmaz,
+- fail-closed uyarıyı aşmaz,
+- teknik belirsizliği tahminle çözmez,
+- belirsiz save sonucunu körlemesine tekrarlamaz,
+- miktar uyuşmazlığını zorla geçmez,
+- gerçek müşteri `Sevk Et` işlemini yapmaz,
+- TF oluşturmaz,
+- SVP PLANNED normal sevk hazırlığının gerekli parçasıysa oluşturabilir ve oluşturmalıdır,
+- somut hata görürse düzeltmeye çalışmadan durur.
+
+## 7. Gerçek Ekran PASS / FAIL / BLOCKED Kriterleri
+
+### 7.1 GERÇEK EKRAN: PASS
+
+- Doğal kullanıcı akışı yalnız ERP ekranından tamamlanabilir.
+- Beklenen kayıt, kimlik, durum ve miktarlar doğru görünür.
+- SOR-000020 dört adet Sevkiyata Hazır hale gelir.
+- Gerekliyse SVP PLANNED doğru miktarla oluşur.
+- Operatör gerçek müşteri sevkinden hemen önce durur.
+- Kullanıcı sevkinden sonra doğru kapanış/arşiv görünümü oluşur.
+- Refresh/reopen sonucu stabil kalır.
+- Görünür mükerrer kayıt veya miktar uyuşmazlığı bulunmaz.
+
+### 7.2 GERÇEK EKRAN: FAIL
+
+- Kaydedilmiş sonuç yanlış miktar, yanlış hedef, yanlış durum veya görünür mükerrer etki gösterir.
+- Kullanıcı akışı V30 davranışıyla somut biçimde çelişir.
+- Sevk edilen fiziksel miktar ekranda tekrar kullanılabilir görünür.
+- SALES ve STOCK kayıtları yanlış terminal davranışta birbirine karıştırılır.
+
+### 7.3 GERÇEK EKRAN: BLOCKED
+
+- Doğrulanmış runtime'a erişilemez.
+- Gerekli kullanıcı işlemi ekranda bulunamaz.
+- Save reddedilir veya sonucu belirsiz kalır.
+- Fail-closed uyarı işlemi durdurur.
+- Hedef kayıt, source, segment veya miktar güvenle ayırt edilemez.
+- Eşzamanlı runtime/tab kullanımı nedeniyle revision güvenilir değildir.
+
+Gerçek ekran sonucu yalnız şu biçimde raporlanır:
+
+**GERÇEK EKRAN: PASS / FAIL / BLOCKED**
+
+## 8. Codex READ-ONLY Teknik Kapanış
+
+Teknik kapanış gerçek ekran PASS'inden ayrıdır. Gerek görülürse Codex state'i değiştirmeden şu
+kontrolleri yapar:
+
+- negative stock,
+- exact overlap,
+- double-count,
+- ghost hold / ghost rezerv,
+- orphan operasyon,
+- physical-origin / provenance bütünlüğü,
+- commercial target ile physical origin ayrımı,
+- SVP / TF / stock movement tekilliği,
+- sevk edilen miktarın tahsis havuzuna dönmemesi,
+- operasyon kodlarının tekilliği ve high-water devamlılığı,
+- resolver invariant'ları.
+
+Teknik sonuç ayrı raporlanır:
+
+**TEKNİK KAPANIŞ: PASS / FAIL / BLOCKED / BEKLİYOR**
+
+Gerçek ekran gözlemi tek başına teknik invariant PASS'i olarak yazılmaz. Teknik kapanış yapılmamışsa
+gerçek ekran sonucu değişmeden korunur ve teknik durum `BEKLİYOR` kalır.
+
+## 9. Korunacak V30 Invariant'ları
+
+- SALES ticari borcu STOCK üretim talebinden önce gelir.
+- Termin sırası serbest tahsisi belirler.
+- Fixed operational commitment sessizce başka hedefe taşınmaz.
+- Physical origin / provenance yeniden yazılmaz.
+- Commercial target physical origin ile karıştırılmaz.
+- Kardeş PRC yalnız kanıtlı ayrışma öncesinde ortak kullanılabilir.
+- Ayrışmış renk/kaplama branch'i başka final kardeşe kullanılamaz.
+- Aynı exact fiziksel miktar iki kez tüketilemez.
+- Partial lifecycle miktarı kaybolmaz veya çoğalmaz.
+- MCT `POSTED` canonical finished stock oluşturur.
+- Serbest finished-ready miktar güncel ticari sıraya göre tahsis edilir.
+- `SVP PLANNED` finished-level fixed commitment'tır.
+- Gerçek TF müşteri sevki terminal fiziksel sınırdır.
+- Sevk edilen miktar yeniden tahsis havuzuna giremez.
+- Duplicate gerçek sevk ikinci stok, movement veya TF etkisi üretemez.
+- Belirsizlikte fail-closed davranılır.
+
+## 10. Somut FAIL / BLOCKED Duruşu
+
+Somut FAIL veya BLOCKED oluşursa:
+
+1. Operasyon hemen durur.
+2. Aynı işlem körlemesine tekrar edilmez.
+3. Sonraki kayda veya kapıya geçilmez.
+4. Kod, state veya ERP kaydı düzeltilmez.
+5. Fail-closed guard aşılmaz.
+6. Yalnız ilgili kayıt, ekran, işlem, görünen hata, önceki/sonraki miktar ve son güvenilir durum
+   raporlanır.
+7. Teknik inceleme ayrı kullanıcı talebiyle açılır.
+8. Düzeltme gerekiyorsa ayrıca `ONAY: UYGULA` alınır.
+
+## 11. Testi Gerçekten Etkileyen Riskler / Blockerlar
+
+1. **5500 stale runtime:** Testte kullanılmaz.
+2. **Ortak state kullanan iki runtime:** Eşzamanlı port/tab kullanımı revision conflict riski taşır.
+3. **5501 Demo Reset erişimi:** Kesinlikle kullanılmaz.
+4. **STOCK-origin PRC-000017 tahsisi:** Mevcut 2 adet dikkate alınmazsa fazla üretim veya görünür
+   double-count riski oluşur.
+5. **Ürün varyasyonu ayrımı:** SOR-000020 `SVR-000001`; SOR-000019 ve SOR-000021
+   `SVR-000002`'dir. Finished ürünler birbirine karıştırılmaz.
+6. **Mevcut montaj residualı ve hazır stok:** Kapı 2 tahsis sırasını etkileyebilir; Kapı 2 girişinde
+   aktif kapsam yeniden okunur.
+7. **Kullanıcının gerçek sevki:** Kapı 1 ile Kapı 2 arasındaki zorunlu dış bağımlılıktır.
+
+## 12. Test İlerleme ve Sorun Günlüğü
+
+### 2026-09-02 — PLAN OLUŞTURMA
+
+- İş durumu: PLANLANIYOR
+- Aktif kapı: Kapı 1 başlamadı
+- Gerçek ekran sonucu: BEKLİYOR
+- Teknik kapanış: BEKLİYOR
+- Başlangıç kaydı: `SOR-000020 / PLN-000031`
+- Doğrulanmış runtime: `http://localhost:5501/index.html`
+- Yapılan: Onaylanan test planı dokümana işlendi.
+- ERP operasyonu: Yapılmadı.
+- Kod/state/runtime değişikliği: Yapılmadı.
+- Sonraki adım: Ayrı talimatla Kapı 1 gerçek ekran operasyonunun başlatılması.
+
+Yeni test kaydı formatı:
+
+### [Tarih/Saat] — [Kapı / Kayıt]
+
+- İş durumu:
+- Gerçek ekran sonucu:
+- Kullanılan runtime:
+- İşlenen kayıt:
+- Başlangıç görünümü:
+- Yapılan kullanıcı işlemi:
+- Beklenen sonuç:
+- Görülen sonuç:
+- Refresh/reopen sonucu:
+- Bulunan sorun:
+- Karar:
+- Sonraki adım:
+
+PASS olmuş kayıt silinmez. FAIL/BLOCKED kayıtları daha sonra sorun çözülse bile silinmez; altına
+ayrı düzeltme/yeniden test kaydı eklenir.
+
+## 13. Final Kapanış Raporu
+
+- Durum: **TAMAMLANDI**
+- SOR: `SOR-000020`
+- PLN: `PLN-000031`
+- Çalışmanın amacı: Siparişi mevcut ERP'nin doğal kullanıcı akışıyla üretimden gerçek müşteri
+  sevkiyatına kadar ilerletmek ve görünen sonucun doğru olduğunu doğrulamak.
+- Başlangıç noktası: Sipariş `4 adet` açık ürün borcu, `0` Sevkiyata Hazır miktarı ve henüz
+  başlamamış `WO-000191..WO-000197` iş emirleriyle başladı.
+- Geçilen ana operasyonlar: Parça üretimi ve atölye rotaları tamamlandı; parçalar ana depoya
+  alındı; montaj gönderim planı oluşturuldu; montaja sevk ve montaj teslim alma yapıldı; montaj
+  tamamlandı; bitmiş ürünler sevkiyat deposuna kabul edildi; sevkiyat planı oluşturuldu ve gerçek
+  müşteri sevki tamamlandı.
+- En son durum: Gerçek ekranda SOR-000020 aktif işlerden çıkmış, `Sevk Edilen / Arşiv` görünümünde
+  `Tamamlandı / Sevk Edildi` durumunda bırakılmıştır.
+- Sevkiyata hazır hale geldi mi: Evet. `4 adet` ürün sevkiyata hazır hale geldi.
+- Gerçek müşteri sevki yapıldı mı: Evet. `SVP-000004` üzerinden `TF-000003` ile `4 adet` gerçek
+  müşteri sevki `02.09.2026 18:19:18` tarihinde tamamlandı.
+- Görülen hata veya açık problem: Kapanışı engelleyen görünür hata, mükerrer kayıt veya miktar
+  uyuşmazlığı görülmedi. Sipariş akışı ekranında hammadde durumu `Sorun yok` olarak göründü.
+- Sonuç: **PASS**
+- Kapanış tarihi: `03.09.2026`
+
+**Karar: TAMAMLANDI — SOR-000020 doğal operasyon çalışması kapatıldı.**

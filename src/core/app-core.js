@@ -33,6 +33,12 @@ const CRITICAL_DROP_APPROVAL_COLLECTIONS = {
         "workOrderTransactions",
         "stock_movements",
         "stockDepotItems",
+        "montageDispatchPlans",
+        "montageDispatchShipments",
+        "montageCompletionTransfers",
+        "salesShipmentPlans",
+        "salesShipments",
+        "sanalTaksimAllocationInstructions",
     ]),
     stock_demand_demo_cleanup: new Set([
         "planningDemands",
@@ -426,26 +432,34 @@ const IdentityPolicy = {
 
     codeFieldDefinitions: [
         { collection: 'products', field: 'code', prefix: 'PRD', digits: 6, repair: false },
-        { collection: 'cncCards', field: 'cncId', prefix: 'CNC', digits: 6, repair: true },
-        { collection: 'sawCutOrders', field: 'code', prefix: 'TST', digits: 6, repair: true },
-        { collection: 'extruderLibraryCards', field: 'cardCode', prefix: 'EXT', digits: 6, repair: true },
-        { collection: 'plexiPolishCards', field: 'cardCode', prefix: 'PLSJ', digits: 6, repair: true },
-        { collection: 'pvdCards', field: 'cardCode', prefix: 'PVD', digits: 6, repair: true },
-        { collection: 'ibrahimPolishCards', field: 'cardCode', prefix: 'POL', digits: 6, repair: true },
-        { collection: 'eloksalCards', field: 'cardCode', prefix: 'ELX', digits: 6, repair: true },
+        { collection: 'cncCards', field: 'cncId', prefix: 'CNC', digits: 6, repair: false },
+        { collection: 'sawCutOrders', field: 'code', prefix: 'TST', digits: 6, repair: false },
+        { collection: 'extruderLibraryCards', field: 'cardCode', prefix: 'EKS', digits: 6, repair: false },
+        { collection: 'plexiPolishCards', field: 'cardCode', prefix: 'PLSJ', digits: 6, repair: false },
+        { collection: 'pvdCards', field: 'cardCode', prefix: 'PVD', digits: 6, repair: false },
+        { collection: 'ibrahimPolishCards', field: 'cardCode', prefix: 'IPS', digits: 6, repair: false },
+        { collection: 'eloksalCards', field: 'cardCode', prefix: 'ELX', digits: 6, repair: false },
         { collection: 'aluminumProfiles', field: 'code', prefix: 'ALM', digits: 6, repair: false },
         { collection: 'colorLibrary', field: 'code', prefix: 'CLR', digits: 6, repair: false },
-        { collection: 'partComponentCards', field: 'code', prefix: 'CMP', digits: 6, repair: false },
-        { collection: 'semiFinishedCards', field: 'code', prefix: 'SEM', digits: 6, repair: false },
+        { collection: 'partComponentCards', field: 'code', prefix: 'PRC', digits: 6, repair: false },
+        { collection: 'semiFinishedCards', field: 'code', prefix: 'YRM', digits: 6, repair: false },
         { collection: 'assemblyGroups', field: 'code', prefix: 'GRP', digits: 6, repair: false },
-        { collection: 'catalogProductVariants', field: 'familyCode', prefix: 'FAM', digits: 6, repair: false },
+        { collection: 'catalogProductVariants', field: 'familyCode', prefix: 'URM', digits: 6, repair: false },
         { collection: 'catalogProductVariants', field: 'variantCode', prefix: 'VAR', digits: 6, repair: false },
-        { collection: 'montageCards', field: 'cardCode', prefix: 'MNT', digits: 6, repair: true },
+        { collection: 'montageCards', field: 'cardCode', prefix: 'MON', digits: 6, repair: false },
         { collection: 'montageCards', field: 'productCode', prefix: 'MNP', digits: 6, repair: false },
-        { collection: 'workOrders', field: 'workOrderCode', prefix: 'WKO', digits: 6, repair: true },
-        { collection: 'depoTransferTasks', field: 'taskCode', prefix: 'DTR', digits: 6, repair: true },
-        { collection: 'freeExternalVendorJobs', field: 'jobCode', prefix: 'FEV', digits: 6, repair: true },
-        { collection: 'salesCatalogProducts', field: 'idCode', prefix: 'SAL', digits: 6, repair: true }
+        { collection: 'workOrders', field: 'workOrderCode', prefix: 'WO', digits: 6, repair: false },
+        { collection: 'depoTransferTasks', field: 'taskCode', prefix: 'DTR', digits: 6, repair: false },
+        { collection: 'freeExternalVendorJobs', field: 'jobCode', prefix: 'SDT', digits: 6, repair: false },
+        { collection: 'workOrderDispatchNotes', field: 'docNo', prefix: 'DSI', digits: 6, repair: false },
+        { collection: 'salesCatalogProducts', field: 'idCode', prefix: 'SAL', digits: 6, repair: false },
+        { collection: 'salesProductVariants', field: 'variantCode', prefix: 'SVR', digits: 6, repair: false },
+        { collection: 'customers', field: 'customerCode', prefix: 'MUS', digits: 6, repair: false },
+        { collection: 'customers', field: 'customerRefId', prefix: 'MREF', digits: 6, repair: false },
+        { collection: 'suppliers', field: 'supplierRefId', prefix: 'TREF', digits: 6, repair: false },
+        { collection: 'salesAnchorageProducts', field: 'idCode', prefix: 'ANK', digits: 6, repair: false },
+        { collection: 'stockDepotLocations', field: 'idCode', prefix: 'LOC', digits: 6, repair: false },
+        { collection: 'personnel', field: 'personCode', prefix: 'PER', digits: 6, repair: false }
     ],
 
     normalizeId: (value) => String(value ?? '').trim(),
@@ -518,24 +532,120 @@ const IdentityPolicy = {
         return IdentityPolicy.collectGlobalCodes(root, exclude).has(normalized);
     },
 
+    parseDecimalSequence: (value, options = {}) => {
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.parseDecimal === 'function') {
+            return OperationalCodeHighWater.parseDecimal(value, options);
+        }
+        const allowZero = options?.allowZero === true;
+        if (typeof value === 'bigint') return value > 0n || (allowZero && value === 0n) ? value : null;
+        if (typeof value === 'number') {
+            if (!Number.isSafeInteger(value) || value < 0 || (!allowZero && value === 0)) return null;
+            return BigInt(value);
+        }
+        if (typeof value !== 'string') return null;
+        const normalized = value.trim();
+        const valid = allowZero ? /^(?:0|[1-9]\d*)$/.test(normalized) : /^[1-9]\d*$/.test(normalized);
+        if (!valid) return null;
+        try {
+            return BigInt(normalized);
+        } catch (_) {
+            return null;
+        }
+    },
+
+    parseSequentialCode: (value, prefix) => {
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.parseCodeSequence === 'function') {
+            return OperationalCodeHighWater.parseCodeSequence(value, prefix);
+        }
+        const safePrefix = String(prefix || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const normalized = IdentityPolicy.normalizeCode(value);
+        const marker = `${safePrefix}-`;
+        if (!safePrefix || !normalized.startsWith(marker)) return null;
+        const suffix = normalized.slice(marker.length);
+        if (!/^(?:\d{6}|[1-9]\d{6,})$/.test(suffix)) return null;
+        try {
+            const sequence = BigInt(suffix);
+            return sequence > 0n ? sequence : null;
+        } catch (_) {
+            return null;
+        }
+    },
+
+    isSequentialCode: (value, prefix) => IdentityPolicy.parseSequentialCode(value, prefix) !== null,
+
+    formatSequentialCode: (prefix, value, digits = 6) => {
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.formatCode === 'function') {
+            return OperationalCodeHighWater.formatCode(prefix, value, digits);
+        }
+        const safePrefix = String(prefix || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const sequence = IdentityPolicy.parseDecimalSequence(value);
+        const widthValue = Number(digits);
+        const width = Number.isSafeInteger(widthValue) && widthValue > 0 ? widthValue : 6;
+        return safePrefix && sequence !== null
+            ? `${safePrefix}-${sequence.toString().padStart(width, '0')}`
+            : '';
+    },
+
     nextCodeFromUsed: (usedCodes, prefix, digits = 6) => {
         const safePrefix = String(prefix || 'ID')
             .replace(/[^a-zA-Z0-9]/g, '')
             .toUpperCase() || 'ID';
         const width = Number.isFinite(Number(digits)) ? Math.max(1, Number(digits)) : 6;
-        const pattern = new RegExp(`^${safePrefix}-(\\d+)$`);
-        let maxSeq = 0;
+        let maxSeq = 0n;
         usedCodes.forEach((code) => {
-            const match = String(code || '').match(pattern);
-            if (!match) return;
-            const seq = Number(match[1]);
-            if (Number.isFinite(seq) && seq > maxSeq) maxSeq = seq;
+            const seq = IdentityPolicy.parseSequentialCode(code, safePrefix);
+            if (seq !== null && seq > maxSeq) maxSeq = seq;
         });
-        let nextSeq = maxSeq + 1;
-        let candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+        let nextSeq = maxSeq + 1n;
+        let candidate = IdentityPolicy.formatSequentialCode(safePrefix, nextSeq, width);
         while (usedCodes.has(IdentityPolicy.normalizeCode(candidate))) {
-            nextSeq += 1;
-            candidate = `${safePrefix}-${String(nextSeq).padStart(width, '0')}`;
+            nextSeq += 1n;
+            candidate = IdentityPolicy.formatSequentialCode(safePrefix, nextSeq, width);
+        }
+        return candidate;
+    },
+
+    getCodeHighWaterMark: (root, prefix) => {
+        const safePrefix = String(prefix || '')
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase();
+        if (!safePrefix || !root || typeof root !== 'object') return '0';
+        if (typeof OperationalCodeHighWater !== 'undefined'
+            && typeof OperationalCodeHighWater?.getHighWaterMark === 'function') {
+            return OperationalCodeHighWater.getHighWaterMark(root, safePrefix);
+        }
+        const envelope = root.data && typeof root.data === 'object' && !Array.isArray(root.data)
+            ? root
+            : null;
+        const marks = envelope?.meta?.operationalCodeHighWaterMarks;
+        const value = IdentityPolicy.parseDecimalSequence(marks?.[safePrefix] ?? '0', { allowZero: true });
+        return value === null ? '0' : value.toString();
+    },
+
+    getNextMonotonicCode: (root, options = {}) => {
+        const safePrefix = String(options?.prefix || 'ID')
+            .replace(/[^a-zA-Z0-9]/g, '')
+            .toUpperCase() || 'ID';
+        const width = Number.isFinite(Number(options?.digits)) ? Math.max(1, Number(options.digits)) : 6;
+        const used = options?.usedCodes instanceof Set
+            ? new Set(Array.from(options.usedCodes, (code) => IdentityPolicy.normalizeCode(code)))
+            : IdentityPolicy.collectGlobalCodes(root, options?.exclude || null);
+        let maxSeq = IdentityPolicy.parseDecimalSequence(
+            IdentityPolicy.getCodeHighWaterMark(root, safePrefix),
+            { allowZero: true }
+        ) ?? 0n;
+        used.forEach((code) => {
+            const seq = IdentityPolicy.parseSequentialCode(code, safePrefix);
+            if (seq !== null && seq > maxSeq) maxSeq = seq;
+        });
+        let nextSeq = maxSeq + 1n;
+        let candidate = IdentityPolicy.formatSequentialCode(safePrefix, nextSeq, width);
+        while (used.has(IdentityPolicy.normalizeCode(candidate))) {
+            nextSeq += 1n;
+            candidate = IdentityPolicy.formatSequentialCode(safePrefix, nextSeq, width);
         }
         return candidate;
     },
@@ -545,7 +655,7 @@ const IdentityPolicy = {
         const digits = Number(options?.digits || 6);
         const exclude = options?.exclude || null;
         const used = IdentityPolicy.collectGlobalCodes(root, exclude);
-        return IdentityPolicy.nextCodeFromUsed(used, prefix, digits);
+        return IdentityPolicy.getNextMonotonicCode(root, { prefix, digits, exclude, usedCodes: used });
     },
 
     enforceGlobalCodeUniqueness: (root) => {
@@ -577,10 +687,6 @@ const IdentityPolicy = {
                     }
 
                     if (currentCode && !usedCodes.has(currentCode)) {
-                        if (String(row?.[def.field] ?? '') !== currentRaw) {
-                            row[def.field] = currentRaw;
-                            changed = true;
-                        }
                         usedCodes.add(currentCode);
                         return;
                     }
@@ -871,6 +977,10 @@ const DB = {
     saveDebounceMsForeground: 1000,
     saveDebounceMsBackground: 8000,
     storageMode: "localStorage",
+    runtimeCapabilities: {
+        mode: "LIVE",
+        demoTestResetEnabled: false
+    },
     saveInProgress: false,
     saveQueued: false,
     saveQueuedCriticalDropApproval: null,
@@ -882,6 +992,9 @@ const DB = {
     clientSessionId: (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function')
         ? globalThis.crypto.randomUUID()
         : `session_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+
+    isDemoTestResetEnabled: () => String(DB.runtimeCapabilities?.mode || '').trim().toUpperCase() === 'PROTOTYPE'
+        && DB.runtimeCapabilities?.demoTestResetEnabled === true,
 
     shouldShowSavingUi: () => !(typeof document !== "undefined" && document.hidden),
 
@@ -1024,7 +1137,13 @@ const DB = {
         if (!CRITICAL_DROP_APPROVAL_COLLECTIONS[approvalType]) return null;
         const issues = DB.analyzeCriticalCollectionDrops(beforeState, afterState);
         const normalizedIssues = DB.normalizeCriticalDropIssuesForApproval(issues);
-        if (!normalizedIssues.length) return null;
+        const prototypeReset = approvalType === 'sales_order_demo_cleanup'
+            && [3, 4, 5, 6].includes(Number(meta?.prototypeResetVersion));
+        const stockCohortCleanup = approvalType === 'stock_demand_demo_cleanup'
+            && Number(meta?.stockCleanupVersion) === 2
+            && meta?.noStockRestore === true;
+        const controlledCleanup = prototypeReset || stockCohortCleanup;
+        if (!normalizedIssues.length && !controlledCleanup) return null;
         const approval = {
             type: approvalType,
             issues: normalizedIssues,
@@ -1033,7 +1152,9 @@ const DB = {
                 ...meta
             }
         };
-        return DB.areCriticalDropIssuesApproved(issues, approval) ? approval : null;
+        return !normalizedIssues.length && controlledCleanup
+            ? approval
+            : (DB.areCriticalDropIssuesApproved(issues, approval) ? approval : null);
     },
 
     formatCriticalDropIssues: (issues) => {
@@ -1137,6 +1258,7 @@ const DB = {
         let localStateSource = "";
         let recoveryDraftState = null;
         let loaded = null;
+        DB.runtimeCapabilities = { mode: "LIVE", demoTestResetEnabled: false };
 
         const stateTime = (state) => {
             const ts = state?.meta?.updated_at || state?.meta?.created_at || "";
@@ -1155,6 +1277,11 @@ const DB = {
                 const payload = await resp.json();
                 if (payload?.ok && payload.state) {
                     diskState = payload.state;
+                    DB.runtimeCapabilities = {
+                        mode: String(payload?.runtime?.mode || 'LIVE').trim().toUpperCase() === 'PROTOTYPE'
+                            ? 'PROTOTYPE' : 'LIVE',
+                        demoTestResetEnabled: payload?.runtime?.demoTestResetEnabled === true
+                    };
                 }
             }
         } catch (e) {
@@ -1309,6 +1436,17 @@ const DB = {
             DB.baseRevision = nextRevision;
             latestSnapshot.meta.revision = nextRevision;
         }
+        if (result?.operationalCodeHighWaterMarks
+            && typeof result.operationalCodeHighWaterMarks === 'object') {
+            latestSnapshot.meta.operationalCodeHighWaterMarks = {
+                ...result.operationalCodeHighWaterMarks
+            };
+        }
+        if (Array.isArray(result?.operationalCodeHighWaterUntrustedFamilies)) {
+            latestSnapshot.meta.operationalCodeHighWaterUntrustedFamilies = [
+                ...result.operationalCodeHighWaterUntrustedFamilies
+            ];
+        }
         DB.data = latestSnapshot;
         DB.storageMode = "disk";
         const backup = await DB.mirrorStateToBrowserBackup(DB.data);
@@ -1359,6 +1497,19 @@ const DB = {
                     if (Number.isInteger(nextRevision) && nextRevision >= 0) {
                         DB.baseRevision = nextRevision;
                         DB.data.meta.revision = nextRevision;
+                    }
+                    if (result?.operationalCodeHighWaterMarks
+                        && typeof result.operationalCodeHighWaterMarks === 'object') {
+                        const acceptedMarks = { ...result.operationalCodeHighWaterMarks };
+                        DB.data.meta.operationalCodeHighWaterMarks = acceptedMarks;
+                        if (!snapshot.meta || typeof snapshot.meta !== 'object') snapshot.meta = {};
+                        snapshot.meta.operationalCodeHighWaterMarks = { ...acceptedMarks };
+                    }
+                    if (Array.isArray(result?.operationalCodeHighWaterUntrustedFamilies)) {
+                        const untrustedFamilies = [...result.operationalCodeHighWaterUntrustedFamilies];
+                        DB.data.meta.operationalCodeHighWaterUntrustedFamilies = untrustedFamilies;
+                        if (!snapshot.meta || typeof snapshot.meta !== 'object') snapshot.meta = {};
+                        snapshot.meta.operationalCodeHighWaterUntrustedFamilies = [...untrustedFamilies];
                     }
                     DB.storageMode = "disk";
                     DB.lastAcceptedDiskState = DB.cloneState(DB.data);

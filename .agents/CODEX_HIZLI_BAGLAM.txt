@@ -1,0 +1,339 @@
+DİKKAT — BU DOSYA CODEX İÇİN HIZLI ÇALIŞMA BAĞLAMIDIR.
+
+BU DOSYA AKTİF MİMARİ DEĞİLDİR VE BAĞLAYICI KARAR KAYNAĞI OLARAK KULLANILAMAZ.
+
+BU DOSYA, `DULDA_ERP_DOKUMAN/02_AKTIF_MIMARI/` KLASÖRÜNDEKİ
+`DULDA_ERP_MIMARI_HARITASI_V29.txt` DOSYASININ ÖZETİ VE YÖNLENDİRME İNDEKSİDİR.
+
+İKİ DOSYAYI BİRBİRİYLE KARIŞTIRMA.
+ÇELİŞKİ, EKSİK BİLGİ VEYA AYRINTI İHTİYACINDA AKTİF MİMARİNİN İLGİLİ BÖLÜMÜ ESAS ALINIR.
+TEKNİK GERÇEK İÇİN AYRICA GÜNCEL REPO / WORKTREE / STATE / RUNTIME / TEST KANITI İNCELENİR.
+
+BU DOSYADA BAĞIMSIZ MİMARİ KARAR ALINMAZ VE AKTİF MİMARİ DEĞİŞMEDEN BU ÖZET TEK BAŞINA DEĞİŞTİRİLMEZ.
+
+Kaynak sürüm: V29
+Kaynak dosya: `DULDA_ERP_DOKUMAN/02_AKTIF_MIMARI/DULDA_ERP_MIMARI_HARITASI_V29.txt`
+Kaynak SHA-256: `A8F1B6EFFDB3440AF1ED2CB1CF62BE6E811C6599CDB4EBFE5A04C5936E11B023`
+Özet tarihi: 2026-08-31
+
+Kaynak dosyanın SHA-256 değeri yukarıdaki değerle eşleşmiyorsa bu özet BAYAT kabul edilir.
+Aktif mimari güncellendiğinde özet aynı iş kapsamında güncellenmeli ve eski özet arşivlenmelidir.
+
+================================================================================
+1. KULLANIM SINIRI
+================================================================================
+
+- Bu dosya hızlı başlangıç, modül sınırı hatırlatma ve doğru V29 bölümüne yönelme içindir.
+- Teknik çözüm yalnız bu özete bakılarak tasarlanmaz. Güncel kod ve ilgili tam mimari bölümü okunur.
+- Repo/state/test davranışı ile aktif mimari farklıysa fark saklanmaz; mevcut teknik gerçek ve kabul edilmiş hedef ayrı raporlanır.
+- Kullanıcının fabrika gerçeği, ChatGPT ve Codex görevleri çalışma sözleşmesindedir; bu özet rol sözleşmesini tekrar etmez.
+- V29 içindeki V28 ve daha eski metinler tarihsel bağlamdır. En üstteki V29 güncelleme notu eski hükümleri geçersiz kılıyorsa V29 hükmü uygulanır.
+
+================================================================================
+2. PROJENİN ANA HEDEFİ
+================================================================================
+
+DULDA ERP; satış, stok, planlama, üretim, atölye, fason, montaj, depo ve sevkiyat akışlarını DULDA'nın gerçek fabrika düzenine göre izlenebilir hale getiren özel üretim odaklı ERP prototipidir.
+
+Ana prensipler:
+
+- Önce sade, çalışan ve sahada kullanılabilir omurga kurulur.
+- Kullanıcı yalnız görevi için gereken ekranı ve bilgiyi görür.
+- Satıştan sevkiyata kadar her aşamanın kimliği, miktarı, yeri, durumu ve geçmişi izlenir.
+- Kart/tanım verisi ile fiilî operasyon/miktar hareketi birbirine karıştırılmaz.
+- Fiziksel stok, ticari tahsis, üretim geçmişi ve operasyonel commitment ayrı gerçeklerdir.
+- Aynı fiziksel miktar iki kez sayılamaz.
+- Belirsizlikte tahmin yapılmaz; işlem fail-closed durur.
+
+Tam bölüm: V29 içindeki `0. Çalışma Manifestosu`, `1. Ne Yapmak İstiyoruz?`, `2. Nasıl Yapacağız?`.
+
+================================================================================
+3. ANA MODÜL HARİTASI
+================================================================================
+
+ANA-01 — Planlama
+
+- Onaylı SALES talepleri ile STOCK üretim taleplerinin iş emrine dönüşmeden önceki kontrol kapısıdır.
+- Siparişten Gelen Talepler, Planlama Havuzu, Stok İçin Üretim ve İş Emrine Dönüşenler ana ekranlarıdır.
+- SALES_ORDER ile STOCK kaynağı karıştırılmaz.
+- Planla/Patlat ve normal plan kaydı hesaplama/taslak işlemidir; tek başına stok, movement, WOT veya WO oluşturmaz.
+- Yarım plan kaydedilebilir; fakat bütün zorunlu satırlar güvenilir biçimde COMPLETE olmadan iş emrine dönüşüm yapılamaz.
+- Grup release ve duplicate WO riskleri fonksiyon seviyesinde korunmalıdır.
+- Planlama tarafına müşteri adı, fiyat, cari kod, ödeme ve ticari not taşınmaz; gerektiğinde müşteri referans ID kullanılır.
+
+Tam bölüm: `ANA-01 — Planlama` ve `ANA-01.01…ANA-01.04`.
+
+ANA-02 — Satın Alma
+
+- İlk aktif kapsam yalnız Tedarikçiler / Dış Firmalar ana verisidir.
+- Satın alma siparişi, talep havuzu, teklif, mali kayıt ve otomatik Mal Kabul akışları henüz aktif kapsam değildir.
+- Tedarikçi/fasoncu tanımlamak; stok, sipariş, dış işlem sevki veya Mal Kabul oluşturmaz.
+
+Tam bölüm: `ANA-02 — Satın Alma / Bekleyen Kapsam`, `ANA-02.01 — Tedarikçiler / Dış Firmalar`.
+
+ANA-03 — Satış & Pazarlama
+
+- Müşteri, satış ürünü/varyasyonu, teklif/proforma, manuel fiyat ve müşteri onayı ticari merkezidir.
+- Proforma müşteri onayından önce satış siparişi değildir.
+- Onaylı satış siparişi planlamaya görünür; otomatik WO, stok hareketi veya sevkiyat oluşturmaz.
+- Satış ticari süreci başlatır; üretim kararını Planlama, fiziksel hareketi Depo/Üretim/Sevkiyat verir.
+- Satış Ürün Kütüphanesi katalogdur; Master Ürün veya teknik PRC reçetesi değildir.
+- Fiyat Listeleri ilk fazda askıdadır; satış fiyatı manuel girilir.
+- Kullanılmış sipariş/varyasyon geçmişi sessizce değiştirilmez.
+
+Tam bölüm: `ANA-03 — Satış & Pazarlama`, `ANA-03.01…ANA-03.06`.
+
+ANA-04 — Depo & Stok
+
+- “Nerede, ne kadar, hangi durumda?” sorularının fiziksel takip merkezidir.
+- Görünen her miktar kullanılabilir stok değildir. Kullanılabilir, rezerve ve işlemde ayrımı korunur.
+- Fiziksel lokasyon ile operasyonel statü ayrı kavramlardır.
+- Mal Kabul, envantere elle kayıt, depo/lokasyon, transfer, fason, montaj ve sevkiyata hazır görünürlükleri burada yönetilir.
+- Stok miktarı/lokasyonu/statüsü değişiyorsa izlenebilir stock movement ve ilgili operasyon kanıtı gerekir.
+- Sevkiyata hazır ürün fabrikadan çıkmış değildir; gerçek sevk ayrı işlemdir.
+- Satış ticari verisi ve üretim kararı depo ekranından yönetilmez.
+
+Tam bölüm: `ANA-04 — Depo & Stok`, `ANA-04.01…ANA-04.08`.
+
+ANA-05 — Birimler & Atölyeler
+
+- İç atölyeler, Depo Transfer, Montaj ve dış işlem noktalarının üretim organizasyonudur.
+- PRC rotasındaki istasyon ve işlem kartları bu organizasyona bağlanır.
+- WO oluşturmak stok düşümü değildir.
+- İlk rota TAKE sırasında kullanıcı gerçek kaynak depo/hücre seçer; `productionQty × stockConsumptionQty` kadar hammadde izli biçimde düşer.
+- İlk rota gerçek sarfında WOT TAKE ve `WORK_ORDER_ISSUE` movement birlikte oluşur.
+- Son rota STORE, üretilen PRC'yi seçilen depo/hücreye alır ve WOT + movement izi üretir.
+- Aynı WO/rota için duplicate TAKE, COMPLETE veya STORE kabul edilmez.
+- Fason sevk ve dönüşün ana kullanıcı yolu Depo & Stok > Fason Dış Birim İşlem ekranıdır.
+
+Tam bölüm: `ANA-05 — Birimler & Atölyeler`, `ANA-05.01…ANA-05.07`.
+
+ANA-06 — Ürün ve Parça Oluşturma
+
+- Sistemin ürün, hammadde, PRC, rota, varyant ve satılan ürün tanım merkezidir; operasyon ekranı değildir.
+- Master Ürün fabrikaya giren veya kaynak olarak kullanılacak ürünün ilk kimliğidir.
+- Parça & Bileşen kartı PRC kimliği, master bağlantısı, tüketim bilgisi ve rota tanımını taşır.
+- Satılan Ürün Kütüphanesi satılabilir model/varyasyon kataloğudur.
+- Eski Yarı Mamul Kütüphanesi aktif kullanıcı modülü değildir; legacy veri korunur.
+- Normal yönetim modu ile başka ekrandan açılan seçim modu ayrılır; seçim modunda kayıt mutasyonu yapılmaz.
+- Tüketim birimi ve PRC başına stok sarf miktarı zorunlu ve güvenilir olmalıdır.
+
+Tam bölüm: `ANA-06 — Ürün ve Parça Oluşturma`, `ANA-06.01…ANA-06.05`.
+
+ANA-07 — Personel / Kullanıcı / Rol-Yetki
+
+- Personel ana verisi, kullanıcı hesabı, görev alanı ve rol/yetki merkezidir.
+- Satış veya Depo içindeki personel listeleri ana yetki merkezi değildir.
+- İlk fazda maaş, bordro, puantaj ve insan kaynakları yönetimi kapsam dışıdır.
+- Yetki yalnız UI gizleme değildir; kritik mutasyonlar fonksiyon seviyesinde korunmalıdır.
+- Fiyat, cari, müşteri, stok ve yönetim bilgisi alan bazlı yetkilendirilir.
+
+Tam bölüm: `ANA-07 — Personel / Kullanıcı / Rol-Yetki`, `ANA-07.01…ANA-07.19`.
+
+ANA-08 — Ayarlar
+
+- Ana modül listesinde bulunur; V29 ana gövdesinde bağımsız ayrıntılı ANA-08 bölümü tamamlanmış değildir.
+- Satış içindeki Proforma Ayarları gibi yerel ayarlar kendi modül sınırında değerlendirilir.
+- Ayrıntı yoksa yeni iş kuralı tahmin edilmez.
+
+================================================================================
+4. SATIŞTAN SEVKİYATA ANA ZİNCİR
+================================================================================
+
+1. Müşteri talebi teklif/proforma olarak Satış & Sipariş'te hazırlanır.
+2. Müşteri onayıyla SOR/satış siparişi kesinleşir.
+3. Onaylı sipariş satırı Siparişten Gelen Talepler'e görünür; planlamacı kontrollü biçimde Planlama Havuzu'na alır.
+4. Reçete/patlatma ve kaynak dağılımı planlanır. Normal plan kaydı fiziksel hareket değildir.
+5. Güvenilir ve tamamlanmış plan kontrollü biçimde PLN/WO zincirine dönüşür.
+6. İlk rota TAKE gerçek hammadde kaynağını düşer; sonraki istasyonlar TAKE/COMPLETE ve gerektiğinde transfer/fason lifecycle'ıyla ilerler.
+7. Son rota STORE ile üretilen PRC doğru depo/lokasyona alınır.
+8. Montaja ayrılacak exact PRC için MGP + STAI commitment'ı kurulur.
+9. MGS ile montaja gönderim ve teslim alma yapılır.
+10. Montaj tamamlanınca MCT önce PENDING, depo kabulüyle POSTED olur ve canonical finished stock doğar.
+11. Finished-ready ürün global read-model'de açık satış ürün borcuna tahsis edilir.
+12. SVP ile exact sevkiyat commitment'ı kurulur.
+13. Gerçek müşteri sevki TF + `SALES_SHIPMENT_OUT` ile finished stoktan çıkar ve yeniden tahsis edilemez.
+
+Bu zincirin herhangi bir noktasındaki “hazır”, “rezerve”, “gönderildi”, “teslim alındı”, “tamamlandı” ve “sevk edildi” durumları birbirinin yerine kullanılamaz.
+
+================================================================================
+5. SANAL TAKSİM — YERLEŞİK TAHSİS MİMARİSİ
+================================================================================
+
+V29 kararı: Sanal Taksim ayrı geliştirme projesi değildir; ERP'nin yerleşik global tahsis read-model'i ve operational commitment güvenlik sözleşmesidir.
+
+Üç katman ayrımı:
+
+- Resolver: snapshot'ı salt okunur hesaplar; fiziksel stok veya geçmiş yazmaz.
+- Server guard: prospective state'i exact/lifecycle kurallarıyla fail-closed doğrular.
+- Operational command: kullanıcı kararını MGP/STAI/SVP gibi auditli kalıcı commitment'a dönüştürür.
+
+Ticari sıra:
+
+1. SALES
+2. STOCK
+3. En erken termin
+4. En erken production-ready zamanı
+5. Stabil SOR ve debt anahtarı
+
+Ready-first sırası:
+
+1. PLANNED SVP fixed commitment
+2. Serbest canonical finished-ready ürün
+3. Residual set
+4. Yalnız residual set için reçete kadar residual PRC borcu
+
+Fiziksel aşama önceliği:
+
+1. MONTAGE_FINISHED_STOCK
+2. MONTAGE_PENDING_DEPOT_RECEIPT
+3. MONTAGE_RECEIVED
+4. MONTAGE_IN_TRANSIT
+5. DEPOT_STOCK
+6. DEPOT_PENDING
+7. TRANSFER_PENDING
+8. IN_PROCESS
+
+Değişmezler:
+
+- Physical origin rewrite edilmez; virtual target ayrı tutulur.
+- STOCK-origin miktar SALES borcunu karşılayabilir ama fiziksel kökeni STOCK kalır.
+- Canonical kardeş PRC yalnız ayrışma öncesi kanıtlı `SIBLING_PRE_SPLIT` durumunda kullanılabilir.
+- Kaplama/outsource branch'ine giren miktarın final PRC kimliği sabitlenir.
+- Aynı exact range iki aktif consumer'a bağlanamaz.
+- Priority-mode global kuyruğu manuel sıralamaz; seçili SOR için exact operational commitment kurar, kalan serbest miktarı global sıraya bırakır.
+- Gerçek TF dispatch final sınırdır; sevk edilen miktar tekrar havuza dönmez.
+
+Tam bölüm: V29 güncelleme notu `1…17`; ayrıntılı teknik geçmiş için V25–V28 notları yalnız gerektiğinde okunur.
+
+================================================================================
+6. OPERATIONAL LIFECYCLE ÖZETİ
+================================================================================
+
+MGP DRAFT
+- Exact reservation fixed hold'dur.
+- İptal edilirse release olur; montaja dispatch edilirse sorumluluk MGS zincirine geçer.
+
+STAI ACTIVE
+- Exact slice active hold'dur.
+- CANCELLED release olur; COMPLETED ancak doğrulanmış MGP → MGS transferiyle geçerlidir.
+
+MGS IN_TRANSIT
+- Exact PRC transit lock'tur.
+- Normal sonraki durum RECEIVED'dir.
+
+MGS RECEIVED
+- Receipt component miktarı montaj hedefinde kilitlidir.
+- Tarihsel source range yalnız bütün exact tüketim ve terminal MCT kanıtı tam ise hold olmaktan çıkar.
+
+MCT PENDING_DEPOT_RECEIPT
+- Montajı tamamlanan exact bölüm pending finished lifecycle olarak kilitlidir.
+- Henüz sevkiyata hazır değildir.
+
+MCT POSTED
+- Depo kabulü tamamlanmıştır; canonical finished stock ve provenance doğar.
+- Serbest miktar ready-first havuzuna girebilir.
+
+SVP PLANNED
+- Exact finished-product commitment'tır.
+- Termin değişikliği bu fixed commitment'ı başka hedefe taşımaz.
+
+TF DISPATCHED
+- Gerçek müşteri sevkidir.
+- Satış borcunu gerçek miktar kadar kapatır ve finaldir.
+
+Kısmi lifecycle'da yalnız tamamlanan exact bölüm üst temsile geçer; kalan miktar eski aşamasında kalır.
+
+================================================================================
+7. STOK, TRANSACTION VE EXACT GÜVENLİĞİ
+================================================================================
+
+- Stok miktarı/lokasyonu değişiyorsa iz bırakmalıdır.
+- Planlama görünümü ve resolver hesabı fiziksel stok değildir.
+- WO oluşturmak fiziksel hareket değildir.
+- İlk rota TAKE gerçek hammadde sarfıdır; WOT ile movement miktarlarının birimleri doğru ayrılmalıdır.
+- Planlama üretim adedi ADET iken hammadde sarfı MM/KG/ADET gibi farklı birimde olabilir.
+- Güvenli birim dönüşümü yoksa tahmin yapılmaz.
+- Son rota STORE hem transaction hem movement hem doğru depo/lokasyon kanıtı taşır.
+- Fason sevk, supplier assignment, dış birim TAKE/COMPLETE ve dönüş lifecycle'ı birbirini tutmalıdır.
+- MGP DRAFT fiziksel movement veya WOT üretmez.
+- `POST_ON_RECEIPT_V1` sözleşmesinde MGS fiziksel kaynak çıkışı montaja sevk anında değil, montaj teslim alma anında atomik oluşur.
+- MCT POSTED sonrası tüketilmiş component PRC aynı fiziksel gerçek için serbest PRC olarak kalamaz.
+- Negative stock, ghost stock, exact overlap, duplicate movement/WOT/STORE ve aynı fiziksel miktarın iki temsilde aktif kalması kabul edilmez.
+
+Fail-closed örnekleri:
+
+- revision conflict / stale payload,
+- eksik veya mükerrer kritik kimlik,
+- PRC id-code-unit uyuşmazlığı,
+- invalid range veya capacity aşımı,
+- physical-origin/lineage kanıtı eksikliği,
+- frozen route/current-stage çelişkisi,
+- MGP-STAI-MGS exact bağ uyuşmazlığı,
+- receipt/MCT/finished provenance eksikliği,
+- SVP/TF/movement zinciri çelişkisi.
+
+================================================================================
+8. VERİ KİMLİĞİ VE KOD KURALI
+================================================================================
+
+- Her kalıcı kayıt benzersiz, boş bırakılamayan ve değişmez iç kimlik taşır.
+- Kalıcı bağlantı isimle değil kimlikle kurulur.
+- Eksik veya tekrarlı kimlik sessizce tahmin edilmez ya da otomatik yeniden numaralandırılmaz.
+- Kalıcı iş verisi yalnız açık, yetkili ve izlenebilir işlemle kaldırılabilir.
+- Eski/boş state, refresh, oturum veya senkronizasyon hatası geçerli verinin üzerine yazamaz.
+- Bir operasyon kodu tekrar kullanılmamalıdır; mevcut kayıtlar sırf sayaç düzeltmesi için renumber edilmez.
+- Kod üretiminde belirsiz tarihsel high-water varsa tahmin yerine fail-closed davranış gerekir.
+
+================================================================================
+9. V29 KAPANIŞ KANITI VE AÇIK RİSKLER
+================================================================================
+
+V29'un 31 Ağustos 2026 checkpoint'i:
+
+- State revision: 11924
+- Sanal Taksim tahsis motoru: PASS
+- Resolver determinism: PASS
+- Resolver invariant: 15/15
+- Exact overlap / double-count / negative stock: yok
+- Gerçek UI priority-save zinciri: PASS
+
+Bu değerler kaynak dosyanın kapanış checkpoint'idir; bugünkü state olarak ezbere kullanılmaz.
+
+V29'da açık yazılan ayrı riskler:
+
+- TF ve genel operational high-water devamlılığı.
+- Full backbone testlerinin mutable state/fixture bağımlılığı; V29 checkpoint'inde 411 test / 31 FAIL.
+- `STOCK_PRC_REF_CODE_CONFLICT` taşıyan dokuz UNCERTAIN stok satırı; tahsise alınmaz.
+- Genel IN_TRANSIT MGS cancel/reversal kullanıcı yolunun doğrulanmamış olması.
+
+Not: V29'dan sonra repo üzerinde bir düzeltme uygulanmış olabilir. Böyle bir durumda güncel repo/test kanıtı incelenir; V29 ve bu özet güncellenmeden eski “açık” veya “kapalı” statü sessizce değiştirilmez.
+
+================================================================================
+10. HIZLI BÖLÜM YÖNLENDİRMESİ
+================================================================================
+
+- Sanal Taksim / exact / lifecycle / ready-first: V29 en üst güncelleme notu `1…17`.
+- Planlama: `ANA-01`, `ANA-01.01…ANA-01.04`.
+- Satın Alma / tedarikçi: `ANA-02`, `ANA-02.01`.
+- Satış / müşteri / ürün varyasyonu / proforma: `ANA-03`, `ANA-03.01…ANA-03.06`.
+- Depo / stok / Mal Kabul / transfer / montaj-sevkiyat işleri: `ANA-04`, `ANA-04.01…ANA-04.08`.
+- Ürün / Master / PRC / satılan ürün / renk: `ANA-06`, `ANA-06.01…ANA-06.05`.
+- Atölyeler / TAKE-COMPLETE-STORE / fason / montaj: `ANA-05`, `ANA-05.01…ANA-05.07`.
+- Personel ve yetki: `ANA-07`, `ANA-07.01…ANA-07.19`.
+- Tarihsel kararın nedenini araştırma: ilgili V01–V28 güncelleme notu; güncel hüküm için mutlaka V29 ile karşılaştır.
+
+================================================================================
+11. ÖZET SENKRONİZASYON KURALI
+================================================================================
+
+Aktif mimari değiştiğinde aynı onaylı dokümantasyon işi içinde:
+
+1. Eski tam mimari `90_ARSIV/MIMARI/` altına alınır.
+2. Yeni tam mimari `02_AKTIF_MIMARI/` altında tek aktif dosya olarak bırakılır.
+3. Bu hızlı bağlam yeni aktif mimariye göre güncellenir.
+4. Kaynak sürüm, dosya adı ve SHA-256 değeri yenilenir.
+5. Eski hızlı bağlam gerekiyorsa arşivlenir.
+6. Özet ile tam mimarinin çelişmediği doğrulanır.
+
+Bu senkronizasyon yapılmadıysa özet BAYAT kabul edilir ve karar için kullanılmaz.
